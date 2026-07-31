@@ -109,10 +109,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
           <div>
             <div className="text-xs text-slate-400">Quản Lý & Admin</div>
-            <div className="text-2xl font-bold text-purple-300 mt-1">{adminCount} nhân sự</div>
-            <div className="text-[11px] text-purple-300 mt-0.5">Quyền Quản Trị Hệ Thống</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: '#7e22ce' }}>{adminCount} nhân sự</div>
+            <div className="text-[11px] mt-0.5 font-medium" style={{ color: '#7e22ce' }}>Quyền Quản Trị Hệ Thống</div>
           </div>
-          <div className="p-3 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/30">
+          <div className="p-3 rounded-xl border" style={{ backgroundColor: 'rgba(126, 34, 206, 0.15)', borderColor: 'rgba(126, 34, 206, 0.3)', color: '#7e22ce' }}>
             <ShieldCheck className="w-6 h-6" />
           </div>
         </div>
@@ -120,10 +120,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
           <div>
             <div className="text-xs text-slate-400">Tổng Doanh Thu Đội Ngũ</div>
-            <div className="text-2xl font-bold text-amber-300 mt-1">{formatVND(totalTeamRevenue)}</div>
-            <div className="text-[11px] text-amber-300 mt-0.5">Doanh số cộng dồn</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: '#00793d' }}>{formatVND(totalTeamRevenue)}</div>
+            <div className="text-[11px] mt-0.5 font-medium" style={{ color: '#00793d' }}>Doanh số cộng dồn</div>
           </div>
-          <div className="p-3 bg-amber-500/20 text-amber-300 rounded-xl border border-amber-500/30">
+          <div className="p-3 rounded-xl border" style={{ backgroundColor: 'rgba(0, 121, 61, 0.15)', borderColor: 'rgba(0, 121, 61, 0.3)', color: '#00793d' }}>
             <Award className="w-6 h-6" />
           </div>
         </div>

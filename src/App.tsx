@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport } from './types';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from './data/mockData';
 import { getCustomerGroup } from './utils/crmUtils';
+import { api, getStoredToken } from './utils/apiClient';
 
 import { Header } from './components/Header';
 import { Navigation, ActiveTab } from './components/Navigation';
@@ -107,6 +108,33 @@ export default function App() {
       console.error('Error saving marketing reports to localStorage', e);
     }
   }, [marketingReports]);
+
+  // Sync with Backend API if server is online
+  useEffect(() => {
+    const fetchApiData = async () => {
+      try {
+        const health: any = await api.get('/health');
+        if (health && health.status === 'ok') {
+          // Server is online, load data if token or public data
+          const apiCustomers = await api.get<Customer[]>('/customers').catch(() => null);
+          if (apiCustomers && Array.isArray(apiCustomers)) {
+            setCustomers(apiCustomers);
+          }
+          const apiProducts = await api.get<Product[]>('/products').catch(() => null);
+          if (apiProducts && Array.isArray(apiProducts)) {
+            setProducts(apiProducts);
+          }
+          const apiCampaigns = await api.get<BroadcastCampaign[]>('/campaigns').catch(() => null);
+          if (apiCampaigns && Array.isArray(apiCampaigns)) {
+            setCampaigns(apiCampaigns);
+          }
+        }
+      } catch (err) {
+        // Backend offline, fallback to local storage mode
+      }
+    };
+    fetchApiData();
+  }, []);
 
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);

@@ -537,43 +537,14 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
                       {/* Customer Info */}
                       <td className="py-3 px-4">
-                        <div className="min-w-[160px]">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => onSelectCustomer(cust)}
-                              className="font-bold text-slate-900 text-sm text-left"
-                            >
-                              {cust.name}
-                            </button>
-                            {cust.gender && (
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium border flex items-center space-x-0.5 ${
-                                  cust.gender.toLowerCase() === 'nam' || cust.gender.toLowerCase() === 'male'
-                                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
-                                    : cust.gender.toLowerCase() === 'nữ' || cust.gender.toLowerCase() === 'nu' || cust.gender.toLowerCase() === 'female'
-                                    ? 'bg-pink-500/15 text-pink-300 border-pink-500/30'
-                                    : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
-                                }`}
-                              >
-                                <span>
-                                  {cust.gender.toLowerCase() === 'nam' || cust.gender.toLowerCase() === 'male' ? '♂ ' : cust.gender.toLowerCase() === 'nữ' || cust.gender.toLowerCase() === 'nu' || cust.gender.toLowerCase() === 'female' ? '♀ ' : '⚥ '}
-                                </span>
-                                <span>{cust.gender}</span>
-                              </span>
-                            )}
-                          </div>
-                          {cust.address && (
-                            <div className="text-[11px] text-slate-400 truncate max-w-[200px] mt-0.5" title={cust.address}>
-                              📍 {cust.address}
-                            </div>
-                          )}
-                          {cust.note && (
-                            <div className="mt-1">
-                              <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-1.5 py-0.2 rounded truncate max-w-[140px] inline-block" title={cust.note}>
-                                📝 {cust.note}
-                              </span>
-                            </div>
-                          )}
+                        <div className="min-w-[140px]">
+                          <button
+                            onClick={() => onSelectCustomer(cust)}
+                            className="font-bold text-slate-100 hover:text-indigo-400 text-sm text-left transition cursor-pointer"
+                            title="Click để xem chi tiết khách hàng"
+                          >
+                            {cust.name}
+                          </button>
                         </div>
                       </td>
 

@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
+* {
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
 @layer base {
-  body {
+  html, body {
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500/30 selection:text-indigo-900 transition-colors duration-200;
   }
 }
@@ -415,4 +420,90 @@ body:not(.light-mode) .text-slate-600 {
   color: #0f172a !important;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
+
+/* -------------------------------------------------------------
+ * GLOBAL FONT SIZE OPTIMIZATION & READABILITY ENHANCEMENT
+ * ------------------------------------------------------------- */
+
+/* Set clean base font size so rem & text classes scale up comfortably */
+html {
+  font-size: 15.5px !important;
+}
+
+body {
+  font-size: 0.9375rem; /* ~14.5px base font */
+  line-height: 1.5;
+}
+
+/* Scale micro & small text utilities globally for maximum legibility */
+.text-\[9px\] {
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+}
+
+.text-\[10px\] {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.text-\[11px\] {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+
+.text-xs {
+  font-size: 13.5px !important;
+  line-height: 1.45 !important;
+}
+
+.text-sm {
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+.text-base {
+  font-size: 16.5px !important;
+  line-height: 1.55 !important;
+}
+
+.text-lg {
+  font-size: 19px !important;
+}
+
+.text-xl {
+  font-size: 22px !important;
+}
+
+.text-2xl {
+  font-size: 26px !important;
+}
+
+/* Enhancements for form controls: Inputs, Selects, Buttons, Textareas */
+input, select, textarea, button {
+  font-size: 13.5px;
+}
+
+input::placeholder, textarea::placeholder {
+  font-size: 13px;
+}
+
+/* Enhancements for Data Tables */
+table th {
+  font-size: 12px !important;
+  letter-spacing: 0.03em;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+table td {
+  font-size: 13.5px !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+/* Badges & Tags Readability */
+.rounded-full, .rounded-md, .rounded-lg, .rounded-xl {
+  font-weight: 500;
+}
+
 
