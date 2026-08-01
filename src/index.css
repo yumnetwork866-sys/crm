@@ -140,6 +140,26 @@
   background-color: #e2e8f0 !important;
 }
 
+/* Explicit style for export dropdown button to make it visible on white backgrounds */
+.light-mode .export-dropdown-btn {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-mode .export-dropdown-btn svg {
+  color: #334155 !important;
+  stroke: #334155 !important;
+}
+
+.light-mode .export-dropdown-btn:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.light-mode .export-dropdown-btn:hover svg {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+
 /* Crisp, high-contrast borders */
 .light-mode .border-slate-800,
 .light-mode .border-slate-800\/80,

@@ -152,7 +152,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             <div className="relative">
               <button
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700 transition cursor-pointer"
+                className="export-dropdown-btn p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700 transition cursor-pointer"
                 title="Tùy chọn xuất các tập tin dữ liệu khác"
               >
                 <ChevronDown className="w-4 h-4" />
