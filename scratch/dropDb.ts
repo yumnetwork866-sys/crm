@@ -10,16 +10,16 @@ const prisma = new PrismaClient({
 
 async function dropOldDb() {
   try {
-    // Terminate existing active connections to vietcrm_db
+    // Terminate existing active connections to vietcrm
     await prisma.$executeRawUnsafe(`
       SELECT pg_terminate_backend(pid) 
       FROM pg_stat_activity 
-      WHERE datname = 'vietcrm_db' AND pid <> pg_backend_pid();
+      WHERE datname = 'vietcrm' AND pid <> pg_backend_pid();
     `);
 
     // Drop database
-    await prisma.$executeRawUnsafe('DROP DATABASE IF EXISTS vietcrm_db;');
-    console.log('✅ Đã xóa thành công database cũ vietcrm_db!');
+    await prisma.$executeRawUnsafe('DROP DATABASE IF EXISTS vietcrm;');
+    console.log('✅ Đã xóa thành công database cũ vietcrm!');
   } catch (err) {
     console.error('Lỗi khi xóa database cũ:', err);
   } finally {

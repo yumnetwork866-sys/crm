@@ -1,6 +1,8 @@
 // API Client wrapper for VietCRM Frontend
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = window.location.origin.includes('localhost')
+  ? 'http://localhost:5002/api'
+  : `${window.location.origin}/api`;
 
 const TOKEN_KEY = 'vietcrm_jwt_token';
 
