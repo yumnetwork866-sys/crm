@@ -72,7 +72,24 @@ app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
 
-// 7. Global 404 & Error Handler
+// Serve Frontend static assets from the built "dist" directory
+import path from 'path';
+const distPath = path.resolve(__dirname, '../dist');
+app.use(express.static(distPath));
+
+// Fallback all other requests (except API) to index.html for Single Page Application routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) {
+      next();
+    }
+  });
+});
+
+// 7. Global 404 & Error Handler (primarily for unmatched API endpoints)
 app.use((req, res) => {
   res.status(404).json({ error: `Endpoint '${req.originalUrl}' không tồn tại.` });
 });
