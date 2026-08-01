@@ -287,7 +287,7 @@ body:not(.light-mode) .text-slate-600 {
   color: #000000 !important;
   -webkit-text-fill-color: #000000 !important;
   border-color: #64748b !important;
-  font-weight: 600 !important;
+  font-weight: normal !important;
   opacity: 1 !important;
 }
 

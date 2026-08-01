@@ -99,7 +99,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   </div>
                   <span
                     className={`text-[10px] mt-1 ${
-                      isActive ? 'text-indigo-100 font-medium' : 'text-slate-700 dark:text-slate-300 font-semibold'
+                      isActive ? 'text-indigo-100 font-normal' : 'text-slate-700 dark:text-slate-300 font-normal'
                     }`}
                   >
                     {item.subtitle}
