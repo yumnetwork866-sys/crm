@@ -74,7 +74,7 @@ app.use('/api/campaigns', campaignRoutes);
 
 // Serve Frontend static assets from the built "dist" directory
 import path from 'path';
-const distPath = path.resolve(__dirname, '../dist');
+const distPath = path.resolve(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
 // Fallback all other requests (except API) to index.html for Single Page Application routing
