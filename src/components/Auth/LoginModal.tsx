@@ -61,7 +61,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden text-slate-100">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[540px] w-full p-6 shadow-2xl relative overflow-hidden text-slate-100">
         
         {/* Decorative background glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -97,27 +97,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         {/* Current User Card if Logged In */}
         {currentUser && (
-          <div className="bg-slate-800/80 border border-emerald-500/40 p-4 rounded-2xl mb-6 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+          <div className="bg-slate-800/80 border border-emerald-500/40 p-4 rounded-2xl mb-6 flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
               <img
                 src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                 alt={currentUser.name}
-                className="w-11 h-11 rounded-xl object-cover border border-slate-700"
+                className="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0"
               />
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-bold text-white text-sm">{currentUser.name}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className="font-bold text-white text-sm whitespace-nowrap">{currentUser.name}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 whitespace-nowrap">
                     Đang Đăng Nhập
                   </span>
                 </div>
-                <div className="text-xs text-slate-400">{currentUser.email} • {currentUser.role}</div>
+                <div className="text-xs text-slate-400 truncate mt-0.5">{currentUser.email} • {currentUser.role}</div>
               </div>
             </div>
 
             <button
               onClick={handleLogout}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500 hover:text-white transition cursor-pointer"
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500 hover:text-white transition cursor-pointer whitespace-nowrap shrink-0"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Đăng xuất</span>
