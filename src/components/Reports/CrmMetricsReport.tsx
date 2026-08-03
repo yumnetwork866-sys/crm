@@ -44,7 +44,7 @@ export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers, i
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="text-xs text-slate-400">3. Giá Trị Vòng Đời Khách (LTV)</div>
-          <div className="text-2xl font-bold text-indigo-300 mt-1">
+          <div className="text-2xl font-bold text-[#7c86ff] mt-1">
             {formatVND(metrics.ltv)}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Customer Lifetime Value</div>

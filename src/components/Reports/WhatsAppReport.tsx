@@ -10,7 +10,7 @@ interface WhatsAppReportProps {
   isAdmin?: boolean;
 }
 
-const COLORS = ['#10b981', '#06b6d4', '#f59e0b', '#f43f5e'];
+const COLORS = ['#10b981', '#00793d', '#f59e0b', '#f43f5e'];
 
 export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campaigns, isAdmin = true }) => {
   // Calculate total WhatsApp interactions
@@ -52,7 +52,7 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="text-[11px] text-slate-400">2. Tin Nhắn Đã Nhận</div>
-          <div className="text-xl font-bold text-teal-300 mt-1">{totalDelivered.toLocaleString()}</div>
+          <div className="text-xl font-bold text-[#00793d] mt-1">{totalDelivered.toLocaleString()}</div>
           <div className="text-[10px] text-slate-400 mt-1">Giao nhận thành công 97%</div>
         </div>
 
