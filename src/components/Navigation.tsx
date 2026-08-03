@@ -46,13 +46,6 @@ export const Navigation: React.FC<NavigationProps> = ({
       icon: Package,
     },
     {
-      id: 'meta-verification' as ActiveTab,
-      label: 'Xác Minh Meta',
-      subtitle: 'App Review Hub',
-      icon: ShieldCheck,
-      badge: 'Meta API',
-    },
-    {
       id: 'segmentation' as ActiveTab,
       label: 'Phân Nhóm',
       subtitle: 'Nhóm 1 - 4 Tự động',

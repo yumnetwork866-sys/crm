@@ -37,10 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
-            <YumLogo size="md" showText={true} />
-            <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/15 text-red-400 border border-red-500/30 whitespace-nowrap">
-              Meta Approved Edition
-            </span>
+            <YumLogo size="md" showText={false} />
           </div>
 
           {/* Action Buttons & Profile */}

@@ -3,9 +3,7 @@ import {
   ShieldCheck, 
   ExternalLink, 
   CheckCircle2, 
-  AlertCircle, 
   Copy, 
-  Video, 
   FileText, 
   Key, 
   Server, 
@@ -13,13 +11,8 @@ import {
   UserCheck, 
   Building2, 
   Lock,
-  ArrowRight,
-  RefreshCw,
-  Facebook,
-  MessageSquare,
-  Sparkles
+  Facebook
 } from 'lucide-react';
-import { YumLogo } from '../Common/YumLogo';
 
 interface MetaVerificationViewProps {
   onNavigateLegal?: (page: 'privacy' | 'terms' | 'deletion') => void;
@@ -80,47 +73,43 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-16">
+    <div className="space-y-8 max-w-7xl mx-auto pb-16 bg-slate-50 text-slate-900">
       {/* Top Banner & Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 p-8 shadow-2xl">
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <Facebook className="w-96 h-96 text-blue-500" />
-        </div>
-
+      <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-8 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold mb-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 border border-red-200 text-red-600 text-xs font-bold mb-3">
               <ShieldCheck className="w-4 h-4" />
-              Meta App Review & Business Verification Hub
+              Meta App Review &amp; Business Verification Hub
             </div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              Trung Tâm Xác Minh Meta & App Review
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              Trung Tâm Xác Minh Meta &amp; App Review
             </h1>
-            <p className="text-slate-400 mt-2 max-w-2xl text-sm sm:text-base leading-relaxed">
-              Cấu hình các thông tin pháp lý, API Webhooks và Portal hướng dẫn Kiểm duyệt viên Meta duyệt ứng dụng <strong className="text-white">YumNetwork CRM</strong> một cách nhanh chóng nhất.
+            <p className="text-slate-600 mt-2 max-w-2xl text-sm sm:text-base leading-relaxed font-medium">
+              Cấu hình các thông tin pháp lý, API Webhooks và Portal hướng dẫn Kiểm duyệt viên Meta duyệt ứng dụng <strong className="text-slate-900">YumNetwork CRM</strong> một cách nhanh chóng nhất.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => onNavigateLegal?.('privacy')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition cursor-pointer"
             >
-              <FileText className="w-4 h-4 text-slate-400" />
+              <FileText className="w-4 h-4 text-slate-500" />
               Privacy Policy
             </button>
             <button
               onClick={() => onNavigateLegal?.('terms')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition cursor-pointer"
             >
-              <Globe className="w-4 h-4 text-slate-400" />
+              <Globe className="w-4 h-4 text-slate-500" />
               Terms of Service
             </button>
             <button
               onClick={() => onNavigateLegal?.('deletion')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 text-red-200 text-sm font-medium border border-red-800/60 transition"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition cursor-pointer"
             >
-              <Lock className="w-4 h-4 text-red-400" />
+              <Lock className="w-4 h-4 text-red-600" />
               Data Deletion
             </button>
           </div>
@@ -130,16 +119,16 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
       {/* Meta App Configuration Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* App Credentials & Status */}
-        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Key className="w-5 h-5 text-red-500" />
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-lg space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <Key className="w-5 h-5 text-red-600" />
               Thông Tin Ứng Dụng Meta App Dashboard
             </h2>
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
               appMode === 'live' 
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
-                : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' 
+                : 'bg-amber-100 text-amber-800 border border-amber-300'
             }`}>
               Chế độ: {appMode === 'live' ? 'Live (Đã Duyệt)' : 'In Development (Đang Kiểm Duyệt)'}
             </span>
@@ -147,7 +136,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
                 Meta App ID
               </label>
               <div className="relative">
@@ -155,20 +144,20 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
                   type="text"
                   value={appId}
                   onChange={(e) => setAppId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
                 />
                 <button
                   onClick={() => copyToClipboard(appId, 'appId')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
                   title="Copy App ID"
                 >
-                  {copiedField === 'appId' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copiedField === 'appId' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
                 Meta App Secret
               </label>
               <div className="relative">
@@ -176,20 +165,20 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
                   type="password"
                   value={appSecret}
                   onChange={(e) => setAppSecret(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
                 />
                 <button
                   onClick={() => copyToClipboard(appSecret, 'appSecret')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
                   title="Copy App Secret"
                 >
-                  {copiedField === 'appSecret' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copiedField === 'appSecret' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
                 Webhook Verify Token
               </label>
               <div className="relative">
@@ -197,14 +186,14 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
                   type="text"
                   value={verifyToken}
                   onChange={(e) => setVerifyToken(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
                 />
                 <button
                   onClick={() => copyToClipboard(verifyToken, 'verifyToken')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1.5"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
                   title="Copy Token"
                 >
-                  {copiedField === 'verifyToken' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copiedField === 'verifyToken' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -212,36 +201,36 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
 
           {/* Webhook URLs */}
           <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-              <Server className="w-4 h-4 text-blue-400" />
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <Server className="w-4 h-4 text-blue-600" />
               Đường Dẫn Callback Webhooks Cần Điền Trên Meta Developer Console
             </h3>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-xs text-slate-400 block font-medium">Webhook URL (Messenger & Lead Ads)</span>
-                  <code className="text-xs text-red-400 font-mono">{legalUrls.webhook}</code>
+                  <span className="text-xs text-slate-500 block font-bold">Webhook URL (Messenger &amp; Lead Ads)</span>
+                  <code className="text-xs text-red-600 font-mono font-bold">{legalUrls.webhook}</code>
                 </div>
                 <button
                   onClick={() => copyToClipboard(legalUrls.webhook, 'webhook')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-lg flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
                 >
-                  {copiedField === 'webhook' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedField === 'webhook' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   Copy URL
                 </button>
               </div>
 
-              <div className="flex items-center justify-between bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-xs text-slate-400 block font-medium">User Data Deletion Callback URL</span>
-                  <code className="text-xs text-emerald-400 font-mono">{legalUrls.deletionCallback}</code>
+                  <span className="text-xs text-slate-500 block font-bold">User Data Deletion Callback URL</span>
+                  <code className="text-xs text-emerald-700 font-mono font-bold">{legalUrls.deletionCallback}</code>
                 </div>
                 <button
                   onClick={() => copyToClipboard(legalUrls.deletionCallback, 'deletionCallback')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-lg flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
                 >
-                  {copiedField === 'deletionCallback' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedField === 'deletionCallback' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   Copy URL
                 </button>
               </div>
@@ -250,54 +239,54 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
         </div>
 
         {/* Requirements Checklist */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg flex flex-col justify-between">
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-4">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-4">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
               Checklist Duyệt Nhanh Meta
             </h2>
 
             <div className="space-y-3">
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-emerald-300">Privacy Policy Public</h4>
-                  <p className="text-[11px] text-slate-400">Đã xuất bản trang chính sách bảo mật công khai.</p>
+                  <h4 className="text-xs font-bold text-emerald-800">Privacy Policy Public</h4>
+                  <p className="text-[11px] text-slate-600 font-medium">Đã xuất bản trang chính sách bảo mật công khai.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-emerald-300">Terms of Service Public</h4>
-                  <p className="text-[11px] text-slate-400">Đã xuất bản điều khoản dịch vụ công khai.</p>
+                  <h4 className="text-xs font-bold text-emerald-800">Terms of Service Public</h4>
+                  <p className="text-[11px] text-slate-600 font-medium">Đã xuất bản điều khoản dịch vụ công khai.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-emerald-300">User Data Deletion Callback</h4>
-                  <p className="text-[11px] text-slate-400">Đã có API xử lý signed_request xóa dữ liệu chuẩn Meta.</p>
+                  <h4 className="text-xs font-bold text-emerald-800">User Data Deletion Callback</h4>
+                  <p className="text-[11px] text-slate-600 font-medium">Đã có API xử lý signed_request xóa dữ liệu chuẩn Meta.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                <Building2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                <Building2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-bold text-blue-300">Business Verification</h4>
-                  <p className="text-[11px] text-slate-400">YumNetwork Co. đã chuẩn bị GPKD & Giấy tờ công ty.</p>
+                  <h4 className="text-xs font-bold text-blue-800">Business Verification</h4>
+                  <p className="text-[11px] text-slate-600 font-medium">CÔNG TY TNHH TRUYỀN THÔNG YUM NETWORK đã chuẩn bị GPKD &amp; Giấy tờ công ty.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-slate-200">
             <a
               href="https://developers.facebook.com/apps"
               target="_blank"
               rel="noreferrer"
-              className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-sm shadow-lg transition"
+              className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs shadow-md transition"
             >
               Mở Meta Developer Console
               <ExternalLink className="w-4 h-4" />
@@ -307,15 +296,15 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
       </div>
 
       {/* Reviewer Portal Kit for Meta Reviewers */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <div>
-            <h2 className="text-xl font-extrabold text-white flex items-center gap-3">
-              <UserCheck className="w-6 h-6 text-red-500" />
+            <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-3">
+              <UserCheck className="w-6 h-6 text-red-600" />
               Tài Nguyên Kiểm Duyệt Dành Cho Meta Reviewer (Reviewer Portal Kit)
             </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Điền thông tin bên dưới vào ô <strong>"Instructions for Reviewers"</strong> trên Meta Dashboard đểreviewer test ứng dụng trực tiếp.
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
+              Điền thông tin bên dưới vào ô <strong>"Instructions for Reviewers"</strong> trên Meta Dashboard để reviewer test ứng dụng trực tiếp.
             </p>
           </div>
 
@@ -332,35 +321,35 @@ Instructions:
 4. Messages received on Facebook page sync instantly into YumNetwork CRM Inbox.`;
               copyToClipboard(kitText, 'reviewerKit');
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl border border-slate-700 transition shrink-0"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition cursor-pointer shrink-0"
           >
-            {copiedField === 'reviewerKit' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copiedField === 'reviewerKit' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             Copy Toàn Bộ Hướng Dẫn Reviewer
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-red-400 uppercase tracking-wider block">1. Demo Web App URL</span>
-            <code className="text-xs text-white font-mono block break-all">{domain}</code>
-            <p className="text-[11px] text-slate-400">Đã mở sẵn IP/Domain public để Meta Reviewer truy cập không bị chặn firewall.</p>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">1. Demo Web App URL</span>
+            <code className="text-xs text-slate-900 font-mono font-bold block break-all">{domain}</code>
+            <p className="text-[11px] text-slate-600 font-medium">Đã mở sẵn IP/Domain public để Meta Reviewer truy cập không bị chặn firewall.</p>
           </div>
 
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-red-400 uppercase tracking-wider block">2. Test User Account</span>
-            <div className="text-xs text-slate-300 space-y-1 font-mono">
-              <div>User: <strong className="text-white">meta_reviewer@yumnetwork.com</strong></div>
-              <div>Pass: <strong className="text-white">MetaReviewer2026!</strong></div>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">2. Test User Account</span>
+            <div className="text-xs text-slate-700 space-y-1 font-mono">
+              <div>User: <strong className="text-slate-900 font-bold">meta_reviewer@yumnetwork.com</strong></div>
+              <div>Pass: <strong className="text-slate-900 font-bold">MetaReviewer2026!</strong></div>
             </div>
-            <p className="text-[11px] text-slate-400">Tài khoản có đầy đủ quyền Admin và Fanpage Test đã tích hợp sẵn.</p>
+            <p className="text-[11px] text-slate-600 font-medium">Tài khoản có đầy đủ quyền Admin và Fanpage Test đã tích hợp sẵn.</p>
           </div>
 
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-red-400 uppercase tracking-wider block">3. Screencast Video Guidelines</span>
-            <p className="text-xs text-slate-300">
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">3. Screencast Video Guidelines</span>
+            <p className="text-xs text-slate-700 font-medium">
               Video demo 1-3 phút quay luồng Facebook OAuth + Hiển thị rõ App ID <strong>{appId}</strong> trên URL trình duyệt.
             </p>
-            <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
+            <div className="flex items-center gap-1 text-[11px] text-emerald-700 font-bold">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Đạt chuẩn quy cách Meta 100%
             </div>
@@ -369,44 +358,44 @@ Instructions:
       </div>
 
       {/* Permissions & Use Case Justifications */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg space-y-6">
         <div>
-          <h2 className="text-xl font-extrabold text-white flex items-center gap-3">
-            <FileText className="w-6 h-6 text-red-500" />
+          <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-3">
+            <FileText className="w-6 h-6 text-red-600" />
             Bảng Giải Trình Lý Do Xin Quyền (Permission Use Case Justification)
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
             Sao chép các đoạn văn bản giải trình đã tối ưu dưới đây dán vào các ô xin quyền tương ứng trên Meta App Review Submission Form.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4">
           {permissionsList.map((perm) => (
-            <div key={perm.name} className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+            <div key={perm.name} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm font-bold text-red-400">{perm.name}</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="font-mono text-sm font-bold text-red-600">{perm.name}</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-white text-slate-700 border border-slate-300 font-bold">
                     {perm.category}
                   </span>
                 </div>
 
                 <button
                   onClick={() => copyToClipboard(perm.justification, perm.name)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-lg border border-slate-700 transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 transition cursor-pointer shadow-xs"
                 >
-                  {copiedField === perm.name ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedField === perm.name ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   Copy Đoạn Giải Trình
                 </button>
               </div>
 
-              <p className="text-xs text-slate-300">{perm.description}</p>
+              <p className="text-xs text-slate-700 font-medium">{perm.description}</p>
 
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Đoạn giải trình mẫu cho Meta Reviewer (English & Vietnamese):
+              <div className="bg-white p-3 rounded-xl border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Đoạn giải trình mẫu cho Meta Reviewer (English &amp; Vietnamese):
                 </span>
-                <p className="text-xs text-slate-200 italic leading-relaxed">
+                <p className="text-xs text-slate-800 italic leading-relaxed font-medium">
                   "{perm.justification}"
                 </p>
               </div>

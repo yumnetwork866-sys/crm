@@ -24,6 +24,7 @@ import { MetaVerificationView } from './components/Meta/MetaVerificationView';
 import { PrivacyPolicyView } from './components/Legal/PrivacyPolicyView';
 import { TermsOfServiceView } from './components/Legal/TermsOfServiceView';
 import { DataDeletionView } from './components/Legal/DataDeletionView';
+import { PublicLandingView } from './components/Landing/PublicLandingView';
 
 import { LoginModal } from './components/Auth/LoginModal';
 import { UserFormModal } from './components/UserManagement/UserFormModal';
@@ -37,11 +38,12 @@ const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
-  const [legalView, setLegalView] = useState<'privacy' | 'terms' | 'deletion' | null>(() => {
+  const [legalView, setLegalView] = useState<'privacy' | 'terms' | 'deletion' | 'meta-verification' | null>(() => {
     const hash = window.location.hash;
     if (hash === '#privacy') return 'privacy';
     if (hash === '#terms') return 'terms';
     if (hash === '#data-deletion' || hash.startsWith('#data-deletion')) return 'deletion';
+    if (hash === '#meta-verification') return 'meta-verification';
     return null;
   });
 
@@ -51,6 +53,7 @@ export default function App() {
       if (hash === '#privacy') setLegalView('privacy');
       else if (hash === '#terms') setLegalView('terms');
       else if (hash === '#data-deletion' || hash.startsWith('#data-deletion')) setLegalView('deletion');
+      else if (hash === '#meta-verification') setLegalView('meta-verification');
       else setLegalView(null);
     };
     window.addEventListener('hashchange', handleHashChange);
@@ -717,19 +720,54 @@ export default function App() {
   if (legalView === 'deletion') {
     return <DataDeletionView onBackToApp={() => { window.location.hash = ''; setLegalView(null); }} />;
   }
+  if (legalView === 'meta-verification') {
+    return (
+      <div className="min-h-screen bg-slate-950 p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-white font-bold text-lg">YumNetwork CRM Meta Review Portal</span>
+          </div>
+          <button
+            onClick={() => { window.location.hash = ''; setLegalView(null); }}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg"
+          >
+            Quay lại Đăng Nhập
+          </button>
+        </div>
+        <MetaVerificationView
+          onNavigateLegal={(page) => {
+            window.location.hash = `#${page === 'deletion' ? 'data-deletion' : page}`;
+          }}
+        />
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <>
+        <PublicLandingView
+          onOpenLogin={() => setIsLoginOpen(true)}
+          onNavigateLegal={(page) => {
+            window.location.hash = `#${page === 'deletion' ? 'data-deletion' : page}`;
+          }}
+          onQuickDemoLogin={() => {
+            setCurrentUser(users[0]);
+          }}
+        />
+
         <LoginModal
-          isOpen={true}
-          isMandatory={true}
-          onClose={() => {}}
+          isOpen={isLoginOpen}
+          isMandatory={false}
+          onClose={() => setIsLoginOpen(false)}
           users={users}
           currentUser={currentUser}
-          onSelectUser={(u) => setCurrentUser(u)}
+          onSelectUser={(u) => {
+            setCurrentUser(u);
+            if (u) setIsLoginOpen(false);
+          }}
         />
-      </div>
+      </>
     );
   }
 
@@ -889,19 +927,8 @@ export default function App() {
 
       {/* Footer */}
       <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-400 py-6 text-center mt-auto space-y-2">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-slate-300 font-medium">
-          <a href="#privacy" className="hover:text-red-400 transition">Privacy Policy</a>
-          <span>•</span>
-          <a href="#terms" className="hover:text-red-400 transition">Terms of Service</a>
-          <span>•</span>
-          <a href="#data-deletion" className="hover:text-red-400 transition">User Data Deletion</a>
-          <span>•</span>
-          <button onClick={() => setActiveTab('meta-verification')} className="text-red-400 font-bold hover:underline">
-            Meta Verification Hub
-          </button>
-        </div>
         <div>
-          YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động & Meta Graph API Automation.
+          YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động &amp; Meta Graph API Automation.
         </div>
       </footer>
 
