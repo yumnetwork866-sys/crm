@@ -42,35 +42,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Action Buttons & Profile */}
           <div className="flex items-center space-x-2 shrink-0">
-            {/* Staff Permissions Button */}
-            {onOpenUsersTab && (
-              <button
-                onClick={onOpenUsersTab}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer shadow-sm active:scale-95 ${
-                  activeTab === 'users'
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/30'
-                    : 'bg-purple-100 dark:bg-purple-950/60 hover:bg-purple-200 dark:hover:bg-purple-900/60 text-purple-800 dark:text-purple-200 border-purple-300 dark:border-purple-500/40'
-                }`}
-                title="Phân quyền Nhân sự & Quản lý Đội ngũ"
-              >
-                <UserCheck className={`w-3.5 h-3.5 ${activeTab === 'users' ? 'text-white' : 'text-purple-600 dark:text-purple-300'}`} />
-                <span className="hidden sm:inline font-bold">Phân Quyền Nhân Sự</span>
-                {usersCount !== undefined && (
-                  <span
-                    className={`ml-1 px-1.5 py-0.2 text-[10px] rounded-full font-bold border ${
-                      activeTab === 'users'
-                        ? 'bg-purple-500/40 text-white border-purple-300/50'
-                        : 'bg-purple-200 dark:bg-purple-800/80 text-purple-800 dark:text-purple-200 border-purple-300 dark:border-purple-600'
-                    }`}
-                  >
-                    {usersCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            <div className="h-6 w-[1px] bg-slate-800 mx-1" />
-
             {/* User Profile / Login Button */}
             <button
               onClick={onOpenLoginModal}
