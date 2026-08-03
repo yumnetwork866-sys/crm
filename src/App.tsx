@@ -20,19 +20,42 @@ import { ReportsDashboard } from './components/Reports/ReportsDashboard';
 import { UserManagementView } from './components/UserManagement/UserManagementView';
 import { ProductManagementView } from './components/ProductManagement/ProductManagementView';
 import { OrderManagementView } from './components/OrderManagement/OrderManagementView';
+import { MetaVerificationView } from './components/Meta/MetaVerificationView';
+import { PrivacyPolicyView } from './components/Legal/PrivacyPolicyView';
+import { TermsOfServiceView } from './components/Legal/TermsOfServiceView';
+import { DataDeletionView } from './components/Legal/DataDeletionView';
 
 import { LoginModal } from './components/Auth/LoginModal';
 import { UserFormModal } from './components/UserManagement/UserFormModal';
 
-const STORAGE_KEY_CUSTOMERS = 'vietcrm_customers_v2';
-const STORAGE_KEY_CAMPAIGNS = 'vietcrm_campaigns_v2';
-const STORAGE_KEY_USERS = 'vietcrm_users_v2';
-const STORAGE_KEY_CURRENT_USER = 'vietcrm_current_user_v2';
-const STORAGE_KEY_PRODUCTS = 'vietcrm_products_v2';
-const STORAGE_KEY_MARKETING_REPORTS = 'vietcrm_marketing_reports_v2';
+const STORAGE_KEY_CUSTOMERS = 'yumcrm_customers_v2';
+const STORAGE_KEY_CAMPAIGNS = 'yumcrm_campaigns_v2';
+const STORAGE_KEY_USERS = 'yumcrm_users_v2';
+const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
+const STORAGE_KEY_PRODUCTS = 'yumcrm_products_v2';
+const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
+  const [legalView, setLegalView] = useState<'privacy' | 'terms' | 'deletion' | null>(() => {
+    const hash = window.location.hash;
+    if (hash === '#privacy') return 'privacy';
+    if (hash === '#terms') return 'terms';
+    if (hash === '#data-deletion' || hash.startsWith('#data-deletion')) return 'deletion';
+    return null;
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === '#privacy') setLegalView('privacy');
+      else if (hash === '#terms') setLegalView('terms');
+      else if (hash === '#data-deletion' || hash.startsWith('#data-deletion')) setLegalView('deletion');
+      else setLegalView(null);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Load persistent customers
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -685,6 +708,16 @@ export default function App() {
     alert(`Đã chuyển tài khoản thành công sang: ${user.name} (${user.role})`);
   };
 
+  if (legalView === 'privacy') {
+    return <PrivacyPolicyView onBackToApp={() => { window.location.hash = ''; setLegalView(null); }} />;
+  }
+  if (legalView === 'terms') {
+    return <TermsOfServiceView onBackToApp={() => { window.location.hash = ''; setLegalView(null); }} />;
+  }
+  if (legalView === 'deletion') {
+    return <DataDeletionView onBackToApp={() => { window.location.hash = ''; setLegalView(null); }} />;
+  }
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -786,6 +819,14 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'meta-verification' && (
+          <MetaVerificationView
+            onNavigateLegal={(page) => {
+              window.location.hash = `#${page === 'deletion' ? 'data-deletion' : page}`;
+            }}
+          />
+        )}
+
         {activeTab === 'segmentation' && (
           <SegmentationView
             customers={customers}
@@ -847,8 +888,21 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-500 py-4 text-center mt-auto">
-        VietCRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động & Automation WhatsApp.
+      <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-400 py-6 text-center mt-auto space-y-2">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-slate-300 font-medium">
+          <a href="#privacy" className="hover:text-red-400 transition">Privacy Policy</a>
+          <span>•</span>
+          <a href="#terms" className="hover:text-red-400 transition">Terms of Service</a>
+          <span>•</span>
+          <a href="#data-deletion" className="hover:text-red-400 transition">User Data Deletion</a>
+          <span>•</span>
+          <button onClick={() => setActiveTab('meta-verification')} className="text-red-400 font-bold hover:underline">
+            Meta Verification Hub
+          </button>
+        </div>
+        <div>
+          YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động & Meta Graph API Automation.
+        </div>
       </footer>
 
       {/* Modals */}

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Zap, ShieldCheck, UserCheck } from 'lucide-react';
+import { ShieldCheck, UserCheck } from 'lucide-react';
 import { Customer, AppUser } from '../types';
+import { YumLogo } from './Common/YumLogo';
 
 interface HeaderProps {
   customers: Customer[];
@@ -36,20 +37,10 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-600 flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-lg font-bold tracking-tight text-white font-sans">VietCRM</h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap">
-                  v2.6 Automation
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-tight">
-                Hệ thống CRM & Automation Chăm Sóc Khách Hàng Qua WhatsApp
-              </p>
-            </div>
+            <YumLogo size="md" showText={true} />
+            <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-500/15 text-red-400 border border-red-500/30 whitespace-nowrap">
+              Meta Approved Edition
+            </span>
           </div>
 
           {/* Action Buttons & Profile */}

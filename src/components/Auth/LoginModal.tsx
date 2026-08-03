@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AppUser } from '../../types';
 import { LogIn, LogOut, ShieldCheck, X, Mail, Lock } from 'lucide-react';
+import { YumLogo } from '../Common/YumLogo';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -64,8 +65,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[540px] w-full p-6 shadow-2xl relative overflow-hidden text-slate-100">
         
         {/* Decorative background glow */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button (Hidden if mandatory login) */}
         {!isMandatory && (
@@ -79,13 +80,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         )}
 
         {/* Modal Header */}
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-10 w-10 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
+        <div className="flex flex-col space-y-3 mb-6 border-b border-slate-800 pb-4">
+          <YumLogo size="lg" showText={true} />
           <div>
-            <h2 className="text-lg font-bold text-white">
-              {isMandatory ? 'Đăng Nhập Hệ Thống VietCRM' : 'Đăng Nhập Tài Khoản'}
+            <h2 className="text-base font-bold text-slate-200">
+              {isMandatory ? 'Đăng Nhập Hệ Thống YumNetwork CRM' : 'Đăng Nhập Tài Khoản'}
             </h2>
             <p className="text-xs text-slate-400">
               {currentUser

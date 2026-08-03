@@ -1,7 +1,7 @@
 import React from 'react';
-import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package } from 'lucide-react';
+import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package, ShieldCheck, Facebook } from 'lucide-react';
 
-export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'broadcast' | 'reports' | 'users';
+export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'broadcast' | 'reports' | 'users' | 'meta-verification';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -44,6 +44,13 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'Sản Phẩm',
       subtitle: 'Kho hàng & Giá bán',
       icon: Package,
+    },
+    {
+      id: 'meta-verification' as ActiveTab,
+      label: 'Xác Minh Meta',
+      subtitle: 'App Review Hub',
+      icon: ShieldCheck,
+      badge: 'Meta API',
     },
     {
       id: 'segmentation' as ActiveTab,

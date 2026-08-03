@@ -10,6 +10,7 @@ import orderRoutes from './routes/orders';
 import productRoutes from './routes/products';
 import userRoutes from './routes/users';
 import campaignRoutes from './routes/campaigns';
+import metaRoutes from './routes/metaRoutes';
 
 dotenv.config();
 
@@ -59,7 +60,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    system: 'VietCRM Backend API',
+    system: 'YumNetwork CRM Backend API',
     timestamp: new Date().toISOString()
   });
 });
@@ -71,6 +72,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/meta', metaRoutes);
 
 // Serve Frontend static assets from the built "dist" directory
 import path from 'path';
@@ -104,6 +106,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // 8. Start Server
 app.listen(PORT, () => {
-  console.log(`🚀 VietCRM Backend Server đang chạy tại http://localhost:${PORT}`);
+  console.log(`🚀 YumNetwork CRM Backend Server đang chạy tại http://localhost:${PORT}`);
   console.log(`🔒 Bảo mật: Helmet, Rate Limiter, CORS & JWT Enabled.`);
 });
