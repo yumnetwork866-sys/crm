@@ -352,7 +352,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-black tracking-wider border-b border-slate-300">
                     <th className="py-3 px-4">Thành Viên</th>
                     <th className="py-3 px-3">Vai Trò &amp; Phòng Ban</th>
-                    <th className="py-3 px-3">Liên Hệ &amp; Mật Khẩu</th>
+                    <th className="py-3 px-3">Liên Hệ</th>
                     <th className="py-3 px-3 text-right">Lead Đảm Nhận</th>
                     <th className="py-3 px-3 text-right">Doanh Số (VND)</th>
                     <th className="py-3 px-3 text-center">Trạng Thái Auth</th>
@@ -416,15 +416,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             </div>
                           </td>
 
-                          {/* Contact & Password */}
+                          {/* Contact */}
                           <td className="py-3.5 px-3 text-slate-700">
                             <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-900">
                               <Phone className="w-3.5 h-3.5 text-slate-500" />
                               <span>{user.phone || 'Chưa cập nhật'}</span>
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono font-bold mt-1 flex items-center gap-1">
-                              <KeyRound className="w-3 h-3 text-amber-600" />
-                              <span>Pass: {user.password ? '••••••••' : 'admin123'}</span>
                             </div>
                           </td>
 
