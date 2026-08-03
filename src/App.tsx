@@ -625,7 +625,7 @@ export default function App() {
   };
 
   // User Management Handlers
-  const handleSaveUser = (data: Partial<AppUser>) => {
+  const handleSaveUser = (data: Partial<AppUser> & { password?: string }) => {
     if (data.id) {
       setUsers((prev) =>
         prev.map((u) => (u.id === data.id ? ({ ...u, ...data } as AppUser) : u))
@@ -633,6 +633,8 @@ export default function App() {
       if (currentUser?.id === data.id) {
         setCurrentUser((prev) => (prev ? ({ ...prev, ...data } as AppUser) : null));
       }
+      // Call backend API if available
+      api.put(`/users/${data.id}`, data).catch(() => null);
     } else {
       const newUser: AppUser = {
         id: `usr_${Date.now()}`,
@@ -648,6 +650,8 @@ export default function App() {
         totalRevenue: 0,
       };
       setUsers((prev) => [...prev, newUser]);
+      // Call backend API if available
+      api.post('/users', { ...newUser, password: data.password || 'admin123' }).catch(() => null);
     }
   };
 

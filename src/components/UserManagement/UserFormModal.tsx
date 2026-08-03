@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AppUser, UserRole } from '../../types';
-import { X, User, Mail, Phone, Shield, Building2, Save } from 'lucide-react';
+import { X, User, Mail, Phone, Shield, Building2, Save, KeyRound } from 'lucide-react';
 
 interface UserFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (user: Partial<AppUser>) => void;
+  onSave: (user: Partial<AppUser> & { password?: string }) => void;
   initialUser?: AppUser | null;
 }
 
@@ -18,18 +18,19 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   onSave,
   initialUser,
 }) => {
-  const [formData, setFormData] = useState<Partial<AppUser>>({
+  const [formData, setFormData] = useState<Partial<AppUser> & { password?: string }>({
     name: '',
     email: '',
     phone: '',
     role: 'Sales Rep',
     department: 'Phòng Sales',
     status: 'active',
+    password: '',
   });
 
   useEffect(() => {
     if (initialUser) {
-      setFormData(initialUser);
+      setFormData({ ...initialUser, password: '' });
     } else {
       setFormData({
         name: '',
@@ -38,6 +39,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         role: 'Sales Rep',
         department: 'Phòng Sales',
         status: 'active',
+        password: '',
       });
     }
   }, [initialUser, isOpen]);
@@ -164,6 +166,23 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                   ))}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              {initialUser ? 'Đổi Mật Khẩu Mới (để trống nếu không đổi)' : 'Mật Khẩu Mặc Định *'}
+            </label>
+            <div className="relative">
+              <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="password"
+                value={formData.password || ''}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder={initialUser ? 'Nhập mật khẩu mới...' : 'Mật khẩu đăng nhập (VD: admin123)'}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+              />
             </div>
           </div>
 
