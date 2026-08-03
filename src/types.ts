@@ -155,6 +155,7 @@ export interface AppUser {
   id: string;
   name: string;
   email: string;
+  password?: string;
   avatar?: string;
   role: UserRole;
   phone?: string;
