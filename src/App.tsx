@@ -86,9 +86,9 @@ export default function App() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
       if (saved) return JSON.parse(saved);
-      return INITIAL_USERS[0]; // Default login as Admin
+      return null;
     } catch {
-      return INITIAL_USERS[0];
+      return null;
     }
   });
 
@@ -684,6 +684,21 @@ export default function App() {
     setCurrentUser(user);
     alert(`Đã chuyển tài khoản thành công sang: ${user.name} (${user.role})`);
   };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <LoginModal
+          isOpen={true}
+          isMandatory={true}
+          onClose={() => {}}
+          users={users}
+          currentUser={currentUser}
+          onSelectUser={(u) => setCurrentUser(u)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen light-mode bg-slate-50 text-slate-900 flex flex-col font-sans transition-colors duration-200">
