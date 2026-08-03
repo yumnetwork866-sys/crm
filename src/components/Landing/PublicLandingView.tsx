@@ -43,7 +43,17 @@ export const PublicLandingView: React.FC<PublicLandingViewProps> = ({
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           {/* Brand Logo */}
-          <a href="#" className="flex items-center gap-3">
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              if (window.location.hash) {
+                history.pushState('', document.title, window.location.pathname + window.location.search);
+              }
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex items-center gap-3 cursor-pointer"
+          >
             <YumLogo size="lg" showText={false} />
           </a>
 

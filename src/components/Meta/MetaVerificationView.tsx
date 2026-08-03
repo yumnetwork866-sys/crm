@@ -33,6 +33,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
     deletion: `${domain}/#data-deletion`,
     webhook: `${domain}/api/meta/webhooks`,
     deletionCallback: `${domain}/api/meta/data-deletion`,
+    authCallback: `${domain}/api/auth/facebook/callback`,
   };
 
   const copyToClipboard = (text: string, fieldName: string) => {
@@ -207,6 +208,20 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
             </h3>
 
             <div className="space-y-2">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-xs text-slate-500 block font-bold">Valid OAuth Redirect URI (Authorize Callback URL)</span>
+                  <code className="text-xs text-blue-600 font-mono font-bold">{legalUrls.authCallback}</code>
+                </div>
+                <button
+                  onClick={() => copyToClipboard(legalUrls.authCallback, 'authCallback')}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
+                >
+                  {copiedField === 'authCallback' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy URL
+                </button>
+              </div>
+
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
                   <span className="text-xs text-slate-500 block font-bold">Webhook URL (Messenger &amp; Lead Ads)</span>

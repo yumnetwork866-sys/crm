@@ -12,7 +12,20 @@ export const TermsOfServiceView: React.FC<TermsOfServiceViewProps> = ({ onBackTo
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-300 pb-6">
-          <YumLogo size="lg" showText={false} />
+          <button
+            onClick={() => {
+              if (onBackToApp) {
+                onBackToApp();
+              } else {
+                history.pushState('', document.title, window.location.pathname + window.location.search);
+                window.location.reload();
+              }
+            }}
+            className="cursor-pointer text-left hover:opacity-90 transition"
+            title="Về Trang Chủ"
+          >
+            <YumLogo size="lg" showText={false} />
+          </button>
           
           {onBackToApp && (
             <button
