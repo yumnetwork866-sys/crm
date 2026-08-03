@@ -69,6 +69,12 @@ export const Navigation: React.FC<NavigationProps> = ({
       subtitle: 'Analytics & Sales',
       icon: BarChart3,
     },
+    {
+      id: 'users' as ActiveTab,
+      label: 'Auth & Phân Quyền',
+      subtitle: 'Quản lý User & Password',
+      icon: ShieldCheck,
+    },
   ];
 
   return (
