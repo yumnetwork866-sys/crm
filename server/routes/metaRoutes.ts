@@ -90,13 +90,20 @@ router.post('/config', async (req: Request, res: Response) => {
       ? whatsappAccessToken.trim()
       : existing.whatsappAccessToken;
 
+    const finalPhoneId = whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId;
+    const isFullyConfigured = Boolean(newToken && finalPhoneId);
+    const newStatus = isFullyConfigured ? 'connected' : (existing.status || 'disconnected');
+    const newLastConnected = isFullyConfigured ? (existing.lastConnectedAt || new Date()) : existing.lastConnectedAt;
+
     const updateData = {
-      whatsappPhoneNumberId: whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId,
+      whatsappPhoneNumberId: finalPhoneId,
       whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
       whatsappAccessToken: newToken,
       whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
       whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
       whatsappAppSecret: whatsappAppSecret !== undefined ? whatsappAppSecret.trim() : existing.whatsappAppSecret,
+      status: newStatus,
+      lastConnectedAt: newLastConnected
     };
 
     let updated: any;
