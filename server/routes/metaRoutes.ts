@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 const router = Router();
-const prisma = new PrismaClient();
+const prisma: any = new PrismaClient();
 
 // In-memory fallback setting store when Database connection (PostgreSQL) is offline or unavailable
 let inMemorySetting: any = {
@@ -204,8 +204,11 @@ router.post('/test-connection', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Vui lòng nhập số điện thoại người nhận thử nghiệm (ví dụ: 84901234567).' });
     }
 
-    // Clean recipient phone format (remove +, spaces, non-digits)
-    const cleanPhone = recipientPhone.replace(/\D/g, '');
+    // Clean recipient phone format (remove +, spaces, non-digits and add country code 84 if starts with 0)
+    let cleanPhone = recipientPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '84' + cleanPhone.substring(1);
+    }
 
     // Call WhatsApp Cloud API (Graph API v26.0)
     const metaApiUrl = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
