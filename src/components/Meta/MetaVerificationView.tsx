@@ -249,7 +249,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-4">
               <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800 uppercase tracking-wider">
                 <Zap className="w-4 h-4 text-emerald-600" />
-                Bước 1: Nhập Mã Doanh Nghiệp WABA ID &amp; Token Meta:
+                Bước 1: Nhập Mã Doanh Nghiệp WABA ID:
               </div>
 
               <div>
@@ -266,29 +266,15 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
-                  <span>Permanent Access Token (Mã Truy Cập Hệ Thống Meta) <span className="text-red-500">*</span></span>
-                  <span className="text-[10px] text-slate-500 font-normal lowercase">Business Settings &gt; System Users</span>
-                </label>
-                <input
-                  type="password"
-                  placeholder={hasToken ? `Đã lưu token (${maskedToken}). Nhập mới nếu muốn thay đổi...` : 'Nhập mã Bearer Token vĩnh viễn từ Meta...'}
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold shadow-xs"
-                />
-              </div>
-
               <div className="pt-1">
                 <button
                   type="button"
-                  onClick={() => fetchPhoneNumbersList(wabaId, accessToken)}
+                  onClick={() => fetchPhoneNumbersList(wabaId, '')}
                   disabled={isFetchingPhones || !wabaId}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer disabled:opacity-50"
                 >
                   {isFetchingPhones ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 text-emerald-400" />}
-                  {isFetchingPhones ? 'Đang tải số điện thoại...' : ' Tải Tự Động Danh Sách Số Điện Thoại Từ WABA ID'}
+                  {isFetchingPhones ? 'Tải Tự Động Danh Sách Số Điện Thoại Từ WABA ID' : 'Tải Tự Động Danh Sách Số Điện Thoại Từ WABA ID'}
                 </button>
               </div>
 
