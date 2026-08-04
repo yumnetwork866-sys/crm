@@ -41,6 +41,18 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [saveAlert, setSaveAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [testAlert, setTestAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const safeJsonFetch = async (url: string, options?: RequestInit) => {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      throw new Error(`Phản hồi từ Server không đúng định dạng JSON (Mã lỗi ${res.status}).`);
+    }
+    return { ok: res.ok, status: res.status, data };
+  };
+
   // Fetch current Meta configuration on mount
   useEffect(() => {
     fetchConfig();
@@ -48,9 +60,8 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch('/api/meta/config');
-      if (res.ok) {
-        const data = await res.json();
+      const { ok, data } = await safeJsonFetch('/api/meta/config');
+      if (ok) {
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
@@ -75,14 +86,13 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     setFetchPhonesAlert(null);
 
     try {
-      const res = await fetch('/api/meta/fetch-phone-numbers', {
+      const { ok, data } = await safeJsonFetch('/api/meta/fetch-phone-numbers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wabaId: wabaIdToFetch, accessToken: tokenToFetch }),
       });
-      const data = await res.json();
 
-      if (res.ok && data.success) {
+      if (ok && data.success) {
         setPhoneNumbersList(data.phoneNumbers);
         setFetchPhonesAlert({ type: 'success', message: `Đã tìm thấy ${data.count} số điện thoại trong WABA ID!` });
         if (data.phoneNumbers.length > 0 && !phoneId) {
@@ -104,7 +114,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     setSaveAlert(null);
 
     try {
-      const res = await fetch('/api/meta/config', {
+      const { ok, data } = await safeJsonFetch('/api/meta/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -115,8 +125,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         }),
       });
 
-      const data = await res.json();
-      if (res.ok) {
+      if (ok) {
         setSaveAlert({ type: 'success', message: 'Lưu cấu hình WhatsApp API thành công!' });
         setHasToken(data.hasAccessToken);
         if (accessToken) {
@@ -143,7 +152,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     setTestAlert(null);
 
     try {
-      const res = await fetch('/api/meta/test-connection', {
+      const { ok, data } = await safeJsonFetch('/api/meta/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -154,8 +163,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (ok && data.success) {
         setTestAlert({ type: 'success', message: data.message });
         setConnectionStatus('connected');
         if (data.lastConnectedAt) {

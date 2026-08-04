@@ -4,21 +4,43 @@ import { PrismaClient } from '@prisma/client';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Helper to retrieve dynamic IntegrationSetting from DB
+// In-memory fallback setting store when Database connection (PostgreSQL) is offline or unavailable
+let inMemorySetting: any = {
+  id: 'default',
+  whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+  whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+  whatsappAppId: '',
+  whatsappAppSecret: '',
+  status: 'disconnected',
+  lastConnectedAt: null,
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+
+// Helper to retrieve dynamic IntegrationSetting from DB (or fallback in-memory)
 async function getIntegrationSetting() {
-  let setting = await prisma.integrationSetting.findUnique({ where: { id: 'default' } });
-  if (!setting) {
-    setting = await prisma.integrationSetting.create({
-      data: {
-        id: 'default',
-        whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
-        whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-        whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-        whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-      }
-    });
+  try {
+    let setting = await prisma.integrationSetting.findUnique({ where: { id: 'default' } });
+    if (!setting) {
+      setting = await prisma.integrationSetting.create({
+        data: {
+          id: 'default',
+          whatsappVerifyToken: inMemorySetting.whatsappVerifyToken,
+          whatsappPhoneNumberId: inMemorySetting.whatsappPhoneNumberId,
+          whatsappWabaId: inMemorySetting.whatsappWabaId,
+          whatsappAccessToken: inMemorySetting.whatsappAccessToken,
+        }
+      });
+    }
+    // Sync in-memory store with DB
+    inMemorySetting = { ...setting };
+    return setting;
+  } catch (dbError) {
+    // If PostgreSQL DB connection fails (ECONNREFUSED), use in-memory store gracefully
+    return inMemorySetting;
   }
-  return setting;
 }
 
 // Endpoint: GET /api/meta/config - Read current integration configuration
@@ -68,17 +90,27 @@ router.post('/config', async (req: Request, res: Response) => {
       ? whatsappAccessToken.trim()
       : existing.whatsappAccessToken;
 
-    const updated = await prisma.integrationSetting.update({
-      where: { id: 'default' },
-      data: {
-        whatsappPhoneNumberId: whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId,
-        whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
-        whatsappAccessToken: newToken,
-        whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
-        whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
-        whatsappAppSecret: whatsappAppSecret !== undefined ? whatsappAppSecret.trim() : existing.whatsappAppSecret,
-      }
-    });
+    const updateData = {
+      whatsappPhoneNumberId: whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId,
+      whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
+      whatsappAccessToken: newToken,
+      whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
+      whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
+      whatsappAppSecret: whatsappAppSecret !== undefined ? whatsappAppSecret.trim() : existing.whatsappAppSecret,
+    };
+
+    let updated: any;
+    try {
+      updated = await prisma.integrationSetting.update({
+        where: { id: 'default' },
+        data: updateData
+      });
+      inMemorySetting = { ...updated };
+    } catch (dbErr) {
+      // Fallback update in memory if DB is unavailable
+      inMemorySetting = { ...inMemorySetting, ...updateData, updatedAt: new Date() };
+      updated = inMemorySetting;
+    }
 
     return res.json({
       message: 'Cập nhật cấu hình tích hợp thành công!',
@@ -121,11 +153,17 @@ router.post('/fetch-phone-numbers', async (req: Request, res: Response) => {
       }
     });
 
-    const responseData: any = await response.json();
+    const text = await response.text();
+    let responseData: any = {};
+    try {
+      responseData = text ? JSON.parse(text) : {};
+    } catch (e) {
+      responseData = { error: { message: text } };
+    }
 
     if (!response.ok) {
       console.error('Failed to fetch WhatsApp phone numbers from WABA:', responseData);
-      const errorMsg = responseData?.error?.message || 'Không thể lấy danh sách số điện thoại từ Meta.';
+      const errorMsg = responseData?.error?.message || responseData?.error?.error_user_msg || `Meta API trả về mã lỗi HTTP ${response.status}`;
       return res.status(response.status).json({ success: false, error: errorMsg, details: responseData });
     }
 
@@ -192,17 +230,27 @@ router.post('/test-connection', async (req: Request, res: Response) => {
       body: JSON.stringify(payload)
     });
 
-    const responseData: any = await response.json();
+    const text = await response.text();
+    let responseData: any = {};
+    try {
+      responseData = text ? JSON.parse(text) : {};
+    } catch (e) {
+      responseData = { error: { message: text } };
+    }
 
     if (!response.ok) {
       console.error('WhatsApp Graph API Error:', responseData);
       const errorMsg = responseData?.error?.message || responseData?.error?.error_user_msg || 'Kết nối Meta WhatsApp thất bại.';
       
       // Update status in DB as error
-      await prisma.integrationSetting.update({
-        where: { id: 'default' },
-        data: { status: 'error' }
-      });
+      try {
+        await prisma.integrationSetting.update({
+          where: { id: 'default' },
+          data: { status: 'error' }
+        });
+      } catch (err) {
+        inMemorySetting.status = 'error';
+      }
 
       return res.status(response.status).json({
         success: false,
@@ -213,13 +261,18 @@ router.post('/test-connection', async (req: Request, res: Response) => {
 
     // Update status in DB as connected
     const now = new Date();
-    await prisma.integrationSetting.update({
-      where: { id: 'default' },
-      data: {
-        status: 'connected',
-        lastConnectedAt: now
-      }
-    });
+    try {
+      await prisma.integrationSetting.update({
+        where: { id: 'default' },
+        data: {
+          status: 'connected',
+          lastConnectedAt: now
+        }
+      });
+    } catch (err) {
+      inMemorySetting.status = 'connected';
+      inMemorySetting.lastConnectedAt = now;
+    }
 
     return res.json({
       success: true,
