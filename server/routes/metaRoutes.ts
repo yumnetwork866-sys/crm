@@ -34,9 +34,16 @@ async function getIntegrationSetting() {
         }
       });
     }
-    // Sync in-memory store with DB
-    inMemorySetting = { ...setting };
-    return setting;
+    // Merge environment variables if DB values are empty
+    const mergedSetting = {
+      ...setting,
+      whatsappWabaId: setting.whatsappWabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+      whatsappAccessToken: setting.whatsappAccessToken || process.env.WHATSAPP_ACCESS_TOKEN || '',
+      whatsappPhoneNumberId: setting.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    };
+    // Sync in-memory store with DB & env
+    inMemorySetting = { ...mergedSetting };
+    return mergedSetting;
   } catch (dbError) {
     // If PostgreSQL DB connection fails (ECONNREFUSED), use in-memory store gracefully
     return inMemorySetting;
