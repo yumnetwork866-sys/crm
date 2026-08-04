@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   ExternalLink, 
@@ -11,7 +11,12 @@ import {
   UserCheck, 
   Building2, 
   Lock,
-  Facebook
+  MessageSquare,
+  Send,
+  RefreshCw,
+  AlertTriangle,
+  Zap,
+  Radio
 } from 'lucide-react';
 
 interface MetaVerificationViewProps {
@@ -20,10 +25,27 @@ interface MetaVerificationViewProps {
 
 export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNavigateLegal }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [appId, setAppId] = useState('948201948123904');
-  const [appSecret, setAppSecret] = useState('e84f901a87b32c9123891238910abfde');
+
+  // Integration Config States
+  const [phoneId, setPhoneId] = useState('');
+  const [wabaId, setWabaId] = useState('');
+  const [accessToken, setAccessToken] = useState('');
   const [verifyToken, setVerifyToken] = useState('YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-  const [appMode, setAppMode] = useState<'development' | 'live'>('development');
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
+  const [hasToken, setHasToken] = useState(false);
+  const [maskedToken, setMaskedToken] = useState('');
+  const [lastConnectedAt, setLastConnectedAt] = useState<string | null>(null);
+
+  // Test Connection States
+  const [testPhone, setTestPhone] = useState('');
+  const [testMessage, setTestMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [saveAlert, setSaveAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [testAlert, setTestAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const domain = window.location.origin;
 
@@ -36,196 +58,274 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
     authCallback: `${domain}/api/auth/facebook/callback`,
   };
 
+  // Fetch current Meta configuration on mount
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const fetchConfig = async () => {
+    try {
+      const res = await fetch('/api/meta/config');
+      if (res.ok) {
+        const data = await res.json();
+        setPhoneId(data.whatsappPhoneNumberId || '');
+        setWabaId(data.whatsappWabaId || '');
+        setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
+        setAppId(data.whatsappAppId || '');
+        setAppSecret(data.whatsappAppSecret || '');
+        setConnectionStatus(data.status || 'disconnected');
+        setHasToken(data.hasAccessToken);
+        setMaskedToken(data.maskedAccessToken || '');
+        setLastConnectedAt(data.lastConnectedAt || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch Meta config:', err);
+    }
+  };
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSaveAlert(null);
+
+    try {
+      const res = await fetch('/api/meta/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          whatsappPhoneNumberId: phoneId,
+          whatsappWabaId: wabaId,
+          whatsappAccessToken: accessToken,
+          whatsappVerifyToken: verifyToken,
+          whatsappAppId: appId,
+          whatsappAppSecret: appSecret,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSaveAlert({ type: 'success', message: 'Lưu cấu hình WhatsApp Cloud API thành công!' });
+        setHasToken(data.hasAccessToken);
+        if (accessToken) {
+          setAccessToken(''); // Clear password input after save
+        }
+        await fetchConfig();
+      } else {
+        setSaveAlert({ type: 'error', message: data.error || 'Lỗi khi lưu cấu hình' });
+      }
+    } catch (err: any) {
+      setSaveAlert({ type: 'error', message: err.message || 'Không thể kết nối đến server' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!testPhone) {
+      setTestAlert({ type: 'error', message: 'Vui lòng nhập số điện thoại người nhận (ví dụ: 84901234567)' });
+      return;
+    }
+
+    setIsTesting(true);
+    setTestAlert(null);
+
+    try {
+      const res = await fetch('/api/meta/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientPhone: testPhone,
+          messageText: testMessage || `[YumNetwork CRM Test] Xin chào! Kết nối WhatsApp Cloud API thành công vào lúc ${new Date().toLocaleString('vi-VN')}!`,
+          phoneNumberId: phoneId,
+          accessToken: accessToken || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestAlert({ type: 'success', message: data.message });
+        setConnectionStatus('connected');
+        if (data.lastConnectedAt) {
+          setLastConnectedAt(data.lastConnectedAt);
+        }
+      } else {
+        setTestAlert({ type: 'error', message: data.error || 'Gửi tin nhắn test thất bại' });
+        setConnectionStatus('error');
+      }
+    } catch (err: any) {
+      setTestAlert({ type: 'error', message: err.message || 'Lỗi kết nối API' });
+      setConnectionStatus('error');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
   };
-
-  const permissionsList = [
-    {
-      name: 'pages_messaging',
-      category: 'Messenger API',
-      status: 'Ready for Review',
-      description: 'Cho phép YumNetwork CRM nhận và gửi tin nhắn tự động / thủ công với khách hàng qua Facebook Messenger.',
-      justification: 'YumNetwork CRM là nền tảng quản lý chăm sóc khách hàng tập trung. Quyền này bắt buộc để bộ phận Telesales/CSKH gửi câu trả lời và thông báo đơn hàng cho khách hàng qua Messenger.'
-    },
-    {
-      name: 'leads_retrieval',
-      category: 'Facebook Lead Ads',
-      status: 'Ready for Review',
-      description: 'Đồng bộ tự động thông tin khách hàng từ Form Quảng cáo Facebook Lead Ads vào hệ thống YumNetwork CRM.',
-      justification: 'Giúp tự động thu nạp dữ liệu Lead Ads thời gian thực, phân bổ Telesales tư vấn ngay lập tức, gia tăng tỷ lệ chuyển đổi đơn hàng.'
-    },
-    {
-      name: 'pages_read_engagement',
-      category: 'Page Analytics & Engagement',
-      status: 'Approved',
-      description: 'Đọc thông tin tương tác Fanpage để thống kê báo cáo hiệu quả chiến dịch Marketing.',
-      justification: 'Dùng để tính toán chỉ số ROI, chi phí trên mỗi Lead và tỷ lệ tương tác của từng chiến dịch quảng cáo.'
-    },
-    {
-      name: 'whatsapp_business_messaging',
-      category: 'WhatsApp Business Cloud API',
-      status: 'Ready for Review',
-      description: 'Tự động gửi tin nhắn WhatsApp chăm sóc khách hàng theo quy trình Ngày +3, +5, +7, +15.',
-      justification: 'Dùng để kích hoạt chuỗi Automation chăm sóc hậu mãi, gửi thông báo mã giảm giá và khảo sát sự hài lòng sau khi mua hàng.'
-    }
-  ];
-
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16 bg-slate-50 text-slate-900">
-      {/* Top Banner & Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-8 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+      {/* Live Status Badge */}
+      <div className={`rounded-2xl p-4 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm ${
+        connectionStatus === 'connected'
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+          : connectionStatus === 'error'
+          ? 'bg-red-50 border-red-300 text-red-900'
+          : 'bg-amber-50 border-amber-300 text-amber-900'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl ${
+            connectionStatus === 'connected' ? 'bg-emerald-600 text-white' : connectionStatus === 'error' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+          }`}>
+            <Radio className="w-5 h-5 animate-pulse" />
+          </div>
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 border border-red-200 text-red-600 text-xs font-bold mb-3">
-              <ShieldCheck className="w-4 h-4" />
-              Meta App Review &amp; Business Verification Hub
-            </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-              Trung Tâm Xác Minh Meta &amp; App Review
-            </h1>
-            <p className="text-slate-600 mt-2 max-w-2xl text-sm sm:text-base leading-relaxed font-medium">
-              Cấu hình các thông tin pháp lý, API Webhooks và Portal hướng dẫn Kiểm duyệt viên Meta duyệt ứng dụng <strong className="text-slate-900">YumNetwork CRM</strong> một cách nhanh chóng nhất.
+            <h3 className="font-extrabold text-sm flex items-center gap-2">
+              Trạng thái Kết nối WhatsApp API:
+              <span className="uppercase font-mono text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-white border border-current">
+                {connectionStatus === 'connected' ? '🟢 ĐÃ KẾT NỐI (ACTIVE)' : connectionStatus === 'error' ? '🔴 LỖI KẾT NỐI' : '🟡 CHƯA KẾT NỐI'}
+              </span>
+            </h3>
+            <p className="text-xs mt-0.5 opacity-90">
+              {connectionStatus === 'connected'
+                ? `Đã xác thực thành công. Lần kết nối gần nhất: ${lastConnectedAt ? new Date(lastConnectedAt).toLocaleString('vi-VN') : 'Mới đây'}`
+                : connectionStatus === 'error'
+                ? 'Vui lòng kiểm tra lại Access Token hoặc Phone Number ID bên dưới.'
+                : 'Chưa có thông số Token/Phone ID hợp lệ. Hãy điền thông tin và bấm Lưu & Test.'}
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onNavigateLegal?.('privacy')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition cursor-pointer"
-            >
-              <FileText className="w-4 h-4 text-slate-500" />
-              Privacy Policy
-            </button>
-            <button
-              onClick={() => onNavigateLegal?.('terms')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition cursor-pointer"
-            >
-              <Globe className="w-4 h-4 text-slate-500" />
-              Terms of Service
-            </button>
-            <button
-              onClick={() => onNavigateLegal?.('deletion')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition cursor-pointer"
-            >
-              <Lock className="w-4 h-4 text-red-600" />
-              Data Deletion
-            </button>
-          </div>
         </div>
+
+        <button
+          onClick={fetchConfig}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold border border-slate-300 transition cursor-pointer shrink-0 shadow-xs"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Làm mới trạng thái
+        </button>
       </div>
 
-      {/* Meta App Configuration Cards */}
+      {/* Main Grid: Form Admin Config + Test Module */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* App Credentials & Status */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-lg space-y-6">
+        
+        {/* Form Cấu hình WhatsApp API */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg space-y-6">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-              <Key className="w-5 h-5 text-red-600" />
-              Thông Tin Ứng Dụng Meta App Dashboard
+            <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+              <Key className="w-6 h-6 text-emerald-600" />
+              Cấu Hình Xác Thực WhatsApp Cloud API (Admin Only)
             </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-              appMode === 'live' 
-                ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' 
-                : 'bg-amber-100 text-amber-800 border border-amber-300'
-            }`}>
-              Chế độ: {appMode === 'live' ? 'Live (Đã Duyệt)' : 'In Development (Đang Kiểm Duyệt)'}
-            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Meta App ID
-              </label>
-              <div className="relative">
+          {saveAlert && (
+            <div className={`p-4 rounded-xl text-xs font-bold border flex items-center gap-2 ${
+              saveAlert.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-red-50 text-red-800 border-red-300'
+            }`}>
+              {saveAlert.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />}
+              {saveAlert.message}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveConfig} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  WhatsApp Phone Number ID <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
-                  value={appId}
-                  onChange={(e) => setAppId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
+                  placeholder="Ví dụ: 582910394812390"
+                  value={phoneId}
+                  onChange={(e) => setPhoneId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
                 />
-                <button
-                  onClick={() => copyToClipboard(appId, 'appId')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
-                  title="Copy App ID"
-                >
-                  {copiedField === 'appId' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                </button>
+                <span className="text-[11px] text-slate-500 mt-1 block">Lấy từ Meta Console &gt; WhatsApp &gt; Thiết lập API.</span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  WhatsApp Business Account ID (WABA ID)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 109283948102934"
+                  value={wabaId}
+                  onChange={(e) => setWabaId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
+                />
+                <span className="text-[11px] text-slate-500 mt-1 block">ID tài khoản kinh doanh WhatsApp.</span>
               </div>
             </div>
 
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Meta App Secret
+                Permanent System Access Token (Mã Truy Cập Hệ Thống Meta) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="password"
-                  value={appSecret}
-                  onChange={(e) => setAppSecret(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
+                  placeholder={hasToken ? `Đã lưu token (${maskedToken}). Nhập mới nếu muốn thay đổi...` : 'Nhập mã Bearer Token từ Meta System User...'}
+                  value={accessToken}
+                  onChange={(e) => setAccessToken(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
                 />
-                <button
-                  onClick={() => copyToClipboard(appSecret, 'appSecret')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
-                  title="Copy App Secret"
-                >
-                  {copiedField === 'appSecret' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                </button>
               </div>
+              <span className="text-[11px] text-slate-500 mt-1 block">Tạo Token không hết hạn trong Meta Business Settings &gt; System Users.</span>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Webhook Verify Token
-              </label>
-              <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  Webhook Verify Token (Dùng xác thực URL)
+                </label>
                 <input
                   type="text"
                   value={verifyToken}
                   onChange={(e) => setVerifyToken(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none pr-10 font-bold"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
                 />
-                <button
-                  onClick={() => copyToClipboard(verifyToken, 'verifyToken')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 p-1.5 cursor-pointer"
-                  title="Copy Token"
-                >
-                  {copiedField === 'verifyToken' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                </button>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  Meta App ID (Tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  placeholder="App ID từ Meta Console"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
+                />
               </div>
             </div>
-          </div>
 
-          {/* Webhook URLs */}
-          <div className="space-y-3 pt-2">
+            <div className="pt-3 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+              >
+                {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {isSaving ? 'Đang Lưu...' : 'Lưu Cấu Hình WhatsApp API'}
+              </button>
+            </div>
+          </form>
+
+          {/* Webhook Callback Section */}
+          <div className="space-y-3 pt-4 border-t border-slate-200">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <Server className="w-4 h-4 text-blue-600" />
-              Đường Dẫn Callback Webhooks Cần Điền Trên Meta Developer Console
+              Thông Tin Điền Vào Mục Webhook Trên Meta Developer Console
             </h3>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-xs text-slate-500 block font-bold">Valid OAuth Redirect URI (Authorize Callback URL)</span>
-                  <code className="text-xs text-blue-600 font-mono font-bold">{legalUrls.authCallback}</code>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(legalUrls.authCallback, 'authCallback')}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
-                >
-                  {copiedField === 'authCallback' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copy URL
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-xs text-slate-500 block font-bold">Webhook URL (Messenger &amp; Lead Ads)</span>
-                  <code className="text-xs text-red-600 font-mono font-bold">{legalUrls.webhook}</code>
+                  <span className="text-xs text-slate-500 block font-bold">Callback URL (Webhook)</span>
+                  <code className="text-xs text-emerald-700 font-mono font-bold">{legalUrls.webhook}</code>
                 </div>
                 <button
                   onClick={() => copyToClipboard(legalUrls.webhook, 'webhook')}
@@ -238,184 +338,81 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
 
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-xs text-slate-500 block font-bold">User Data Deletion Callback URL</span>
-                  <code className="text-xs text-emerald-700 font-mono font-bold">{legalUrls.deletionCallback}</code>
+                  <span className="text-xs text-slate-500 block font-bold">Verify Token</span>
+                  <code className="text-xs text-blue-600 font-mono font-bold">{verifyToken}</code>
                 </div>
                 <button
-                  onClick={() => copyToClipboard(legalUrls.deletionCallback, 'deletionCallback')}
+                  onClick={() => copyToClipboard(verifyToken, 'verifyTokenVal')}
                   className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
                 >
-                  {copiedField === 'deletionCallback' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copy URL
+                  {copiedField === 'verifyTokenVal' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy Token
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Requirements Checklist */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg flex flex-col justify-between">
+        {/* Module Test Kết Nối Trực Tiếp */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-4">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              Checklist Duyệt Nhanh Meta
+              <Zap className="w-5 h-5 text-amber-500" />
+              Kiểm Tra Kết Nối (Test Connection)
             </h2>
 
+            <p className="text-xs text-slate-600 font-medium leading-relaxed">
+              Nhập số điện thoại WhatsApp cá nhân của bạn để kiểm tra tính sẵn sàng của Token &amp; Phone Number ID vừa cài đặt.
+            </p>
+
+            {testAlert && (
+              <div className={`p-3 rounded-xl text-xs font-bold border flex items-start gap-2 ${
+                testAlert.type === 'success' ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-red-50 text-red-900 border-red-300'
+              }`}>
+                {testAlert.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />}
+                <span>{testAlert.message}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-emerald-800">Privacy Policy Public</h4>
-                  <p className="text-[11px] text-slate-600 font-medium">Đã xuất bản trang chính sách bảo mật công khai.</p>
-                </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Số điện thoại thử nghiệm (Bao gồm mã quốc gia 84)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 84901234567"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                />
               </div>
 
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-emerald-800">Terms of Service Public</h4>
-                  <p className="text-[11px] text-slate-600 font-medium">Đã xuất bản điều khoản dịch vụ công khai.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-emerald-800">User Data Deletion Callback</h4>
-                  <p className="text-[11px] text-slate-600 font-medium">Đã có API xử lý signed_request xóa dữ liệu chuẩn Meta.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                <Building2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-bold text-blue-800">Business Verification</h4>
-                  <p className="text-[11px] text-slate-600 font-medium">CÔNG TY TNHH TRUYỀN THÔNG YUM NETWORK đã chuẩn bị GPKD &amp; Giấy tờ công ty.</p>
-                </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Nội dung tin nhắn test
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="[YumNetwork CRM Test] Xin chào! Kết nối WhatsApp Cloud API thành công..."
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 text-xs focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                />
               </div>
             </div>
           </div>
 
           <div className="pt-4 border-t border-slate-200">
-            <a
-              href="https://developers.facebook.com/apps"
-              target="_blank"
-              rel="noreferrer"
-              className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs shadow-md transition"
+            <button
+              onClick={handleTestConnection}
+              disabled={isTesting}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
             >
-              Mở Meta Developer Console
-              <ExternalLink className="w-4 h-4" />
-            </a>
+              {isTesting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {isTesting ? 'Đang gửi tin nhắn test...' : 'Gửi Tin Nhắn WhatsApp Test Ngay'}
+            </button>
           </div>
-        </div>
-      </div>
-
-      {/* Reviewer Portal Kit for Meta Reviewers */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-3">
-              <UserCheck className="w-6 h-6 text-red-600" />
-              Tài Nguyên Kiểm Duyệt Dành Cho Meta Reviewer (Reviewer Portal Kit)
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
-              Điền thông tin bên dưới vào ô <strong>"Instructions for Reviewers"</strong> trên Meta Dashboard để reviewer test ứng dụng trực tiếp.
-            </p>
-          </div>
-
-          <button
-            onClick={() => {
-              const kitText = `YumNetwork CRM Meta Review Credentials:
-URL: ${domain}
-Test Username: meta_reviewer@yumnetwork.com
-Test Password: MetaReviewer2026!
-Instructions:
-1. Access the web app at ${domain}
-2. Click on "Xác minh Meta" menu tab.
-3. Test Facebook Login flow and permission consent for pages_messaging & leads_retrieval.
-4. Messages received on Facebook page sync instantly into YumNetwork CRM Inbox.`;
-              copyToClipboard(kitText, 'reviewerKit');
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition cursor-pointer shrink-0"
-          >
-            {copiedField === 'reviewerKit' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-            Copy Toàn Bộ Hướng Dẫn Reviewer
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">1. Demo Web App URL</span>
-            <code className="text-xs text-slate-900 font-mono font-bold block break-all">{domain}</code>
-            <p className="text-[11px] text-slate-600 font-medium">Đã mở sẵn IP/Domain public để Meta Reviewer truy cập không bị chặn firewall.</p>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">2. Test User Account</span>
-            <div className="text-xs text-slate-700 space-y-1 font-mono">
-              <div>User: <strong className="text-slate-900 font-bold">meta_reviewer@yumnetwork.com</strong></div>
-              <div>Pass: <strong className="text-slate-900 font-bold">MetaReviewer2026!</strong></div>
-            </div>
-            <p className="text-[11px] text-slate-600 font-medium">Tài khoản có đầy đủ quyền Admin và Fanpage Test đã tích hợp sẵn.</p>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-            <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">3. Screencast Video Guidelines</span>
-            <p className="text-xs text-slate-700 font-medium">
-              Video demo 1-3 phút quay luồng Facebook OAuth + Hiển thị rõ App ID <strong>{appId}</strong> trên URL trình duyệt.
-            </p>
-            <div className="flex items-center gap-1 text-[11px] text-emerald-700 font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Đạt chuẩn quy cách Meta 100%
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Permissions & Use Case Justifications */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-lg space-y-6">
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-3">
-            <FileText className="w-6 h-6 text-red-600" />
-            Bảng Giải Trình Lý Do Xin Quyền (Permission Use Case Justification)
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
-            Sao chép các đoạn văn bản giải trình đã tối ưu dưới đây dán vào các ô xin quyền tương ứng trên Meta App Review Submission Form.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          {permissionsList.map((perm) => (
-            <div key={perm.name} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm font-bold text-red-600">{perm.name}</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-white text-slate-700 border border-slate-300 font-bold">
-                    {perm.category}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => copyToClipboard(perm.justification, perm.name)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg border border-slate-300 transition cursor-pointer shadow-xs"
-                >
-                  {copiedField === perm.name ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copy Đoạn Giải Trình
-                </button>
-              </div>
-
-              <p className="text-xs text-slate-700 font-medium">{perm.description}</p>
-
-              <div className="bg-white p-3 rounded-xl border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Đoạn giải trình mẫu cho Meta Reviewer (English &amp; Vietnamese):
-                </span>
-                <p className="text-xs text-slate-800 italic leading-relaxed font-medium">
-                  "{perm.justification}"
-                </p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

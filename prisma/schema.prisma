@@ -147,3 +147,18 @@ model AutomationLog {
 
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
+
+model IntegrationSetting {
+  id                    String    @id @default("default")
+  whatsappPhoneNumberId String?
+  whatsappWabaId        String?
+  whatsappAccessToken   String?
+  whatsappVerifyToken   String?   @default("YUMNETWORK_CRM_META_VERIFY_TOKEN_2026")
+  whatsappAppId         String?
+  whatsappAppSecret     String?
+  status                String    @default("disconnected") // 'connected' | 'disconnected' | 'error'
+  lastConnectedAt       DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+

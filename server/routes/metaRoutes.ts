@@ -1,21 +1,196 @@
 import { Router, Request, Response } from 'express';
-import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
+const prisma = new PrismaClient();
+
+// Helper to retrieve dynamic IntegrationSetting from DB
+async function getIntegrationSetting() {
+  let setting = await prisma.integrationSetting.findUnique({ where: { id: 'default' } });
+  if (!setting) {
+    setting = await prisma.integrationSetting.create({
+      data: {
+        id: 'default',
+        whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+        whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+        whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+        whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+      }
+    });
+  }
+  return setting;
+}
+
+// Endpoint: GET /api/meta/config - Read current integration configuration
+router.get('/config', async (req: Request, res: Response) => {
+  try {
+    const setting = await getIntegrationSetting();
+    // Return sanitized setting (masking raw access token if present)
+    const maskedToken = setting.whatsappAccessToken
+      ? `${setting.whatsappAccessToken.substring(0, 8)}...${setting.whatsappAccessToken.substring(setting.whatsappAccessToken.length - 6)}`
+      : '';
+
+    return res.json({
+      id: setting.id,
+      whatsappPhoneNumberId: setting.whatsappPhoneNumberId || '',
+      whatsappWabaId: setting.whatsappWabaId || '',
+      whatsappVerifyToken: setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+      whatsappAppId: setting.whatsappAppId || '',
+      whatsappAppSecret: setting.whatsappAppSecret || '',
+      status: setting.status,
+      lastConnectedAt: setting.lastConnectedAt,
+      hasAccessToken: Boolean(setting.whatsappAccessToken && setting.whatsappAccessToken.trim().length > 0),
+      maskedAccessToken: maskedToken,
+      updatedAt: setting.updatedAt
+    });
+  } catch (error) {
+    console.error('Lỗi khi đọc cấu hình Meta Integration:', error);
+    return res.status(500).json({ error: 'Lỗi khi lấy cấu hình tích hợp Meta' });
+  }
+});
+
+// Endpoint: POST /api/meta/config - Save or update integration configuration
+router.post('/config', async (req: Request, res: Response) => {
+  try {
+    const {
+      whatsappPhoneNumberId,
+      whatsappWabaId,
+      whatsappAccessToken,
+      whatsappVerifyToken,
+      whatsappAppId,
+      whatsappAppSecret
+    } = req.body;
+
+    const existing = await getIntegrationSetting();
+
+    // Preserve existing access token if not provided or empty
+    const newToken = (whatsappAccessToken && whatsappAccessToken.trim().length > 0)
+      ? whatsappAccessToken.trim()
+      : existing.whatsappAccessToken;
+
+    const updated = await prisma.integrationSetting.update({
+      where: { id: 'default' },
+      data: {
+        whatsappPhoneNumberId: whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId,
+        whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
+        whatsappAccessToken: newToken,
+        whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
+        whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
+        whatsappAppSecret: whatsappAppSecret !== undefined ? whatsappAppSecret.trim() : existing.whatsappAppSecret,
+      }
+    });
+
+    return res.json({
+      message: 'Cập nhật cấu hình tích hợp thành công!',
+      status: updated.status,
+      whatsappPhoneNumberId: updated.whatsappPhoneNumberId,
+      whatsappWabaId: updated.whatsappWabaId,
+      whatsappVerifyToken: updated.whatsappVerifyToken,
+      hasAccessToken: Boolean(updated.whatsappAccessToken && updated.whatsappAccessToken.trim().length > 0),
+      lastConnectedAt: updated.lastConnectedAt
+    });
+  } catch (error) {
+    console.error('Lỗi khi lưu cấu hình Meta Integration:', error);
+    return res.status(500).json({ error: 'Không thể lưu cấu hình tích hợp Meta' });
+  }
+});
+
+// Endpoint: POST /api/meta/test-connection - Test WhatsApp Cloud API connection by sending a message
+router.post('/test-connection', async (req: Request, res: Response) => {
+  try {
+    const { recipientPhone, messageText, phoneNumberId: overridePhoneId, accessToken: overrideToken } = req.body;
+
+    const setting = await getIntegrationSetting();
+    const phoneId = overridePhoneId || setting.whatsappPhoneNumberId;
+    const token = overrideToken || setting.whatsappAccessToken;
+
+    if (!phoneId) {
+      return res.status(400).json({ error: 'Chưa cấu hình Phone Number ID. Vui lòng nhập Phone Number ID trước khi test.' });
+    }
+    if (!token) {
+      return res.status(400).json({ error: 'Chưa cấu hình Access Token. Vui lòng nhập Permanent Token từ Meta.' });
+    }
+    if (!recipientPhone) {
+      return res.status(400).json({ error: 'Vui lòng nhập số điện thoại người nhận thử nghiệm (ví dụ: 84901234567).' });
+    }
+
+    // Clean recipient phone format (remove +, spaces, non-digits)
+    const cleanPhone = recipientPhone.replace(/\D/g, '');
+
+    // Call WhatsApp Cloud API (Graph API v20.0)
+    const metaApiUrl = `https://graph.facebook.com/v20.0/${phoneId}/messages`;
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanPhone,
+      type: 'text',
+      text: {
+        body: messageText || `[YumNetwork CRM Test] Xin chào! Kết nối WhatsApp Cloud API thành công vào lúc ${new Date().toLocaleString('vi-VN')}!`
+      }
+    };
+
+    console.log(`Sending WhatsApp Test Message to ${cleanPhone} via PhoneId: ${phoneId}`);
+
+    const response = await fetch(metaApiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const responseData: any = await response.json();
+
+    if (!response.ok) {
+      console.error('WhatsApp Graph API Error:', responseData);
+      const errorMsg = responseData?.error?.message || responseData?.error?.error_user_msg || 'Kết nối Meta WhatsApp thất bại.';
+      
+      // Update status in DB as error
+      await prisma.integrationSetting.update({
+        where: { id: 'default' },
+        data: { status: 'error' }
+      });
+
+      return res.status(response.status).json({
+        success: false,
+        error: errorMsg,
+        details: responseData
+      });
+    }
+
+    // Update status in DB as connected
+    const now = new Date();
+    await prisma.integrationSetting.update({
+      where: { id: 'default' },
+      data: {
+        status: 'connected',
+        lastConnectedAt: now
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Kết nối WhatsApp Cloud API thành công! Tin nhắn thử nghiệm đã được gửi.',
+      metaResponse: responseData,
+      lastConnectedAt: now
+    });
+  } catch (error: any) {
+    console.error('Test Connection Exception:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Lỗi không xác định khi kiểm tra kết nối WhatsApp API'
+    });
+  }
+});
 
 // Endpoint: Meta User Data Deletion Callback
-// Meta Graph API posts a signed_request when a user removes the app from Facebook Apps & Websites
 router.post('/data-deletion', (req: Request, res: Response) => {
   try {
-    const signedRequest = req.body.signed_request || req.query.signed_request;
-
-    // Default confirmation code
     const confirmationCode = `YUM_DEL_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
     const domain = `${req.protocol}://${req.get('host')}`;
     const statusUrl = `${domain}/#data-deletion?code=${confirmationCode}`;
 
-    // Respond according to Meta Spec
-    // Spec requires JSON response containing `url` and `confirmation_code`
     return res.json({
       url: statusUrl,
       confirmation_code: confirmationCode
@@ -27,18 +202,20 @@ router.post('/data-deletion', (req: Request, res: Response) => {
 });
 
 // Endpoint: Meta Webhook Verification (GET)
-router.get('/webhooks', (req: Request, res: Response) => {
+router.get('/webhooks', async (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  const EXPECTED_TOKEN = process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026';
+  const setting = await getIntegrationSetting();
+  const EXPECTED_TOKEN = setting.whatsappVerifyToken || process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026';
 
   if (mode === 'subscribe' && token === EXPECTED_TOKEN) {
-    console.log('Meta Webhook Verified Successfully');
+    console.log('Meta Webhook Verified Successfully with token:', token);
     return res.status(200).send(challenge);
   }
 
+  console.warn(`Meta Webhook Verification Failed. Expected: "${EXPECTED_TOKEN}", Received: "${token}"`);
   return res.sendStatus(403);
 });
 
@@ -47,7 +224,6 @@ router.post('/webhooks', (req: Request, res: Response) => {
   const body = req.body;
 
   if (body.object === 'page' || body.object === 'whatsapp_business_account') {
-    // Process incoming messaging/lead events
     console.log('Received Meta Webhook Event:', JSON.stringify(body, null, 2));
     return res.status(200).send('EVENT_RECEIVED');
   }

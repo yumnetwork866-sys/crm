@@ -75,6 +75,12 @@ export const Navigation: React.FC<NavigationProps> = ({
       subtitle: 'Quản lý User & Password',
       icon: ShieldCheck,
     },
+    {
+      id: 'meta-verification' as ActiveTab,
+      label: 'Cấu Hình WhatsApp',
+      subtitle: 'Meta API & Test Connection',
+      icon: Facebook,
+    },
   ];
 
   return (
