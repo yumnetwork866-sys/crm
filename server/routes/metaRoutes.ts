@@ -143,7 +143,7 @@ router.post('/fetch-phone-numbers', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Vui lòng nhập Permanent Access Token từ Meta.' });
     }
 
-    const metaApiUrl = `https://graph.facebook.com/v20.0/${wabaId}/phone_numbers`;
+    const metaApiUrl = `https://graph.facebook.com/v26.0/${wabaId}/phone_numbers`;
 
     const response = await fetch(metaApiUrl, {
       method: 'GET',
@@ -207,8 +207,8 @@ router.post('/test-connection', async (req: Request, res: Response) => {
     // Clean recipient phone format (remove +, spaces, non-digits)
     const cleanPhone = recipientPhone.replace(/\D/g, '');
 
-    // Call WhatsApp Cloud API (Graph API v20.0)
-    const metaApiUrl = `https://graph.facebook.com/v20.0/${phoneId}/messages`;
+    // Call WhatsApp Cloud API (Graph API v26.0)
+    const metaApiUrl = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
     const payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
