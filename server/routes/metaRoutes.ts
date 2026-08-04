@@ -95,6 +95,58 @@ router.post('/config', async (req: Request, res: Response) => {
   }
 });
 
+// Endpoint: POST /api/meta/fetch-phone-numbers - Fetch all phone numbers associated with WABA ID
+router.post('/fetch-phone-numbers', async (req: Request, res: Response) => {
+  try {
+    const { wabaId: inputWabaId, accessToken: inputToken } = req.body;
+
+    const setting = await getIntegrationSetting();
+    const wabaId = (inputWabaId && inputWabaId.trim().length > 0) ? inputWabaId.trim() : setting.whatsappWabaId;
+    const token = (inputToken && inputToken.trim().length > 0) ? inputToken.trim() : setting.whatsappAccessToken;
+
+    if (!wabaId) {
+      return res.status(400).json({ error: 'Vui lòng nhập WhatsApp Business Account ID (WABA ID).' });
+    }
+    if (!token) {
+      return res.status(400).json({ error: 'Vui lòng nhập Permanent Access Token từ Meta.' });
+    }
+
+    const metaApiUrl = `https://graph.facebook.com/v20.0/${wabaId}/phone_numbers`;
+
+    const response = await fetch(metaApiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const responseData: any = await response.json();
+
+    if (!response.ok) {
+      console.error('Failed to fetch WhatsApp phone numbers from WABA:', responseData);
+      const errorMsg = responseData?.error?.message || 'Không thể lấy danh sách số điện thoại từ Meta.';
+      return res.status(response.status).json({ success: false, error: errorMsg, details: responseData });
+    }
+
+    const phoneNumbers = responseData.data || [];
+    return res.json({
+      success: true,
+      count: phoneNumbers.length,
+      phoneNumbers: phoneNumbers.map((p: any) => ({
+        id: p.id,
+        verifiedName: p.verified_name || p.display_phone_number || 'Chưa đặt tên',
+        displayPhoneNumber: p.display_phone_number || p.id,
+        qualityRating: p.quality_rating || 'UNKNOWN',
+        codeVerificationStatus: p.code_verification_status || 'VERIFIED'
+      }))
+    });
+  } catch (error: any) {
+    console.error('Fetch Phone Numbers Exception:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Lỗi hệ thống khi tải danh sách số điện thoại.' });
+  }
+});
+
 // Endpoint: POST /api/meta/test-connection - Test WhatsApp Cloud API connection by sending a message
 router.post('/test-connection', async (req: Request, res: Response) => {
   try {

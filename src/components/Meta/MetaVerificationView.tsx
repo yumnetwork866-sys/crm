@@ -1,43 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
-  ExternalLink, 
   CheckCircle2, 
-  Copy, 
-  FileText, 
   Key, 
-  Server, 
-  Globe, 
-  UserCheck, 
-  Building2, 
-  Lock,
-  MessageSquare,
-  Send,
-  RefreshCw,
-  AlertTriangle,
-  Zap,
-  Radio
+  Send, 
+  RefreshCw, 
+  AlertTriangle, 
+  Zap, 
+  Radio, 
+  Phone,
+  Search
 } from 'lucide-react';
 
 interface MetaVerificationViewProps {
   onNavigateLegal?: (page: 'privacy' | 'terms' | 'deletion') => void;
 }
 
-export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNavigateLegal }) => {
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
+export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   // Integration Config States
-  const [phoneId, setPhoneId] = useState('');
   const [wabaId, setWabaId] = useState('');
   const [accessToken, setAccessToken] = useState('');
+  const [phoneId, setPhoneId] = useState('');
   const [verifyToken, setVerifyToken] = useState('YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-  const [appId, setAppId] = useState('');
-  const [appSecret, setAppSecret] = useState('');
 
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
   const [hasToken, setHasToken] = useState(false);
   const [maskedToken, setMaskedToken] = useState('');
   const [lastConnectedAt, setLastConnectedAt] = useState<string | null>(null);
+
+  // Auto Fetch Phone Numbers State
+  const [phoneNumbersList, setPhoneNumbersList] = useState<Array<{ id: string; verifiedName: string; displayPhoneNumber: string }>>([]);
+  const [isFetchingPhones, setIsFetchingPhones] = useState(false);
+  const [fetchPhonesAlert, setFetchPhonesAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Test Connection States
   const [testPhone, setTestPhone] = useState('');
@@ -46,17 +40,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
   const [isTesting, setIsTesting] = useState(false);
   const [saveAlert, setSaveAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [testAlert, setTestAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  const domain = window.location.origin;
-
-  const legalUrls = {
-    privacy: `${domain}/#privacy`,
-    terms: `${domain}/#terms`,
-    deletion: `${domain}/#data-deletion`,
-    webhook: `${domain}/api/meta/webhooks`,
-    deletionCallback: `${domain}/api/meta/data-deletion`,
-    authCallback: `${domain}/api/auth/facebook/callback`,
-  };
 
   // Fetch current Meta configuration on mount
   useEffect(() => {
@@ -71,15 +54,47 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setAppId(data.whatsappAppId || '');
-        setAppSecret(data.whatsappAppSecret || '');
         setConnectionStatus(data.status || 'disconnected');
         setHasToken(data.hasAccessToken);
         setMaskedToken(data.maskedAccessToken || '');
         setLastConnectedAt(data.lastConnectedAt || null);
+
+        // Auto fetch phone numbers list if WABA ID & token exist
+        if (data.whatsappWabaId && data.hasAccessToken) {
+          fetchPhoneNumbersList(data.whatsappWabaId, '');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch Meta config:', err);
+    }
+  };
+
+  const fetchPhoneNumbersList = async (wabaIdToFetch: string, tokenToFetch: string) => {
+    if (!wabaIdToFetch) return;
+    setIsFetchingPhones(true);
+    setFetchPhonesAlert(null);
+
+    try {
+      const res = await fetch('/api/meta/fetch-phone-numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wabaId: wabaIdToFetch, accessToken: tokenToFetch }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setPhoneNumbersList(data.phoneNumbers);
+        setFetchPhonesAlert({ type: 'success', message: `Đã tìm thấy ${data.count} số điện thoại trong WABA ID!` });
+        if (data.phoneNumbers.length > 0 && !phoneId) {
+          setPhoneId(data.phoneNumbers[0].id);
+        }
+      } else {
+        setFetchPhonesAlert({ type: 'error', message: data.error || 'Không thể tải danh sách số điện thoại từ Meta WABA.' });
+      }
+    } catch (err: any) {
+      setFetchPhonesAlert({ type: 'error', message: err.message || 'Lỗi kết nối khi tải số điện thoại.' });
+    } finally {
+      setIsFetchingPhones(false);
     }
   };
 
@@ -97,17 +112,15 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
           whatsappWabaId: wabaId,
           whatsappAccessToken: accessToken,
           whatsappVerifyToken: verifyToken,
-          whatsappAppId: appId,
-          whatsappAppSecret: appSecret,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setSaveAlert({ type: 'success', message: 'Lưu cấu hình WhatsApp Cloud API thành công!' });
+        setSaveAlert({ type: 'success', message: 'Lưu cấu hình WhatsApp API thành công!' });
         setHasToken(data.hasAccessToken);
         if (accessToken) {
-          setAccessToken(''); // Clear password input after save
+          setAccessToken('');
         }
         await fetchConfig();
       } else {
@@ -160,11 +173,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
     }
   };
 
-  const copyToClipboard = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldName);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-16 bg-slate-50 text-slate-900">
       {/* Live Status Badge */}
@@ -193,7 +201,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
                 ? `Đã xác thực thành công. Lần kết nối gần nhất: ${lastConnectedAt ? new Date(lastConnectedAt).toLocaleString('vi-VN') : 'Mới đây'}`
                 : connectionStatus === 'error'
                 ? 'Vui lòng kiểm tra lại Access Token hoặc Phone Number ID bên dưới.'
-                : 'Chưa có thông số Token/Phone ID hợp lệ. Hãy điền thông tin và bấm Lưu & Test.'}
+                : 'Hãy điền WABA ID & Permanent Access Token rồi bấm Tải Số Điện Thoại.'}
             </p>
           </div>
         </div>
@@ -215,7 +223,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
             <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
               <Key className="w-6 h-6 text-emerald-600" />
-              Cấu Hình Xác Thực WhatsApp Cloud API (Admin Only)
+              Cấu Hình WhatsApp Cloud API Qua WABA ID (Tự Động Nối Số)
             </h2>
           </div>
 
@@ -228,129 +236,123 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({ onNa
             </div>
           )}
 
-          <form onSubmit={handleSaveConfig} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  WhatsApp Phone Number ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: 582910394812390"
-                  value={phoneId}
-                  onChange={(e) => setPhoneId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">Lấy từ Meta Console &gt; WhatsApp &gt; Thiết lập API.</span>
+          <form onSubmit={handleSaveConfig} className="space-y-5">
+            {/* Step 1: WABA ID & Access Token */}
+            <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                <Zap className="w-4 h-4 text-emerald-600" />
+                Bước 1: Nhập Mã Doanh Nghiệp WABA ID &amp; Token Meta:
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  WhatsApp Business Account ID (WABA ID)
+                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                  <span>WhatsApp Business Account ID (WABA ID) <span className="text-red-500">*</span></span>
+                  <span className="text-[10px] text-slate-500 font-normal lowercase">Meta Business Settings &gt; WhatsApp Accounts</span>
                 </label>
                 <input
                   type="text"
                   placeholder="Ví dụ: 109283948102934"
                   value={wabaId}
                   onChange={(e) => setWabaId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold shadow-xs"
                 />
-                <span className="text-[11px] text-slate-500 mt-1 block">ID tài khoản kinh doanh WhatsApp.</span>
               </div>
-            </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Permanent System Access Token (Mã Truy Cập Hệ Thống Meta) <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
+              <div>
+                <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                  <span>Permanent Access Token (Mã Truy Cập Hệ Thống Meta) <span className="text-red-500">*</span></span>
+                  <span className="text-[10px] text-slate-500 font-normal lowercase">Business Settings &gt; System Users</span>
+                </label>
                 <input
                   type="password"
-                  placeholder={hasToken ? `Đã lưu token (${maskedToken}). Nhập mới nếu muốn thay đổi...` : 'Nhập mã Bearer Token từ Meta System User...'}
+                  placeholder={hasToken ? `Đã lưu token (${maskedToken}). Nhập mới nếu muốn thay đổi...` : 'Nhập mã Bearer Token vĩnh viễn từ Meta...'}
                   value={accessToken}
                   onChange={(e) => setAccessToken(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold shadow-xs"
                 />
               </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">Tạo Token không hết hạn trong Meta Business Settings &gt; System Users.</span>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => fetchPhoneNumbersList(wabaId, accessToken)}
+                  disabled={isFetchingPhones || !wabaId}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  {isFetchingPhones ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 text-emerald-400" />}
+                  {isFetchingPhones ? 'Đang tải số điện thoại...' : ' Tải Tự Động Danh Sách Số Điện Thoại Từ WABA ID'}
+                </button>
+              </div>
+
+              {fetchPhonesAlert && (
+                <div className={`p-3 rounded-xl text-xs font-bold border flex items-center gap-2 ${
+                  fetchPhonesAlert.type === 'success' ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-red-100 text-red-900 border-red-300'
+                }`}>
+                  {fetchPhonesAlert.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />}
+                  {fetchPhonesAlert.message}
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  Webhook Verify Token (Dùng xác thực URL)
-                </label>
-                <input
-                  type="text"
-                  value={verifyToken}
-                  onChange={(e) => setVerifyToken(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
-                />
+            {/* Step 2: Select Phone Number from WABA */}
+            <div className="bg-emerald-50/60 p-4.5 rounded-2xl border border-emerald-200/80 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-800 uppercase tracking-wider">
+                  <Phone className="w-4 h-4 text-emerald-600" />
+                  Bước 2: Chọn Số Điện Thoại Sử Dụng Gửi Tin Nhắn:
+                </div>
+                {phoneNumbersList.length > 0 && (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                    Tìm thấy {phoneNumbersList.length} số
+                  </span>
+                )}
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                  Meta App ID (Tùy chọn)
-                </label>
-                <input
-                  type="text"
-                  placeholder="App ID từ Meta Console"
-                  value={appId}
-                  onChange={(e) => setAppId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-bold"
-                />
-              </div>
+              {phoneNumbersList.length > 0 ? (
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-1.5">
+                    Danh Sách Số Điện Thoại Thuộc WABA ID Của Bạn:
+                  </label>
+                  <select
+                    value={phoneId}
+                    onChange={(e) => setPhoneId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-xs"
+                  >
+                    {phoneNumbersList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.verifiedName} ({p.displayPhoneNumber}) — Phone ID: {p.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-bold text-slate-800 block mb-1.5">
+                    WhatsApp Phone Number ID (Hoặc nhập ID thủ công nếu biết):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: 582910394812390"
+                    value={phoneId}
+                    onChange={(e) => setPhoneId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none font-bold shadow-xs"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">Bấm nút "Tải Tự Động Danh Sách..." ở trên để hệ thống tự lấy danh sách số.</span>
+                </div>
+              )}
             </div>
 
-            <div className="pt-3 flex justify-end">
+            <div className="pt-2 flex justify-end">
               <button
                 type="submit"
                 disabled={isSaving}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {isSaving ? 'Đang Lưu...' : 'Lưu Cấu Hình WhatsApp API'}
+                {isSaving ? 'Đang Lưu Cấu Hình...' : 'Lưu Cấu Hình WhatsApp API'}
               </button>
             </div>
           </form>
-
-          {/* Webhook Callback Section */}
-          <div className="space-y-3 pt-4 border-t border-slate-200">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Server className="w-4 h-4 text-blue-600" />
-              Thông Tin Điền Vào Mục Webhook Trên Meta Developer Console
-            </h3>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-xs text-slate-500 block font-bold">Callback URL (Webhook)</span>
-                  <code className="text-xs text-emerald-700 font-mono font-bold">{legalUrls.webhook}</code>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(legalUrls.webhook, 'webhook')}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
-                >
-                  {copiedField === 'webhook' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copy URL
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div>
-                  <span className="text-xs text-slate-500 block font-bold">Verify Token</span>
-                  <code className="text-xs text-blue-600 font-mono font-bold">{verifyToken}</code>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(verifyToken, 'verifyTokenVal')}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 rounded-lg flex items-center gap-1.5 border border-slate-300 transition cursor-pointer shadow-xs"
-                >
-                  {copiedField === 'verifyTokenVal' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copy Token
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Module Test Kết Nối Trực Tiếp */}
