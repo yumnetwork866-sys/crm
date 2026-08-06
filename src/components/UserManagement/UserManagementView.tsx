@@ -345,9 +345,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="font-extrabold text-slate-950 text-sm">Danh Sách Tài Khoản Auth System ({filteredUsers.length})</h3>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-700 font-bold">
-                  Tài khoản đang đăng nhập: <strong className="text-indigo-600 font-black">{currentUser?.name || 'Khách / Chưa Đăng Nhập'}</strong>
-                </span>
                 {currentUser?.role === 'Admin' && onNavigateToWhatsApp && (
                   <button
                     onClick={onNavigateToWhatsApp}

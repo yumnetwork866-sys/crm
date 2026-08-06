@@ -1,0 +1,389 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - banner [ref=f4e5]:
+      - generic [ref=f4e7]:
+        - img "YumNetwork CRM" [ref=f4e10]
+        - button "Nguyễn Văn Ánh Nguyễn Văn Ánh Admin" [ref=f4e12] [cursor=pointer]:
+          - img "Nguyễn Văn Ánh" [ref=f4e13]
+          - generic [ref=f4e14]:
+            - generic [ref=f4e15]: Nguyễn Văn Ánh
+            - generic [ref=f4e16]: Admin
+    - navigation [ref=f4e17]:
+      - generic [ref=f4e19]:
+        - button "Khách Hàng Thông tin & Data" [ref=f4e20] [cursor=pointer]:
+          - generic [ref=f4e26]:
+            - generic [ref=f4e27]: Khách Hàng
+            - generic [ref=f4e29]: Thông tin & Data
+        - button "Đơn Hàng Quản lý đơn & In HĐ" [ref=f4e30] [cursor=pointer]:
+          - generic [ref=f4e34]:
+            - generic [ref=f4e35]: Đơn Hàng
+            - generic [ref=f4e37]: Quản lý đơn & In HĐ
+        - button "Sản Phẩm Kho hàng & Giá bán" [ref=f4e38] [cursor=pointer]:
+          - generic [ref=f4e43]:
+            - generic [ref=f4e44]: Sản Phẩm
+            - generic [ref=f4e46]: Kho hàng & Giá bán
+        - button "Phân Nhóm Nhóm 1 - 4 Tự động" [ref=f4e47] [cursor=pointer]:
+          - generic [ref=f4e52]:
+            - generic [ref=f4e53]: Phân Nhóm
+            - generic [ref=f4e55]: Nhóm 1 - 4 Tự động
+        - button "Automation Chăm sóc tự động" [ref=f4e56] [cursor=pointer]:
+          - generic [ref=f4e59]:
+            - generic [ref=f4e60]: Automation
+            - generic [ref=f4e62]: Chăm sóc tự động
+        - button "Gửi Hàng Loạt WhatsApp Campaign" [ref=f4e63] [cursor=pointer]:
+          - generic [ref=f4e67]:
+            - generic [ref=f4e68]: Gửi Hàng Loạt
+            - generic [ref=f4e70]: WhatsApp Campaign
+        - button "Báo Cáo Analytics & Sales" [ref=f4e71] [cursor=pointer]:
+          - generic [ref=f4e74]:
+            - generic [ref=f4e75]: Báo Cáo
+            - generic [ref=f4e77]: Analytics & Sales
+        - button "Auth & Phân Quyền Quản lý User & Password" [ref=f4e78] [cursor=pointer]:
+          - generic [ref=f4e82]:
+            - generic [ref=f4e83]: Auth & Phân Quyền
+            - generic [ref=f4e85]: Quản lý User & Password
+  - main [ref=f4e86]:
+    - generic [ref=f4e87]:
+      - generic [ref=f4e88]:
+        - generic [ref=f4e89]:
+          - textbox "Tìm kiếm theo Tên, SĐT, Email, Chiến dịch..." [ref=f4e94]
+          - generic [ref=f4e95]:
+            - button "Nhập CSV" [ref=f4e96] [cursor=pointer]
+            - button "Xuất CSV" [ref=f4e101] [cursor=pointer]
+            - button "Thêm Khách Hàng" [ref=f4e106] [cursor=pointer]
+        - generic [ref=f4e109]:
+          - generic [ref=f4e110]:
+            - generic [ref=f4e111]: Phân Nhóm CRM
+            - combobox [ref=f4e112]:
+              - option "Tất cả nhóm (1 - 4)" [selected]
+              - 'option "Nhóm 1: Khách mới"'
+              - 'option "Nhóm 2: Đã hỏi giá"'
+              - 'option "Nhóm 3: Đã mua 1 lần"'
+              - 'option "Nhóm 4: Đã mua ≥2 lần (VIP)"'
+          - generic [ref=f4e113]:
+            - generic [ref=f4e114]: Trạng Thái
+            - combobox [ref=f4e115]:
+              - option "Tất cả trạng thái" [selected]
+              - option "New Lead"
+              - option "Contacted"
+              - option "Quoted"
+              - option "Won"
+              - option "Lost"
+          - generic [ref=f4e116]:
+            - generic [ref=f4e117]: Nguồn Khách (Source)
+            - combobox [ref=f4e118]:
+              - option "Tất cả nguồn" [selected]
+              - option "Facebook"
+              - option "TikTok"
+              - option "Google"
+              - option "Website"
+              - option "Zalo"
+          - generic [ref=f4e119]:
+            - generic [ref=f4e120]: Giới Tính
+            - combobox [ref=f4e121]:
+              - option "Tất cả giới tính" [selected]
+              - option "Nam"
+              - option "Nữ"
+              - option "Khác"
+          - generic [ref=f4e122]:
+            - generic [ref=f4e123]: Nhân Viên Phụ Trách
+            - combobox [ref=f4e124]:
+              - option "Tất cả nhân viên" [selected]
+              - option "Nguyễn Văn Ánh"
+              - option "Trần Thu Hà"
+              - option "Lê Hoàng Nam"
+              - option "Phạm Minh Đức"
+              - option "Vũ Thị Hương"
+        - generic [ref=f4e125]:
+          - generic [ref=f4e126]: "Khoảng thời gian tiếp cận (firstContact):"
+          - generic [ref=f4e130]:
+            - generic [ref=f4e131]:
+              - generic [ref=f4e132]: "Từ ngày:"
+              - textbox [ref=f4e133] [cursor=pointer]
+            - generic [ref=f4e134]: "-"
+            - generic [ref=f4e135]:
+              - generic [ref=f4e136]: "Đến ngày:"
+              - textbox [ref=f4e137] [cursor=pointer]
+            - generic [ref=f4e138]:
+              - button "Hôm nay" [ref=f4e139] [cursor=pointer]
+              - button "7 ngày qua" [ref=f4e140] [cursor=pointer]
+              - button "Tháng này" [ref=f4e141] [cursor=pointer]
+      - generic [ref=f4e142]:
+        - generic [ref=f4e143]: Hiển thị 8 / 8 khách hàng
+        - table [ref=f4e147]:
+          - rowgroup [ref=f4e148]:
+            - row [ref=f4e149]:
+              - columnheader [ref=f4e150]:
+                - checkbox "Chọn tất cả / Bỏ chọn tất cả" [ref=f4e151] [cursor=pointer]
+              - columnheader "Khách Hàng (Malaysia)" [ref=f4e152]
+              - columnheader "Số Điện Thoại" [ref=f4e153]
+              - columnheader "Nguồn Khách (Source)" [ref=f4e154]
+              - columnheader "Trạng Thái" [ref=f4e155]
+              - columnheader "Sales Phụ Trách" [ref=f4e156]
+              - columnheader "Phân Nhóm CRM" [ref=f4e157]
+              - columnheader "Đơn Hàng & Giá Trị" [ref=f4e158]
+              - columnheader "Hành Động" [ref=f4e159]
+          - rowgroup [ref=f4e160]:
+            - row [ref=f4e161]:
+              - cell [ref=f4e162]:
+                - checkbox [ref=f4e163] [cursor=pointer]
+              - cell [ref=f4e164]:
+                - button "Nguyễn Thị Minh Châu" [ref=f4e166] [cursor=pointer]
+              - cell "0908123456 ✓ WA Opt-in" [ref=f4e167]:
+                - generic [ref=f4e168]:
+                  - generic [ref=f4e169]: "0908123456"
+                  - generic [ref=f4e170]: ✓ WA Opt-in
+              - 'cell "Facebook Tet Sale 2026 - Beauty Lần đầu: 01/07/2026" [ref=f4e171]':
+                - generic [ref=f4e172]:
+                  - generic [ref=f4e173]: Facebook
+                  - generic "Tet Sale 2026 - Beauty" [ref=f4e174]
+                  - generic [ref=f4e175]: "Lần đầu: 01/07/2026"
+              - cell "Won" [ref=f4e176]:
+                - combobox [ref=f4e177] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won" [selected]
+                  - option "Lost"
+              - cell "Nguyễn Văn Ánh" [ref=f4e178]
+              - cell "Đã mua từ 2 lần trở lên (VIP)" [ref=f4e184]
+              - 'cell "RM 8,500,000 3 đơn hàng Lần cuối: 20/07/2026" [ref=f4e186]':
+                - generic [ref=f4e187]: RM 8,500,000
+                - generic [ref=f4e188]: 3 đơn hàng
+                - generic [ref=f4e189]: "Lần cuối: 20/07/2026"
+              - cell [ref=f4e190]:
+                - generic [ref=f4e191]:
+                  - button "Mở Chat WhatsApp" [ref=f4e192]
+                  - button "Tạo đơn hàng mới" [ref=f4e195]
+                  - button "Chỉnh sửa thông tin" [ref=f4e199] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e202] [cursor=pointer]
+            - row [ref=f4e206]:
+              - cell [ref=f4e207]:
+                - checkbox [ref=f4e208] [cursor=pointer]
+              - cell [ref=f4e209]:
+                - button "Trần Hoài Nam" [ref=f4e211] [cursor=pointer]
+              - cell "0987654321 ✓ WA Opt-in" [ref=f4e212]:
+                - generic [ref=f4e213]:
+                  - generic [ref=f4e214]: "0987654321"
+                  - generic [ref=f4e215]: ✓ WA Opt-in
+              - 'cell "TikTok TikTok Shop Live FlashSale Lần đầu: 15/07/2026" [ref=f4e216]':
+                - generic [ref=f4e217]:
+                  - generic [ref=f4e218]: TikTok
+                  - generic "TikTok Shop Live FlashSale" [ref=f4e219]
+                  - generic [ref=f4e220]: "Lần đầu: 15/07/2026"
+              - cell "Contacted" [ref=f4e221]:
+                - combobox [ref=f4e222] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted" [selected]
+                  - option "Quoted"
+                  - option "Won"
+                  - option "Lost"
+              - cell "Trần Thu Hà" [ref=f4e223]
+              - cell "Đã hỏi giá" [ref=f4e229]
+              - cell "RM 0 0 đơn hàng" [ref=f4e231]:
+                - generic [ref=f4e232]: RM 0
+                - generic [ref=f4e233]: 0 đơn hàng
+              - cell [ref=f4e234]:
+                - generic [ref=f4e235]:
+                  - button "Mở Chat WhatsApp" [ref=f4e236]
+                  - button "Tạo đơn hàng mới" [ref=f4e239]
+                  - button "Chỉnh sửa thông tin" [ref=f4e243] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e246] [cursor=pointer]
+            - row [ref=f4e250]:
+              - cell [ref=f4e251]:
+                - checkbox [ref=f4e252] [cursor=pointer]
+              - cell [ref=f4e253]:
+                - button "Lê Thanh Thảo" [ref=f4e255] [cursor=pointer]
+              - cell "0912999888 ✓ WA Opt-in" [ref=f4e256]:
+                - generic [ref=f4e257]:
+                  - generic [ref=f4e258]: "0912999888"
+                  - generic [ref=f4e259]: ✓ WA Opt-in
+              - 'cell "Google Google Search Branded Skincare Lần đầu: 18/07/2026" [ref=f4e260]':
+                - generic [ref=f4e261]:
+                  - generic [ref=f4e262]: Google
+                  - generic "Google Search Branded Skincare" [ref=f4e263]
+                  - generic [ref=f4e264]: "Lần đầu: 18/07/2026"
+              - cell "Won" [ref=f4e265]:
+                - combobox [ref=f4e266] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won" [selected]
+                  - option "Lost"
+              - cell "Lê Hoàng Nam" [ref=f4e267]
+              - cell "Đã mua 1 lần" [ref=f4e273]
+              - 'cell "RM 1,100,000 1 đơn hàng Lần cuối: 18/07/2026" [ref=f4e275]':
+                - generic [ref=f4e276]: RM 1,100,000
+                - generic [ref=f4e277]: 1 đơn hàng
+                - generic [ref=f4e278]: "Lần cuối: 18/07/2026"
+              - cell [ref=f4e279]:
+                - generic [ref=f4e280]:
+                  - button "Mở Chat WhatsApp" [ref=f4e281]
+                  - button "Tạo đơn hàng mới" [ref=f4e284]
+                  - button "Chỉnh sửa thông tin" [ref=f4e288] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e291] [cursor=pointer]
+            - row [ref=f4e295]:
+              - cell [ref=f4e296]:
+                - checkbox [ref=f4e297] [cursor=pointer]
+              - cell [ref=f4e298]:
+                - button "David Nguyen" [ref=f4e300] [cursor=pointer]
+              - cell "+1 415 555 2671 ✓ WA Opt-in" [ref=f4e301]:
+                - generic [ref=f4e302]:
+                  - generic [ref=f4e303]: +1 415 555 2671
+                  - generic [ref=f4e304]: ✓ WA Opt-in
+              - 'cell "Facebook Overseas Vietnamese Retargeting Lần đầu: 10/07/2026" [ref=f4e305]':
+                - generic [ref=f4e306]:
+                  - generic [ref=f4e307]: Facebook
+                  - generic "Overseas Vietnamese Retargeting" [ref=f4e308]
+                  - generic [ref=f4e309]: "Lần đầu: 10/07/2026"
+              - cell "Won" [ref=f4e310]:
+                - combobox [ref=f4e311] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won" [selected]
+                  - option "Lost"
+              - cell "Phạm Minh Đức" [ref=f4e312]
+              - cell "Đã mua từ 2 lần trở lên (VIP)" [ref=f4e318]
+              - 'cell "RM 7,000,000 2 đơn hàng Lần cuối: 21/07/2026" [ref=f4e320]':
+                - generic [ref=f4e321]: RM 7,000,000
+                - generic [ref=f4e322]: 2 đơn hàng
+                - generic [ref=f4e323]: "Lần cuối: 21/07/2026"
+              - cell [ref=f4e324]:
+                - generic [ref=f4e325]:
+                  - button "Mở Chat WhatsApp" [ref=f4e326]
+                  - button "Tạo đơn hàng mới" [ref=f4e329]
+                  - button "Chỉnh sửa thông tin" [ref=f4e333] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e336] [cursor=pointer]
+            - row [ref=f4e340]:
+              - cell [ref=f4e341]:
+                - checkbox [ref=f4e342] [cursor=pointer]
+              - cell [ref=f4e343]:
+                - button "Phạm Bích Phương" [ref=f4e345] [cursor=pointer]
+              - cell "0977112233 ! No Opt-in" [ref=f4e346]:
+                - generic [ref=f4e347]:
+                  - generic [ref=f4e348]: "0977112233"
+                  - generic [ref=f4e349]: "! No Opt-in"
+              - 'cell "Website Organic Organic SEO Lần đầu: 23/07/2026" [ref=f4e350]':
+                - generic [ref=f4e351]:
+                  - generic [ref=f4e352]: Website
+                  - generic "Organic Organic SEO" [ref=f4e353]
+                  - generic [ref=f4e354]: "Lần đầu: 23/07/2026"
+              - cell "New Lead" [ref=f4e355]:
+                - combobox [ref=f4e356] [cursor=pointer]:
+                  - option "New Lead" [selected]
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won"
+                  - option "Lost"
+              - cell "Vũ Thị Hương" [ref=f4e357]
+              - cell "Khách mới" [ref=f4e363]
+              - cell "RM 0 0 đơn hàng" [ref=f4e365]:
+                - generic [ref=f4e366]: RM 0
+                - generic [ref=f4e367]: 0 đơn hàng
+              - cell [ref=f4e368]:
+                - generic [ref=f4e369]:
+                  - button "Mở Chat WhatsApp" [ref=f4e370]
+                  - button "Tạo đơn hàng mới" [ref=f4e373]
+                  - button "Chỉnh sửa thông tin" [ref=f4e377] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e380] [cursor=pointer]
+            - row [ref=f4e384]:
+              - cell [ref=f4e385]:
+                - checkbox [ref=f4e386] [cursor=pointer]
+              - cell [ref=f4e387]:
+                - button "Hoàng Anh Tuấn" [ref=f4e389] [cursor=pointer]
+              - cell "0933445566 ✓ WA Opt-in" [ref=f4e390]:
+                - generic [ref=f4e391]:
+                  - generic [ref=f4e392]: "0933445566"
+                  - generic [ref=f4e393]: ✓ WA Opt-in
+              - 'cell "TikTok TikTok Shop Live FlashSale Lần đầu: 08/07/2026" [ref=f4e394]':
+                - generic [ref=f4e395]:
+                  - generic [ref=f4e396]: TikTok
+                  - generic "TikTok Shop Live FlashSale" [ref=f4e397]
+                  - generic [ref=f4e398]: "Lần đầu: 08/07/2026"
+              - cell "Quoted" [ref=f4e399]:
+                - combobox [ref=f4e400] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted" [selected]
+                  - option "Won"
+                  - option "Lost"
+              - cell "Nguyễn Văn Ánh" [ref=f4e401]
+              - cell "Đã hỏi giá" [ref=f4e407]
+              - cell "RM 0 0 đơn hàng" [ref=f4e409]:
+                - generic [ref=f4e410]: RM 0
+                - generic [ref=f4e411]: 0 đơn hàng
+              - cell [ref=f4e412]:
+                - generic [ref=f4e413]:
+                  - button "Mở Chat WhatsApp" [ref=f4e414]
+                  - button "Tạo đơn hàng mới" [ref=f4e417]
+                  - button "Chỉnh sửa thông tin" [ref=f4e421] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e424] [cursor=pointer]
+            - row [ref=f4e428]:
+              - cell [ref=f4e429]:
+                - checkbox [ref=f4e430] [cursor=pointer]
+              - cell [ref=f4e431]:
+                - button "Sato Kenji" [ref=f4e433] [cursor=pointer]
+              - cell "+60 12 345 6789 ✓ WA Opt-in" [ref=f4e434]:
+                - generic [ref=f4e435]:
+                  - generic [ref=f4e436]: +60 12 345 6789
+                  - generic [ref=f4e437]: ✓ WA Opt-in
+              - 'cell "Facebook Japan Cross-Border Ad Lần đầu: 05/07/2026" [ref=f4e438]':
+                - generic [ref=f4e439]:
+                  - generic [ref=f4e440]: Facebook
+                  - generic "Japan Cross-Border Ad" [ref=f4e441]
+                  - generic [ref=f4e442]: "Lần đầu: 05/07/2026"
+              - cell "Won" [ref=f4e443]:
+                - combobox [ref=f4e444] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won" [selected]
+                  - option "Lost"
+              - cell "Trần Thu Hà" [ref=f4e445]
+              - cell "Đã mua 1 lần" [ref=f4e451]
+              - 'cell "RM 4,200,000 1 đơn hàng Lần cuối: 05/07/2026" [ref=f4e453]':
+                - generic [ref=f4e454]: RM 4,200,000
+                - generic [ref=f4e455]: 1 đơn hàng
+                - generic [ref=f4e456]: "Lần cuối: 05/07/2026"
+              - cell [ref=f4e457]:
+                - generic [ref=f4e458]:
+                  - button "Mở Chat WhatsApp" [ref=f4e459]
+                  - button "Tạo đơn hàng mới" [ref=f4e462]
+                  - button "Chỉnh sửa thông tin" [ref=f4e466] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e469] [cursor=pointer]
+            - row [ref=f4e473]:
+              - cell [ref=f4e474]:
+                - checkbox [ref=f4e475] [cursor=pointer]
+              - cell [ref=f4e476]:
+                - button "Đặng Ngọc Kim Anh" [ref=f4e478] [cursor=pointer]
+              - cell "0966554433 ✓ WA Opt-in" [ref=f4e479]:
+                - generic [ref=f4e480]:
+                  - generic [ref=f4e481]: "0966554433"
+                  - generic [ref=f4e482]: ✓ WA Opt-in
+              - 'cell "Zalo Zalo OA Official Feed Lần đầu: 15/06/2026" [ref=f4e483]':
+                - generic [ref=f4e484]:
+                  - generic [ref=f4e485]: Zalo
+                  - generic "Zalo OA Official Feed" [ref=f4e486]
+                  - generic [ref=f4e487]: "Lần đầu: 15/06/2026"
+              - cell "Won" [ref=f4e488]:
+                - combobox [ref=f4e489] [cursor=pointer]:
+                  - option "New Lead"
+                  - option "Contacted"
+                  - option "Quoted"
+                  - option "Won" [selected]
+                  - option "Lost"
+              - cell "Lê Hoàng Nam" [ref=f4e490]
+              - cell "Đã mua từ 2 lần trở lên (VIP)" [ref=f4e496]
+              - 'cell "RM 12,400,000 4 đơn hàng Lần cuối: 15/07/2026" [ref=f4e498]':
+                - generic [ref=f4e499]: RM 12,400,000
+                - generic [ref=f4e500]: 4 đơn hàng
+                - generic [ref=f4e501]: "Lần cuối: 15/07/2026"
+              - cell [ref=f4e502]:
+                - generic [ref=f4e503]:
+                  - button "Mở Chat WhatsApp" [ref=f4e504]
+                  - button "Tạo đơn hàng mới" [ref=f4e507]
+                  - button "Chỉnh sửa thông tin" [ref=f4e511] [cursor=pointer]
+                  - button "Xóa khách hàng" [ref=f4e514] [cursor=pointer]
+  - contentinfo [ref=f4e518]:
+    - generic [ref=f4e519]: YumNetwork CRM Platform © 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động & Meta Graph API Automation.
