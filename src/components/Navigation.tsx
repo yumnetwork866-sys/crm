@@ -1,5 +1,6 @@
 import React from 'react';
-import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package, ShieldCheck, Facebook } from 'lucide-react';
+import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package, ShieldCheck } from 'lucide-react';
+import { AppUser } from '../types';
 
 export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'broadcast' | 'reports' | 'users' | 'meta-verification';
 
@@ -16,6 +17,7 @@ interface NavigationProps {
   usersCount?: number;
   ordersCount?: number;
   productsCount?: number;
+  currentUser?: AppUser | null;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -25,7 +27,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   usersCount = 5,
   ordersCount = 0,
   productsCount = 0,
+  currentUser,
 }) => {
+  const isAdmin = currentUser?.role === 'Admin';
+
   const navItems = [
     {
       id: 'crm' as ActiveTab,
@@ -69,57 +74,57 @@ export const Navigation: React.FC<NavigationProps> = ({
       subtitle: 'Analytics & Sales',
       icon: BarChart3,
     },
-    {
-      id: 'users' as ActiveTab,
-      label: 'Auth & Phân Quyền',
-      subtitle: 'Quản lý User & Password',
-      icon: ShieldCheck,
-    },
-    {
-      id: 'meta-verification' as ActiveTab,
-      label: 'Cấu Hình WhatsApp',
-      subtitle: 'Meta API & Test Connection',
-      icon: Facebook,
-    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'users' as ActiveTab,
+            label: 'Auth & Phân Quyền',
+            subtitle: 'Quản lý User & Password',
+            icon: ShieldCheck,
+          },
+        ]
+      : []),
   ];
+
+  const renderNavItem = (item: typeof navItems[0]) => {
+    const Icon = item.icon;
+    const isActive = activeTab === item.id;
+    return (
+      <button
+        key={item.id}
+        onClick={() => onChangeTab(item.id)}
+        className={`group flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-left whitespace-nowrap transition-all duration-200 cursor-pointer ${
+          isActive
+            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 border border-indigo-500 font-semibold'
+            : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/80 dark:hover:bg-slate-800/60 border border-transparent font-medium'
+        }`}
+      >
+        <Icon
+          className={`w-4 h-4 shrink-0 transition-colors ${
+            isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100 group-hover:text-black dark:group-hover:text-white'
+          }`}
+        />
+        <div className="flex flex-col justify-center leading-none">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs sm:text-sm font-bold tracking-tight">{item.label}</span>
+          </div>
+          <span
+            className={`text-[10px] mt-1 ${
+              isActive ? 'text-indigo-100 font-normal' : 'text-slate-700 dark:text-slate-300 font-normal'
+            }`}
+          >
+            {item.subtitle}
+          </span>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <nav className="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2.5 no-scrollbar items-center">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onChangeTab(item.id)}
-                className={`group flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-left whitespace-nowrap transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 border border-indigo-500 font-semibold'
-                    : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/80 dark:hover:bg-slate-800/60 border border-transparent font-medium'
-                }`}
-              >
-                <Icon
-                  className={`w-4 h-4 shrink-0 transition-colors ${
-                    isActive ? 'text-white' : 'text-slate-900 dark:text-slate-100 group-hover:text-black dark:group-hover:text-white'
-                  }`}
-                />
-                <div className="flex flex-col justify-center leading-none">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs sm:text-sm font-bold tracking-tight">{item.label}</span>
-                  </div>
-                  <span
-                    className={`text-[10px] mt-1 ${
-                      isActive ? 'text-indigo-100 font-normal' : 'text-slate-700 dark:text-slate-300 font-normal'
-                    }`}
-                  >
-                    {item.subtitle}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+          {navItems.map((item) => renderNavItem(item))}
         </div>
       </div>
     </nav>

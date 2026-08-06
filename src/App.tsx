@@ -796,11 +796,18 @@ export default function App() {
 
         <Navigation
           activeTab={activeTab}
-          onChangeTab={setActiveTab}
+          onChangeTab={(tab) => {
+            if (tab === 'users' && currentUser?.role !== 'Admin') {
+              setActiveTab('crm');
+            } else {
+              setActiveTab(tab);
+            }
+          }}
           customerCounts={customerCounts}
           usersCount={users.length}
           ordersCount={customers.reduce((sum, c) => sum + (c.orders ? c.orders.length : 0), 0)}
           productsCount={products.length}
+          currentUser={currentUser}
         />
       </div>
 
@@ -906,7 +913,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'users' && (
+        {activeTab === 'users' && currentUser?.role === 'Admin' && (
           <UserManagementView
             users={users}
             currentUser={currentUser}
@@ -921,6 +928,7 @@ export default function App() {
             onDeleteUser={handleDeleteUser}
             onToggleUserStatus={handleToggleUserStatus}
             onSwitchUser={handleSwitchUser}
+            onNavigateToWhatsApp={() => setActiveTab('meta-verification')}
           />
         )}
       </main>

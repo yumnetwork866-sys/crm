@@ -1,0 +1,140 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - banner [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - link [ref=f1e6] [cursor=pointer]:
+          - /url: /
+          - img "YumNetwork CRM" [ref=f1e8]
+        - navigation [ref=f1e9]:
+          - link "Tính Năng" [ref=f1e10] [cursor=pointer]:
+            - /url: "#features"
+          - link "Tích Hợp Meta API v19.0" [ref=f1e11] [cursor=pointer]:
+            - /url: "#meta-integration"
+            - generic [ref=f1e12]: Tích Hợp Meta
+            - generic [ref=f1e13]: API v19.0
+          - link "Pháp Lý & Bảo Mật" [ref=f1e14] [cursor=pointer]:
+            - /url: "#compliance"
+        - button "Đăng Nhập CRM" [active] [ref=f1e16] [cursor=pointer]
+    - generic [ref=f1e20]:
+      - generic [ref=f1e21]: Nền Tảng Quản Lý Khách Hàng Tập Trung & Meta Graph API Verified
+      - heading "Tối Ưu Doanh Số & Automation CSKH Với YumNetwork CRM" [level=1] [ref=f1e26]
+      - paragraph [ref=f1e27]:
+        - text: Đồng bộ tự động dữ liệu
+        - strong [ref=f1e28]: Facebook Lead Ads
+        - text: ", quản lý tin nhắn hội thoại"
+        - strong [ref=f1e29]: Messenger & WhatsApp Business
+        - text: tập trung. Kích hoạt chuỗi gửi tin chăm sóc khách hàng tự động Ngày +3, +5, +7, +15.
+      - generic [ref=f1e31]:
+        - generic [ref=f1e32]:
+          - generic [ref=f1e33]: https://crm.yumnetwork.com/dashboard
+          - generic [ref=f1e39]: Live Demo Mode
+        - generic [ref=f1e41]:
+          - generic [ref=f1e42]:
+            - generic [ref=f1e43]: Khách Hàng Lead Ads (Meta)
+            - generic [ref=f1e50]: 1,248 Leads
+            - generic [ref=f1e51]: +18.5% so với tuần trước
+          - generic [ref=f1e52]:
+            - generic [ref=f1e53]: Tin Nhắn Messenger & WhatsApp
+            - generic [ref=f1e57]: 8,920 Messages
+            - generic [ref=f1e58]: Tự động trả lời Webhooks API
+          - generic [ref=f1e59]:
+            - generic [ref=f1e60]: Quy Trình Automation Active
+            - generic [ref=f1e64]: 4 Chuỗi Tự Động
+            - generic [ref=f1e65]: CSKH Ngày +3, +5, +7, +15
+    - generic [ref=f1e67]:
+      - generic [ref=f1e68]:
+        - generic [ref=f1e69]: Tính Năng Nổi Bật Nền Tảng YumNetwork CRM
+        - heading "Giải Pháp Toàn Diện Cho Doanh Nghiệp Bán Hàng & Marketing" [level=2] [ref=f1e72]
+        - paragraph [ref=f1e73]: Tích hợp đầy đủ các mô-đun quản lý khách hàng, đơn hàng, phân nhóm thông minh và gửi tin nhắn tự động hàng loạt.
+      - generic [ref=f1e74]:
+        - generic [ref=f1e75]:
+          - heading "Quản Lý Data Khách Hàng Tập Trung" [level=3] [ref=f1e82]
+          - paragraph [ref=f1e83]: Lưu trữ toàn bộ thông tin Lead, lịch sử mua hàng, tổng chi tiêu và ghi chú CSKH trên một màn hình quản trị duy nhất.
+        - generic [ref=f1e84]:
+          - heading "Phân Nhóm Khách Hàng Thông Minh" [level=3] [ref=f1e90]
+          - paragraph [ref=f1e91]: Tự động xếp hạng khách hàng từ Nhóm 1 đến Nhóm 4 dựa trên giá trị vòng đời (CLV) và số lượng đơn hàng phát sinh.
+        - generic [ref=f1e92]:
+          - heading "Automation CSKH Ngày +3, +5, +7, +15" [level=3] [ref=f1e97]
+          - paragraph [ref=f1e98]: Tự động gửi lời cảm ơn sau mua, hướng dẫn sử dụng, giải đáp thắc mắc và tặng Voucher tri ân hoàn toàn tự động.
+        - generic [ref=f1e99]:
+          - heading "Gửi Chiến Dịch Hàng Loạt (Broadcast)" [level=3] [ref=f1e104]
+          - paragraph [ref=f1e105]: Gửi thông báo khuyến mãi đồng loạt qua WhatsApp / Messenger với tỷ lệ mở tin vượt trội so với Email Marketing.
+        - generic [ref=f1e106]:
+          - heading "Báo Cáo Analytics & ROI Sales" [level=3] [ref=f1e110]
+          - paragraph [ref=f1e111]: Theo dõi biểu đồ doanh thu theo thời gian thực, đo lường chỉ số ROI chiến dịch quảng cáo và hiệu suất làm việc của Sales.
+        - generic [ref=f1e112]:
+          - heading "Phân Quyền Nhân Sự Đa Vai Trò" [level=3] [ref=f1e118]
+          - paragraph [ref=f1e119]: Quản lý đội ngũ nhân viên Telesales, CSKH, Marketing với phân quyền bảo mật dữ liệu khách hàng nghiêm ngặt.
+    - generic [ref=f1e121]:
+      - generic [ref=f1e122]:
+        - generic [ref=f1e123]: Meta App Review & Permissions Standard
+        - heading "Tích Hợp Meta Graph API Chuẩn Duyệt Phê Duyệt" [level=2] [ref=f1e127]
+        - paragraph [ref=f1e128]: Hệ thống YumNetwork CRM được thiết kế tuân thủ nghiêm ngặt các quy định về bảo mật dữ liệu người dùng và tiêu chuẩn nhà phát triển của Meta.
+      - generic [ref=f1e129]:
+        - generic [ref=f1e130]:
+          - generic [ref=f1e131]: Messenger API
+          - heading "pages_messaging" [level=3] [ref=f1e134]
+          - paragraph [ref=f1e135]: Đồng bộ tin nhắn phản hồi giữa khách hàng Facebook Fanpage và giao diện tư vấn viên trên YumNetwork CRM.
+        - generic [ref=f1e136]:
+          - generic [ref=f1e137]: Facebook Lead Ads
+          - heading "leads_retrieval" [level=3] [ref=f1e141]
+          - paragraph [ref=f1e142]: Tự động thu nạp dữ liệu Lead Ads thời gian thực ngay khi khách hàng điền form trên quảng cáo Facebook.
+        - generic [ref=f1e143]:
+          - generic [ref=f1e144]: WhatsApp API
+          - heading "whatsapp_business" [level=3] [ref=f1e148]
+          - paragraph [ref=f1e149]: Gửi thông báo mã đơn hàng, voucher tri ân và nhắc lịch chăm sóc tự động qua WhatsApp Cloud API.
+        - generic [ref=f1e150]:
+          - generic [ref=f1e151]: Page Analytics
+          - heading "pages_read_engagement" [level=3] [ref=f1e154]
+          - paragraph [ref=f1e155]: Thống kê hiệu quả chiến dịch Marketing, tính toán chỉ số ROI và chi phí trên từng Lead Ads.
+    - generic [ref=f1e157]:
+      - generic [ref=f1e158]:
+        - generic [ref=f1e159]:
+          - heading "Các Trang Pháp Lý & Công Cụ Kiểm Duyệt Meta" [level=2] [ref=f1e160]
+          - paragraph [ref=f1e161]:
+            - text: Tất cả các tài nguyên dưới đây mở
+            - strong [ref=f1e162]: công khai 100%
+            - text: cho Meta Reviewer truy cập không cần đăng nhập.
+        - generic [ref=f1e163]: Public Access Ready
+      - generic [ref=f1e165]:
+        - button [ref=f1e166] [cursor=pointer]:
+          - heading "Chính Sách Bảo Mật" [level=3] [ref=f1e170]
+          - paragraph [ref=f1e171]: Privacy Policy chi tiết quy định lưu trữ dữ liệu cá nhân.
+          - generic [ref=f1e172]: Xem ngay
+        - button [ref=f1e175] [cursor=pointer]:
+          - heading "Điều Khoản Dịch Vụ" [level=3] [ref=f1e179]
+          - paragraph [ref=f1e180]: Terms of Service tuân thủ Meta Developer Policies.
+          - generic [ref=f1e181]: Xem ngay
+        - button [ref=f1e184] [cursor=pointer]:
+          - heading "Hướng Dẫn Xóa Dữ Liệu" [level=3] [ref=f1e188]
+          - paragraph [ref=f1e189]: User Data Deletion Instructions & Callback Endpoint.
+          - generic [ref=f1e190]: Xem ngay
+    - contentinfo [ref=f1e193]:
+      - generic [ref=f1e194]:
+        - generic [ref=f1e195]:
+          - img "YumNetwork CRM" [ref=f1e197]
+          - generic [ref=f1e198]:
+            - button "Chính Sách Bảo Mật" [ref=f1e199] [cursor=pointer]
+            - button "Điều Khoản Dịch Vụ" [ref=f1e200] [cursor=pointer]
+            - button "Xóa Dữ Liệu" [ref=f1e201] [cursor=pointer]
+        - generic [ref=f1e202]:
+          - generic [ref=f1e203]:
+            - generic [ref=f1e204]: CÔNG TY TNHH TRUYỀN THÔNG YUM NETWORK
+            - generic [ref=f1e205]: "Trụ sở chính: Tầng 1, Tòa nhà Dreamland Bonanza, 23 Duy Tân, Phường Cầu Giấy, Thành phố Hà Nội, Việt Nam"
+            - generic [ref=f1e206]: "Hotline hỗ trợ: 0985 601 051"
+          - generic [ref=f1e207]: YumNetwork CRM © 2026. All rights reserved.
+  - generic [ref=f1e209]:
+    - button "Đóng" [ref=f1e210] [cursor=pointer]
+    - generic [ref=f1e214]:
+      - img "YumNetwork CRM" [ref=f1e216]
+      - generic [ref=f1e217]:
+        - heading "Đăng Nhập Tài Khoản" [level=2] [ref=f1e218]
+        - paragraph [ref=f1e219]: Vui lòng nhập Email & Mật khẩu để truy cập dữ liệu
+    - generic [ref=f1e220]:
+      - generic [ref=f1e221]:
+        - generic [ref=f1e222]: Email Tài Khoản *
+        - textbox "Nhập email tài khoản của bạn..." [ref=f1e227]
+      - generic [ref=f1e228]:
+        - generic [ref=f1e229]: Mật Khẩu *
+        - textbox "Nhập mật khẩu..." [ref=f1e234]
+      - button "Đăng Nhập Vào YumNetwork CRM" [ref=f1e235] [cursor=pointer]
