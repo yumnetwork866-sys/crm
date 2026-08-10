@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport } from './types';
+import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport, CentralMessage, MessageChannel } from './types';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from './data/mockData';
 import { getCustomerGroup } from './utils/crmUtils';
 import { api, getStoredToken } from './utils/apiClient';
+import { playNotificationSound } from './utils/audioUtils';
 
 import { Header } from './components/Header';
 import { Navigation, ActiveTab } from './components/Navigation';
+import { NotificationToast } from './components/Common/NotificationToast';
+import { CentralizedMessageView } from './components/Messages/CentralizedMessageView';
 
 import { CustomerList } from './components/CustomerManagement/CustomerList';
 import { CustomerDetailModal } from './components/CustomerManagement/CustomerDetailModal';
@@ -35,6 +38,65 @@ const STORAGE_KEY_USERS = 'yumcrm_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
 const STORAGE_KEY_PRODUCTS = 'yumcrm_products_v2';
 const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
+const STORAGE_KEY_CENTRAL_MESSAGES = 'yumcrm_central_messages_v2';
+
+const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
+  {
+    id: 'msg_1',
+    customerId: 'cust_1',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Chào shop, em muốn hỏi giá combo Mỹ Phẩm Tết Sale 2026 hiện tại bao nhiêu vậy ạ?',
+    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    isRead: false,
+  },
+  {
+    id: 'msg_2',
+    customerId: 'cust_2',
+    customerName: 'Trần Hoài Nam',
+    customerPhone: '0987654321',
+    sender: 'customer',
+    channel: 'TikTok',
+    content: 'Shop cho mình hỏi sản phẩm này có miễn phí vận chuyển qua Malaysia không ạ?',
+    timestamp: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
+    isRead: false,
+  },
+  {
+    id: 'msg_3',
+    customerId: 'cust_3',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'agent',
+    channel: 'Facebook',
+    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn rồi ạ!',
+    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    isRead: true,
+  },
+  {
+    id: 'msg_4',
+    customerId: 'cust_3',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'customer',
+    channel: 'Facebook',
+    content: 'Cảm ơn shop nhé, em đã nhận được tin nhắn mã vận đơn rồi!',
+    timestamp: new Date(Date.now() - 1000 * 60 * 100).toISOString(),
+    isRead: true,
+  },
+  {
+    id: 'msg_5',
+    customerId: 'cust_4',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'customer',
+    channel: 'Zalo',
+    content: 'Hi shop, anh cần hỗ trợ đặt thêm 5 sản phẩm nữa gửi về Kuala Lumpur.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    isRead: false,
+  },
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
@@ -134,6 +196,105 @@ export default function App() {
       console.error('Error saving marketing reports to localStorage', e);
     }
   }, [marketingReports]);
+
+  // Central Messages & Notifications State
+  const [centralMessages, setCentralMessages] = useState<CentralMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CENTRAL_MESSAGES);
+      return saved ? JSON.parse(saved) : INITIAL_CENTRAL_MESSAGES;
+    } catch {
+      return INITIAL_CENTRAL_MESSAGES;
+    }
+  });
+
+  const [toastNotification, setToastNotification] = useState<{
+    message: CentralMessage;
+    show: boolean;
+  } | null>(null);
+
+  const [selectedChatCustomerId, setSelectedChatCustomerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_CENTRAL_MESSAGES, JSON.stringify(centralMessages));
+    } catch (e) {
+      console.error('Error saving central messages to localStorage', e);
+    }
+  }, [centralMessages]);
+
+  const unreadMessagesCount = centralMessages.filter((m) => !m.isRead && m.sender === 'customer').length;
+
+  const handleSelectCustomerThread = (customerId: string) => {
+    setSelectedChatCustomerId(customerId);
+    setCentralMessages((prev) =>
+      prev.map((msg) => (msg.customerId === customerId ? { ...msg, isRead: true } : msg))
+    );
+  };
+
+  const handleSendCentralMessage = (customerId: string, content: string, channel: MessageChannel) => {
+    const cust = customers.find((c) => c.id === customerId);
+    const newMsg: CentralMessage = {
+      id: `msg_${Date.now()}`,
+      customerId,
+      customerName: cust?.name || 'Khách Hàng',
+      customerPhone: cust?.phone || '',
+      sender: 'agent',
+      channel,
+      content,
+      timestamp: new Date().toISOString(),
+      isRead: true,
+    };
+
+    setCentralMessages((prev) => [...prev, newMsg]);
+
+    // Also update customer last contact
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === customerId
+          ? { ...c, lastContact: new Date().toISOString().split('T')[0] }
+          : c
+      )
+    );
+  };
+
+  const handleSimulateIncomingMessage = () => {
+    const sampleCust = customers[Math.floor(Math.random() * customers.length)] || {
+      id: 'cust_1',
+      name: 'Nguyễn Thị Minh Châu',
+      phone: '0908123456',
+    };
+
+    const channels: MessageChannel[] = ['WhatsApp', 'Zalo', 'Facebook', 'TikTok'];
+    const randomChannel = channels[Math.floor(Math.random() * channels.length)];
+
+    const sampleContents = [
+      'Dạ shop ơi, cho em hỏi sản phẩm mỹ phẩm này còn hàng không ạ?',
+      'Anh muốn hỏi giá sỉ cho đơn 10 bộ về Kuala Lumpur ạ.',
+      'Shop kiểm tra giúp em tình trạng đơn hàng với ạ!',
+      'Mã ưu đãi 20% trên livestream áp dụng như nào shop nhỉ?',
+      'Em vừa thanh toán đơn hàng rồi, shop xác nhận giúp em nhé!',
+    ];
+    const randomContent = sampleContents[Math.floor(Math.random() * sampleContents.length)];
+
+    const incomingMsg: CentralMessage = {
+      id: `msg_in_${Date.now()}`,
+      customerId: sampleCust.id,
+      customerName: sampleCust.name,
+      customerPhone: sampleCust.phone,
+      sender: 'customer',
+      channel: randomChannel,
+      content: randomContent,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+    };
+
+    setCentralMessages((prev) => [...prev, incomingMsg]);
+    playNotificationSound();
+    setToastNotification({
+      message: incomingMsg,
+      show: true,
+    });
+  };
 
   // Sync with Backend API if server is online
   useEffect(() => {
@@ -807,6 +968,7 @@ export default function App() {
           usersCount={users.length}
           ordersCount={customers.reduce((sum, c) => sum + (c.orders ? c.orders.length : 0), 0)}
           productsCount={products.length}
+          unreadMessagesCount={unreadMessagesCount}
           currentUser={currentUser}
         />
       </div>
@@ -931,6 +1093,25 @@ export default function App() {
             onNavigateToWhatsApp={() => setActiveTab('meta-verification')}
           />
         )}
+
+        {activeTab === 'messages' && (
+          <CentralizedMessageView
+            messages={centralMessages}
+            customers={customers}
+            selectedCustomerId={selectedChatCustomerId}
+            onSelectCustomerThread={handleSelectCustomerThread}
+            onSendMessage={handleSendCentralMessage}
+            onSimulateIncoming={handleSimulateIncomingMessage}
+            onOpenAddOrder={(cust) => {
+              setOrderCustomer(cust);
+              setIsOrderOpen(true);
+            }}
+            onSelectCustomerDetail={(cust) => {
+              setSelectedCustomer(cust);
+              setIsDetailOpen(true);
+            }}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -992,6 +1173,16 @@ export default function App() {
         onClose={() => setIsUserFormOpen(false)}
         onSave={handleSaveUser}
         initialUser={editingUser}
+      />
+
+      {/* Notification Toast Alert */}
+      <NotificationToast
+        toast={toastNotification}
+        onClose={() => setToastNotification(null)}
+        onOpenMessage={(msg) => {
+          setActiveTab('messages');
+          handleSelectCustomerThread(msg.customerId);
+        }}
       />
 
     </div>

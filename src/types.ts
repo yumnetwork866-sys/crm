@@ -2,6 +2,20 @@ export type CustomerStatus = 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost
 
 export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'Referral' | 'Direct';
 
+export type MessageChannel = 'WhatsApp' | 'Zalo' | 'Facebook' | 'TikTok';
+
+export interface CentralMessage {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  sender: 'customer' | 'agent' | 'system';
+  channel: MessageChannel;
+  content: string;
+  timestamp: string;
+  isRead: boolean;
+}
+
 export interface CustomerNote {
   id: string;
   author: string;
