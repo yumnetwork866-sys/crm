@@ -262,13 +262,26 @@ export default function App() {
       return;
     }
 
-    const targetCust = customers.find((c) => c.id === customerId);
-    const phoneParam = targetCust?.phone ? `?customerPhone=${encodeURIComponent(targetCust.phone)}` : '';
+    // Extract all matching phone numbers and IDs for this thread
+    const threadMsgs = centralMessages.filter((m) => m.customerId === customerId);
+    const threadPhone = threadMsgs[0]?.customerPhone || customers.find((c) => c.id === customerId)?.phone || customerId;
+    const cleanPhone = threadPhone.replace(/\D/g, '');
+    const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
-    setCentralMessages((prev) => prev.filter((m) => m.customerId !== customerId && m.customerPhone !== targetCust?.phone));
+    // Filter React centralMessages state completely
+    setCentralMessages((prev) =>
+      prev.filter((m) => {
+        const mPhone = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+        const isSameId = m.customerId === customerId;
+        const isSamePhone = lastDigits && mPhone && mPhone.includes(lastDigits);
+        return !isSameId && !isSamePhone;
+      })
+    );
 
+    // Call Backend API with both customerId and customerPhone query param
     try {
-      await api.delete(`/meta/messages/thread/${customerId}${phoneParam}`);
+      const queryPhone = cleanPhone ? `?customerPhone=${encodeURIComponent(cleanPhone)}` : '';
+      await api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${queryPhone}`);
     } catch (e) {
       console.error('Error deleting thread via API:', e);
     }
@@ -283,7 +296,7 @@ export default function App() {
     setCentralMessages((prev) => prev.filter((m) => m.id !== messageId));
 
     try {
-      await api.delete(`/meta/messages/item/${messageId}`);
+      await api.delete(`/meta/messages/item/${encodeURIComponent(messageId)}`);
     } catch (e) {
       console.error('Error deleting message via API:', e);
     }
