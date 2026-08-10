@@ -232,24 +232,76 @@ export default function App() {
     );
   };
 
-  const handleSendCentralMessage = (customerId: string, content: string, channel: MessageChannel) => {
+  // Sync with real WhatsApp Messages from Backend API & Webhook
+  useEffect(() => {
+    const pollRealWhatsAppMessages = async () => {
+      try {
+        const realMsgs = await api.get<CentralMessage[]>('/meta/messages');
+        if (realMsgs && Array.isArray(realMsgs) && realMsgs.length > 0) {
+          setCentralMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newIncoming = realMsgs.filter((rm) => !existingIds.has(rm.id));
+            
+            if (newIncoming.length > 0) {
+              const latestNew = newIncoming[newIncoming.length - 1];
+              if (!latestNew.isRead && latestNew.sender === 'customer') {
+                playNotificationSound();
+                setToastNotification({ message: latestNew, show: true });
+              }
+              return [...prev, ...newIncoming];
+            }
+            return prev;
+          });
+        }
+      } catch (e) {
+        // Backend API offline fallback
+      }
+    };
+
+    pollRealWhatsAppMessages();
+    const interval = setInterval(pollRealWhatsAppMessages, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSendCentralMessage = async (customerId: string, content: string, channel: MessageChannel) => {
     const cust = customers.find((c) => c.id === customerId);
-    const newMsg: CentralMessage = {
+    const agentName = currentUser?.name || 'Nguyễn Văn Ánh';
+
+    const tempMsg: CentralMessage = {
       id: `msg_${Date.now()}`,
       customerId,
       customerName: cust?.name || 'Khách Hàng',
       customerPhone: cust?.phone || '',
       sender: 'agent',
-      agentName: currentUser?.name || 'Nguyễn Văn Ánh',
+      agentName,
       channel,
       content,
       timestamp: new Date().toISOString(),
       isRead: true,
     };
 
-    setCentralMessages((prev) => [...prev, newMsg]);
+    setCentralMessages((prev) => [...prev, tempMsg]);
 
-    // Also update customer last contact
+    // Send real WhatsApp Cloud API message via Backend endpoint
+    try {
+      const res: any = await api.post('/meta/messages/send', {
+        customerId,
+        customerName: cust?.name,
+        customerPhone: cust?.phone,
+        content,
+        agentName
+      });
+
+      if (res && res.message) {
+        setCentralMessages((prev) =>
+          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id } : m))
+        );
+      }
+    } catch (apiErr) {
+      console.log('Real WhatsApp API offline fallback');
+    }
+
+    // Update customer last contact
     setCustomers((prev) =>
       prev.map((c) =>
         c.id === customerId

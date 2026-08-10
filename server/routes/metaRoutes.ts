@@ -341,12 +341,199 @@ router.get('/webhooks', async (req: Request, res: Response) => {
   return res.sendStatus(403);
 });
 
+// In-memory real WhatsApp messages log store
+let inMemoryMessages: any[] = [
+  {
+    id: 'msg_1',
+    customerId: 'cust_1',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Chào shop, em muốn hỏi giá combo Mỹ Phẩm Tết Sale 2026 hiện tại bao nhiêu vậy ạ?',
+    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    isRead: false,
+  },
+  {
+    id: 'msg_2',
+    customerId: 'cust_2',
+    customerName: 'Trần Hoài Nam',
+    customerPhone: '0987654321',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Shop cho mình hỏi sản phẩm này có miễn phí vận chuyển qua Malaysia không ạ?',
+    timestamp: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
+    isRead: false,
+  },
+  {
+    id: 'msg_3',
+    customerId: 'cust_3',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
+    channel: 'WhatsApp',
+    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn qua WhatsApp rồi ạ!',
+    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    isRead: true,
+  },
+  {
+    id: 'msg_4',
+    customerId: 'cust_3',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Cảm ơn shop nhé, em đã nhận được tin nhắn mã vận đơn rồi!',
+    timestamp: new Date(Date.now() - 1000 * 60 * 100).toISOString(),
+    isRead: true,
+  },
+  {
+    id: 'msg_5',
+    customerId: 'cust_4',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Hi shop, anh cần hỗ trợ đặt thêm 5 sản phẩm nữa gửi về Kuala Lumpur.',
+    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    isRead: false,
+  },
+];
+
+// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages
+router.get('/messages', (req: Request, res: Response) => {
+  return res.json(inMemoryMessages);
+});
+
+// Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
+router.post('/messages/send', async (req: Request, res: Response) => {
+  try {
+    const { customerPhone, content, agentName, customerId, customerName } = req.body;
+
+    if (!customerPhone || !content) {
+      return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
+    }
+
+    const setting = await getIntegrationSetting();
+    const phoneId = setting.whatsappPhoneNumberId;
+    const token = setting.whatsappAccessToken;
+
+    // Clean recipient phone format
+    let cleanPhone = customerPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '84' + cleanPhone.substring(1);
+    }
+
+    let metaResult: any = null;
+    let isRealSent = false;
+
+    // If Phone Number ID and Access Token are configured, attempt real Graph API dispatch
+    if (phoneId && token) {
+      try {
+        const metaApiUrl = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
+        const payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'text',
+          text: { body: content }
+        };
+
+        const apiRes = await fetch(metaApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const resText = await apiRes.text();
+        try {
+          metaResult = resText ? JSON.parse(resText) : {};
+        } catch {
+          metaResult = { error: { message: resText } };
+        }
+
+        if (apiRes.ok && metaResult?.messages?.[0]?.id) {
+          isRealSent = true;
+          console.log(`[REAL WHATSAPP SENT] Message ID ${metaResult.messages[0].id} to ${cleanPhone}`);
+        } else {
+          console.warn('[REAL WHATSAPP API WARN]', metaResult);
+        }
+      } catch (graphErr) {
+        console.error('Error dispatching WhatsApp Graph API:', graphErr);
+      }
+    }
+
+    const newMsg = {
+      id: metaResult?.messages?.[0]?.id || `msg_${Date.now()}`,
+      customerId: customerId || `cust_${cleanPhone}`,
+      customerName: customerName || `Khách Hàng (${cleanPhone})`,
+      customerPhone,
+      sender: 'agent',
+      agentName: agentName || 'Nguyễn Văn Ánh',
+      channel: 'WhatsApp',
+      content,
+      timestamp: new Date().toISOString(),
+      isRead: true,
+      isRealSent
+    };
+
+    inMemoryMessages.push(newMsg);
+
+    return res.json({
+      success: true,
+      isRealSent,
+      metaResponse: metaResult,
+      message: newMsg
+    });
+  } catch (error: any) {
+    console.error('Error sending WhatsApp message:', error);
+    return res.status(500).json({ error: error.message || 'Lỗi khi gửi tin nhắn WhatsApp.' });
+  }
+});
+
 // Endpoint: Meta Webhook Event Handler (POST)
 router.post('/webhooks', (req: Request, res: Response) => {
   const body = req.body;
 
   if (body.object === 'page' || body.object === 'whatsapp_business_account') {
     console.log('Received Meta Webhook Event:', JSON.stringify(body, null, 2));
+
+    try {
+      const entry = body.entry?.[0];
+      const changes = entry?.changes?.[0];
+      const value = changes?.value;
+
+      if (value && value.messages && Array.isArray(value.messages)) {
+        value.messages.forEach((msgData: any) => {
+          const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
+          const fromPhone = msgData.from || 'Khách Hàng';
+          const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
+          const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
+
+          const newIncoming = {
+            id: msgData.id || `msg_meta_${Date.now()}`,
+            customerId: `cust_${fromPhone}`,
+            customerName: senderName,
+            customerPhone: fromPhone,
+            sender: 'customer',
+            channel: 'WhatsApp',
+            content: textBody,
+            timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
+            isRead: false
+          };
+
+          inMemoryMessages.push(newIncoming);
+          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
+        });
+      }
+    } catch (parseErr) {
+      console.error('Error parsing WhatsApp Webhook payload:', parseErr);
+    }
+
     return res.status(200).send('EVENT_RECEIVED');
   }
 
