@@ -44,7 +44,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const isAdmin = currentUser?.role === 'Admin';
 
-  // Group messages by customerId to create thread list
+  // Group messages by normalized phone number so ALL messages for the same customer group into 1 single thread
   const threads = useMemo(() => {
     const map = new Map<
       string,
@@ -60,11 +60,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
     // 1. Group existing central messages
     messages.forEach((msg) => {
-      const existing = map.get(msg.customerId);
-      const cust = customers.find((c) => c.id === msg.customerId || c.phone === msg.customerPhone) || null;
+      const rawPhone = msg.customerPhone || msg.customerId || '';
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      const phoneKey = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : (msg.customerId || 'unknown');
+
+      const cust = customers.find((c) => {
+        const cPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
+        return c.id === msg.customerId || (cleanPhone && cPhone && cPhone.includes(phoneKey));
+      }) || null;
+
+      const existing = map.get(phoneKey);
 
       if (!existing) {
-        map.set(msg.customerId, {
+        map.set(phoneKey, {
           customer: cust,
           customerName: msg.customerName || cust?.name || 'Khách Hàng',
           customerPhone: msg.customerPhone || cust?.phone || '',
@@ -75,38 +83,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       } else {
         existing.messages.push(msg);
         existing.lastMessage = msg;
+        if (cust && !existing.customer) existing.customer = cust;
         if (!msg.isRead && msg.sender === 'customer') {
           existing.unreadCount += 1;
-        }
-      }
-    });
-
-    // 2. Include CRM customers who have logged messages
-    customers.forEach((cust) => {
-      if (!map.has(cust.id)) {
-        const logs = cust.automationSequence?.logs || [];
-        if (logs.length > 0) {
-          const custMsgs: CentralMessage[] = logs.map((log, index) => ({
-            id: `log_${cust.id}_${index}`,
-            customerId: cust.id,
-            customerName: cust.name,
-            customerPhone: cust.phone,
-            sender: 'agent',
-            agentName: cust.owner || 'Nguyễn Văn Ánh',
-            channel: 'WhatsApp',
-            content: log.message,
-            timestamp: log.sentAt || cust.lastContact || new Date().toISOString(),
-            isRead: true,
-          }));
-
-          map.set(cust.id, {
-            customer: cust,
-            customerName: cust.name,
-            customerPhone: cust.phone,
-            lastMessage: custMsgs[custMsgs.length - 1],
-            unreadCount: 0,
-            messages: custMsgs,
-          });
         }
       }
     });
@@ -133,12 +112,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     });
   }, [threads, readFilter, searchQuery]);
 
-  // Active thread selection
+  // Active thread selection (matches by customer ID or phone number digits)
   const activeThread = useMemo(() => {
-    if (!selectedCustomerId && filteredThreads.length > 0) {
-      return filteredThreads[0];
-    }
-    return threads.find((t) => t.customer?.id === selectedCustomerId || t.lastMessage.customerId === selectedCustomerId) || filteredThreads[0] || null;
+    if (!threads.length) return null;
+    if (!selectedCustomerId) return filteredThreads[0] || threads[0];
+    const cleanSelected = selectedCustomerId.replace(/\D/g, '').slice(-9);
+
+    return (
+      threads.find((t) => {
+        const tPhone = t.customerPhone.replace(/\D/g, '');
+        return (
+          t.lastMessage.customerId === selectedCustomerId ||
+          (t.customer && t.customer.id === selectedCustomerId) ||
+          (cleanSelected && tPhone.includes(cleanSelected))
+        );
+      }) || filteredThreads[0] || threads[0] || null
+    );
   }, [threads, filteredThreads, selectedCustomerId]);
 
   const activeCustomer = activeThread?.customer || null;
@@ -147,7 +136,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     e.preventDefault();
     if (!inputText.trim() || !activeThread) return;
 
-    onSendMessage(activeThread.lastMessage.customerId, inputText.trim(), 'WhatsApp');
+    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId;
+    onSendMessage(targetId, inputText.trim(), 'WhatsApp');
     setInputText('');
   };
 

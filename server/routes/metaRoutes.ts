@@ -346,19 +346,32 @@ router.get(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) =
 // In-memory real WhatsApp messages log store
 let inMemoryMessages: any[] = [];
 
-// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages (DB + memory fallback)
+// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages (DB + memory combined)
 router.get('/messages', async (req: Request, res: Response) => {
+  let dbMsgs: any[] = [];
   try {
-    const dbMsgs = await prisma.whatsAppMessage.findMany({
+    dbMsgs = await prisma.whatsAppMessage.findMany({
       orderBy: { timestamp: 'asc' }
     });
-    if (dbMsgs && dbMsgs.length > 0) {
-      return res.json(dbMsgs);
-    }
   } catch (e) {
     // DB offline fallback
   }
-  return res.json(inMemoryMessages);
+
+  const map = new Map<string, any>();
+  for (const m of dbMsgs) {
+    map.set(m.id, {
+      ...m,
+      timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
+    });
+  }
+  for (const m of inMemoryMessages) {
+    if (!map.has(m.id)) {
+      map.set(m.id, m);
+    }
+  }
+
+  const combined = Array.from(map.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  return res.json(combined);
 });
 
 // Endpoint: DELETE /api/meta/messages - Clear messages log in DB & memory
