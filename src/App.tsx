@@ -338,13 +338,13 @@ export default function App() {
     });
   };
 
-  // Sync with Backend API if server is online
+  // Sync with Backend API if server is online - re-fetches whenever user logs in/out
   useEffect(() => {
     const fetchApiData = async () => {
+      if (!currentUser) return; // Chỉ fetch khi đã đăng nhập
       try {
         const health: any = await api.get('/health');
         if (health && health.status === 'ok') {
-          // Server is online, load data if token or public data
           const apiCustomers = await api.get<Customer[]>('/customers').catch(() => null);
           if (apiCustomers && Array.isArray(apiCustomers)) {
             setCustomers(apiCustomers);
@@ -363,7 +363,8 @@ export default function App() {
       }
     };
     fetchApiData();
-  }, []);
+  }, [currentUser]); // ← Re-fetch khi currentUser thay đổi (đăng nhập / đăng xuất)
+
 
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);
