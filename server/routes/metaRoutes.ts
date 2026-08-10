@@ -534,77 +534,80 @@ router.post('/messages/send', async (req: Request, res: Response) => {
 
 // Endpoint: Meta Webhook Event Handler (POST) - Supports /, /webhook, /webhooks subpaths
 router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) => {
-  const body = req.body;
+  let body = req.body;
 
-  if (body.object === 'page' || body.object === 'whatsapp_business_account' || body.entry) {
-    console.log('Received Meta Webhook Event:', JSON.stringify(body, null, 2));
-
+  if (typeof body === 'string') {
     try {
-      if (body.entry && Array.isArray(body.entry)) {
-        for (const entry of body.entry) {
-          if (entry.changes && Array.isArray(entry.changes)) {
-            for (const change of entry.changes) {
-              const value = change.value;
-              if (value && value.messages && Array.isArray(value.messages)) {
-                for (const msgData of value.messages) {
-                  const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
-                  const fromPhone = msgData.from || 'Khách Hàng';
-                  const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
-                  const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
-                  const cleanFrom = fromPhone.replace(/\D/g, '');
+      body = JSON.parse(body);
+    } catch (e) {}
+  }
 
-                  const newIncoming = {
-                    id: msgData.id || `msg_meta_${Date.now()}`,
-                    customerId: `cust_${cleanFrom}`,
-                    customerName: senderName,
-                    customerPhone: fromPhone,
-                    sender: 'customer',
-                    channel: 'WhatsApp',
-                    content: textBody,
-                    timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
-                    isRead: false
-                  };
+  console.log('[META WEBHOOK POST RECEIVED]', JSON.stringify(body, null, 2));
 
-                  if (!inMemoryMessages.some((m) => m.id === newIncoming.id)) {
-                    inMemoryMessages.push(newIncoming);
-                  }
+  try {
+    const entries = body?.entry || (body?.messages ? [{ changes: [{ value: body }] }] : (Array.isArray(body) ? body : [body]));
 
-                  // Save incoming message to Database (Prisma)
-                  try {
-                    const savedDbMsg = await prisma.whatsAppMessage.upsert({
-                      where: { id: newIncoming.id },
-                      update: {},
-                      create: {
-                        id: newIncoming.id,
-                        customerName: newIncoming.customerName,
-                        customerPhone: newIncoming.customerPhone,
-                        sender: newIncoming.sender,
-                        channel: newIncoming.channel,
-                        content: newIncoming.content,
-                        isRead: newIncoming.isRead,
-                        timestamp: new Date(newIncoming.timestamp)
-                      }
-                    });
-                    console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
-                  } catch (dbErr: any) {
-                    console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
-                  }
+    for (const entry of entries) {
+      const changes = entry?.changes || [{ value: entry }];
+      for (const change of changes) {
+        const value = change?.value || change;
+        const messages = value?.messages;
 
-                  console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
-                }
-              }
+        if (messages && Array.isArray(messages)) {
+          for (const msgData of messages) {
+            const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
+            const fromPhone = msgData.from || 'Khách Hàng';
+            const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
+            const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
+            const cleanFrom = fromPhone.replace(/\D/g, '');
+
+            const newIncoming = {
+              id: msgData.id || `msg_meta_${Date.now()}`,
+              customerId: `cust_${cleanFrom}`,
+              customerName: senderName,
+              customerPhone: fromPhone,
+              sender: 'customer',
+              channel: 'WhatsApp',
+              content: textBody,
+              timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
+              isRead: false
+            };
+
+            if (!inMemoryMessages.some((m) => m.id === newIncoming.id)) {
+              inMemoryMessages.push(newIncoming);
             }
+
+            // Save incoming message to Database (Prisma)
+            try {
+              const savedDbMsg = await prisma.whatsAppMessage.upsert({
+                where: { id: newIncoming.id },
+                update: {},
+                create: {
+                  id: newIncoming.id,
+                  customerName: newIncoming.customerName,
+                  customerPhone: newIncoming.customerPhone,
+                  sender: newIncoming.sender,
+                  channel: newIncoming.channel,
+                  content: newIncoming.content,
+                  isRead: newIncoming.isRead,
+                  timestamp: new Date(newIncoming.timestamp)
+                }
+              });
+              console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
+            } catch (dbErr: any) {
+              console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
+            }
+
+            console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
           }
         }
       }
-    } catch (parseErr) {
-      console.error('Error parsing WhatsApp Webhook payload:', parseErr);
     }
-
-    return res.status(200).send('EVENT_RECEIVED');
+  } catch (parseErr) {
+    console.error('Error parsing WhatsApp Webhook payload:', parseErr);
   }
 
-  return res.sendStatus(404);
+  return res.status(200).send('EVENT_RECEIVED');
 });
 
 export default router;

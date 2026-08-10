@@ -28,9 +28,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// 1. Body Parser & Security Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// 1. Body Parser & Security Middleware (Supports JSON, text/plain, and raw Meta payloads)
+app.use(express.json({ limit: '10mb', type: ['application/json', 'text/plain', '*/*'] }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(helmet({
   contentSecurityPolicy: false // Allow inline scripts for dev Vite proxy if served together
