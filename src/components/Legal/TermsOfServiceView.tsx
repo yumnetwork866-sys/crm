@@ -98,7 +98,7 @@ export const TermsOfServiceView: React.FC<TermsOfServiceViewProps> = ({ onBackTo
           <section className="space-y-3 border-t border-slate-300 pt-4">
             <h2 className="text-lg font-black text-slate-950">5. Liên Hệ Giải Đáp Điều Khoản</h2>
             <p className="text-xs text-slate-900 font-extrabold leading-relaxed">
-              Mọi thắc mắc liên quan đến Điều khoản dịch vụ YumNetwork CRM, vui lòng gửi email về: <strong className="text-red-600 font-black">support@yumnetwork.vn</strong>
+              Mọi thắc mắc liên quan đến Điều khoản dịch vụ YumNetwork CRM, vui lòng gửi email về: <strong className="text-red-600 font-black">hello@yumnetwork.vn</strong>
             </p>
           </section>
         </div>

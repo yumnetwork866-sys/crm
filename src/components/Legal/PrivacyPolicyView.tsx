@@ -160,7 +160,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBackToAp
               </div>
               <div className="flex items-center gap-2 text-slate-900 font-bold">
                 <Mail className="w-4 h-4 text-red-600 shrink-0" />
-                <span><strong className="text-slate-950 font-black">Email liên hệ &amp; DPO:</strong> support@yumnetwork.vn</span>
+                <span><strong className="text-slate-950 font-black">Email liên hệ &amp; DPO:</strong> hello@yumnetwork.vn</span>
               </div>
               <div className="flex items-center gap-2 text-slate-900 font-bold">
                 <Phone className="w-4 h-4 text-red-600 shrink-0" />

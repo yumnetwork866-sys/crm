@@ -83,8 +83,8 @@ export const DataDeletionView: React.FC<DataDeletionViewProps> = ({ onBackToApp 
             <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-950 pt-2 border-t border-slate-300">
               <div>
                 <span className="text-slate-950 font-black">Email Hỗ Trợ &amp; DPO:</span>{' '}
-                <a href="mailto:support@yumnetwork.vn" className="text-red-600 underline font-black hover:text-red-700">
-                  support@yumnetwork.vn
+                <a href="mailto:hello@yumnetwork.vn" className="text-red-600 underline font-black hover:text-red-700">
+                  hello@yumnetwork.vn
                 </a>
               </div>
             </div>
