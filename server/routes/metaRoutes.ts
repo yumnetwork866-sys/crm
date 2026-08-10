@@ -372,6 +372,46 @@ router.delete('/messages', async (req: Request, res: Response) => {
   return res.json({ success: true, message: 'Đã xóa toàn bộ tin nhắn. Hệ thống sẵn sàng 100% cho tin nhắn thật từ Meta Webhook.' });
 });
 
+// Endpoint: DELETE /api/meta/messages/thread/:customerId - Delete a specific conversation thread (Admin Only)
+router.delete('/messages/thread/:customerId', async (req: Request, res: Response) => {
+  const { customerId } = req.params;
+  const { customerPhone } = req.query;
+
+  inMemoryMessages = inMemoryMessages.filter((m) => m.customerId !== customerId && m.customerPhone !== customerPhone);
+
+  try {
+    const cleanPhone = typeof customerPhone === 'string' ? customerPhone.replace(/\D/g, '') : '';
+    await prisma.whatsAppMessage.deleteMany({
+      where: {
+        OR: [
+          { customerId },
+          cleanPhone ? { customerPhone: { contains: cleanPhone } } : {}
+        ]
+      }
+    });
+  } catch (e) {
+    console.error('Error deleting thread from DB:', e);
+  }
+
+  return res.json({ success: true, message: `Đã xóa hội thoại của khách hàng ${customerId}` });
+});
+
+// Endpoint: DELETE /api/meta/messages/item/:messageId - Delete a single message by ID (Admin Only)
+router.delete('/messages/item/:messageId', async (req: Request, res: Response) => {
+  const { messageId } = req.params;
+  inMemoryMessages = inMemoryMessages.filter((m) => m.id !== messageId);
+
+  try {
+    await prisma.whatsAppMessage.deleteMany({
+      where: { id: messageId }
+    });
+  } catch (e) {
+    console.error('Error deleting message from DB:', e);
+  }
+
+  return res.json({ success: true, message: `Đã xóa tin nhắn ${messageId}` });
+});
+
 // Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
 router.post('/messages/send', async (req: Request, res: Response) => {
   try {

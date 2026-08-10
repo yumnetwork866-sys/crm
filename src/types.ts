@@ -1,6 +1,6 @@
 export type CustomerStatus = 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost';
 
-export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'Referral' | 'Direct';
+export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'WhatsApp' | 'Referral' | 'Direct';
 
 export type MessageChannel = 'WhatsApp';
 

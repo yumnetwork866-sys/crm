@@ -239,6 +239,7 @@ export default function App() {
                         totalOrders: 0,
                         totalSpent: 0,
                         interestedProducts: [],
+                        orders: [],
                         whatsappOptIn: true,
                         whatsappOptInDate: new Date().toISOString().split('T')[0],
                       };
@@ -322,6 +323,39 @@ export default function App() {
         return c;
       })
     );
+  };
+
+  const handleDeleteThread = async (customerId: string) => {
+    if (currentUser?.role !== 'Admin') {
+      alert('Chỉ tài khoản Admin mới có quyền xóa hội thoại!');
+      return;
+    }
+
+    const targetCust = customers.find((c) => c.id === customerId);
+    const phoneParam = targetCust?.phone ? `?customerPhone=${encodeURIComponent(targetCust.phone)}` : '';
+
+    setCentralMessages((prev) => prev.filter((m) => m.customerId !== customerId && m.customerPhone !== targetCust?.phone));
+
+    try {
+      await api.delete(`/meta/messages/thread/${customerId}${phoneParam}`);
+    } catch (e) {
+      console.error('Error deleting thread via API:', e);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (currentUser?.role !== 'Admin') {
+      alert('Chỉ tài khoản Admin mới có quyền xóa tin nhắn!');
+      return;
+    }
+
+    setCentralMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+    try {
+      await api.delete(`/meta/messages/item/${messageId}`);
+    } catch (e) {
+      console.error('Error deleting message via API:', e);
+    }
   };
 
   const handleSimulateIncomingMessage = () => {
@@ -1177,6 +1211,8 @@ export default function App() {
               setSelectedCustomer(cust);
               setIsDetailOpen(true);
             }}
+            onDeleteThread={handleDeleteThread}
+            onDeleteMessage={handleDeleteMessage}
           />
         )}
       </main>

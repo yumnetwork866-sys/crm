@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   Filter,
   ArrowUpRight,
+  Trash2,
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup } from '../../utils/crmUtils';
@@ -21,6 +22,8 @@ interface CentralizedMessageViewProps {
   onSendMessage: (customerId: string, content: string, channel: MessageChannel) => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
+  onDeleteThread?: (customerId: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
 export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
@@ -32,10 +35,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onSendMessage,
   onOpenAddOrder,
   onSelectCustomerDetail,
+  onDeleteThread,
+  onDeleteMessage,
 }) => {
   const [readFilter, setReadFilter] = useState<'all' | 'unread'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
+
+  const isAdmin = currentUser?.role === 'Admin';
 
   // Group messages by customerId to create thread list
   const threads = useMemo(() => {
@@ -217,7 +224,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div
                     key={thread.lastMessage.customerId}
                     onClick={() => onSelectCustomerThread(thread.lastMessage.customerId)}
-                    className={`p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-50 ${
+                    className={`group p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-50 relative ${
                       isSelected ? 'bg-emerald-50/80 border-l-4 border-[#00793d]' : ''
                     }`}
                   >
@@ -237,8 +244,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <span className={`text-xs truncate ${hasUnread ? 'font-black text-slate-900' : 'font-semibold text-slate-800'}`}>
                           {thread.customerName}
                         </span>
-                        <span className="text-[10px] text-slate-400 shrink-0 ml-1">
+                        <span className="text-[10px] text-slate-400 shrink-0 ml-1 flex items-center gap-1">
                           {new Date(thread.lastMessage.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          {isAdmin && onDeleteThread && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`[QUYỀN ADMIN] Bạn có chắc chắn muốn xóa hội thoại của ${thread.customerName}?`)) {
+                                  onDeleteThread(thread.lastMessage.customerId);
+                                }
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                              title="Xóa hội thoại này (Admin Only)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </span>
                       </div>
 
@@ -282,16 +303,33 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   </div>
                 </div>
 
-                {activeCustomer && (
-                  <button
-                    onClick={() => onSelectCustomerDetail(activeCustomer)}
-                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer text-xs flex items-center gap-1 font-semibold border border-slate-300"
-                    title="Xem chi tiết hồ sơ CRM"
-                  >
-                    <span>Hồ sơ CRM</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <div className="flex items-center space-x-2">
+                  {activeCustomer && (
+                    <button
+                      onClick={() => onSelectCustomerDetail(activeCustomer)}
+                      className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer text-xs flex items-center gap-1 font-semibold border border-slate-300"
+                      title="Xem chi tiết hồ sơ CRM"
+                    >
+                      <span>Hồ sơ CRM</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  {isAdmin && onDeleteThread && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`[QUYỀN ADMIN] Bạn có chắc chắn muốn XÓA HOÀN TOÀN toàn bộ hội thoại WhatsApp với khách hàng "${activeThread.customerName}"? Hành động này sẽ xóa vĩnh viễn khỏi Database.`)) {
+                          onDeleteThread(activeThread.lastMessage.customerId);
+                        }
+                      }}
+                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition cursor-pointer text-xs flex items-center gap-1 border border-rose-300 shadow-sm"
+                      title="Xóa toàn bộ hội thoại (Chỉ dành cho Admin)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa hội thoại</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Chat Messages Log Stream */}
@@ -313,24 +351,54 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       key={msg.id}
                       className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'}`}
                     >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
-                          isAgent
-                            ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none border border-[#b2f2a7]'
-                            : 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
-                        }`}
-                      >
-                        <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${isAgent ? 'text-[#00793d] font-bold' : 'text-slate-400 font-semibold'}`}>
-                          <span>{senderName}</span>
-                          <span className="text-slate-400 font-normal">{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <div className="flex items-center space-x-1 group/msg max-w-[85%]">
+                        {isAdmin && onDeleteMessage && !isAgent && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Xóa tin nhắn này?')) {
+                                onDeleteMessage(msg.id);
+                              }
+                            }}
+                            className="opacity-0 group-hover/msg:opacity-100 p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer shrink-0"
+                            title="Xóa tin nhắn này (Admin Only)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <div
+                          className={`w-full rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
+                            isAgent
+                              ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none border border-[#b2f2a7]'
+                              : 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
+                          }`}
+                        >
+                          <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${isAgent ? 'text-[#00793d] font-bold' : 'text-slate-400 font-semibold'}`}>
+                            <span>{senderName}</span>
+                            <span className="text-slate-400 font-normal">{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+
+                          <p className="leading-relaxed whitespace-pre-wrap text-slate-900">{msg.content}</p>
+
+                          {isAgent && (
+                            <div className="flex justify-end pt-0.5 text-[10px]">
+                              <CheckCheck className="w-3.5 h-3.5 text-[#00793d]" />
+                            </div>
+                          )}
                         </div>
 
-                        <p className="leading-relaxed whitespace-pre-wrap text-slate-900">{msg.content}</p>
-
-                        {isAgent && (
-                          <div className="flex justify-end pt-0.5 text-[10px]">
-                            <CheckCheck className="w-3.5 h-3.5 text-[#00793d]" />
-                          </div>
+                        {isAdmin && onDeleteMessage && isAgent && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Xóa tin nhắn này?')) {
+                                onDeleteMessage(msg.id);
+                              }
+                            }}
+                            className="opacity-0 group-hover/msg:opacity-100 p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer shrink-0"
+                            title="Xóa tin nhắn này (Admin Only)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </div>
                     </div>
