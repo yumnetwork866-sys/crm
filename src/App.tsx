@@ -669,38 +669,7 @@ export default function App() {
   };
 
   const handleSendCustomMessage = (customerId: string, messageText: string) => {
-    const nowStr = new Date().toLocaleString('vi-VN');
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const seq = c.automationSequence || {
-            active: true,
-            currentStep: 1,
-            startDate: new Date().toISOString().split('T')[0],
-            logs: [],
-          };
-
-          const newLog = {
-            step: seq.currentStep || 1,
-            stepName: 'Tin nhắn trực tiếp',
-            sentAt: nowStr,
-            message: messageText,
-            status: 'Read' as const,
-          };
-
-          return {
-            ...c,
-            automationSequence: {
-              ...seq,
-              logs: [...seq.logs, newLog],
-            },
-          };
-        }
-        return c;
-      })
-    );
-
-    // Sync to Central WhatsApp Inbox
+    // Sync to Central WhatsApp Inbox & Meta Cloud API
     handleSendCentralMessage(customerId, messageText, 'WhatsApp');
   };
 

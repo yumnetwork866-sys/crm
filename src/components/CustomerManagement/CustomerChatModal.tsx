@@ -29,27 +29,17 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     setInputText('');
   };
 
-  const logs = customer.automationSequence?.logs || [];
   const activeCentralMsgs = centralMessages.filter(
     (m) => m.customerId === customer.id || (m.customerPhone && m.customerPhone.replace(/\D/g, '') === customer.phone.replace(/\D/g, ''))
   );
 
-  const combinedMessages = [
-    ...logs.map((log, index) => ({
-      id: `log_${index}`,
-      senderName: 'Hệ thống / Sale',
-      time: log.sentAt,
-      content: log.message,
-      isAgent: true,
-    })),
-    ...activeCentralMsgs.map((m) => ({
-      id: m.id,
-      senderName: m.sender === 'agent' ? (m.agentName || 'Nguyễn Văn Ánh') : m.customerName,
-      time: new Date(m.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      content: m.content,
-      isAgent: m.sender === 'agent',
-    })),
-  ];
+  const displayMessages = activeCentralMsgs.map((m) => ({
+    id: m.id,
+    senderName: m.sender === 'agent' ? (m.agentName || 'Nguyễn Văn Ánh') : m.customerName,
+    time: new Date(m.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    content: m.content,
+    isAgent: m.sender === 'agent',
+  }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
@@ -102,12 +92,12 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
             </span>
           </div>
 
-          {combinedMessages.length === 0 ? (
+          {displayMessages.length === 0 ? (
             <div className="text-center py-12 text-slate-500 text-xs">
               Chưa có tin nhắn WhatsApp nào cho khách hàng này.
             </div>
           ) : (
-            combinedMessages.map((msg, index) => (
+            displayMessages.map((msg, index) => (
               <div key={index} className={`flex flex-col ${msg.isAgent ? 'items-end' : 'items-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
                   msg.isAgent
