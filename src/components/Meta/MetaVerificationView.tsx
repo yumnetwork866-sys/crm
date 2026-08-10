@@ -336,6 +336,67 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
               )}
             </div>
 
+            {/* Step 3: Meta Webhook Setup Guide */}
+            <div className="bg-sky-50/70 p-4.5 rounded-2xl border border-sky-200 space-y-4">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-sky-900 uppercase tracking-wider">
+                <Radio className="w-4 h-4 text-sky-600" />
+                Bước 3: Cấu Hình Webhook Trên Meta Developer Dashboard:
+              </div>
+
+              <p className="text-xs text-sky-950 font-medium leading-relaxed">
+                Tại trang Meta Developers Dashboard &gt; <strong>Bước 2: Thiết lập chính thức (Đặt cấu hình Webhook)</strong>, dán 2 thông tin dưới đây để Meta xác minh kết nối tự động:
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-extrabold text-slate-800 uppercase block mb-1">
+                    1. URL Gọi Lại (Callback URL):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/webhook`}
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 font-mono text-xs font-bold shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/webhook`)}
+                      className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shrink-0"
+                    >
+                      Sao chép URL
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-extrabold text-slate-800 uppercase block mb-1">
+                    2. Mã Xác Minh (Verify Token):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={verifyToken}
+                      onChange={(e) => setVerifyToken(e.target.value)}
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-slate-900 font-mono text-xs font-bold shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(verifyToken)}
+                      className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shrink-0"
+                    >
+                      Sao chép Mã
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-sky-200 text-[11px] text-sky-900 font-semibold space-y-1">
+                  <p>🔹 <strong>Trường Webhook cần Đăng ký:</strong> Chọn tích chọn trường <code className="bg-sky-100 text-sky-900 px-1.5 py-0.5 rounded font-mono font-bold">messages</code>.</p>
+                  <p>🔹 <strong>Xác minh và lưu:</strong> Nhấn nút <strong>"Xác minh và lưu"</strong> trên Meta Dashboard, server CRM sẽ tự động trả về phản hồi challenge (200 OK).</p>
+                </div>
+              </div>
+            </div>
+
             <div className="pt-2 flex justify-end">
               <button
                 type="submit"

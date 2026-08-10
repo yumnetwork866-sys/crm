@@ -74,6 +74,12 @@ app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/meta', metaRoutes);
 
+// Webhook route aliases for Meta Graph API Developer Dashboard (/webhook, /webhooks, /api/webhook)
+app.use('/webhook', metaRoutes);
+app.use('/webhooks', metaRoutes);
+app.use('/api/webhook', metaRoutes);
+app.use('/api/webhooks', metaRoutes);
+
 // Serve Frontend static assets from the built "dist" directory
 import path from 'path';
 const distPath = path.resolve(process.cwd(), 'dist');

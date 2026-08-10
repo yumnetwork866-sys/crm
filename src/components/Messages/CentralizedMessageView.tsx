@@ -51,9 +51,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
     >();
 
+    // 1. Group existing central messages
     messages.forEach((msg) => {
       const existing = map.get(msg.customerId);
-      const cust = customers.find((c) => c.id === msg.customerId) || null;
+      const cust = customers.find((c) => c.id === msg.customerId || c.phone === msg.customerPhone) || null;
 
       if (!existing) {
         map.set(msg.customerId, {
@@ -70,6 +71,47 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         if (!msg.isRead && msg.sender === 'customer') {
           existing.unreadCount += 1;
         }
+      }
+    });
+
+    // 2. Ensure all CRM customers (including newly added/imported ones like Hoàng Tuấn) appear in thread list
+    customers.forEach((cust) => {
+      if (!map.has(cust.id)) {
+        const logs = cust.automationSequence?.logs || [];
+        const custMsgs: CentralMessage[] = logs.map((log, index) => ({
+          id: `log_${cust.id}_${index}`,
+          customerId: cust.id,
+          customerName: cust.name,
+          customerPhone: cust.phone,
+          sender: 'agent',
+          agentName: cust.owner || 'Nguyễn Văn Ánh',
+          channel: 'WhatsApp',
+          content: log.message,
+          timestamp: log.sentAt || cust.lastContact || new Date().toISOString(),
+          isRead: true,
+        }));
+
+        const lastMsg: CentralMessage = custMsgs.length > 0 ? custMsgs[custMsgs.length - 1] : {
+          id: `init_${cust.id}`,
+          customerId: cust.id,
+          customerName: cust.name,
+          customerPhone: cust.phone,
+          sender: 'agent',
+          agentName: cust.owner || 'Nguyễn Văn Ánh',
+          channel: 'WhatsApp',
+          content: `Bắt đầu hội thoại WhatsApp với ${cust.name}`,
+          timestamp: cust.lastContact || new Date().toISOString(),
+          isRead: true,
+        };
+
+        map.set(cust.id, {
+          customer: cust,
+          customerName: cust.name,
+          customerPhone: cust.phone,
+          lastMessage: lastMsg,
+          unreadCount: 0,
+          messages: custMsgs,
+        });
       }
     });
 

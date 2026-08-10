@@ -708,6 +708,9 @@ export default function App() {
         return c;
       })
     );
+
+    // Sync to Central WhatsApp Inbox
+    handleSendCentralMessage(customerId, messageText, 'WhatsApp');
   };
 
   // Run Automation Simulation logic
@@ -1208,6 +1211,7 @@ export default function App() {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         customer={chatCustomer}
+        centralMessages={centralMessages}
         onSendMessage={handleSendCustomMessage}
       />
 
