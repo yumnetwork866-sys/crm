@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppUser } from '../../types';
-import { LogIn, LogOut, X, Mail, Lock } from 'lucide-react';
+import { LogIn, LogOut, X, Mail, Lock, Loader2 } from 'lucide-react';
 import { YumLogo } from '../Common/YumLogo';
 
 interface LoginModalProps {
@@ -23,10 +23,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleCustomLogin = (e: React.FormEvent) => {
+  const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
@@ -36,25 +37,69 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (found) {
-      if (found.status === 'inactive') {
-        setLoginError('Tài khoản này đang bị vô hiệu hóa.');
+    setIsLoading(true);
+    setLoginError('');
+
+    try {
+      // Gọi API Backend thật để lấy JWT Token
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(data.error || 'Email hoặc mật khẩu không chính xác.');
+        setIsLoading(false);
         return;
       }
-      if (found.password && found.password !== cleanPass && cleanPass !== 'admin123') {
-        setLoginError('Mật khẩu không chính xác. Vui lòng thử lại.');
-        return;
+
+      // Lưu JWT Token thật vào localStorage
+      if (data.token) {
+        localStorage.setItem('vietcrm_jwt_token', data.token);
       }
-      onSelectUser(found);
+
+      // Cập nhật user trong App state
+      const loggedInUser: AppUser = {
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        role: data.user.role,
+        avatar: data.user.avatar || '',
+        phone: data.user.phone || '',
+        department: data.user.department || 'Sales',
+        status: data.user.status || 'active',
+        lastActive: 'Đang hoạt động',
+        assignedLeadsCount: data.user.assignedLeadsCount || 0,
+        totalRevenue: data.user.totalRevenue || 0,
+      };
+
+      onSelectUser(loggedInUser);
       setLoginError('');
+      setIsLoading(false);
       if (!isMandatory) onClose();
-    } else {
-      setLoginError('Email hoặc mật khẩu không chính xác.');
+    } catch (err) {
+      // Fallback: thử tìm trong danh sách users local nếu backend offline
+      const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (found) {
+        if (found.status === 'inactive') {
+          setLoginError('Tài khoản này đang bị vô hiệu hóa.');
+        } else {
+          onSelectUser(found);
+          setLoginError('');
+          if (!isMandatory) onClose();
+        }
+      } else {
+        setLoginError('Không thể kết nối máy chủ. Vui lòng thử lại.');
+      }
+      setIsLoading(false);
     }
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('vietcrm_jwt_token');
     onSelectUser(null);
     if (!isMandatory) onClose();
   };
@@ -164,10 +209,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-600/30 transform hover:-translate-y-0.5"
+            disabled={isLoading}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-extrabold text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-600/30 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
           >
-            <LogIn className="w-4 h-4" />
-            <span>Đăng Nhập Vào YumNetwork CRM</span>
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Đang đăng nhập...</span>
+              </>
+            ) : (
+              <>
+                <LogIn className="w-4 h-4" />
+                <span>Đăng Nhập Vào YumNetwork CRM</span>
+              </>
+            )}
           </button>
         </form>
       </div>
