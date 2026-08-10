@@ -10,6 +10,7 @@ export interface CentralMessage {
   customerName: string;
   customerPhone: string;
   sender: 'customer' | 'agent' | 'system';
+  agentName?: string;
   channel: MessageChannel;
   content: string;
   timestamp: string;

@@ -10,12 +10,13 @@ import {
   Filter,
   ArrowUpRight,
 } from 'lucide-react';
-import { Customer, CentralMessage, MessageChannel } from '../../types';
+import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup } from '../../utils/crmUtils';
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
   customers: Customer[];
+  currentUser?: AppUser | null;
   selectedCustomerId?: string | null;
   onSelectCustomerThread: (customerId: string) => void;
   onSendMessage: (customerId: string, content: string, channel: MessageChannel) => void;
@@ -26,6 +27,7 @@ interface CentralizedMessageViewProps {
 export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   messages,
   customers,
+  currentUser,
   selectedCustomerId,
   onSelectCustomerThread,
   onSendMessage,
@@ -284,6 +286,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                 {activeThread.messages.map((msg) => {
                   const isAgent = msg.sender === 'agent';
+                  const senderName = isAgent
+                    ? (msg.agentName || currentUser?.name || 'Nguyễn Văn Ánh')
+                    : msg.customerName;
+
                   return (
                     <div
                       key={msg.id}
@@ -292,20 +298,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
                           isAgent
-                            ? 'bg-[#00793d] text-white rounded-tr-none border border-emerald-700'
+                            ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none border border-[#b2f2a7]'
                             : 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
                         }`}
                       >
-                        <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${isAgent ? 'text-emerald-100' : 'text-slate-400'}`}>
-                          <span className="font-semibold">{isAgent ? 'Nhân viên Sale' : msg.customerName}</span>
-                          <span>{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${isAgent ? 'text-[#00793d] font-bold' : 'text-slate-400 font-semibold'}`}>
+                          <span>{senderName}</span>
+                          <span className="text-slate-400 font-normal">{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
 
-                        <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        <p className="leading-relaxed whitespace-pre-wrap text-slate-900">{msg.content}</p>
 
                         {isAgent && (
-                          <div className="flex justify-end pt-0.5 text-[10px] text-emerald-200">
-                            <CheckCheck className="w-3.5 h-3.5 text-emerald-200" />
+                          <div className="flex justify-end pt-0.5 text-[10px]">
+                            <CheckCheck className="w-3.5 h-3.5 text-[#00793d]" />
                           </div>
                         )}
                       </div>

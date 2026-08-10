@@ -69,6 +69,7 @@ const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
     customerName: 'Lê Thanh Thảo',
     customerPhone: '0912999888',
     sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
     channel: 'WhatsApp',
     content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn qua WhatsApp rồi ạ!',
     timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
@@ -239,6 +240,7 @@ export default function App() {
       customerName: cust?.name || 'Khách Hàng',
       customerPhone: cust?.phone || '',
       sender: 'agent',
+      agentName: currentUser?.name || 'Nguyễn Văn Ánh',
       channel,
       content,
       timestamp: new Date().toISOString(),
@@ -1095,6 +1097,7 @@ export default function App() {
           <CentralizedMessageView
             messages={centralMessages}
             customers={customers}
+            currentUser={currentUser}
             selectedCustomerId={selectedChatCustomerId}
             onSelectCustomerThread={handleSelectCustomerThread}
             onSendMessage={handleSendCentralMessage}
