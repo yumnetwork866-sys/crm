@@ -74,44 +74,33 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
     });
 
-    // 2. Ensure all CRM customers (including newly added/imported ones like Hoàng Tuấn) appear in thread list
+    // 2. Include CRM customers who have logged messages
     customers.forEach((cust) => {
       if (!map.has(cust.id)) {
         const logs = cust.automationSequence?.logs || [];
-        const custMsgs: CentralMessage[] = logs.map((log, index) => ({
-          id: `log_${cust.id}_${index}`,
-          customerId: cust.id,
-          customerName: cust.name,
-          customerPhone: cust.phone,
-          sender: 'agent',
-          agentName: cust.owner || 'Nguyễn Văn Ánh',
-          channel: 'WhatsApp',
-          content: log.message,
-          timestamp: log.sentAt || cust.lastContact || new Date().toISOString(),
-          isRead: true,
-        }));
+        if (logs.length > 0) {
+          const custMsgs: CentralMessage[] = logs.map((log, index) => ({
+            id: `log_${cust.id}_${index}`,
+            customerId: cust.id,
+            customerName: cust.name,
+            customerPhone: cust.phone,
+            sender: 'agent',
+            agentName: cust.owner || 'Nguyễn Văn Ánh',
+            channel: 'WhatsApp',
+            content: log.message,
+            timestamp: log.sentAt || cust.lastContact || new Date().toISOString(),
+            isRead: true,
+          }));
 
-        const lastMsg: CentralMessage = custMsgs.length > 0 ? custMsgs[custMsgs.length - 1] : {
-          id: `init_${cust.id}`,
-          customerId: cust.id,
-          customerName: cust.name,
-          customerPhone: cust.phone,
-          sender: 'agent',
-          agentName: cust.owner || 'Nguyễn Văn Ánh',
-          channel: 'WhatsApp',
-          content: `Bắt đầu hội thoại WhatsApp với ${cust.name}`,
-          timestamp: cust.lastContact || new Date().toISOString(),
-          isRead: true,
-        };
-
-        map.set(cust.id, {
-          customer: cust,
-          customerName: cust.name,
-          customerPhone: cust.phone,
-          lastMessage: lastMsg,
-          unreadCount: 0,
-          messages: custMsgs,
-        });
+          map.set(cust.id, {
+            customer: cust,
+            customerName: cust.name,
+            customerPhone: cust.phone,
+            lastMessage: custMsgs[custMsgs.length - 1],
+            unreadCount: 0,
+            messages: custMsgs,
+          });
+        }
       }
     });
 

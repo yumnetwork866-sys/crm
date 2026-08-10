@@ -344,68 +344,32 @@ router.get(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) =
 });
 
 // In-memory real WhatsApp messages log store
-let inMemoryMessages: any[] = [
-  {
-    id: 'msg_1',
-    customerId: 'cust_1',
-    customerName: 'Nguyễn Thị Minh Châu',
-    customerPhone: '0908123456',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Chào shop, em muốn hỏi giá combo Mỹ Phẩm Tết Sale 2026 hiện tại bao nhiêu vậy ạ?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-    isRead: false,
-  },
-  {
-    id: 'msg_2',
-    customerId: 'cust_2',
-    customerName: 'Trần Hoài Nam',
-    customerPhone: '0987654321',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Shop cho mình hỏi sản phẩm này có miễn phí vận chuyển qua Malaysia không ạ?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
-    isRead: false,
-  },
-  {
-    id: 'msg_3',
-    customerId: 'cust_3',
-    customerName: 'Lê Thanh Thảo',
-    customerPhone: '0912999888',
-    sender: 'agent',
-    agentName: 'Nguyễn Văn Ánh',
-    channel: 'WhatsApp',
-    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn qua WhatsApp rồi ạ!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    isRead: true,
-  },
-  {
-    id: 'msg_4',
-    customerId: 'cust_3',
-    customerName: 'Lê Thanh Thảo',
-    customerPhone: '0912999888',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Cảm ơn shop nhé, em đã nhận được tin nhắn mã vận đơn rồi!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 100).toISOString(),
-    isRead: true,
-  },
-  {
-    id: 'msg_5',
-    customerId: 'cust_4',
-    customerName: 'David Nguyen',
-    customerPhone: '+1 415 555 2671',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Hi shop, anh cần hỗ trợ đặt thêm 5 sản phẩm nữa gửi về Kuala Lumpur.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    isRead: false,
-  },
-];
+let inMemoryMessages: any[] = [];
 
-// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages
-router.get('/messages', (req: Request, res: Response) => {
+// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages (DB + memory fallback)
+router.get('/messages', async (req: Request, res: Response) => {
+  try {
+    const dbMsgs = await prisma.whatsAppMessage.findMany({
+      orderBy: { timestamp: 'asc' }
+    });
+    if (dbMsgs && dbMsgs.length > 0) {
+      return res.json(dbMsgs);
+    }
+  } catch (e) {
+    // DB offline fallback
+  }
   return res.json(inMemoryMessages);
+});
+
+// Endpoint: DELETE /api/meta/messages - Clear messages log in DB & memory
+router.delete('/messages', async (req: Request, res: Response) => {
+  inMemoryMessages = [];
+  try {
+    await prisma.whatsAppMessage.deleteMany();
+  } catch (e) {
+    // DB offline fallback
+  }
+  return res.json({ success: true, message: 'Đã xóa toàn bộ tin nhắn. Hệ thống sẵn sàng 100% cho tin nhắn thật từ Meta Webhook.' });
 });
 
 // Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
@@ -485,6 +449,26 @@ router.post('/messages/send', async (req: Request, res: Response) => {
 
     inMemoryMessages.push(newMsg);
 
+    // Save to Database (Prisma)
+    try {
+      await prisma.whatsAppMessage.create({
+        data: {
+          id: newMsg.id,
+          customerName: newMsg.customerName,
+          customerPhone: newMsg.customerPhone,
+          sender: newMsg.sender,
+          agentName: newMsg.agentName,
+          channel: newMsg.channel,
+          content: newMsg.content,
+          isRead: newMsg.isRead,
+          isRealSent: newMsg.isRealSent,
+          timestamp: new Date(newMsg.timestamp)
+        }
+      });
+    } catch (dbErr) {
+      console.log('Database save fallback to memory');
+    }
+
     return res.json({
       success: true,
       isRealSent,
@@ -498,7 +482,7 @@ router.post('/messages/send', async (req: Request, res: Response) => {
 });
 
 // Endpoint: Meta Webhook Event Handler (POST) - Supports /, /webhook, /webhooks subpaths
-router.post(['/', '/webhook', '/webhooks'], (req: Request, res: Response) => {
+router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) => {
   const body = req.body;
 
   if (body.object === 'page' || body.object === 'whatsapp_business_account') {
@@ -510,7 +494,7 @@ router.post(['/', '/webhook', '/webhooks'], (req: Request, res: Response) => {
       const value = changes?.value;
 
       if (value && value.messages && Array.isArray(value.messages)) {
-        value.messages.forEach((msgData: any) => {
+        for (const msgData of value.messages) {
           const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
           const fromPhone = msgData.from || 'Khách Hàng';
           const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
@@ -529,8 +513,27 @@ router.post(['/', '/webhook', '/webhooks'], (req: Request, res: Response) => {
           };
 
           inMemoryMessages.push(newIncoming);
-          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
-        });
+
+          // Save incoming message to Database (Prisma)
+          try {
+            await prisma.whatsAppMessage.create({
+              data: {
+                id: newIncoming.id,
+                customerName: newIncoming.customerName,
+                customerPhone: newIncoming.customerPhone,
+                sender: newIncoming.sender,
+                channel: newIncoming.channel,
+                content: newIncoming.content,
+                isRead: newIncoming.isRead,
+                timestamp: new Date(newIncoming.timestamp)
+              }
+            });
+          } catch (dbErr) {
+            console.log('DB save fallback to memory for incoming webhook');
+          }
+
+          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added & DB Saved message from ${senderName} (${fromPhone}): "${textBody}"`);
+        }
       }
     } catch (parseErr) {
       console.error('Error parsing WhatsApp Webhook payload:', parseErr);

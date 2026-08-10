@@ -40,64 +40,7 @@ const STORAGE_KEY_PRODUCTS = 'yumcrm_products_v2';
 const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 const STORAGE_KEY_CENTRAL_MESSAGES = 'yumcrm_central_messages_v2';
 
-const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
-  {
-    id: 'msg_1',
-    customerId: 'cust_1',
-    customerName: 'Nguyễn Thị Minh Châu',
-    customerPhone: '0908123456',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Chào shop, em muốn hỏi giá combo Mỹ Phẩm Tết Sale 2026 hiện tại bao nhiêu vậy ạ?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-    isRead: false,
-  },
-  {
-    id: 'msg_2',
-    customerId: 'cust_2',
-    customerName: 'Trần Hoài Nam',
-    customerPhone: '0987654321',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Shop cho mình hỏi sản phẩm này có miễn phí vận chuyển qua Malaysia không ạ?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
-    isRead: false,
-  },
-  {
-    id: 'msg_3',
-    customerId: 'cust_3',
-    customerName: 'Lê Thanh Thảo',
-    customerPhone: '0912999888',
-    sender: 'agent',
-    agentName: 'Nguyễn Văn Ánh',
-    channel: 'WhatsApp',
-    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn qua WhatsApp rồi ạ!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    isRead: true,
-  },
-  {
-    id: 'msg_4',
-    customerId: 'cust_3',
-    customerName: 'Lê Thanh Thảo',
-    customerPhone: '0912999888',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Cảm ơn shop nhé, em đã nhận được tin nhắn mã vận đơn rồi!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 100).toISOString(),
-    isRead: true,
-  },
-  {
-    id: 'msg_5',
-    customerId: 'cust_4',
-    customerName: 'David Nguyen',
-    customerPhone: '+1 415 555 2671',
-    sender: 'customer',
-    channel: 'WhatsApp',
-    content: 'Hi shop, anh cần hỗ trợ đặt thêm 5 sản phẩm nữa gửi về Kuala Lumpur.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    isRead: false,
-  },
-];
+const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
@@ -202,9 +145,12 @@ export default function App() {
   const [centralMessages, setCentralMessages] = useState<CentralMessage[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CENTRAL_MESSAGES);
-      return saved ? JSON.parse(saved) : INITIAL_CENTRAL_MESSAGES;
+      if (!saved) return [];
+      const parsed: CentralMessage[] = JSON.parse(saved);
+      const sampleIds = new Set(['msg_1', 'msg_2', 'msg_3', 'msg_4', 'msg_5']);
+      return parsed.filter((m) => !sampleIds.has(m.id));
     } catch {
-      return INITIAL_CENTRAL_MESSAGES;
+      return [];
     }
   });
 
