@@ -536,55 +536,65 @@ router.post('/messages/send', async (req: Request, res: Response) => {
 router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) => {
   const body = req.body;
 
-  if (body.object === 'page' || body.object === 'whatsapp_business_account') {
+  if (body.object === 'page' || body.object === 'whatsapp_business_account' || body.entry) {
     console.log('Received Meta Webhook Event:', JSON.stringify(body, null, 2));
 
     try {
-      const entry = body.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
+      if (body.entry && Array.isArray(body.entry)) {
+        for (const entry of body.entry) {
+          if (entry.changes && Array.isArray(entry.changes)) {
+            for (const change of entry.changes) {
+              const value = change.value;
+              if (value && value.messages && Array.isArray(value.messages)) {
+                for (const msgData of value.messages) {
+                  const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
+                  const fromPhone = msgData.from || 'Khách Hàng';
+                  const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
+                  const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
+                  const cleanFrom = fromPhone.replace(/\D/g, '');
 
-      if (value && value.messages && Array.isArray(value.messages)) {
-        for (const msgData of value.messages) {
-          const contactData = value.contacts?.find((c: any) => c.wa_id === msgData.from) || value.contacts?.[0];
-          const fromPhone = msgData.from || 'Khách Hàng';
-          const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
-          const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
+                  const newIncoming = {
+                    id: msgData.id || `msg_meta_${Date.now()}`,
+                    customerId: `cust_${cleanFrom}`,
+                    customerName: senderName,
+                    customerPhone: fromPhone,
+                    sender: 'customer',
+                    channel: 'WhatsApp',
+                    content: textBody,
+                    timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
+                    isRead: false
+                  };
 
-          const newIncoming = {
-            id: msgData.id || `msg_meta_${Date.now()}`,
-            customerId: `cust_${fromPhone}`,
-            customerName: senderName,
-            customerPhone: fromPhone,
-            sender: 'customer',
-            channel: 'WhatsApp',
-            content: textBody,
-            timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
-            isRead: false
-          };
+                  if (!inMemoryMessages.some((m) => m.id === newIncoming.id)) {
+                    inMemoryMessages.push(newIncoming);
+                  }
 
-          inMemoryMessages.push(newIncoming);
+                  // Save incoming message to Database (Prisma)
+                  try {
+                    const savedDbMsg = await prisma.whatsAppMessage.upsert({
+                      where: { id: newIncoming.id },
+                      update: {},
+                      create: {
+                        id: newIncoming.id,
+                        customerName: newIncoming.customerName,
+                        customerPhone: newIncoming.customerPhone,
+                        sender: newIncoming.sender,
+                        channel: newIncoming.channel,
+                        content: newIncoming.content,
+                        isRead: newIncoming.isRead,
+                        timestamp: new Date(newIncoming.timestamp)
+                      }
+                    });
+                    console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
+                  } catch (dbErr: any) {
+                    console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
+                  }
 
-          // Save incoming message to Database (Prisma)
-          try {
-            const savedDbMsg = await prisma.whatsAppMessage.create({
-              data: {
-                id: newIncoming.id,
-                customerName: newIncoming.customerName,
-                customerPhone: newIncoming.customerPhone,
-                sender: newIncoming.sender,
-                channel: newIncoming.channel,
-                content: newIncoming.content,
-                isRead: newIncoming.isRead,
-                timestamp: new Date(newIncoming.timestamp)
+                  console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
+                }
               }
-            });
-            console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
-          } catch (dbErr: any) {
-            console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
+            }
           }
-
-          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
         }
       }
     } catch (parseErr) {
