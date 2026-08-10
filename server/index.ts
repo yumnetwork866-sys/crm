@@ -17,8 +17,16 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Trust Proxy for Nginx / Cloudflare / Reverse Proxy headers (fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
-app.set('trust proxy', 1);
+// Trust all Reverse Proxies (Nginx / Cloudflare / PM2)
+app.set('trust proxy', true);
+
+// Request Logger for debugging Webhook and API hits
+app.use((req, res, next) => {
+  if (req.url.includes('webhook') || req.url.includes('meta')) {
+    console.log(`[HTTP ${req.method}] ${req.url} - IP: ${req.ip}`);
+  }
+  next();
+});
 
 // 1. Security Middleware - Helmet HTTP Headers
 app.use(helmet({
@@ -40,10 +48,10 @@ app.use(cors({
 // 3. Rate Limiting (Prevent Brute-force & DDoS)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per windowMs
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
+  validate: false,
   message: { error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau 15 phút.' }
 });
 app.use('/api/', limiter);
@@ -51,7 +59,8 @@ app.use('/api/', limiter);
 // Strict rate limit for auth login endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30, // 30 attempts per 15 minutes
+  max: 50,
+  validate: false,
   message: { error: 'Số lần thử đăng nhập quá nhiều. Vui lòng thử lại sau 15 phút.' }
 });
 app.use('/api/auth/login', authLimiter);
