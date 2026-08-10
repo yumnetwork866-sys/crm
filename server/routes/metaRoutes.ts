@@ -323,8 +323,8 @@ router.post('/data-deletion', (req: Request, res: Response) => {
   }
 });
 
-// Endpoint: Meta Webhook Verification (GET)
-router.get('/webhooks', async (req: Request, res: Response) => {
+// Endpoint: Meta Webhook Verification (GET) - Supports /, /webhook, /webhooks subpaths
+router.get(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -332,13 +332,15 @@ router.get('/webhooks', async (req: Request, res: Response) => {
   const setting = await getIntegrationSetting();
   const EXPECTED_TOKEN = setting.whatsappVerifyToken || process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026';
 
-  if (mode === 'subscribe' && token === EXPECTED_TOKEN) {
-    console.log('Meta Webhook Verified Successfully with token:', token);
+  console.log(`[META WEBHOOK VERIFY REQUEST] Received mode: "${mode}", token: "${token}"`);
+
+  if (mode === 'subscribe' && token && String(token).trim() === String(EXPECTED_TOKEN).trim()) {
+    console.log('✅ Meta Webhook Verified Successfully! Returning challenge:', challenge);
     return res.status(200).send(challenge);
   }
 
-  console.warn(`Meta Webhook Verification Failed. Expected: "${EXPECTED_TOKEN}", Received: "${token}"`);
-  return res.sendStatus(403);
+  console.warn(`❌ Meta Webhook Verification Failed. Expected Token: "${EXPECTED_TOKEN}", Received Token: "${token}"`);
+  return res.status(403).send('Webhook Verification Failed: Invalid Token or Mode');
 });
 
 // In-memory real WhatsApp messages log store
@@ -495,8 +497,8 @@ router.post('/messages/send', async (req: Request, res: Response) => {
   }
 });
 
-// Endpoint: Meta Webhook Event Handler (POST)
-router.post('/webhooks', (req: Request, res: Response) => {
+// Endpoint: Meta Webhook Event Handler (POST) - Supports /, /webhook, /webhooks subpaths
+router.post(['/', '/webhook', '/webhooks'], (req: Request, res: Response) => {
   const body = req.body;
 
   if (body.object === 'page' || body.object === 'whatsapp_business_account') {
