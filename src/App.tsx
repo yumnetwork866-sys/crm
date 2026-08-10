@@ -194,6 +194,61 @@ export default function App() {
                 playNotificationSound();
                 setToastNotification({ message: latestNew, show: true });
               }
+
+              // Auto Sync with Customers state (create new lead if phone doesn't exist, append note)
+              setCustomers((prevCusts) => {
+                let updated = [...prevCusts];
+                newIncoming.forEach((msg) => {
+                  if (msg.customerPhone) {
+                    const cleanMsgPhone = msg.customerPhone.replace(/\D/g, '');
+                    const existingIdx = updated.findIndex((c) => c.phone.replace(/\D/g, '') === cleanMsgPhone || c.id === msg.customerId);
+
+                    const newNote = {
+                      id: `n_wa_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                      author: msg.sender === 'agent' ? (msg.agentName || 'Nguyễn Văn Ánh') : msg.customerName,
+                      content: `[WhatsApp ${msg.sender === 'agent' ? 'Gửi đi' : 'Đến'}] ${msg.content}`,
+                      createdAt: new Date(msg.timestamp).toLocaleString('vi-VN'),
+                      type: 'whatsapp' as const,
+                    };
+
+                    if (existingIdx !== -1) {
+                      const targetCust = updated[existingIdx];
+                      const hasNote = targetCust.notes.some((n) => n.content === newNote.content);
+                      if (!hasNote) {
+                        updated[existingIdx] = {
+                          ...targetCust,
+                          lastContact: new Date().toISOString().split('T')[0],
+                          notes: [newNote, ...targetCust.notes],
+                        };
+                      }
+                    } else if (msg.sender === 'customer') {
+                      // Auto-register new Lead from incoming WhatsApp message
+                      const newCust: Customer = {
+                        id: msg.customerId || `cust_wa_${Date.now()}`,
+                        name: msg.customerName || `Khách WhatsApp (${msg.customerPhone})`,
+                        phone: msg.customerPhone,
+                        gender: 'Khác',
+                        address: 'Malaysia',
+                        source: 'WhatsApp',
+                        campaign: 'Meta WhatsApp Cloud API',
+                        firstContact: new Date().toISOString().split('T')[0],
+                        lastContact: new Date().toISOString().split('T')[0],
+                        owner: 'Nguyễn Văn Ánh',
+                        status: 'New Lead',
+                        notes: [newNote],
+                        totalOrders: 0,
+                        totalSpent: 0,
+                        interestedProducts: [],
+                        whatsappOptIn: true,
+                        whatsappOptInDate: new Date().toISOString().split('T')[0],
+                      };
+                      updated.unshift(newCust);
+                    }
+                  }
+                });
+                return updated;
+              });
+
               return [...prev, ...newIncoming];
             }
             return prev;
@@ -247,13 +302,25 @@ export default function App() {
       console.log('Real WhatsApp API offline fallback');
     }
 
-    // Update customer last contact
+    // Update customer last contact and append to customer notes timeline
     setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === customerId
-          ? { ...c, lastContact: new Date().toISOString().split('T')[0] }
-          : c
-      )
+      prev.map((c) => {
+        if (c.id === customerId || (c.phone && cust?.phone && c.phone.replace(/\D/g, '') === cust.phone.replace(/\D/g, ''))) {
+          const newNote = {
+            id: `n_wa_${Date.now()}`,
+            author: agentName,
+            content: `[WhatsApp Gửi đi] ${content}`,
+            createdAt: new Date().toLocaleString('vi-VN'),
+            type: 'whatsapp' as const,
+          };
+          return {
+            ...c,
+            lastContact: new Date().toISOString().split('T')[0],
+            notes: [newNote, ...c.notes],
+          };
+        }
+        return c;
+      })
     );
   };
 
