@@ -9,7 +9,6 @@ import {
   Zap,
   Filter,
   ArrowUpRight,
-  BellRing,
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel } from '../../types';
 import { getCustomerGroup } from '../../utils/crmUtils';
@@ -20,7 +19,6 @@ interface CentralizedMessageViewProps {
   selectedCustomerId?: string | null;
   onSelectCustomerThread: (customerId: string) => void;
   onSendMessage: (customerId: string, content: string, channel: MessageChannel) => void;
-  onSimulateIncoming: () => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
 }
@@ -31,7 +29,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   selectedCustomerId,
   onSelectCustomerThread,
   onSendMessage,
-  onSimulateIncoming,
   onOpenAddOrder,
   onSelectCustomerDetail,
 }) => {
@@ -130,44 +127,34 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Header Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 text-slate-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-bold text-xl shrink-0 shadow-inner">
-            <MessageSquare className="w-6 h-6 text-emerald-400" />
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-300 text-[#00793d] flex items-center justify-center font-bold text-xl shrink-0 shadow-sm">
+            <MessageSquare className="w-6 h-6 text-[#00793d]" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-xl font-extrabold tracking-tight">Hộp Thư Tin Nhắn WhatsApp</h1>
-              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Hộp Thư Tin Nhắn WhatsApp</h1>
+              <span className="bg-emerald-100 text-[#00793d] border border-emerald-300 text-[10px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00793d] animate-ping"></span>
                 WhatsApp Cloud API (Meta Graph Sync)
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Quản lý tập trung tin nhắn WhatsApp từ khách hàng với thông báo đẩy thời gian thực và âm thanh cảnh báo.
             </p>
           </div>
         </div>
-
-        {/* Action Button to Simulate Incoming Message */}
-        <button
-          onClick={onSimulateIncoming}
-          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-600/30 flex items-center space-x-2 shrink-0 cursor-pointer"
-          title="Giả lập tin nhắn WhatsApp đến từ khách hàng"
-        >
-          <BellRing className="w-4 h-4 text-amber-300 animate-bounce" />
-          <span>Giả Lập Tin Nhắn WhatsApp Đến</span>
-        </button>
       </div>
 
       {/* Main Inbox Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[720px] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[720px] bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         
         {/* Left Sidebar: Threads List & Search (4 Cols) */}
-        <div className="lg:col-span-4 bg-slate-900/90 border-r border-slate-800 flex flex-col h-full overflow-hidden">
+        <div className="lg:col-span-4 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden">
           
           {/* Search & Read Filter */}
-          <div className="p-3 bg-slate-950/60 border-b border-slate-800 space-y-2">
+          <div className="p-3 bg-slate-50 border-b border-slate-200 space-y-2">
             <div className="flex items-center space-x-2">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -176,7 +163,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm tên, SĐT WhatsApp, nội dung..."
-                  className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#00793d]"
                 />
               </div>
 
@@ -184,8 +171,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onClick={() => setReadFilter(readFilter === 'all' ? 'unread' : 'all')}
                 className={`p-1.5 rounded-xl border text-xs font-semibold flex items-center space-x-1 cursor-pointer transition ${
                   readFilter === 'unread'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                    : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                    ? 'bg-rose-100 text-rose-700 border-rose-300'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                 }`}
                 title="Lọc tin chưa đọc"
               >
@@ -196,9 +183,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* Threads List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60">
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {filteredThreads.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 text-xs">
+              <div className="p-8 text-center text-slate-400 text-xs">
                 Không tìm thấy hội thoại WhatsApp nào phù hợp.
               </div>
             ) : (
@@ -210,16 +197,16 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div
                     key={thread.lastMessage.customerId}
                     onClick={() => onSelectCustomerThread(thread.lastMessage.customerId)}
-                    className={`p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-800/50 ${
-                      isSelected ? 'bg-emerald-950/40 border-l-4 border-emerald-500' : ''
+                    className={`p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-50 ${
+                      isSelected ? 'bg-emerald-50/80 border-l-4 border-[#00793d]' : ''
                     }`}
                   >
                     <div className="relative shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 text-slate-200 flex items-center justify-center font-bold text-sm">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-300 text-[#00793d] flex items-center justify-center font-bold text-sm">
                         {thread.customerName.charAt(0)}
                       </div>
                       {hasUnread && (
-                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-[9px] text-white font-extrabold">
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white flex items-center justify-center text-[9px] text-white font-extrabold">
                           {thread.unreadCount}
                         </span>
                       )}
@@ -227,23 +214,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs truncate ${hasUnread ? 'font-black text-white' : 'font-semibold text-slate-200'}`}>
+                        <span className={`text-xs truncate ${hasUnread ? 'font-black text-slate-900' : 'font-semibold text-slate-800'}`}>
                           {thread.customerName}
                         </span>
-                        <span className="text-[10px] text-slate-500 shrink-0 ml-1">
+                        <span className="text-[10px] text-slate-400 shrink-0 ml-1">
                           {new Date(thread.lastMessage.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
                       <div className="flex items-center space-x-1.5 mt-0.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300">
                           WhatsApp
                         </span>
-                        <span className="text-[10px] text-slate-400 truncate">{thread.customerPhone}</span>
+                        <span className="text-[10px] text-slate-500 truncate">{thread.customerPhone}</span>
                       </div>
 
-                      <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-slate-100 font-medium' : 'text-slate-400'}`}>
-                        {thread.lastMessage.sender === 'agent' && <span className="text-emerald-400">Bạn: </span>}
+                      <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
+                        {thread.lastMessage.sender === 'agent' && <span className="text-[#00793d] font-semibold">Bạn: </span>}
                         {thread.lastMessage.content}
                       </p>
                     </div>
@@ -255,30 +242,30 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         </div>
 
         {/* Center Panel: Active WhatsApp Chat Messages (5 Cols) */}
-        <div className="lg:col-span-5 bg-slate-950/40 flex flex-col h-full overflow-hidden border-r border-slate-800">
+        <div className="lg:col-span-5 bg-slate-50 flex flex-col h-full overflow-hidden border-r border-slate-200">
           {activeThread ? (
             <>
               {/* Chat Thread Header */}
-              <div className="p-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-bold text-sm">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-[#00793d] border border-emerald-300 flex items-center justify-center font-bold text-sm">
                     {activeThread.customerName.charAt(0)}
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <h3 className="text-sm font-bold text-white">{activeThread.customerName}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30">
+                      <h3 className="text-sm font-bold text-slate-900">{activeThread.customerName}</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300">
                         WhatsApp
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400">{activeThread.customerPhone} • {activeCustomer?.owner || 'Sale Rep'}</p>
+                    <p className="text-xs text-slate-500">{activeThread.customerPhone} • {activeCustomer?.owner || 'Sale Rep'}</p>
                   </div>
                 </div>
 
                 {activeCustomer && (
                   <button
                     onClick={() => onSelectCustomerDetail(activeCustomer)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer text-xs flex items-center gap-1 font-semibold border border-slate-700"
+                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer text-xs flex items-center gap-1 font-semibold border border-slate-300"
                     title="Xem chi tiết hồ sơ CRM"
                   >
                     <span>Hồ sơ CRM</span>
@@ -288,9 +275,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </div>
 
               {/* Chat Messages Log Stream */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-3">
+              <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50">
                 <div className="text-center my-1">
-                  <span className="px-3 py-1 bg-slate-900 rounded-full text-[10px] text-slate-400 border border-slate-800">
+                  <span className="px-3 py-1 bg-white rounded-full text-[10px] text-slate-500 border border-slate-200 shadow-sm">
                     Kênh giao tiếp WhatsApp Business API (Meta Graph)
                   </span>
                 </div>
@@ -305,11 +292,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
                           isAgent
-                            ? 'bg-[#00793d] text-white rounded-tr-none border border-emerald-600'
-                            : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700'
+                            ? 'bg-[#00793d] text-white rounded-tr-none border border-emerald-700'
+                            : 'bg-white text-slate-800 rounded-tl-none border border-slate-200'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-4 text-[10px] opacity-75 pb-0.5">
+                        <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${isAgent ? 'text-emerald-100' : 'text-slate-400'}`}>
                           <span className="font-semibold">{isAgent ? 'Nhân viên Sale' : msg.customerName}</span>
                           <span>{new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
@@ -318,7 +305,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                         {isAgent && (
                           <div className="flex justify-end pt-0.5 text-[10px] text-emerald-200">
-                            <CheckCheck className="w-3.5 h-3.5 text-emerald-300" />
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-200" />
                           </div>
                         )}
                       </div>
@@ -328,15 +315,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </div>
 
               {/* Quick Template Replies */}
-              <div className="px-3 py-2 bg-slate-900 border-t border-slate-800 shrink-0 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
-                <span className="text-[10px] font-bold text-emerald-400 shrink-0 flex items-center gap-1">
+              <div className="px-3 py-2 bg-white border-t border-slate-200 shrink-0 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] font-bold text-[#00793d] shrink-0 flex items-center gap-1">
                   <Zap className="w-3 h-3" /> Mẫu nhanh:
                 </span>
                 {quickReplies.map((qr, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleQuickReply(qr)}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] transition shrink-0 border border-slate-700/60 cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] transition shrink-0 border border-slate-200 cursor-pointer font-medium"
                   >
                     {qr.length > 22 ? qr.substring(0, 22) + '...' : qr}
                   </button>
@@ -344,18 +331,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </div>
 
               {/* Send Form */}
-              <form onSubmit={handleSend} className="p-3 bg-slate-900 border-t border-slate-800 shrink-0 flex items-center space-x-2">
+              <form onSubmit={handleSend} className="p-3 bg-white border-t border-slate-200 shrink-0 flex items-center space-x-2">
                 <input
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Nhập phản hồi tin nhắn WhatsApp cho khách..."
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-400"
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#00793d] placeholder-slate-400"
                 />
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="px-4 py-2 bg-[#00793d] hover:bg-[#006232] disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
+                  className="px-4 py-2 bg-[#00793d] hover:bg-[#006232] disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 cursor-pointer shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Gửi</span>
@@ -363,64 +350,64 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </form>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-500 text-xs">
+            <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400 text-xs">
               Chọn một hội thoại WhatsApp bên trái để xem tin nhắn.
             </div>
           )}
         </div>
 
         {/* Right Panel: Customer Info & Quick Actions (3 Cols) */}
-        <div className="lg:col-span-3 bg-slate-900/70 p-4 h-full overflow-y-auto space-y-4">
+        <div className="lg:col-span-3 bg-white p-4 h-full overflow-y-auto space-y-4">
           {activeCustomer ? (
             <>
               {/* Customer Profile Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center space-y-2">
-                <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-xl font-black shadow-lg">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center space-y-2">
+                <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-tr from-[#00793d] to-emerald-500 text-white flex items-center justify-center text-xl font-black shadow-sm">
                   {activeCustomer.name.charAt(0)}
                 </div>
-                <h4 className="text-sm font-bold text-white">{activeCustomer.name}</h4>
-                <p className="text-xs text-slate-400">{activeCustomer.phone}</p>
+                <h4 className="text-sm font-bold text-slate-900">{activeCustomer.name}</h4>
+                <p className="text-xs text-slate-500">{activeCustomer.phone}</p>
                 <div className="pt-2 flex items-center justify-center gap-1 text-[10px]">
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-semibold">
+                  <span className="px-2 py-0.5 bg-emerald-100 text-[#00793d] border border-emerald-300 rounded-full font-bold">
                     {activeCustomer.status}
                   </span>
-                  <span className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded-full">
+                  <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full font-medium">
                     {activeCustomer.source}
                   </span>
                 </div>
               </div>
 
               {/* Financial Stats */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between text-slate-400">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-slate-600">
                   <span>Tổng đơn hàng:</span>
-                  <span className="font-bold text-white">{activeCustomer.totalOrders} đơn</span>
+                  <span className="font-bold text-slate-900">{activeCustomer.totalOrders} đơn</span>
                 </div>
-                <div className="flex items-center justify-between text-slate-400">
+                <div className="flex items-center justify-between text-slate-600">
                   <span>Tổng chi tiêu:</span>
-                  <span className="font-bold text-emerald-400">
+                  <span className="font-bold text-[#00793d]">
                     RM {(activeCustomer.totalSpent || 0).toLocaleString()}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-slate-400">
+                <div className="flex items-center justify-between text-slate-600">
                   <span>Nhóm CRM:</span>
-                  <span className="font-bold text-purple-300">
+                  <span className="font-bold text-purple-700">
                     {getCustomerGroup(activeCustomer)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-slate-400">
+                <div className="flex items-center justify-between text-slate-600">
                   <span>Sale Phụ Trách:</span>
-                  <span className="font-semibold text-slate-200">{activeCustomer.owner}</span>
+                  <span className="font-semibold text-slate-800">{activeCustomer.owner}</span>
                 </div>
               </div>
 
               {/* Quick Actions */}
               <div className="space-y-2">
-                <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Thao Tác Nhanh</h5>
+                <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Thao Tác Nhanh</h5>
                 
                 <button
                   onClick={() => onOpenAddOrder(activeCustomer)}
-                  className="w-full py-2 bg-[#00793d] hover:bg-[#006232] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-md shadow-emerald-600/20"
+                  className="w-full py-2 bg-[#00793d] hover:bg-[#006232] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-sm"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
                   <span>+ Tạo Đơn Hàng Mới</span>
@@ -428,7 +415,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                 <button
                   onClick={() => onSelectCustomerDetail(activeCustomer)}
-                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-xs transition border border-slate-300 flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>Xem Chi Tiết Customer</span>
@@ -436,7 +423,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </div>
             </>
           ) : (
-            <div className="p-6 text-center text-slate-500 text-xs">
+            <div className="p-6 text-center text-slate-400 text-xs">
               Chưa chọn khách hàng.
             </div>
           )}

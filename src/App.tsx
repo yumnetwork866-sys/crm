@@ -1098,7 +1098,6 @@ export default function App() {
             selectedCustomerId={selectedChatCustomerId}
             onSelectCustomerThread={handleSelectCustomerThread}
             onSendMessage={handleSendCentralMessage}
-            onSimulateIncoming={handleSimulateIncomingMessage}
             onOpenAddOrder={(cust) => {
               setOrderCustomer(cust);
               setIsOrderOpen(true);
