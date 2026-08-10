@@ -451,7 +451,7 @@ router.post('/messages/send', async (req: Request, res: Response) => {
 
     // Save to Database (Prisma)
     try {
-      await prisma.whatsAppMessage.create({
+      const savedOutDb = await prisma.whatsAppMessage.create({
         data: {
           id: newMsg.id,
           customerName: newMsg.customerName,
@@ -465,8 +465,9 @@ router.post('/messages/send', async (req: Request, res: Response) => {
           timestamp: new Date(newMsg.timestamp)
         }
       });
-    } catch (dbErr) {
-      console.log('Database save fallback to memory');
+      console.log(`[DB SAVE SUCCESS] Saved OUTGOING message ${savedOutDb.id} to PostgreSQL Database!`);
+    } catch (dbErr: any) {
+      console.error('[DB SAVE ERROR] Failed to save outgoing message to DB:', dbErr.message || dbErr);
     }
 
     return res.json({
@@ -516,7 +517,7 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
 
           // Save incoming message to Database (Prisma)
           try {
-            await prisma.whatsAppMessage.create({
+            const savedDbMsg = await prisma.whatsAppMessage.create({
               data: {
                 id: newIncoming.id,
                 customerName: newIncoming.customerName,
@@ -528,11 +529,12 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
                 timestamp: new Date(newIncoming.timestamp)
               }
             });
-          } catch (dbErr) {
-            console.log('DB save fallback to memory for incoming webhook');
+            console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
+          } catch (dbErr: any) {
+            console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
           }
 
-          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added & DB Saved message from ${senderName} (${fromPhone}): "${textBody}"`);
+          console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
         }
       }
     } catch (parseErr) {
