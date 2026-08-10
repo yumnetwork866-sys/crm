@@ -17,6 +17,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Proxy for Nginx / Cloudflare / Reverse Proxy headers (fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
+
 // 1. Security Middleware - Helmet HTTP Headers
 app.use(helmet({
   contentSecurityPolicy: false // Allow inline scripts for dev Vite proxy if served together
@@ -37,9 +40,10 @@ app.use(cors({
 // 3. Rate Limiting (Prevent Brute-force & DDoS)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Limit each IP to 300 requests per windowMs
+  max: 500, // Limit each IP to 500 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau 15 phút.' }
 });
 app.use('/api/', limiter);
