@@ -4,20 +4,12 @@ import {
   Search,
   Send,
   CheckCheck,
-  Phone,
   User,
   ShoppingBag,
-  Sparkles,
   Zap,
   Filter,
-  PlusCircle,
-  Clock,
-  ShieldCheck,
-  Tag,
   ArrowUpRight,
-  Bot,
   BellRing,
-  RefreshCw,
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel } from '../../types';
 import { getCustomerGroup } from '../../utils/crmUtils';
@@ -43,7 +35,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onOpenAddOrder,
   onSelectCustomerDetail,
 }) => {
-  const [activeChannelFilter, setActiveChannelFilter] = useState<string>('all');
   const [readFilter, setReadFilter] = useState<'all' | 'unread'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
@@ -62,7 +53,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
     >();
 
-    // Process all messages in order
     messages.forEach((msg) => {
       const existing = map.get(msg.customerId);
       const cust = customers.find((c) => c.id === msg.customerId) || null;
@@ -78,31 +68,24 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         });
       } else {
         existing.messages.push(msg);
-        existing.lastMessage = msg; // assuming messages are sorted chronologically
+        existing.lastMessage = msg;
         if (!msg.isRead && msg.sender === 'customer') {
           existing.unreadCount += 1;
         }
       }
     });
 
-    // Convert map to array and sort by last message timestamp (descending)
     return Array.from(map.values()).sort(
       (a, b) => new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
     );
   }, [messages, customers]);
 
-  // Filter threads based on user inputs
+  // Filter threads based on search & unread status
   const filteredThreads = useMemo(() => {
     return threads.filter((t) => {
-      // Channel filter
-      if (activeChannelFilter !== 'all' && t.lastMessage.channel !== activeChannelFilter) {
-        return false;
-      }
-      // Read filter
       if (readFilter === 'unread' && t.unreadCount === 0) {
         return false;
       }
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = t.customerName.toLowerCase().includes(q);
@@ -112,7 +95,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
       return true;
     });
-  }, [threads, activeChannelFilter, readFilter, searchQuery]);
+  }, [threads, readFilter, searchQuery]);
 
   // Active thread selection
   const activeThread = useMemo(() => {
@@ -128,34 +111,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     e.preventDefault();
     if (!inputText.trim() || !activeThread) return;
 
-    const channel = activeThread.lastMessage.channel || 'WhatsApp';
-    onSendMessage(activeThread.lastMessage.customerId, inputText.trim(), channel);
+    onSendMessage(activeThread.lastMessage.customerId, inputText.trim(), 'WhatsApp');
     setInputText('');
   };
 
   const handleQuickReply = (text: string) => {
     if (!activeThread) return;
-    const channel = activeThread.lastMessage.channel || 'WhatsApp';
-    onSendMessage(activeThread.lastMessage.customerId, text, channel);
-  };
-
-  const getChannelBadge = (channel: MessageChannel) => {
-    switch (channel) {
-      case 'WhatsApp':
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30">WhatsApp</span>;
-      case 'Zalo':
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30">Zalo</span>;
-      case 'Facebook':
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30">Facebook</span>;
-      case 'TikTok':
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800 border border-slate-400 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">TikTok</span>;
-      default:
-        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-300">LiveChat</span>;
-    }
+    onSendMessage(activeThread.lastMessage.customerId, text, 'WhatsApp');
   };
 
   const quickReplies = [
-    'Chào anh/chị! Em hỗ trợ tư vấn sản phẩm cho mình ạ.',
+    'Chào anh/chị! Em hỗ trợ tư vấn qua WhatsApp cho mình ạ.',
     'Dạ mẫu sản phẩm này hiện đang có sẵn hàng tại kho.',
     'Em đã lên đơn thành công và tạo mã vận đơn cho mình rồi ạ!',
     'Cảm ơn anh/chị đã ủng hộ YumNetwork CRM!',
@@ -166,19 +132,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-400 flex items-center justify-center font-bold text-xl shrink-0 shadow-inner">
-            <MessageSquare className="w-6 h-6 text-indigo-400" />
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-bold text-xl shrink-0 shadow-inner">
+            <MessageSquare className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h1 className="text-xl font-extrabold tracking-tight">Hộp Thư Tin Nhắn Tập Trung</h1>
+              <h1 className="text-xl font-extrabold tracking-tight">Hộp Thư Tin Nhắn WhatsApp</h1>
               <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                Meta Graph & Omnichannel Sync
+                WhatsApp Cloud API (Meta Graph Sync)
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Quản lý đồng bộ tin nhắn khách hàng từ WhatsApp, Facebook, Zalo & TikTok với thông báo đẩy thời gian thực.
+              Quản lý tập trung tin nhắn WhatsApp từ khách hàng với thông báo đẩy thời gian thực và âm thanh cảnh báo.
             </p>
           </div>
         </div>
@@ -186,45 +152,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         {/* Action Button to Simulate Incoming Message */}
         <button
           onClick={onSimulateIncoming}
-          className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/30 flex items-center space-x-2 shrink-0 cursor-pointer"
-          title="Nhấp để tạo tin nhắn giả lập từ khách hàng mới hoặc sẵn có"
+          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-600/30 flex items-center space-x-2 shrink-0 cursor-pointer"
+          title="Giả lập tin nhắn WhatsApp đến từ khách hàng"
         >
           <BellRing className="w-4 h-4 text-amber-300 animate-bounce" />
-          <span>Giả Lập Tin Nhắn Đến</span>
+          <span>Giả Lập Tin Nhắn WhatsApp Đến</span>
         </button>
       </div>
 
       {/* Main Inbox Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[720px] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
         
-        {/* Left Sidebar: Threads List & Filters (4 Cols) */}
+        {/* Left Sidebar: Threads List & Search (4 Cols) */}
         <div className="lg:col-span-4 bg-slate-900/90 border-r border-slate-800 flex flex-col h-full overflow-hidden">
           
-          {/* Channel Filters */}
-          <div className="p-3 bg-slate-950/60 border-b border-slate-800 space-y-2.5">
-            <div className="flex items-center space-x-1 overflow-x-auto pb-1 no-scrollbar">
-              {[
-                { id: 'all', label: 'Tất cả' },
-                { id: 'WhatsApp', label: 'WhatsApp' },
-                { id: 'Zalo', label: 'Zalo' },
-                { id: 'Facebook', label: 'Facebook' },
-                { id: 'TikTok', label: 'TikTok' },
-              ].map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveChannelFilter(c.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                    activeChannelFilter === c.id
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search & Read Filter */}
+          {/* Search & Read Filter */}
+          <div className="p-3 bg-slate-950/60 border-b border-slate-800 space-y-2">
             <div className="flex items-center space-x-2">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -232,8 +175,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Tìm tên, SĐT, nội dung..."
-                  className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  placeholder="Tìm tên, SĐT WhatsApp, nội dung..."
+                  className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -256,7 +199,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60">
             {filteredThreads.length === 0 ? (
               <div className="p-8 text-center text-slate-500 text-xs">
-                Không tìm thấy hội thoại nào phù hợp.
+                Không tìm thấy hội thoại WhatsApp nào phù hợp.
               </div>
             ) : (
               filteredThreads.map((thread) => {
@@ -268,7 +211,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     key={thread.lastMessage.customerId}
                     onClick={() => onSelectCustomerThread(thread.lastMessage.customerId)}
                     className={`p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-800/50 ${
-                      isSelected ? 'bg-indigo-950/40 border-l-4 border-indigo-500' : ''
+                      isSelected ? 'bg-emerald-950/40 border-l-4 border-emerald-500' : ''
                     }`}
                   >
                     <div className="relative shrink-0">
@@ -293,12 +236,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </div>
 
                       <div className="flex items-center space-x-1.5 mt-0.5">
-                        {getChannelBadge(thread.lastMessage.channel)}
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30">
+                          WhatsApp
+                        </span>
                         <span className="text-[10px] text-slate-400 truncate">{thread.customerPhone}</span>
                       </div>
 
                       <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-slate-100 font-medium' : 'text-slate-400'}`}>
-                        {thread.lastMessage.sender === 'agent' && <span className="text-indigo-400">Bạn: </span>}
+                        {thread.lastMessage.sender === 'agent' && <span className="text-emerald-400">Bạn: </span>}
                         {thread.lastMessage.content}
                       </p>
                     </div>
@@ -309,20 +254,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
         </div>
 
-        {/* Center Panel: Active Chat Messages (5 Cols) */}
+        {/* Center Panel: Active WhatsApp Chat Messages (5 Cols) */}
         <div className="lg:col-span-5 bg-slate-950/40 flex flex-col h-full overflow-hidden border-r border-slate-800">
           {activeThread ? (
             <>
               {/* Chat Thread Header */}
               <div className="p-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-sm">
+                  <div className="w-9 h-9 rounded-full bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-bold text-sm">
                     {activeThread.customerName.charAt(0)}
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
                       <h3 className="text-sm font-bold text-white">{activeThread.customerName}</h3>
-                      {getChannelBadge(activeThread.lastMessage.channel)}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30">
+                        WhatsApp
+                      </span>
                     </div>
                     <p className="text-xs text-slate-400">{activeThread.customerPhone} • {activeCustomer?.owner || 'Sale Rep'}</p>
                   </div>
@@ -344,7 +291,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               <div className="flex-1 p-4 overflow-y-auto space-y-3">
                 <div className="text-center my-1">
                   <span className="px-3 py-1 bg-slate-900 rounded-full text-[10px] text-slate-400 border border-slate-800">
-                    Kênh giao tiếp mã hóa Meta Business APIs • {activeThread.lastMessage.channel}
+                    Kênh giao tiếp WhatsApp Business API (Meta Graph)
                   </span>
                 </div>
 
@@ -358,7 +305,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs shadow-sm space-y-1 ${
                           isAgent
-                            ? 'bg-indigo-600 text-white rounded-tr-none border border-indigo-500'
+                            ? 'bg-[#00793d] text-white rounded-tr-none border border-emerald-600'
                             : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700'
                         }`}
                       >
@@ -370,8 +317,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
 
                         {isAgent && (
-                          <div className="flex justify-end pt-0.5 text-[10px] text-indigo-200">
-                            <CheckCheck className="w-3.5 h-3.5 text-indigo-300" />
+                          <div className="flex justify-end pt-0.5 text-[10px] text-emerald-200">
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-300" />
                           </div>
                         )}
                       </div>
@@ -382,7 +329,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
               {/* Quick Template Replies */}
               <div className="px-3 py-2 bg-slate-900 border-t border-slate-800 shrink-0 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
-                <span className="text-[10px] font-bold text-indigo-400 shrink-0 flex items-center gap-1">
+                <span className="text-[10px] font-bold text-emerald-400 shrink-0 flex items-center gap-1">
                   <Zap className="w-3 h-3" /> Mẫu nhanh:
                 </span>
                 {quickReplies.map((qr, idx) => (
@@ -402,13 +349,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder={`Nhập phản hồi gửi qua ${activeThread.lastMessage.channel}...`}
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 placeholder-slate-400"
+                  placeholder="Nhập phản hồi tin nhắn WhatsApp cho khách..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-400"
                 />
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 cursor-pointer shadow-md shadow-indigo-600/20"
+                  className="px-4 py-2 bg-[#00793d] hover:bg-[#006232] disabled:opacity-50 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Gửi</span>
@@ -417,7 +364,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-500 text-xs">
-              Chọn một hội thoại bên trái để xem lịch sử tin nhắn.
+              Chọn một hội thoại WhatsApp bên trái để xem tin nhắn.
             </div>
           )}
         </div>
@@ -428,13 +375,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             <>
               {/* Customer Profile Card */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center space-y-2">
-                <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center text-xl font-black shadow-lg">
+                <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-xl font-black shadow-lg">
                   {activeCustomer.name.charAt(0)}
                 </div>
                 <h4 className="text-sm font-bold text-white">{activeCustomer.name}</h4>
                 <p className="text-xs text-slate-400">{activeCustomer.phone}</p>
                 <div className="pt-2 flex items-center justify-center gap-1 text-[10px]">
-                  <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full font-semibold">
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-semibold">
                     {activeCustomer.status}
                   </span>
                   <span className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded-full">
@@ -473,7 +420,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 
                 <button
                   onClick={() => onOpenAddOrder(activeCustomer)}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-md shadow-emerald-600/20"
+                  className="w-full py-2 bg-[#00793d] hover:bg-[#006232] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-2 cursor-pointer shadow-md shadow-emerald-600/20"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
                   <span>+ Tạo Đơn Hàng Mới</span>

@@ -58,7 +58,7 @@ const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
     customerName: 'Trần Hoài Nam',
     customerPhone: '0987654321',
     sender: 'customer',
-    channel: 'TikTok',
+    channel: 'WhatsApp',
     content: 'Shop cho mình hỏi sản phẩm này có miễn phí vận chuyển qua Malaysia không ạ?',
     timestamp: new Date(Date.now() - 1000 * 60 * 50).toISOString(),
     isRead: false,
@@ -69,8 +69,8 @@ const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
     customerName: 'Lê Thanh Thảo',
     customerPhone: '0912999888',
     sender: 'agent',
-    channel: 'Facebook',
-    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn rồi ạ!',
+    channel: 'WhatsApp',
+    content: 'Dạ chào chị Thảo, đơn hàng của chị đã được tạo và gửi mã vận đơn qua WhatsApp rồi ạ!',
     timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
     isRead: true,
   },
@@ -80,7 +80,7 @@ const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
     customerName: 'Lê Thanh Thảo',
     customerPhone: '0912999888',
     sender: 'customer',
-    channel: 'Facebook',
+    channel: 'WhatsApp',
     content: 'Cảm ơn shop nhé, em đã nhận được tin nhắn mã vận đơn rồi!',
     timestamp: new Date(Date.now() - 1000 * 60 * 100).toISOString(),
     isRead: true,
@@ -91,7 +91,7 @@ const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [
     customerName: 'David Nguyen',
     customerPhone: '+1 415 555 2671',
     sender: 'customer',
-    channel: 'Zalo',
+    channel: 'WhatsApp',
     content: 'Hi shop, anh cần hỗ trợ đặt thêm 5 sản phẩm nữa gửi về Kuala Lumpur.',
     timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
     isRead: false,
@@ -264,15 +264,12 @@ export default function App() {
       phone: '0908123456',
     };
 
-    const channels: MessageChannel[] = ['WhatsApp', 'Zalo', 'Facebook', 'TikTok'];
-    const randomChannel = channels[Math.floor(Math.random() * channels.length)];
-
     const sampleContents = [
-      'Dạ shop ơi, cho em hỏi sản phẩm mỹ phẩm này còn hàng không ạ?',
-      'Anh muốn hỏi giá sỉ cho đơn 10 bộ về Kuala Lumpur ạ.',
+      'Dạ shop ơi, cho em hỏi sản phẩm mỹ phẩm này còn hàng trên WhatsApp không ạ?',
+      'Anh muốn hỏi giá sỉ cho đơn 10 bộ về Kuala Lumpur qua WhatsApp ạ.',
       'Shop kiểm tra giúp em tình trạng đơn hàng với ạ!',
-      'Mã ưu đãi 20% trên livestream áp dụng như nào shop nhỉ?',
-      'Em vừa thanh toán đơn hàng rồi, shop xác nhận giúp em nhé!',
+      'Mã ưu đãi 20% gửi qua WhatsApp áp dụng như nào shop nhỉ?',
+      'Em vừa thanh toán đơn hàng rồi, shop xác nhận giúp em trên WhatsApp nhé!',
     ];
     const randomContent = sampleContents[Math.floor(Math.random() * sampleContents.length)];
 
@@ -282,7 +279,7 @@ export default function App() {
       customerName: sampleCust.name,
       customerPhone: sampleCust.phone,
       sender: 'customer',
-      channel: randomChannel,
+      channel: 'WhatsApp',
       content: randomContent,
       timestamp: new Date().toISOString(),
       isRead: false,

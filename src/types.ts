@@ -2,7 +2,7 @@ export type CustomerStatus = 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost
 
 export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'Referral' | 'Direct';
 
-export type MessageChannel = 'WhatsApp' | 'Zalo' | 'Facebook' | 'TikTok';
+export type MessageChannel = 'WhatsApp';
 
 export interface CentralMessage {
   id: string;

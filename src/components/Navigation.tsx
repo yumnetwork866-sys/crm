@@ -88,8 +88,8 @@ export const Navigation: React.FC<NavigationProps> = ({
       : []),
     {
       id: 'messages' as ActiveTab,
-      label: 'Tin Nhắn Tập Trung',
-      subtitle: 'Hộp Thư & Notification',
+      label: 'Tin Nhắn WhatsApp',
+      subtitle: 'WhatsApp & Notification',
       icon: MessageSquare,
       badge: unreadMessagesCount,
     },

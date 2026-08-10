@@ -45,12 +45,12 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-slide-up max-w-md w-full bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md p-4 text-white">
+    <div className="fixed bottom-6 right-6 z-50 animate-slide-up max-w-md w-full bg-slate-900 border border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md p-4 text-white">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start space-x-3">
           <div className="relative shrink-0 mt-0.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold">
-              <MessageSquare className="w-5 h-5 text-indigo-400 animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
+              <MessageSquare className="w-5 h-5 text-emerald-400 animate-pulse" />
             </div>
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
@@ -61,8 +61,8 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-slate-100 truncate">{message.customerName}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${getChannelBg(message.channel)}`}>
-                {message.channel}
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500 text-white">
+                WhatsApp
               </span>
             </div>
 
