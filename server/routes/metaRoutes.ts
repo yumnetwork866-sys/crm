@@ -376,19 +376,29 @@ router.delete('/messages', async (req: Request, res: Response) => {
 router.delete('/messages/thread/:customerId', async (req: Request, res: Response) => {
   const { customerId } = req.params;
   const { customerPhone } = req.query;
+  const rawPhone = typeof customerPhone === 'string' ? customerPhone : customerId;
+  const cleanPhone = rawPhone.replace(/\D/g, '');
+  const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
-  inMemoryMessages = inMemoryMessages.filter((m) => m.customerId !== customerId && m.customerPhone !== customerPhone);
+  inMemoryMessages = inMemoryMessages.filter((m) => {
+    const msgCleanPhone = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+    const matchId = m.customerId === customerId;
+    const matchPhone = lastDigits && msgCleanPhone && msgCleanPhone.includes(lastDigits);
+    return !matchId && !matchPhone;
+  });
 
   try {
-    const cleanPhone = typeof customerPhone === 'string' ? customerPhone.replace(/\D/g, '') : '';
-    await prisma.whatsAppMessage.deleteMany({
+    const deleteConditions: any[] = [{ customerId }];
+    if (lastDigits) {
+      deleteConditions.push({ customerPhone: { contains: lastDigits } });
+      deleteConditions.push({ customerId: { contains: lastDigits } });
+    }
+    const result = await prisma.whatsAppMessage.deleteMany({
       where: {
-        OR: [
-          { customerId },
-          cleanPhone ? { customerPhone: { contains: cleanPhone } } : {}
-        ]
+        OR: deleteConditions
       }
     });
+    console.log(`[DB DELETE THREAD SUCCESS] Deleted ${result.count} messages for customer ${customerId} (phone last digits: ${lastDigits})`);
   } catch (e) {
     console.error('Error deleting thread from DB:', e);
   }

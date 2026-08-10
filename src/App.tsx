@@ -183,77 +183,8 @@ export default function App() {
     const pollRealWhatsAppMessages = async () => {
       try {
         const realMsgs = await api.get<CentralMessage[]>('/meta/messages');
-        if (realMsgs && Array.isArray(realMsgs) && realMsgs.length > 0) {
-          setCentralMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const newIncoming = realMsgs.filter((rm) => !existingIds.has(rm.id));
-            
-            if (newIncoming.length > 0) {
-              const latestNew = newIncoming[newIncoming.length - 1];
-              if (!latestNew.isRead && latestNew.sender === 'customer') {
-                playNotificationSound();
-                setToastNotification({ message: latestNew, show: true });
-              }
-
-              // Auto Sync with Customers state (create new lead if phone doesn't exist, append note)
-              setCustomers((prevCusts) => {
-                let updated = [...prevCusts];
-                newIncoming.forEach((msg) => {
-                  if (msg.customerPhone) {
-                    const cleanMsgPhone = msg.customerPhone.replace(/\D/g, '');
-                    const existingIdx = updated.findIndex((c) => c.phone.replace(/\D/g, '') === cleanMsgPhone || c.id === msg.customerId);
-
-                    const newNote = {
-                      id: `n_wa_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                      author: msg.sender === 'agent' ? (msg.agentName || 'Nguyễn Văn Ánh') : msg.customerName,
-                      content: `[WhatsApp ${msg.sender === 'agent' ? 'Gửi đi' : 'Đến'}] ${msg.content}`,
-                      createdAt: new Date(msg.timestamp).toLocaleString('vi-VN'),
-                      type: 'whatsapp' as const,
-                    };
-
-                    if (existingIdx !== -1) {
-                      const targetCust = updated[existingIdx];
-                      const hasNote = targetCust.notes.some((n) => n.content === newNote.content);
-                      if (!hasNote) {
-                        updated[existingIdx] = {
-                          ...targetCust,
-                          lastContact: new Date().toISOString().split('T')[0],
-                          notes: [newNote, ...targetCust.notes],
-                        };
-                      }
-                    } else if (msg.sender === 'customer') {
-                      // Auto-register new Lead from incoming WhatsApp message
-                      const newCust: Customer = {
-                        id: msg.customerId || `cust_wa_${Date.now()}`,
-                        name: msg.customerName || `Khách WhatsApp (${msg.customerPhone})`,
-                        phone: msg.customerPhone,
-                        gender: 'Khác',
-                        address: 'Malaysia',
-                        source: 'WhatsApp',
-                        campaign: 'Meta WhatsApp Cloud API',
-                        firstContact: new Date().toISOString().split('T')[0],
-                        lastContact: new Date().toISOString().split('T')[0],
-                        owner: 'Nguyễn Văn Ánh',
-                        status: 'New Lead',
-                        notes: [newNote],
-                        totalOrders: 0,
-                        totalSpent: 0,
-                        interestedProducts: [],
-                        orders: [],
-                        whatsappOptIn: true,
-                        whatsappOptInDate: new Date().toISOString().split('T')[0],
-                      };
-                      updated.unshift(newCust);
-                    }
-                  }
-                });
-                return updated;
-              });
-
-              return [...prev, ...newIncoming];
-            }
-            return prev;
-          });
+        if (realMsgs && Array.isArray(realMsgs)) {
+          setCentralMessages(realMsgs);
         }
       } catch (e) {
         // Backend API offline fallback
@@ -261,7 +192,7 @@ export default function App() {
     };
 
     pollRealWhatsAppMessages();
-    const interval = setInterval(pollRealWhatsAppMessages, 5000);
+    const interval = setInterval(pollRealWhatsAppMessages, 4000);
     return () => clearInterval(interval);
   }, []);
 
