@@ -28,7 +28,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// 1. Security Middleware - Helmet HTTP Headers
+// 1. Body Parser & Security Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
 app.use(helmet({
   contentSecurityPolicy: false // Allow inline scripts for dev Vite proxy if served together
 }));
@@ -45,13 +48,29 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 }));
 
-// 3. Rate Limiting (Prevent Brute-force & DDoS)
+// 3. META WEBHOOK & META API ROUTES (Bypasses rate limiters for 100% reliable Facebook Meta delivery)
+app.use('/webhook', metaRoutes);
+app.use('/webhooks', metaRoutes);
+app.use('/api/webhook', metaRoutes);
+app.use('/api/webhooks', metaRoutes);
+app.use('/api/meta', metaRoutes);
+
+// 4. Rate Limiting for other API endpoints (Custom keyGenerator prevents proxy validation errors)
+const customKeyGenerator = (req: express.Request) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || '127.0.0.1';
+};
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
+  keyGenerator: customKeyGenerator,
   message: { error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau 15 phút.' }
 });
 app.use('/api/', limiter);
@@ -61,13 +80,10 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50,
   validate: false,
+  keyGenerator: customKeyGenerator,
   message: { error: 'Số lần thử đăng nhập quá nhiều. Vui lòng thử lại sau 15 phút.' }
 });
 app.use('/api/auth/login', authLimiter);
-
-// 4. Body Parser
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
 
 // 5. Healthcheck Route
 app.get('/api/health', (req, res) => {
@@ -78,20 +94,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 6. API Route Handlers
+// 6. Other API Route Handlers
 app.use('/api/auth', authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
-app.use('/api/meta', metaRoutes);
-
-// Webhook route aliases for Meta Graph API Developer Dashboard (/webhook, /webhooks, /api/webhook)
-app.use('/webhook', metaRoutes);
-app.use('/webhooks', metaRoutes);
-app.use('/api/webhook', metaRoutes);
-app.use('/api/webhooks', metaRoutes);
 
 // Serve Frontend static assets from the built "dist" directory
 import path from 'path';
