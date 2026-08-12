@@ -102,6 +102,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     const data = parseResult.data;
 
+    const notesToCreate = req.body.notes && Array.isArray(req.body.notes)
+      ? {
+          create: req.body.notes.map((n: any) => ({
+            author: n.author || data.owner || 'Hệ thống',
+            content: n.content,
+            type: n.type || 'note',
+            createdAt: n.createdAt ? new Date(n.createdAt) : new Date()
+          }))
+        }
+      : undefined;
+
     const newCustomer = await prisma.customer.create({
       data: {
         name: data.name,
@@ -120,12 +131,13 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
         whatsappOptIn: data.whatsappOptIn,
         whatsappOptInDate: data.whatsappOptIn ? new Date() : null,
         firstContact: new Date(),
-        lastContact: new Date()
+        lastContact: new Date(),
+        notes: notesToCreate
       },
       include: {
-        notes: true,
-        orders: true,
-        automationLogs: true
+        notes: { orderBy: { createdAt: 'desc' } },
+        orders: { include: { products: true }, orderBy: { date: 'desc' } },
+        automationLogs: { orderBy: { sentAt: 'desc' } }
       }
     });
 
@@ -212,6 +224,34 @@ router.post('/:id/notes', async (req: AuthenticatedRequest, res: Response) => {
     return res.status(201).json(newNote);
   } catch (error) {
     return res.status(500).json({ error: 'Không thể thêm ghi chú' });
+  }
+});
+
+// POST /api/customers/:id/automation-logs - Add Customer Automation Log
+router.post('/:id/automation-logs', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { step, stepName, message, status } = req.body;
+
+    if (step === undefined || !stepName || !message) {
+      return res.status(400).json({ error: 'Thông tin nhật ký automation không đầy đủ' });
+    }
+
+    const newLog = await prisma.automationLog.create({
+      data: {
+        customerId: id,
+        step: Number(step),
+        stepName,
+        message,
+        status: status || 'Sent',
+        sentAt: new Date()
+      }
+    });
+
+    return res.status(201).json(newLog);
+  } catch (error) {
+    console.error('Lỗi khi thêm nhật ký automation:', error);
+    return res.status(500).json({ error: 'Không thể thêm nhật ký automation' });
   }
 });
 

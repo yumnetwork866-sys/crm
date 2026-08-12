@@ -42,6 +42,42 @@ const STORAGE_KEY_CENTRAL_MESSAGES = 'yumcrm_central_messages_v2';
 
 const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [];
 
+const mapApiCustomerToFrontend = (apiCust: any): Customer => {
+  const logs = apiCust.automationLogs || [];
+  const currentStep = logs.length > 0 ? Math.max(...logs.map((l: any) => l.step)) : 0;
+  
+  const mappedLogs = logs.map((l: any) => ({
+    step: l.step,
+    stepName: l.stepName,
+    sentAt: l.sentAt ? new Date(l.sentAt).toLocaleString('vi-VN') : '',
+    message: l.message,
+    status: l.status
+  }));
+
+  return {
+    ...apiCust,
+    firstContact: apiCust.firstContact ? new Date(apiCust.firstContact).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    lastContact: apiCust.lastContact ? new Date(apiCust.lastContact).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    whatsappOptInDate: apiCust.whatsappOptInDate ? new Date(apiCust.whatsappOptInDate).toISOString().split('T')[0] : undefined,
+    lastPurchaseDate: apiCust.lastPurchaseDate ? new Date(apiCust.lastPurchaseDate).toISOString().split('T')[0] : undefined,
+    notes: (apiCust.notes || []).map((n: any) => ({
+      ...n,
+      createdAt: n.createdAt ? new Date(n.createdAt).toLocaleString('vi-VN') : ''
+    })),
+    orders: (apiCust.orders || []).map((o: any) => ({
+      ...o,
+      date: o.date ? new Date(o.date).toISOString().split('T')[0] : '',
+      products: o.products || []
+    })),
+    automationSequence: {
+      active: apiCust.totalOrders > 0,
+      currentStep,
+      startDate: apiCust.lastPurchaseDate ? new Date(apiCust.lastPurchaseDate).toISOString().split('T')[0] : undefined,
+      logs: mappedLogs
+    }
+  };
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
   const [legalView, setLegalView] = useState<'privacy' | 'terms' | 'deletion' | 'meta-verification' | null>(() => {
@@ -345,9 +381,9 @@ export default function App() {
       try {
         const health: any = await api.get('/health');
         if (health && health.status === 'ok') {
-          const apiCustomers = await api.get<Customer[]>('/customers').catch(() => null);
+          const apiCustomers = await api.get<any[]>('/customers').catch(() => null);
           if (apiCustomers && Array.isArray(apiCustomers)) {
-            setCustomers(apiCustomers);
+            setCustomers(apiCustomers.map(mapApiCustomerToFrontend));
           }
           const apiProducts = await api.get<Product[]>('/products').catch(() => null);
           if (apiProducts && Array.isArray(apiProducts)) {
@@ -438,16 +474,43 @@ export default function App() {
     g4: customers.filter((c) => getCustomerGroup(c) === 'group_4').length,
   };
 
-  // Handlers
-  const handleSaveCustomer = (data: Partial<Customer>) => {
+  const handleSaveCustomer = async (data: Partial<Customer>) => {
     if (data.id) {
       // Edit existing
+      let updatedCust: Customer | null = null;
+      try {
+        const res = await api.put<any>(`/customers/${data.id}`, data);
+        if (res) {
+          updatedCust = mapApiCustomerToFrontend(res);
+        }
+      } catch (err) {
+        console.error('API error updating customer, falling back to local:', err);
+      }
+
       setCustomers((prev) =>
-        prev.map((c) => (c.id === data.id ? ({ ...c, ...data } as Customer) : c))
+        prev.map((c) => {
+          if (c.id === data.id) {
+            return updatedCust || ({ ...c, ...data } as Customer);
+          }
+          return c;
+        })
       );
+      if (selectedCustomer?.id === data.id) {
+        setSelectedCustomer((prev) => (prev ? { ...prev, ...data } : null));
+      }
     } else {
       // Add new
-      const newCust: Customer = {
+      let savedCust: Customer | null = null;
+      try {
+        const res = await api.post<any>('/customers', data);
+        if (res) {
+          savedCust = mapApiCustomerToFrontend(res);
+        }
+      } catch (err) {
+        console.error('API error creating customer, falling back to local:', err);
+      }
+
+      const newCust: Customer = savedCust || {
         id: `cust_${Date.now()}`,
         phone: data.phone || '',
         name: data.name || '',
@@ -536,135 +599,242 @@ export default function App() {
     });
   };
 
-  const handleDeleteCustomer = (id: string) => {
+  const handleDeleteCustomer = async (id: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa khách hàng này khỏi CRM?')) {
+      try {
+        await api.delete(`/customers/${id}`);
+      } catch (err) {
+        console.error('API error deleting customer, falling back to local:', err);
+      }
       setCustomers((prev) => prev.filter((c) => c.id !== id));
       if (selectedCustomer?.id === id) setIsDetailOpen(false);
     }
   };
 
-  const handleUpdateStatus = (customerId: string, newStatus: CustomerStatus) => {
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const updatedNotes = [
-            ...(c.notes || []),
-            {
-              id: `n_${Date.now()}`,
-              author: 'Hệ Thống',
-              content: `Chuyển trạng thái từ "${c.status}" sang "${newStatus}".`,
-              createdAt: new Date().toLocaleString('vi-VN'),
-              type: 'system' as const,
-            },
-          ];
-          return { ...c, status: newStatus, notes: updatedNotes };
-        }
-        return c;
-      })
-    );
+  const handleUpdateStatus = async (customerId: string, newStatus: CustomerStatus) => {
+    const cust = customers.find((c) => c.id === customerId);
+    if (!cust) return;
+    const oldStatus = cust.status;
 
-    if (selectedCustomer?.id === customerId) {
-      setSelectedCustomer((prev) => (prev ? { ...prev, status: newStatus } : null));
+    let updatedCust: Customer | null = null;
+    try {
+      await api.put(`/customers/${customerId}`, { status: newStatus });
+      const systemNoteContent = `Chuyển trạng thái từ "${oldStatus}" sang "${newStatus}".`;
+      await api.post(`/customers/${customerId}/notes`, {
+        content: systemNoteContent,
+        type: 'system',
+        author: 'Hệ Thống'
+      });
+      const res = await api.get<any>(`/customers/${customerId}`);
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error updating customer status, fallback to local:', err);
     }
-  };
 
-  const handleToggleOptIn = (customerId: string) => {
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === customerId ? { ...c, whatsappOptIn: !c.whatsappOptIn } : c
-      )
-    );
-    if (selectedCustomer?.id === customerId) {
-      setSelectedCustomer((prev) =>
-        prev ? { ...prev, whatsappOptIn: !prev.whatsappOptIn } : null
-      );
-    }
-  };
-
-  const handleAddNote = (customerId: string, noteText: string) => {
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const newNote = {
-            id: `n_${Date.now()}`,
-            author: c.owner,
-            content: noteText,
-            createdAt: new Date().toLocaleString('vi-VN'),
-            type: 'note' as const,
-          };
-          return { ...c, notes: [newNote, ...c.notes] };
-        }
-        return c;
-      })
-    );
-
-    if (selectedCustomer?.id === customerId) {
-      setSelectedCustomer((prev) =>
-        prev
-          ? {
-              ...prev,
-              notes: [
-                {
-                  id: `n_${Date.now()}`,
-                  author: prev.owner,
-                  content: noteText,
-                  createdAt: new Date().toLocaleString('vi-VN'),
-                  type: 'note',
-                },
-                ...prev.notes,
-              ],
-            }
-          : null
-      );
-    }
-  };
-
-  const handleAddOrder = (customerId: string, newOrder: CustomerOrder) => {
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const updatedOrders = [newOrder, ...c.orders];
-          const totalOrders = updatedOrders.length;
-          const totalSpent = updatedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-
-          // Initialize or advance Automation sequence
-          const nowStr = new Date().toLocaleString('vi-VN');
-          const currentSeq = c.automationSequence || {
-            active: true,
-            currentStep: 0,
-            startDate: newOrder.date,
-            logs: [],
-          };
-
-          const updatedSeq = {
-            ...currentSeq,
-            active: true,
-            currentStep: Math.max(1, currentSeq.currentStep),
-            logs: [
-              ...currentSeq.logs,
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer(updatedCust);
+      }
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId) {
+            const updatedNotes = [
+              ...(c.notes || []),
               {
-                step: 1,
-                stepName: 'Ngày +3 (Lời cảm ơn)',
-                sentAt: nowStr,
-                message: `Cảm ơn ${c.name} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
-                status: 'Delivered' as const,
+                id: `n_${Date.now()}`,
+                author: 'Hệ Thống',
+                content: `Chuyển trạng thái từ "${c.status}" sang "${newStatus}".`,
+                createdAt: new Date().toLocaleString('vi-VN'),
+                type: 'system' as const,
               },
-            ],
-          };
+            ];
+            return { ...c, status: newStatus, notes: updatedNotes };
+          }
+          return c;
+        })
+      );
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
+    }
+  };
 
-          return {
-            ...c,
-            status: 'Won',
-            totalOrders,
-            totalSpent,
-            lastPurchaseDate: newOrder.date,
-            orders: updatedOrders,
-            automationSequence: updatedSeq,
-          };
-        }
-        return c;
-      })
-    );
+  const handleToggleOptIn = async (customerId: string) => {
+    const cust = customers.find((c) => c.id === customerId);
+    if (!cust) return;
+    const newOptIn = !cust.whatsappOptIn;
+
+    let updatedCust: Customer | null = null;
+    try {
+      const res = await api.put<any>(`/customers/${customerId}`, { whatsappOptIn: newOptIn });
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error toggling opt-in, fallback to local:', err);
+    }
+
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer(updatedCust);
+      }
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === customerId ? { ...c, whatsappOptIn: newOptIn } : c))
+      );
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer((prev) => (prev ? { ...prev, whatsappOptIn: newOptIn } : null));
+      }
+    }
+  };
+
+  const handleAddNote = async (customerId: string, noteText: string) => {
+    const cust = customers.find((c) => c.id === customerId);
+    if (!cust) return;
+
+    let updatedCust: Customer | null = null;
+    try {
+      await api.post(`/customers/${customerId}/notes`, {
+        content: noteText,
+        type: 'note',
+        author: cust.owner
+      });
+      const res = await api.get<any>(`/customers/${customerId}`);
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error adding note, fallback to local:', err);
+    }
+
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer(updatedCust);
+      }
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId) {
+            const newNote = {
+              id: `n_${Date.now()}`,
+              author: c.owner,
+              content: noteText,
+              createdAt: new Date().toLocaleString('vi-VN'),
+              type: 'note' as const,
+            };
+            return { ...c, notes: [newNote, ...c.notes] };
+          }
+          return c;
+        })
+      );
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer((prev) =>
+          prev
+            ? {
+                ...prev,
+                notes: [
+                  {
+                    id: `n_${Date.now()}`,
+                    author: prev.owner,
+                    content: noteText,
+                    createdAt: new Date().toLocaleString('vi-VN'),
+                    type: 'note',
+                  },
+                  ...prev.notes,
+                ],
+              }
+            : null
+        );
+      }
+    }
+  };
+
+  const handleAddOrder = async (customerId: string, newOrder: CustomerOrder) => {
+    let updatedCust: Customer | null = null;
+    try {
+      await api.post('/orders', {
+        customerId,
+        customerName: newOrder.customerName,
+        customerPhone: newOrder.customerPhone,
+        products: newOrder.products,
+        totalAmount: newOrder.totalAmount,
+        notes: newOrder.notes
+      });
+      try {
+        await api.post(`/customers/${customerId}/automation-logs`, {
+          step: 1,
+          stepName: 'Ngày +3 (Lời cảm ơn)',
+          message: `Cảm ơn ${newOrder.customerName || 'Khách hàng'} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
+          status: 'Delivered'
+        });
+      } catch (logErr) {
+        console.error('Failed to create automation log on backend:', logErr);
+      }
+      const res = await api.get<any>(`/customers/${customerId}`);
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error adding order, falling back to local:', err);
+    }
+
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer(updatedCust);
+      }
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId) {
+            const updatedOrders = [newOrder, ...c.orders];
+            const totalOrders = updatedOrders.length;
+            const totalSpent = updatedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+
+            const nowStr = new Date().toLocaleString('vi-VN');
+            const currentSeq = c.automationSequence || {
+              active: true,
+              currentStep: 0,
+              startDate: newOrder.date,
+              logs: [],
+            };
+
+            const updatedSeq = {
+              ...currentSeq,
+              active: true,
+              currentStep: Math.max(1, currentSeq.currentStep),
+              logs: [
+                ...currentSeq.logs,
+                {
+                  step: 1,
+                  stepName: 'Ngày +3 (Lời cảm ơn)',
+                  sentAt: nowStr,
+                  message: `Cảm ơn ${c.name} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
+                  status: 'Delivered' as const,
+                },
+              ],
+            };
+
+            return {
+              ...c,
+              status: 'Won',
+              totalOrders,
+              totalSpent,
+              lastPurchaseDate: newOrder.date,
+              orders: updatedOrders,
+              automationSequence: updatedSeq,
+            };
+          }
+          return c;
+        })
+      );
+    }
 
     alert('Tạo đơn hàng thành công! Đã tự động kích hoạt quy trình Chăm sóc WhatsApp Ngày +3!');
   };
@@ -675,41 +845,79 @@ export default function App() {
   };
 
   // Run Automation Simulation logic
-  const handleRunAutomationSim = () => {
+  const handleRunAutomationSim = async () => {
     const nowStr = new Date().toLocaleString('vi-VN');
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.totalOrders >= 1 && c.automationSequence) {
-          const stepNames = [
-            'Ngày +3 (Lời cảm ơn & HDSD)',
-            'Ngày +5 (Hỏi trải nghiệm)',
-            'Ngày +7 (Giải đáp & Gợi ý)',
-            'Ngày +15 (Gửi Voucher 20%)',
-          ];
-          const nextStep = (c.automationSequence.currentStep % 4) + 1;
-          const stepTitle = stepNames[nextStep - 1];
-
-          const newLog = {
+    
+    const updatePromises = customers.map(async (c) => {
+      if (c.totalOrders >= 1 && c.automationSequence) {
+        const stepNames = [
+          'Ngày +3 (Lời cảm ơn & HDSD)',
+          'Ngày +5 (Hỏi trải nghiệm)',
+          'Ngày +7 (Giải đáp & Gợi ý)',
+          'Ngày +15 (Gửi Voucher 20%)',
+        ];
+        const nextStep = (c.automationSequence.currentStep % 4) + 1;
+        const stepTitle = stepNames[nextStep - 1];
+        const message = `[Tự Động Kích Hoạt - ${stepTitle}] Chào ${c.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`;
+        
+        try {
+          await api.post(`/customers/${c.id}/automation-logs`, {
             step: nextStep,
             stepName: stepTitle,
-            sentAt: nowStr,
-            message: `[Tự Động Kích Hoạt - ${stepTitle}] Chào ${c.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
-            status: 'Read' as const,
-          };
-
-          return {
-            ...c,
-            automationSequence: {
-              ...c.automationSequence,
-              active: true,
-              currentStep: nextStep,
-              logs: [...c.automationSequence.logs, newLog],
-            },
-          };
+            message,
+            status: 'Read'
+          });
+        } catch (err) {
+          console.error(`Failed to post simulation log for customer ${c.id}:`, err);
         }
-        return c;
-      })
-    );
+      }
+    });
+
+    try {
+      await Promise.all(updatePromises);
+      const health: any = await api.get('/health');
+      if (health && health.status === 'ok') {
+        const apiCustomers = await api.get<any[]>('/customers').catch(() => null);
+        if (apiCustomers && Array.isArray(apiCustomers)) {
+          setCustomers(apiCustomers.map(mapApiCustomerToFrontend));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to run simulation on backend:', e);
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.totalOrders >= 1 && c.automationSequence) {
+            const stepNames = [
+              'Ngày +3 (Lời cảm ơn & HDSD)',
+              'Ngày +5 (Hỏi trải nghiệm)',
+              'Ngày +7 (Giải đáp & Gợi ý)',
+              'Ngày +15 (Gửi Voucher 20%)',
+            ];
+            const nextStep = (c.automationSequence.currentStep % 4) + 1;
+            const stepTitle = stepNames[nextStep - 1];
+
+            const newLog = {
+              step: nextStep,
+              stepName: stepTitle,
+              sentAt: nowStr,
+              message: `[Tự Động Kích Hoạt - ${stepTitle}] Chào ${c.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
+              status: 'Read' as const,
+            };
+
+            return {
+              ...c,
+              automationSequence: {
+                ...c.automationSequence,
+                active: true,
+                currentStep: nextStep,
+                logs: [...c.automationSequence.logs, newLog],
+              },
+            };
+          }
+          return c;
+        })
+      );
+    }
 
     setAutoSimCounter((prev) => prev + 1);
     alert('Đã kích hoạt mô phỏng chạy gửi tin nhắn Automation Ngày +3, +5, +7, +15 thành công cho tất cả khách hàng!');
@@ -741,8 +949,16 @@ export default function App() {
   };
 
   // Product Handlers
-  const handleAddProduct = (newPrd: Partial<Product>) => {
-    const prd: Product = {
+  const handleAddProduct = async (newPrd: Partial<Product>) => {
+    let savedProduct: Product | null = null;
+    try {
+      const res = await api.post<Product>('/products', newPrd);
+      if (res) savedProduct = res;
+    } catch (err) {
+      console.error('API error adding product, falling back to local:', err);
+    }
+
+    const prd: Product = savedProduct || {
       id: newPrd.id || `prd_${Date.now()}`,
       code: newPrd.code || `SP-${Math.floor(100 + Math.random() * 900)}`,
       name: newPrd.name || '',
@@ -758,53 +974,107 @@ export default function App() {
     setProducts((prev) => [prd, ...prev]);
   };
 
-  const handleEditProduct = (updatedPrd: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === updatedPrd.id ? updatedPrd : p)));
+  const handleEditProduct = async (updatedPrd: Product) => {
+    let savedProduct: Product | null = null;
+    try {
+      const res = await api.put<Product>(`/products/${updatedPrd.id}`, updatedPrd);
+      if (res) savedProduct = res;
+    } catch (err) {
+      console.error('API error updating product, falling back to local:', err);
+    }
+
+    setProducts((prev) => prev.map((p) => (p.id === updatedPrd.id ? (savedProduct || updatedPrd) : p)));
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      await api.delete(`/products/${productId}`);
+    } catch (err) {
+      console.error('API error deleting product, falling back to local:', err);
+    }
     setProducts((prev) => prev.filter((p) => p.id !== productId));
   };
 
   // Order Handlers
-  const handleCreateOrderCentral = (order: CustomerOrder) => {
+  const handleCreateOrderCentral = async (order: CustomerOrder) => {
     if (!order.customerId) return;
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === order.customerId) {
-          const updatedOrders = [order, ...(c.orders || [])];
-          const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-          const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-          return {
-            ...c,
-            status: c.status === 'Won' ? 'Won' : (order.status === 'Completed' ? 'Won' : c.status),
-            orders: updatedOrders,
-            totalOrders: updatedOrders.length,
-            totalSpent,
-            lastPurchaseDate: order.date,
-          };
-        }
-        return c;
-      })
-    );
+    let updatedCust: Customer | null = null;
+    try {
+      await api.post('/orders', {
+        customerId: order.customerId,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        products: order.products,
+        totalAmount: order.totalAmount,
+        notes: order.notes
+      });
+      const res = await api.get<any>(`/customers/${order.customerId}`);
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error creating order central, falling back to local:', err);
+    }
+
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === order.customerId ? updatedCust! : c)));
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === order.customerId) {
+            const updatedOrders = [order, ...(c.orders || [])];
+            const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
+            const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+            return {
+              ...c,
+              status: c.status === 'Won' ? 'Won' : (order.status === 'Completed' ? 'Won' : c.status),
+              orders: updatedOrders,
+              totalOrders: updatedOrders.length,
+              totalSpent,
+              lastPurchaseDate: order.date,
+            };
+          }
+          return c;
+        })
+      );
+    }
   };
 
-  const handleUpdateOrderStatus = (orderId: string, customerId: string, newStatus: CustomerOrder['status']) => {
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const updatedOrders = (c.orders || []).map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
-          const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-          const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-          return {
-            ...c,
-            orders: updatedOrders,
-            totalSpent,
-          };
-        }
-        return c;
-      })
-    );
+  const handleUpdateOrderStatus = async (orderId: string, customerId: string, newStatus: CustomerOrder['status']) => {
+    let updatedCust: Customer | null = null;
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status: newStatus });
+      const res = await api.get<any>(`/customers/${customerId}`);
+      if (res) {
+        updatedCust = mapApiCustomerToFrontend(res);
+      }
+    } catch (err) {
+      console.error('API error updating order status, falling back to local:', err);
+    }
+
+    if (updatedCust) {
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
+      if (selectedCustomer?.id === customerId) {
+        setSelectedCustomer(updatedCust);
+      }
+    } else {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId) {
+            const updatedOrders = (c.orders || []).map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
+            const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
+            const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+            return {
+              ...c,
+              orders: updatedOrders,
+              totalOrders: updatedOrders.length,
+              totalSpent,
+            };
+          }
+          return c;
+        })
+      );
+    }
   };
 
   const handleDeleteOrder = (orderId: string, customerId: string) => {
