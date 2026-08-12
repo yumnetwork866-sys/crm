@@ -280,7 +280,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60 space-y-2 text-xs">
                 <span className="font-bold text-slate-300">Sản Phẩm Khách Quan Tâm:</span>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {customer.interestedProducts.length > 0 ? (
+                  {customer.interestedProducts && customer.interestedProducts.length > 0 ? (
                     customer.interestedProducts.map((p) => (
                       <span key={p} className="px-2.5 py-1 bg-indigo-950/60 border border-indigo-700/50 text-indigo-200 rounded-lg text-xs">
                         {p}

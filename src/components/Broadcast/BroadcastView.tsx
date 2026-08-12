@@ -51,7 +51,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
       // Product filter
       if (targetProduct !== 'ALL') {
-        if (!c.interestedProducts.includes(targetProduct)) return false;
+        if (!c.interestedProducts || !c.interestedProducts.includes(targetProduct)) return false;
       }
 
       // Gender filter
@@ -133,7 +133,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   const sampleMessagePreview = templateText
     .replace(/\{\{Customer Name\}\}/g, previewSampleCustomer?.name || 'Nguyễn Văn Minh')
     .replace(/\{\{Phone\}\}/g, previewSampleCustomer?.phone || '0901234567')
-    .replace(/\{\{Product\}\}/g, previewSampleCustomer?.interestedProducts[0] || 'Kem Dưỡng Da Premium')
+    .replace(/\{\{Product\}\}/g, previewSampleCustomer?.interestedProducts?.[0] || 'Kem Dưỡng Da Premium')
     .replace(/\{\{Voucher Code\}\}/g, 'VOUCHER30OFF');
 
   return (
