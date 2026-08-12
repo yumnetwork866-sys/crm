@@ -386,43 +386,52 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
             </h4>
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              {campaigns.map((camp) => (
-                <div key={camp.id} className="bg-slate-800/80 border border-slate-700/70 p-3.5 rounded-xl space-y-2 text-xs">
-                  <div className="flex justify-between items-start">
-                    <span className="font-bold text-white text-sm">{camp.name}</span>
-                    <span className="text-[10px] bg-[#00793d]/20 text-[#00793d] dark:text-emerald-300 border border-[#00793d]/40 px-2.5 py-0.5 rounded-full font-bold">
-                      {camp.status}
-                    </span>
-                  </div>
+               {campaigns.map((camp) => {
+                const totalTargeted = camp.stats?.totalTargeted ?? (camp as any).totalTargeted ?? 0;
+                const optedInCount = camp.stats?.optedInCount ?? (camp as any).optedInCount ?? 0;
+                const sentCount = camp.stats?.sentCount ?? (camp as any).sentCount ?? 0;
+                const deliveredCount = camp.stats?.deliveredCount ?? (camp as any).deliveredCount ?? 0;
+                const readCount = camp.stats?.readCount ?? (camp as any).readCount ?? 0;
+                const respondedCount = camp.stats?.respondedCount ?? (camp as any).respondedCount ?? 0;
 
-                  <div className="text-slate-400 text-[11px] flex items-center space-x-2">
-                    <span>Target: <strong className="text-teal-300">{camp.targetGroup}</strong></span>
-                    <span>•</span>
-                    <span>{camp.createdAt}</span>
-                  </div>
+                return (
+                  <div key={camp.id} className="bg-slate-800/80 border border-slate-700/70 p-3.5 rounded-xl space-y-2 text-xs">
+                    <div className="flex justify-between items-start">
+                      <span className="font-bold text-white text-sm">{camp.name}</span>
+                      <span className="text-[10px] bg-[#00793d]/20 text-[#00793d] dark:text-emerald-300 border border-[#00793d]/40 px-2.5 py-0.5 rounded-full font-bold">
+                        {camp.status}
+                      </span>
+                    </div>
 
-                  <div className="grid grid-cols-4 gap-1 text-[10px] text-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-                    <div>
-                      <span className="text-slate-400">Đã gửi</span>
-                      <div className="font-bold text-white">{camp.stats.sentCount}</div>
+                    <div className="text-slate-400 text-[11px] flex items-center space-x-2">
+                      <span>Target: <strong className="text-teal-300">{camp.targetGroup}</strong></span>
+                      <span>•</span>
+                      <span>{camp.createdAt}</span>
                     </div>
-                    <div>
-                      <span className="text-slate-400">Đã nhận</span>
-                      <div className="font-bold text-[#00793d] dark:text-teal-300">{camp.stats.deliveredCount}</div>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Tỷ lệ đọc</span>
-                      <div className="font-bold text-[#00793d] dark:text-emerald-400">
-                        {Math.round((camp.stats.readCount / camp.stats.sentCount) * 100)}%
+
+                    <div className="grid grid-cols-4 gap-1 text-[10px] text-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                      <div>
+                        <span className="text-slate-400">Đã gửi</span>
+                        <div className="font-bold text-white">{sentCount}</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Đã nhận</span>
+                        <div className="font-bold text-[#00793d] dark:text-teal-300">{deliveredCount}</div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Tỷ lệ đọc</span>
+                        <div className="font-bold text-[#00793d] dark:text-emerald-400">
+                          {sentCount > 0 ? Math.round((readCount / sentCount) * 100) : 0}%
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Phản hồi</span>
+                        <div className="font-bold text-amber-300">{respondedCount}</div>
                       </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400">Phản hồi</span>
-                      <div className="font-bold text-amber-300">{camp.stats.respondedCount}</div>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

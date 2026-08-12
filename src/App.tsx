@@ -78,6 +78,21 @@ const mapApiCustomerToFrontend = (apiCust: any): Customer => {
   };
 };
 
+const mapApiCampaignToFrontend = (apiCamp: any): BroadcastCampaign => {
+  return {
+    ...apiCamp,
+    createdAt: apiCamp.createdAt ? new Date(apiCamp.createdAt).toLocaleString('vi-VN') : '',
+    stats: apiCamp.stats || {
+      totalTargeted: apiCamp.totalTargeted ?? 0,
+      optedInCount: apiCamp.optedInCount ?? 0,
+      sentCount: apiCamp.sentCount ?? 0,
+      deliveredCount: apiCamp.deliveredCount ?? 0,
+      readCount: apiCamp.readCount ?? 0,
+      respondedCount: apiCamp.respondedCount ?? 0,
+    }
+  };
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
   const [legalView, setLegalView] = useState<'privacy' | 'terms' | 'deletion' | 'meta-verification' | null>(() => {
@@ -389,9 +404,9 @@ export default function App() {
           if (apiProducts && Array.isArray(apiProducts)) {
             setProducts(apiProducts);
           }
-          const apiCampaigns = await api.get<BroadcastCampaign[]>('/campaigns').catch(() => null);
+          const apiCampaigns = await api.get<any[]>('/campaigns').catch(() => null);
           if (apiCampaigns && Array.isArray(apiCampaigns)) {
-            setCampaigns(apiCampaigns);
+            setCampaigns(apiCampaigns.map(mapApiCampaignToFrontend));
           }
         }
       } catch (err) {
