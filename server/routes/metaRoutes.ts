@@ -604,10 +604,45 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
       const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
       const cleanFrom = fromPhone.replace(/\D/g, '');
 
+      // Try to match incoming phone to an existing CRM customer
+      let matchedCustomerId = `cust_${cleanFrom}`;
+      let matchedCustomerName = senderName;
+
+      try {
+        // Build phone variants to search (e.g. 84901234567 -> also try 0901234567)
+        const phoneVariants: string[] = [cleanFrom];
+        if (cleanFrom.startsWith('84') && cleanFrom.length > 9) {
+          phoneVariants.push('0' + cleanFrom.substring(2)); // 84xxx -> 0xxx
+        }
+        if (cleanFrom.startsWith('0')) {
+          phoneVariants.push('84' + cleanFrom.substring(1)); // 0xxx -> 84xxx
+        }
+
+        // Search DB for customer matching any phone variant
+        const matchedCustomer = await prisma.customer.findFirst({
+          where: {
+            OR: phoneVariants.map((pv: string) => ({
+              phone: { contains: pv }
+            }))
+          },
+          select: { id: true, name: true, phone: true }
+        });
+
+        if (matchedCustomer) {
+          matchedCustomerId = matchedCustomer.id;
+          matchedCustomerName = matchedCustomer.name || senderName;
+          console.log(`[WEBHOOK CUSTOMER MATCH] Matched incoming phone ${fromPhone} to CRM customer: ${matchedCustomer.name} (${matchedCustomer.id})`);
+        } else {
+          console.log(`[WEBHOOK NO MATCH] No CRM customer found for phone ${fromPhone}, using fallback ID: ${matchedCustomerId}`);
+        }
+      } catch (lookupErr) {
+        console.warn('[WEBHOOK CUSTOMER LOOKUP ERROR]', lookupErr);
+      }
+
       const newIncoming = {
         id: msgData.id || `msg_meta_${Date.now()}`,
-        customerId: `cust_${cleanFrom}`,
-        customerName: senderName,
+        customerId: matchedCustomerId,
+        customerName: matchedCustomerName,
         customerPhone: fromPhone,
         sender: 'customer',
         channel: 'WhatsApp',
@@ -622,26 +657,33 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
 
       // Save incoming message to Database (Prisma)
       try {
+        const createData: any = {
+          id: newIncoming.id,
+          customerName: newIncoming.customerName,
+          customerPhone: newIncoming.customerPhone,
+          sender: newIncoming.sender,
+          channel: newIncoming.channel,
+          content: newIncoming.content,
+          isRead: newIncoming.isRead,
+          timestamp: new Date(newIncoming.timestamp)
+        };
+
+        // Only set the foreign key relation if the customer exists in DB
+        if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
+          createData.customerId = matchedCustomerId;
+        }
+
         const savedDbMsg = await prisma.whatsAppMessage.upsert({
           where: { id: newIncoming.id },
           update: {},
-          create: {
-            id: newIncoming.id,
-            customerName: newIncoming.customerName,
-            customerPhone: newIncoming.customerPhone,
-            sender: newIncoming.sender,
-            channel: newIncoming.channel,
-            content: newIncoming.content,
-            isRead: newIncoming.isRead,
-            timestamp: new Date(newIncoming.timestamp)
-          }
+          create: createData
         });
         console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
       } catch (dbErr: any) {
         console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
       }
 
-      console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${senderName} (${fromPhone}): "${textBody}"`);
+      console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${matchedCustomerName} (${fromPhone}): "${textBody}"`);
     }
   } catch (parseErr) {
     console.error('Error parsing WhatsApp Webhook payload:', parseErr);

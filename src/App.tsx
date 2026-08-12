@@ -231,11 +231,38 @@ export default function App() {
 
   // Sync with real WhatsApp Messages from Backend API & Webhook
   useEffect(() => {
+    const knownMsgIds = new Set<string>();
+
     const pollRealWhatsAppMessages = async () => {
       try {
         const realMsgs = await api.get<CentralMessage[]>('/meta/messages');
         if (realMsgs && Array.isArray(realMsgs)) {
+          // On first poll, just seed the known IDs set
+          if (knownMsgIds.size === 0) {
+            realMsgs.forEach((m) => knownMsgIds.add(m.id));
+            setCentralMessages(realMsgs);
+            return;
+          }
+
+          // Detect newly arrived incoming customer messages
+          const newIncoming = realMsgs.filter(
+            (m) => !knownMsgIds.has(m.id) && m.sender === 'customer'
+          );
+
+          // Update known IDs
+          realMsgs.forEach((m) => knownMsgIds.add(m.id));
+
           setCentralMessages(realMsgs);
+
+          // Trigger notification for the latest new incoming message
+          if (newIncoming.length > 0) {
+            const latestMsg = newIncoming[newIncoming.length - 1];
+            playNotificationSound();
+            setToastNotification({
+              message: latestMsg,
+              show: true,
+            });
+          }
         }
       } catch (e) {
         // Backend API offline fallback
