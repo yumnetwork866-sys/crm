@@ -102,15 +102,19 @@ app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
 
-// 7. Serve Frontend (Vite Middleware in Development, Static Dist in Production)
+import http from 'http';
 import path from 'path';
 
+const httpServer = http.createServer(app);
+
+// 7. Serve Frontend (Vite Middleware in Development, Static Dist in Production)
 async function setupFrontend() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
+        hmr: { server: httpServer },
         allowedHosts: true,
       },
       appType: 'custom',
@@ -164,8 +168,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// 8. Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 YumNetwork CRM Backend Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`🔒 Bảo mật: Helmet, Rate Limiter, CORS & JWT Enabled.`);
+// 8. Start Server with HMR support
+httpServer.listen(PORT, () => {
+  console.log(`🚀 YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
+  console.log(`⚡ Vite HMR Hot Reload & API đã sẵn sàng.`);
 });

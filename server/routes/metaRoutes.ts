@@ -11,9 +11,9 @@ let inMemorySetting: any = {
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
   whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
   whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-  whatsappAppId: '',
-  whatsappAppSecret: '',
-  status: 'disconnected',
+  whatsappAppId: process.env.WHATSAPP_APP_ID || '',
+  whatsappAppSecret: process.env.WHATSAPP_APP_SECRET || '',
+  status: process.env.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'disconnected',
   lastConnectedAt: null,
   createdAt: new Date(),
   updatedAt: new Date()
@@ -34,12 +34,23 @@ async function getIntegrationSetting() {
         }
       });
     }
-    // Merge environment variables if DB values are empty
+    // Environment variables take precedence over DB values if provided
+    const envWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim();
+    const envToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+    const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+    const envVerifyToken = process.env.META_VERIFY_TOKEN?.trim();
+    const envAppId = process.env.WHATSAPP_APP_ID?.trim();
+    const envAppSecret = process.env.WHATSAPP_APP_SECRET?.trim();
+
     const mergedSetting = {
       ...setting,
-      whatsappWabaId: setting.whatsappWabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-      whatsappAccessToken: setting.whatsappAccessToken || process.env.WHATSAPP_ACCESS_TOKEN || '',
-      whatsappPhoneNumberId: setting.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+      whatsappWabaId: envWabaId || setting.whatsappWabaId || '',
+      whatsappAccessToken: envToken || setting.whatsappAccessToken || '',
+      whatsappPhoneNumberId: envPhoneId || setting.whatsappPhoneNumberId || '',
+      whatsappVerifyToken: envVerifyToken || setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+      whatsappAppId: envAppId || setting.whatsappAppId || '',
+      whatsappAppSecret: envAppSecret || setting.whatsappAppSecret || '',
+      status: (envToken || setting.whatsappAccessToken) ? 'connected' : (setting.status || 'disconnected')
     };
     // Sync in-memory store with DB & env
     inMemorySetting = { ...mergedSetting };
@@ -50,10 +61,50 @@ async function getIntegrationSetting() {
   }
 }
 
+// Helper to automatically resolve Phone Number ID from WABA ID if not explicitly specified
+async function resolvePhoneNumberId(setting: any): Promise<string> {
+  if (setting.whatsappPhoneNumberId && setting.whatsappPhoneNumberId.trim().length > 0) {
+    return setting.whatsappPhoneNumberId.trim();
+  }
+  const wabaId = setting.whatsappWabaId?.trim();
+  const token = setting.whatsappAccessToken?.trim();
+  if (!wabaId || !token) {
+    return '';
+  }
+
+  try {
+    const metaApiUrl = `https://graph.facebook.com/v22.0/${wabaId}/phone_numbers`;
+    const response = await fetch(metaApiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const data: any = await response.json();
+      if (Array.isArray(data?.data) && data.data.length > 0) {
+        const autoPhoneId = data.data[0].id;
+        const autoPhoneDisplay = data.data[0].display_phone_number || autoPhoneId;
+        console.log(`✨ [META AUTO-RESOLVE] Tự động lấy Phone Number ID: ${autoPhoneId} (${autoPhoneDisplay}) từ WABA ID ${wabaId}`);
+        setting.whatsappPhoneNumberId = autoPhoneId;
+        inMemorySetting.whatsappPhoneNumberId = autoPhoneId;
+        return autoPhoneId;
+      }
+    }
+  } catch (err: any) {
+    console.warn('[META AUTO-RESOLVE] Không thể tự động lấy Phone Number ID:', err.message || err);
+  }
+  return '';
+}
+
 // Endpoint: GET /api/meta/config - Read current integration configuration
 router.get('/config', async (req: Request, res: Response) => {
   try {
     const setting = await getIntegrationSetting();
+    const effectivePhoneId = await resolvePhoneNumberId(setting);
+
     // Return sanitized setting (masking raw access token if present)
     const maskedToken = setting.whatsappAccessToken
       ? `${setting.whatsappAccessToken.substring(0, 8)}...${setting.whatsappAccessToken.substring(setting.whatsappAccessToken.length - 6)}`
@@ -61,7 +112,7 @@ router.get('/config', async (req: Request, res: Response) => {
 
     return res.json({
       id: setting.id,
-      whatsappPhoneNumberId: setting.whatsappPhoneNumberId || '',
+      whatsappPhoneNumberId: effectivePhoneId || '',
       whatsappWabaId: setting.whatsappWabaId || '',
       whatsappVerifyToken: setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: setting.whatsappAppId || '',
@@ -70,6 +121,8 @@ router.get('/config', async (req: Request, res: Response) => {
       lastConnectedAt: setting.lastConnectedAt,
       hasAccessToken: Boolean(setting.whatsappAccessToken && setting.whatsappAccessToken.trim().length > 0),
       maskedAccessToken: maskedToken,
+      appUrl: process.env.APP_URL || '',
+      webhookUrl: `${(process.env.APP_URL || '').replace(/\/$/, '')}/webhook`,
       updatedAt: setting.updatedAt
     });
   } catch (error) {
@@ -205,7 +258,7 @@ router.post('/test-connection', async (req: Request, res: Response) => {
     const { recipientPhone, messageText, phoneNumberId: overridePhoneId, accessToken: overrideToken } = req.body;
 
     const setting = await getIntegrationSetting();
-    const phoneId = overridePhoneId || setting.whatsappPhoneNumberId;
+    const phoneId = overridePhoneId || (await resolvePhoneNumberId(setting));
     const token = overrideToken || setting.whatsappAccessToken;
 
     if (!phoneId) {
@@ -445,7 +498,7 @@ router.post('/messages/send', async (req: Request, res: Response) => {
     }
 
     const setting = await getIntegrationSetting();
-    const phoneId = setting.whatsappPhoneNumberId;
+    const phoneId = await resolvePhoneNumberId(setting);
     const token = setting.whatsappAccessToken;
 
     // Clean recipient phone format
