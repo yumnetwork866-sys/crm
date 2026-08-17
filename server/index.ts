@@ -15,7 +15,7 @@ import metaRoutes from './routes/metaRoutes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5002;
 
 // Trust all Reverse Proxies (Nginx / Cloudflare / PM2)
 app.set('trust proxy', true);
@@ -102,22 +102,54 @@ app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
 
-// Serve Frontend static assets from the built "dist" directory
+// 7. Serve Frontend (Vite Middleware in Development, Static Dist in Production)
 import path from 'path';
-const distPath = path.resolve(process.cwd(), 'dist');
-app.use(express.static(distPath));
 
-// Fallback all other requests (except API) to index.html for Single Page Application routing
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
+async function setupFrontend() {
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+      },
+      appType: 'custom',
+    });
+    app.use(vite.middlewares);
+
+    app.get('*', async (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+        return next();
+      }
+      try {
+        const fs = await import('fs/promises');
+        const indexFile = path.resolve(process.cwd(), 'index.html');
+        let template = await fs.readFile(indexFile, 'utf-8');
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+  } else {
+    const distPath = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+        return next();
+      }
+      res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) {
+          next(err);
+        }
+      });
+    });
   }
-  res.sendFile(path.join(distPath, 'index.html'), (err) => {
-    if (err) {
-      next();
-    }
-  });
-});
+}
+
+await setupFrontend();
 
 // 7. Global 404 & Error Handler (primarily for unmatched API endpoints)
 app.use((req, res) => {

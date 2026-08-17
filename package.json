@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "server": "tsx server/index.ts",
+    "dev": "tsx watch --ignore dist server/index.ts",
+    "dev:vite": "vite",
+    "server": "NODE_ENV=production tsx server/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
