@@ -56,6 +56,13 @@ model Customer {
 
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+
+  @@index([phone])
+  @@index([status])
+  @@index([owner])
+  @@index([source])
+  @@index([whatsappOptIn])
+  @@index([updatedAt(sort: Desc)])
 }
 
 model CustomerNote {
@@ -67,6 +74,8 @@ model CustomerNote {
   type       String   @default("note") // 'note' | 'call' | 'whatsapp' | 'email' | 'system'
 
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt(sort: Desc)])
 }
 
 model Product {
@@ -86,6 +95,9 @@ model Product {
 
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([category])
+  @@index([status])
 }
 
 model Order {
@@ -104,6 +116,10 @@ model Order {
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([date(sort: Desc)])
 }
 
 model OrderItem {
@@ -116,6 +132,9 @@ model OrderItem {
 
   order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model BroadcastCampaign {
@@ -135,6 +154,9 @@ model BroadcastCampaign {
   respondedCount  Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
 }
 
 model AutomationLog {
@@ -147,6 +169,8 @@ model AutomationLog {
   status      String   @default("Sent") // 'Sent' | 'Delivered' | 'Read' | 'Failed'
 
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, sentAt(sort: Desc)])
 }
 
 model IntegrationSetting {
@@ -180,5 +204,10 @@ model WhatsAppMessage {
   createdAt     DateTime  @default(now())
 
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([customerPhone])
+  @@index([timestamp(sort: Desc)])
+  @@index([isRead, sender])
 }
 
