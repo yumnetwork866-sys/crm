@@ -3,13 +3,14 @@ import {
   Send, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, MessageSquare,
   Users, Tag, Globe, Play, Layers, Clock, AlertTriangle
 } from 'lucide-react';
-import { Customer, BroadcastCampaign } from '../../types';
+import { Customer, BroadcastCampaign, CentralMessage } from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
-import { getCustomerGroup } from '../../utils/crmUtils';
+import { getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface BroadcastViewProps {
   customers: Customer[];
   campaigns: BroadcastCampaign[];
+  centralMessages?: CentralMessage[];
   onLaunchCampaign: (newCampaign: BroadcastCampaign) => void;
   defaultTargetGroup?: string;
 }
@@ -19,6 +20,7 @@ const CATEGORIES = ['Khuyến mại', 'Flash Sale', 'Voucher', 'Sản phẩm m�
 export const BroadcastView: React.FC<BroadcastViewProps> = ({
   customers,
   campaigns,
+  centralMessages = [],
   onLaunchCampaign,
   defaultTargetGroup = 'Tất cả khách hàng',
 }) => {
@@ -67,14 +69,25 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
       return true;
     });
 
-    const optedIn = matched.filter((c) => c.whatsappOptIn);
+    const optedIn = matched.filter((c) => {
+      if (c.whatsappOptIn) return true;
+      if (centralMessages && centralMessages.length > 0) {
+        return centralMessages.some(
+          (m) =>
+            m.customerId === c.id ||
+            isSamePhoneNumber(m.customerPhone, c.phone) ||
+            isSamePhoneNumber(m.customerId, c.phone)
+        );
+      }
+      return false;
+    });
 
     return {
       targetedTotal: matched.length,
       optedInTotal: optedIn.length,
       eligibleCustomers: optedIn,
     };
-  }, [customers, targetGroup, targetProduct, targetGender]);
+  }, [customers, targetGroup, targetProduct, targetGender, centralMessages]);
 
   const handleInsertTag = (tag: string) => {
     setTemplateText((prev) => `${prev} ${tag}`);

@@ -47,9 +47,11 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     isAgent: m.sender === 'agent',
   }));
 
+  const isOptedIn = Boolean(customer.whatsappOptIn || displayMessages.length > 0);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden my-8 flex flex-col h-[650px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl flex flex-col h-[650px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between shrink-0">
@@ -64,9 +66,9 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">{customer.name}</h3>
-                {customer.whatsappOptIn ? (
+                {isOptedIn ? (
                   <span className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-[#00793d] dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
-                    ✓ Opt-In Policy
+                    ✓ Opt-In Policy (WABA)
                   </span>
                 ) : (
                   <span className="text-[10px] bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 px-2 py-0.5 rounded-full font-medium">

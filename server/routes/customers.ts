@@ -57,12 +57,53 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
       include: {
         notes: { orderBy: { createdAt: 'desc' } },
         orders: { include: { products: true }, orderBy: { date: 'desc' } },
-        automationLogs: { orderBy: { sentAt: 'desc' } }
+        automationLogs: { orderBy: { sentAt: 'desc' } },
+        whatsappMessages: { select: { id: true }, take: 1 }
       },
       orderBy: { updatedAt: 'desc' }
     });
 
-    return res.json(customers);
+    // Query distinct phone numbers and customer IDs that have messaged with WABA
+    let wabaPhoneSet = new Set<string>();
+    try {
+      const wabaMessages = await prisma.whatsAppMessage.findMany({
+        select: { customerPhone: true, customerId: true }
+      });
+      wabaMessages.forEach((m) => {
+        if (m.customerId && !m.customerId.startsWith('cust_')) {
+          wabaPhoneSet.add(m.customerId);
+        }
+        if (m.customerPhone) {
+          const digits = m.customerPhone.replace(/\D/g, '');
+          if (digits.length >= 7) wabaPhoneSet.add(digits.slice(-9));
+          else if (digits) wabaPhoneSet.add(digits);
+        }
+      });
+    } catch (msgErr) {
+      console.warn('Could not query whatsAppMessage table for opt-in enrichment:', msgErr);
+    }
+
+    const enrichedCustomers = customers.map((c) => {
+      let isWabaOptIn = Boolean(c.whatsappOptIn);
+      if (!isWabaOptIn) {
+        const cPhoneDigits = (c.phone || '').replace(/\D/g, '');
+        const last9 = cPhoneDigits.length >= 7 ? cPhoneDigits.slice(-9) : cPhoneDigits;
+        if (
+          (c.whatsappMessages && c.whatsappMessages.length > 0) ||
+          wabaPhoneSet.has(c.id) ||
+          (last9 && wabaPhoneSet.has(last9)) ||
+          (cPhoneDigits && wabaPhoneSet.has(cPhoneDigits))
+        ) {
+          isWabaOptIn = true;
+        }
+      }
+      return {
+        ...c,
+        whatsappOptIn: isWabaOptIn
+      };
+    });
+
+    return res.json(enrichedCustomers);
   } catch (error) {
     console.error('Lỗi khi lấy danh sách khách hàng:', error);
     return res.status(500).json({ error: 'Không thể tải danh sách khách hàng từ cơ sở dữ liệu' });
@@ -78,7 +119,8 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       include: {
         notes: { orderBy: { createdAt: 'desc' } },
         orders: { include: { products: true }, orderBy: { date: 'desc' } },
-        automationLogs: { orderBy: { sentAt: 'desc' } }
+        automationLogs: { orderBy: { sentAt: 'desc' } },
+        whatsappMessages: { select: { id: true }, take: 1 }
       }
     });
 
@@ -86,7 +128,31 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     }
 
-    return res.json(customer);
+    let isWabaOptIn = Boolean(customer.whatsappOptIn);
+    if (!isWabaOptIn) {
+      const cPhoneDigits = (customer.phone || '').replace(/\D/g, '');
+      const last9 = cPhoneDigits.length >= 7 ? cPhoneDigits.slice(-9) : cPhoneDigits;
+      try {
+        const hasMsg = (customer.whatsappMessages && customer.whatsappMessages.length > 0) ||
+          await prisma.whatsAppMessage.findFirst({
+            where: {
+              OR: [
+                { customerId: customer.id },
+                ...(last9 ? [{ customerPhone: { contains: last9 } }] : [])
+              ]
+            },
+            select: { id: true }
+          });
+        if (hasMsg) {
+          isWabaOptIn = true;
+        }
+      } catch (err) {}
+    }
+
+    return res.json({
+      ...customer,
+      whatsappOptIn: isWabaOptIn
+    });
   } catch (error) {
     return res.status(500).json({ error: 'Lỗi hệ thống khi lấy thông tin khách hàng' });
   }

@@ -1008,6 +1008,17 @@ router.post('/messages/send', async (req: Request, res: Response) => {
         data: createData
       });
       console.log(`[DB SAVE SUCCESS] Saved OUTGOING message ${savedOutDb.id} to PostgreSQL Database!`);
+
+      if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
+        await prisma.customer.update({
+          where: { id: matchedCustomerId },
+          data: {
+            whatsappOptIn: true,
+            whatsappOptInDate: new Date(),
+            lastContact: new Date()
+          }
+        }).catch(() => {});
+      }
     } catch (dbErr: any) {
       console.error('[DB SAVE ERROR] Failed to save outgoing message to DB:', dbErr.message || dbErr);
     }
@@ -1208,6 +1219,17 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
           create: createData
         });
         console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
+
+        if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
+          await prisma.customer.update({
+            where: { id: matchedCustomerId },
+            data: {
+              whatsappOptIn: true,
+              whatsappOptInDate: new Date(),
+              lastContact: new Date()
+            }
+          }).catch(() => {});
+        }
       } catch (dbErr: any) {
         console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
       }

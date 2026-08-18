@@ -1348,6 +1348,7 @@ export default function App() {
           <CustomerList
             customers={customers}
             currentUser={currentUser}
+            centralMessages={centralMessages}
             onSelectCustomer={(cust) => {
               setSelectedCustomer(cust);
               setIsDetailOpen(true);
@@ -1429,6 +1430,7 @@ export default function App() {
           <BroadcastView
             customers={customers}
             campaigns={campaigns}
+            centralMessages={centralMessages}
             onLaunchCampaign={handleLaunchCampaign}
             defaultTargetGroup={broadcastDefaultGroup}
           />
@@ -1499,6 +1501,7 @@ export default function App() {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         customer={selectedCustomer}
+        centralMessages={centralMessages}
         onOpenAddOrder={(cust) => {
           setOrderCustomer(cust);
           setIsOrderOpen(true);

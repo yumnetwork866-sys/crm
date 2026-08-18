@@ -4,13 +4,14 @@ import {
   MessageSquare, MoreHorizontal, Trash2, Edit3, ShieldCheck, ShieldAlert,
   ChevronRight, ArrowUpDown, Tag, FileSpreadsheet, Calendar, RotateCcw
 } from 'lucide-react';
-import { Customer, CustomerStatus, LeadSource, AppUser } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
+import { Customer, CustomerStatus, LeadSource, AppUser, CentralMessage } from '../../types';
+import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
 
 interface CustomerListProps {
   customers: Customer[];
   currentUser?: AppUser | null;
+  centralMessages?: CentralMessage[];
   onSelectCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (id: string) => void;
@@ -24,6 +25,7 @@ interface CustomerListProps {
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
   currentUser,
+  centralMessages = [],
   onSelectCustomer,
   onEditCustomer,
   onDeleteCustomer,
@@ -41,9 +43,53 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   const [selectedGender, setSelectedGender] = useState<string>('ALL');
   const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
   const [selectedOwner, setSelectedOwner] = useState<string>('ALL');
+  const [selectedOptIn, setSelectedOptIn] = useState<string>('ALL');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+
+  // Set of phone numbers / customer IDs that have messaged with WABA
+  const wabaChattedPhoneSet = useMemo(() => {
+    const set = new Set<string>();
+    if (centralMessages && Array.isArray(centralMessages)) {
+      centralMessages.forEach((m) => {
+        if (m.customerPhone) {
+          const clean = m.customerPhone.replace(/\D/g, '');
+          if (clean.length >= 7) set.add(clean.slice(-9));
+          else if (clean) set.add(clean);
+        }
+        if (m.customerId) {
+          if (m.customerId.startsWith('cust_')) {
+            const clean = m.customerId.replace('cust_', '').replace(/\D/g, '');
+            if (clean.length >= 7) set.add(clean.slice(-9));
+            else if (clean) set.add(clean);
+          } else {
+            set.add(m.customerId);
+          }
+        }
+      });
+    }
+    return set;
+  }, [centralMessages]);
+
+  const checkIsCustomerOptedIn = (cust: Customer): boolean => {
+    if (cust.whatsappOptIn) return true;
+    if (wabaChattedPhoneSet.has(cust.id)) return true;
+    if (cust.phone) {
+      const clean = cust.phone.replace(/\D/g, '');
+      const last9 = clean.length >= 7 ? clean.slice(-9) : clean;
+      if (wabaChattedPhoneSet.has(last9) || wabaChattedPhoneSet.has(clean)) return true;
+    }
+    if (centralMessages && centralMessages.length > 0) {
+      return centralMessages.some(
+        (m) =>
+          m.customerId === cust.id ||
+          isSamePhoneNumber(m.customerPhone, cust.phone) ||
+          isSamePhoneNumber(m.customerId, cust.phone)
+      );
+    }
+    return false;
+  };
 
   const handleToggleSelectAll = () => {
     if (selectedCustomerIds.length === filteredCustomers.length && filteredCustomers.length > 0) {
@@ -133,6 +179,13 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       // Owner
       if (selectedOwner !== 'ALL' && c.owner !== selectedOwner) return false;
 
+      // Opt-in Filter (from WABA message history or optin flag)
+      if (selectedOptIn !== 'ALL') {
+        const isOptedIn = checkIsCustomerOptedIn(c);
+        if (selectedOptIn === 'optin' && !isOptedIn) return false;
+        if (selectedOptIn === 'no_optin' && isOptedIn) return false;
+      }
+
       // Group
       if (selectedGroup !== 'ALL') {
         const grp = getCustomerGroup(c);
@@ -149,7 +202,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
       return true;
     });
-  }, [customers, searchQuery, selectedStatus, selectedSource, selectedGender, selectedGroup, selectedOwner, startDate, endDate]);
+  }, [customers, searchQuery, selectedStatus, selectedSource, selectedGender, selectedGroup, selectedOwner, selectedOptIn, startDate, endDate, wabaChattedPhoneSet, centralMessages]);
 
   // Unique values for dropdowns
   const sources = Array.from(new Set(customers.map((c) => c.source)));
@@ -186,7 +239,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       CUSTOMER_GROUPS[getCustomerGroup(c)].name,
       c.totalOrders,
       c.totalSpent,
-      c.whatsappOptIn ? 'Yes' : 'No'
+      checkIsCustomerOptedIn(c) ? 'Opt-in' : 'No Opt-in'
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -262,7 +315,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         </div>
 
         {/* Filter Dropdowns Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs pt-1">
           
           {/* Group Filter */}
           <div>
@@ -339,6 +392,20 @@ export const CustomerList: React.FC<CustomerListProps> = ({
               {owners.map((o) => (
                 <option key={o} value={o}>{o}</option>
               ))}
+            </select>
+          </div>
+
+          {/* Opt-In (WABA) Filter */}
+          <div>
+            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Trạng Thái Opt-In</label>
+            <select
+              value={selectedOptIn}
+              onChange={(e) => setSelectedOptIn(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
+            >
+              <option value="ALL">Tất cả Opt-In</option>
+              <option value="optin">✓ Opt-in (Đã nhắn WABA)</option>
+              <option value="no_optin">! No Opt-in (Chưa nhắn WABA)</option>
             </select>
           </div>
 
@@ -447,6 +514,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                 <button onClick={() => setSelectedSource('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
               </span>
             )}
+            {selectedOptIn !== 'ALL' && (
+              <span className={`font-semibold text-xs px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
+                selectedOptIn === 'optin'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+              }`}>
+                <span>Opt-in: {selectedOptIn === 'optin' ? '✓ Opt-in (Đã nhắn WABA)' : '! No Opt-in'}</span>
+                <button onClick={() => setSelectedOptIn('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
+              </span>
+            )}
             {selectedGroup !== 'ALL' && (
               <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1">
                 <span>Nhóm: {CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name || selectedGroup}</span>
@@ -460,7 +537,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
               </span>
             )}
           </div>
-          {(selectedStatus !== 'ALL' || selectedSource !== 'ALL' || selectedGender !== 'ALL' || selectedGroup !== 'ALL' || selectedOwner !== 'ALL' || searchQuery || startDate || endDate) && (
+          {(selectedStatus !== 'ALL' || selectedSource !== 'ALL' || selectedGender !== 'ALL' || selectedGroup !== 'ALL' || selectedOwner !== 'ALL' || selectedOptIn !== 'ALL' || searchQuery || startDate || endDate) && (
             <button
               onClick={() => {
                 setSearchQuery('');
@@ -469,6 +546,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                 setSelectedGender('ALL');
                 setSelectedGroup('ALL');
                 setSelectedOwner('ALL');
+                setSelectedOptIn('ALL');
                 setStartDate('');
                 setEndDate('');
               }}
@@ -519,6 +597,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   const grpInfo = CUSTOMER_GROUPS[grpKey];
                   const isSelected = selectedCustomerIds.includes(cust.id);
                   const isBatchActive = selectedCustomerIds.length > 0;
+                  const isOptedIn = checkIsCustomerOptedIn(cust);
 
                   return (
                     <tr
@@ -555,12 +634,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                             {cust.phone}
                           </div>
                           <div>
-                            {cust.whatsappOptIn ? (
-                              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded">
-                                ✓ WA Opt-in
+                            {isOptedIn ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded"
+                                title="Đã có tin nhắn tương tác với WABA (WhatsApp Business Account)"
+                              >
+                                ✓ Opt-in
                               </span>
                             ) : (
-                              <span className="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.2 rounded">
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded"
+                                title="Chưa có tin nhắn tương tác với WABA"
+                              >
                                 ! No Opt-in
                               </span>
                             )}

@@ -4,13 +4,14 @@ import {
   ShoppingBag, FileText, Send, Sparkles, Plus, CheckCircle2,
   Clock, ShieldCheck, ShieldAlert, MessageSquare, Briefcase
 } from 'lucide-react';
-import { Customer, CustomerStatus } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
+import { Customer, CustomerStatus, CentralMessage } from '../../types';
+import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   customer: Customer | null;
+  centralMessages?: CentralMessage[];
   onOpenAddOrder: (customer: Customer) => void;
   onOpenChat: (customer: Customer) => void;
   onAddNote: (customerId: string, noteText: string) => void;
@@ -22,6 +23,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   isOpen,
   onClose,
   customer,
+  centralMessages = [],
   onOpenAddOrder,
   onOpenChat,
   onAddNote,
@@ -35,6 +37,16 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
   const groupKey = getCustomerGroup(customer);
   const groupInfo = CUSTOMER_GROUPS[groupKey];
+
+  const isOptedIn = Boolean(
+    customer.whatsappOptIn ||
+    (centralMessages && centralMessages.some(
+      (m) =>
+        m.customerId === customer.id ||
+        isSamePhoneNumber(m.customerPhone, customer.phone) ||
+        isSamePhoneNumber(m.customerId, customer.phone)
+    ))
+  );
 
   const handleAddNoteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,17 +239,25 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         <p className="text-slate-200 text-xs italic">{customer.note}</p>
                       </div>
                     )}
-                    <div className="col-span-2 pt-1">
-                      <span className="text-slate-400 mr-2">WhatsApp Opt-In:</span>
+                    <div className="col-span-2 pt-1 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-slate-400 text-xs">WhatsApp Opt-In:</span>
+                        {isOptedIn ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            ✓ Opt-in (Đã nhắn WABA)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            ! No Opt-in (Chưa nhắn WABA)
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={() => onToggleOptIn(customer.id)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${
-                          customer.whatsappOptIn
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                        }`}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer font-medium"
+                        title="Chuyển đổi trạng thái Opt-In thủ công"
                       >
-                        {customer.whatsappOptIn ? '✓ Đã đồng ý (Opt-in)' : '! Chưa đồng ý'}
+                        Đổi trạng thái
                       </button>
                     </div>
                   </div>

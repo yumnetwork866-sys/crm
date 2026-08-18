@@ -1307,7 +1307,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
                     }`}
-                    title="Bật/Tắt Hồ sơ CRM (Menu 3 gạch)"
+                    title="Bật/Tắt Hồ sơ CRM"
                   >
                     <Menu className="w-4 h-4" />
                   </button>
@@ -1374,17 +1374,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
 
-                      // Check if sender changed from previous message in this date group
+                      // Check if speaker changed from previous and next messages
                       const prevMsg = msgIdx > 0 ? group.msgs[msgIdx - 1] : null;
-                      const isFirstOfTurn = !prevMsg || prevMsg.sender !== msg.sender;
+                      const nextMsg = msgIdx < group.msgs.length - 1 ? group.msgs[msgIdx + 1] : null;
+
+                      const isSpeakerChangedFromPrev = !prevMsg || prevMsg.sender !== msg.sender || (isAgent && (prevMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (prevMsg.customerName || '') !== (msg.customerName || ''));
+                      const isSpeakerChangedToNext = !nextMsg || nextMsg.sender !== msg.sender || (isAgent && (nextMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (nextMsg.customerName || '') !== (msg.customerName || ''));
+
+                      const isFirstOfTurn = isSpeakerChangedFromPrev;
+                      const shouldShowAvatar = isSpeakerChangedToNext;
 
                       const isHighlighted = highlightedMessageId === msg.id;
 
-                      // Dynamic avatar sources
-                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread?.customerPhone || activeThread?.customerName || activeThread?.threadId || 'Customer')}`;
-                      const agentAvatarSrc = (currentUser?.name && senderName === currentUser.name && currentUser.avatar)
-                        ? currentUser.avatar
-                        : (INITIAL_USERS.find((u) => u.name.toLowerCase() === senderName.toLowerCase())?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
+                      // Dynamic avatar sources with robust fallbacks
+                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer')}`;
+                      const matchedUser = INITIAL_USERS.find((u) => u.name.toLowerCase() === senderName.toLowerCase())
+                        || (currentUser && currentUser.name.toLowerCase() === senderName.toLowerCase() ? currentUser : null);
+                      const agentAvatarSrc = matchedUser?.avatar || (currentUser?.avatar && isAgent ? currentUser.avatar : `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
 
                       return (
                         <div
@@ -1395,18 +1401,21 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         >
                           {/* Customer Avatar on the Left (Incoming) */}
                           {!isAgent && (
-                            <div className="w-7 h-7 mr-2 shrink-0 self-end mb-0.5">
-                              {isFirstOfTurn ? (
-                                <div className="w-7 h-7 rounded-full overflow-hidden bg-white border border-slate-200 shadow-2xs" title={msg.customerName || 'Khách hàng'}>
+                            <div className="w-8 h-8 mr-2 shrink-0 self-end mb-0.5">
+                              {shouldShowAvatar ? (
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-slate-200 shadow-2xs flex items-center justify-center" title={msg.customerName || 'Khách hàng'}>
                                   <img
                                     src={customerAvatarSrc}
                                     alt={msg.customerName || 'Customer'}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.src = `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(msg.customerName || 'C')}`;
+                                    }}
                                   />
                                 </div>
                               ) : (
-                                <div className="w-7 h-7" />
+                                <div className="w-8 h-8" />
                               )}
                             </div>
                           )}
@@ -1785,18 +1794,21 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                           {/* Agent Avatar on the Right (Outgoing) */}
                           {isAgent && (
-                            <div className="w-7 h-7 ml-2 shrink-0 self-end mb-0.5">
-                              {isFirstOfTurn ? (
-                                <div className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shadow-2xs" title={senderName}>
+                            <div className="w-8 h-8 ml-2 shrink-0 self-end mb-0.5">
+                              {shouldShowAvatar ? (
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shadow-2xs flex items-center justify-center" title={senderName}>
                                   <img
                                     src={agentAvatarSrc}
                                     alt={senderName}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'A')}`;
+                                    }}
                                   />
                                 </div>
                               ) : (
-                                <div className="w-7 h-7" />
+                                <div className="w-8 h-8" />
                               )}
                             </div>
                           )}
