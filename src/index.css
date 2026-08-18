@@ -532,17 +532,16 @@ table td {
 .whatsapp-chat-bg {
   background-color: #efeae2;
   background-image: 
-    radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 0),
-    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 0);
-  background-size: 24px 24px;
-  background-position: 0 0, 12px 12px;
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 0% 100%, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 100% 0%, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 0 0, 16px 16px, 16px 16px;
 }
 
 .whatsapp-bubble-out {
   background-color: #d9fdd3;
   color: #111b21;
-  border-radius: 8px;
-  border-top-right-radius: 0px;
   box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
   position: relative;
 }
@@ -550,24 +549,22 @@ table td {
 .whatsapp-bubble-in {
   background-color: #ffffff;
   color: #111b21;
-  border-radius: 8px;
-  border-top-left-radius: 0px;
   box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
   position: relative;
 }
 
 .whatsapp-scrollbar::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 .whatsapp-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .whatsapp-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
+  background: rgba(11, 20, 26, 0.2);
+  border-radius: 9999px;
 }
 .whatsapp-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(11, 20, 26, 0.35);
 }
 
 

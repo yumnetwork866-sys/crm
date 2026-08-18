@@ -11,11 +11,22 @@ import productRoutes from './routes/products';
 import userRoutes from './routes/users';
 import campaignRoutes from './routes/campaigns';
 import metaRoutes from './routes/metaRoutes';
+import uploadRoutes from './routes/uploadRoutes';
+import http from 'http';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+
+// Ensure base upload directories exist & serve statically (Stage 2 Disk Storage)
+const UPLOADS_DIR = path.resolve(process.cwd(), 'public/uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Trust all Reverse Proxies (Nginx / Cloudflare / PM2)
 app.set('trust proxy', true);
@@ -101,9 +112,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
-
-import http from 'http';
-import path from 'path';
+app.use('/api/upload', uploadRoutes);
 
 const httpServer = http.createServer(app);
 
@@ -122,7 +131,7 @@ async function setupFrontend() {
     app.use(vite.middlewares);
 
     app.get('*', async (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
         return next();
       }
       try {
@@ -141,7 +150,7 @@ async function setupFrontend() {
     app.use(express.static(distPath));
 
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
         return next();
       }
       res.sendFile(path.join(distPath, 'index.html'), (err) => {

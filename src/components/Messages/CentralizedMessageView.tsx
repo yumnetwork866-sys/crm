@@ -36,19 +36,30 @@ import {
   Calendar,
   Layers,
   ChevronDown,
-  Menu
+  Menu,
+  Volume2,
+  VolumeX,
+  Eye,
+  Download,
+  Image as ImageIcon,
+  AlertTriangle,
+  Flame,
+  CheckCircle,
+  HelpCircle,
+  FileSpreadsheet,
+  Edit3
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, isSamePhoneNumber, formatVND, CUSTOMER_GROUPS } from '../../utils/crmUtils';
+import { getCustomerGroup, isSamePhoneNumber, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
 
-export interface BusinessPhoneNumber {
+interface BusinessPhoneNumber {
   id: string;
   verifiedName: string;
   displayPhoneNumber: string;
   qualityRating?: string;
 }
 
-export const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
+const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
   {
     id: 'phone_601110716895',
     verifiedName: 'Yum Network WABA (Chính)',
@@ -68,6 +79,70 @@ export const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
     qualityRating: 'GREEN',
   }
 ];
+
+type ConversationStatus = 'consulting' | 'ordered' | 'callback' | 'completed';
+const STATUS_CONFIG: Record<ConversationStatus, { label: string; bg: string; text: string; border: string; dot: string }> = {
+  consulting: { label: 'Đang tư vấn', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
+  ordered: { label: 'Đã chốt đơn', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  callback: { label: 'Hẹn gọi lại', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
+  completed: { label: 'Hoàn thành', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', dot: 'bg-slate-400' },
+};
+
+// Robust Helper to detect and extract image URLs and captions from any format
+function extractImageInfo(rawContent: string): { isImage: boolean; imgUrl: string | null; caption: string | null } {
+  if (!rawContent) return { isImage: false, imgUrl: null, caption: null };
+  const content = rawContent.trim();
+
+  // 1. Direct Data URL (Base64)
+  if (content.startsWith('data:image/')) {
+    const parts = content.split('\n');
+    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 2. Local disk path /uploads/... or /api/meta/media/...
+  if (content.startsWith('/uploads/') || content.startsWith('/api/meta/media/')) {
+    const parts = content.split('\n');
+    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 3. Direct HTTP/HTTPS Image URL
+  if (content.match(/^https?:\/\/[^\s\n]+\.(png|jpg|jpeg|gif|webp)(\?[^\s\n]*)?$/i)) {
+    const parts = content.split('\n');
+    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 4. Content starting with [Hình ảnh] / [image] with embedded URL or Base64
+  const embeddedMatch = content.match(/(https?:\/\/[^\s\]\n]+|data:image\/[a-zA-Z+]+;base64,[^\s\]\n]+|\/uploads\/[^\s\]\n]+|\/api\/meta\/media\/[^\s\]\n]+)/i);
+  if (embeddedMatch) {
+    const imgUrl = embeddedMatch[0];
+    const caption = content
+      .replace(imgUrl, '')
+      .replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '')
+      .replace(/[\[\]]/g, '')
+      .trim();
+    return { isImage: true, imgUrl, caption: caption || null };
+  }
+
+  // 5. Incoming WhatsApp placeholder tag (without direct URL)
+  if (
+    content.toLowerCase().startsWith('[image') ||
+    content.toLowerCase().startsWith('[hình ảnh') ||
+    content.toLowerCase() === '[image message]' ||
+    content.toLowerCase() === '[photo]'
+  ) {
+    const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/[\[\]]/g, '').trim();
+    return { isImage: false, imgUrl: null, caption: caption || null };
+  }
+
+  return { isImage: false, imgUrl: null, caption: null };
+}
+
+interface InternalNote {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: string;
+}
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
@@ -89,7 +164,25 @@ interface CentralizedMessageViewProps {
   onDeleteMessage?: (messageId: string) => void;
 }
 
-// Canned Quick Reply Templates
+// Synthesize pleasant pop audio using HTML5 Web Audio API
+const playPopSound = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+  } catch {}
+};
+
+// Canned Quick Reply Templates with Slash Commands
 const QUICK_TEMPLATES = [
   {
     code: '/chao',
@@ -99,22 +192,32 @@ const QUICK_TEMPLATES = [
   {
     code: '/gia',
     title: 'Báo giá Combo Ưu đãi',
-    content: 'Dạ hiện tại bên em đang có chương trình trợ giá đặc biệt: Mua Combo 2 tặng 1 kèm Miễn phí vận chuyển tận nơi. Anh/chị xem qua nhé ạ!'
+    content: '📄 BÁO GIÁ SẢN PHẨM:\n- Combo 2 Hộp Thảo Mộc: 700.000đ\n- Quà tặng: 1 Bình Giữ Nhiệt Cao Cấp\n- Miễn phí vận chuyển tận nhà (COD).'
+  },
+  {
+    code: '/combo',
+    title: 'Combo Mua 2 Tặng 1',
+    content: '🔥 SIÊU ƯU ĐÃI THÁNG:\n- Mua 2 Hộp tặng ngay 1 Hộp cùng loại\n- Giảm thêm 50.000đ khi thanh toán trước\n- Giao hàng hỏa tốc trong 2-3 ngày.'
   },
   {
     code: '/stk',
-    title: 'Thông tin Thanh toán / COD',
-    content: 'Dạ bên em hỗ trợ 2 hình thức thanh toán: 1. Nhận hàng kiểm tra thanh toán (COD), 2. Chuyển khoản ngân hàng nhận thêm quà tặng tri ân.'
+    title: 'Thông tin Chuyển khoản',
+    content: '💳 THÔNG TIN THANH TOÁN:\n- Ngân hàng: Techcombank\n- Số tài khoản: 190368889999\n- Chủ tài khoản: CÔNG TY TNHH YUM NETWORK\n- Nội dung: [Tên khách] + [SĐT]'
   },
   {
-    code: '/hdsd',
-    title: 'Hướng dẫn sử dụng',
-    content: 'Dạ để đạt hiệu quả tối ưu nhất, anh/chị dùng đều đặn 2 lần/ngày sau bữa ăn 30 phút và uống nhiều nước giúp em nhé ạ!'
+    code: '/freeship',
+    title: 'Chính sách Vận chuyển & COD',
+    content: '🚚 CHÍNH SÁCH VẬN CHUYỂN:\n- Miễn phí ship COD toàn quốc cho đơn từ 500k.\n- Khách được đồng kiểm hàng trước khi thanh toán.\n- Đổi trả 1-1 trong 7 ngày nếu lỗi sản phẩm.'
   },
   {
     code: '/voucher',
     title: 'Tặng Voucher 20%',
-    content: '🎁 Tri ân khách hàng thân thiết: YumNetwork gửi tặng anh/chị mã giảm giá VOUCHER20 giảm ngay 20% cho đơn hàng tiếp theo!'
+    content: '🏷️ MÃ GIẢM GIÁ ĐỘC QUYỀN:\n- Mã: YUMVIP20 (Giảm 20% tối đa 150k)\n- Hạn dùng: 7 ngày kể từ hôm nay\n- Áp dụng cho toàn bộ sản phẩm tại YumNetwork.'
+  },
+  {
+    code: '/hdsd',
+    title: 'Hướng dẫn sử dụng',
+    content: '📋 HƯỚNG DẪN SỬ DỤNG:\n- Uống 1 gói/ngày sau bữa sáng 30 phút.\n- Pha cùng 150ml - 200ml nước ấm.\n- Duy trì đều đặn 1 liệu trình từ 3-4 tuần để thấy rõ hiệu quả.'
   }
 ];
 
@@ -132,15 +235,47 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onDeleteThread,
   onDeleteMessage,
 }) => {
+  const [inboxScope, setInboxScope] = useState<'all' | 'mine' | 'unassigned'>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'vip' | 'repeat' | 'new'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('yumcrm_sound_enabled') !== 'false';
+  });
+
+  // Media upload & lightbox zoom modal
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [previewLightboxImg, setPreviewLightboxImg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Internal Notes State (Persisted in localStorage)
+  const [internalNotes, setInternalNotes] = useState<Record<string, InternalNote[]>>(() => {
+    try {
+      const saved = localStorage.getItem('yumcrm_internal_notes');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [newNoteText, setNewNoteText] = useState('');
+
+  // Conversation Pipeline Status per thread (Persisted in localStorage)
+  const [threadStatuses, setThreadStatuses] = useState<Record<string, ConversationStatus>>(() => {
+    try {
+      const saved = localStorage.getItem('yumcrm_thread_statuses');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const [pinnedThreadIds, setPinnedThreadIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('yumcrm_pinned_threads');
@@ -163,6 +298,46 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       try {
         localStorage.setItem('yumcrm_pinned_threads', JSON.stringify(updated));
       } catch (e) {}
+      return updated;
+    });
+  };
+
+  const handleUpdateThreadStatus = (threadId: string, status: ConversationStatus) => {
+    setThreadStatuses((prev) => {
+      const updated = { ...prev, [threadId]: status };
+      try {
+        localStorage.setItem('yumcrm_thread_statuses', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleAddInternalNote = (customerId: string) => {
+    if (!newNoteText.trim()) return;
+    const note: InternalNote = {
+      id: `note_${Date.now()}`,
+      author: currentUser?.name || 'Nguyễn Văn Ánh',
+      content: newNoteText.trim(),
+      timestamp: new Date().toISOString(),
+    };
+    setInternalNotes((prev) => {
+      const list = prev[customerId] || [];
+      const updated = { ...prev, [customerId]: [note, ...list] };
+      try {
+        localStorage.setItem('yumcrm_internal_notes', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    setNewNoteText('');
+  };
+
+  const handleDeleteInternalNote = (customerId: string, noteId: string) => {
+    setInternalNotes((prev) => {
+      const list = prev[customerId] || [];
+      const updated = { ...prev, [customerId]: list.filter((n) => n.id !== noteId) };
+      try {
+        localStorage.setItem('yumcrm_internal_notes', JSON.stringify(updated));
+      } catch {}
       return updated;
     });
   };
@@ -230,14 +405,28 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     });
   }, [messages, customers, pinnedThreadIds]);
 
-  // Filter threads based on search & filter tabs
+  // Filter threads based on inbox scope, search & filter tabs
   const filteredThreads = useMemo(() => {
     return threads.filter((t) => {
+      // 1. Inbox Scope Filter (All / Mine / Unassigned)
+      if (inboxScope === 'mine') {
+        const owner = t.customer?.owner || '';
+        const curName = currentUser?.name || '';
+        if (!owner || (curName && !owner.toLowerCase().includes(curName.toLowerCase()))) {
+          return false;
+        }
+      } else if (inboxScope === 'unassigned') {
+        const owner = t.customer?.owner || '';
+        if (owner && owner !== 'Chưa phân công') return false;
+      }
+
+      // 2. Category Filter
       if (activeFilter === 'unread' && t.unreadCount === 0) return false;
       if (activeFilter === 'vip' && (!t.customer || t.customer.totalOrders < 2)) return false;
       if (activeFilter === 'repeat' && (!t.customer || t.customer.totalOrders !== 1)) return false;
       if (activeFilter === 'new' && t.customer && t.customer.totalOrders > 0) return false;
 
+      // 3. Search Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = t.customerName.toLowerCase().includes(q);
@@ -247,7 +436,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
       return true;
     });
-  }, [threads, activeFilter, searchQuery]);
+  }, [threads, inboxScope, activeFilter, searchQuery, currentUser]);
 
   // Active thread selection
   const activeThread = useMemo(() => {
@@ -352,6 +541,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     };
   }, [activeThread, currentTime]);
 
+  // Count threads for scope tabs
+  const myThreadsCount = useMemo(() => {
+    const curName = currentUser?.name || '';
+    return threads.filter((t) => {
+      const owner = t.customer?.owner || '';
+      return owner && curName && owner.toLowerCase().includes(curName.toLowerCase());
+    }).length;
+  }, [threads, currentUser]);
+
+  const unassignedThreadsCount = useMemo(() => {
+    return threads.filter((t) => {
+      const owner = t.customer?.owner || '';
+      return !owner || owner === 'Chưa phân công';
+    }).length;
+  }, [threads]);
+
   const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>(DEFAULT_BUSINESS_PHONES);
   const [selectedPhoneId, setSelectedPhoneId] = useState<string>(() => {
     return localStorage.getItem('yumcrm_active_waba_phone') || 'phone_601110716895';
@@ -418,7 +623,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     setSelectedPhoneId(phoneId);
     try {
       localStorage.setItem('yumcrm_active_waba_phone', phoneId);
-      // Auto-sync selection with backend config if it's a real Meta phone ID
       if (!phoneId.startsWith('phone_')) {
         fetch('/api/meta/config', {
           method: 'POST',
@@ -429,25 +633,35 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     } catch {}
   };
 
-  const handleSend = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!inputText.trim() || !activeThread) return;
-
-    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
-    const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
-    const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
-
-    onSendMessage(targetId, inputText.trim(), 'WhatsApp', targetPhone, targetName, selectedPhoneId);
-    setInputText('');
-    setShowTemplatePicker(false);
-    setShowEmojiPicker(false);
-    setShowAttachMenu(false);
+  const getSlaWarning = (thread: { messages: CentralMessage[]; lastMessage: CentralMessage }) => {
+    if (thread.lastMessage.sender !== 'customer') return null;
+    const elapsedMs = currentTime - new Date(thread.lastMessage.timestamp).getTime();
+    const minutes = Math.floor(elapsedMs / (1000 * 60));
+    if (minutes < 15) return null;
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      return { label: `Chờ > ${hours}h`, minutes, isSevere: true };
+    }
+    return { label: `Chờ ${minutes}p`, minutes, isSevere: false };
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  const isSlashActive = inputText.startsWith('/');
+  const filteredSlashTemplates = useMemo(() => {
+    if (!isSlashActive) return [];
+    const keyword = inputText.slice(1).toLowerCase().trim();
+    if (!keyword) return QUICK_TEMPLATES;
+    return QUICK_TEMPLATES.filter(
+      (t) =>
+        t.code.toLowerCase().includes(keyword) ||
+        t.title.toLowerCase().includes(keyword) ||
+        t.content.toLowerCase().includes(keyword)
+    );
+  }, [inputText, isSlashActive]);
+
+  const handleSelectSlashTemplate = (content: string) => {
+    setInputText(content);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   };
 
@@ -461,6 +675,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const handleAddEmoji = (emoji: string) => {
     setInputText((prev) => prev + emoji);
+    setShowEmojiPicker(false);
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -475,8 +690,94 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const handleReactMessage = (id: string, emoji: string) => {
     setMessageReactions((prev) => ({
       ...prev,
-      [id]: prev[id] === emoji ? '' : emoji
+      [id]: prev[id] === emoji ? '' : emoji,
     }));
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (event.target?.result) {
+              setPendingImage(event.target.result as string);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setPendingImage(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleSend = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!activeThread) return;
+    const text = inputText.trim();
+    if (!text && !pendingImage) return;
+
+    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
+    const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
+    const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
+
+    // Handle Inline Attached Image
+    if (pendingImage) {
+      const imgToSend = pendingImage;
+      const contentToSend = text ? `${imgToSend}\n${text}` : imgToSend;
+
+      // 1. Optimistic Instant UI Send (0ms delay)
+      onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId);
+      if (soundEnabled) playPopSound();
+
+      // 2. Async background upload to server disk
+      if (imgToSend.startsWith('data:image/')) {
+        fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: imgToSend, folder: 'chat' })
+        }).catch(() => null);
+      }
+
+      setPendingImage(null);
+      setInputText('');
+      setShowTemplatePicker(false);
+      setShowEmojiPicker(false);
+      setShowAttachMenu(false);
+      return;
+    }
+
+    // Text Only Send
+    onSendMessage(targetId, text, 'WhatsApp', targetPhone, targetName, selectedPhoneId);
+    if (soundEnabled) playPopSound();
+    setInputText('');
+    setShowTemplatePicker(false);
+    setShowEmojiPicker(false);
+    setShowAttachMenu(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -529,6 +830,40 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             </div>
           </div>
 
+          {/* Inbox Routing Tabs (Tất cả / Của tôi / Chưa nhận) */}
+          <div className="p-1.5 bg-slate-200/80 border-b border-slate-200 grid grid-cols-3 gap-1 shrink-0">
+            <button
+              onClick={() => setInboxScope('all')}
+              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
+                inboxScope === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/70'
+              }`}
+            >
+              Tất cả ({threads.length})
+            </button>
+            <button
+              onClick={() => setInboxScope('mine')}
+              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
+                inboxScope === 'mine'
+                  ? 'bg-[#008069] text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/70'
+              }`}
+            >
+              Của tôi ({myThreadsCount})
+            </button>
+            <button
+              onClick={() => setInboxScope('unassigned')}
+              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
+                inboxScope === 'unassigned'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/70'
+              }`}
+            >
+              Chưa nhận ({unassignedThreadsCount})
+            </button>
+          </div>
+
           {/* Search Box */}
           <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200">
             <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-2xs transition">
@@ -537,7 +872,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm hoặc bắt đầu đoạn chat mới..."
+                placeholder="Tìm tên, số ĐT, nội dung chat..."
                 className="w-full bg-transparent text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
               />
               {searchQuery && (
@@ -588,6 +923,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                   : threadTime.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 
+                const slaWarning = getSlaWarning(thread);
+                const currentStatusKey = threadStatuses[thread.threadId] || 'consulting';
+                const currentStatus = STATUS_CONFIG[currentStatusKey];
+
                 return (
                   <div
                     key={thread.threadId}
@@ -622,14 +961,36 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         </span>
                       </div>
 
-                      {/* Phone & CRM Group Tag */}
-                      <div className="flex items-center space-x-1.5 mt-0.5">
+                      {/* Phone & Status / Group Tags */}
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-slate-500 truncate font-mono">
-                          {thread.customerPhone || 'WhatsApp'}
+                          {formatPhoneWithCountryCode(thread.customerPhone, thread.customer?.country) || thread.customerPhone || 'WhatsApp'}
                         </span>
+                        
+                        {/* Pipeline Status Tag */}
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}>
+                          {currentStatus.label}
+                        </span>
+
+                        {/* CRM Group Tag */}
                         {thread.customer && (
                           <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             {thread.customer.totalOrders >= 2 ? 'VIP' : (thread.customer.totalOrders === 1 ? '1 Đơn' : 'Mới')}
+                          </span>
+                        )}
+
+                        {/* SLA Waiting Warning */}
+                        {slaWarning && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold border flex items-center gap-0.5 ${
+                              slaWarning.isSevere
+                                ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                                : 'bg-amber-100 text-amber-800 border-amber-300'
+                            }`}
+                            title={`Khách đang chờ phản hồi (${slaWarning.minutes} phút)`}
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            <span>{slaWarning.label}</span>
                           </span>
                         )}
                       </div>
@@ -640,7 +1001,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           {isAgentLast && (
                             <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
                           )}
-                          <span className="truncate">{thread.lastMessage.content}</span>
+                          <span className="truncate">
+                            {(() => {
+                              const c = thread.lastMessage.content;
+                              if (c.startsWith('data:image/') || c.startsWith('/uploads/') || c.startsWith('/api/meta/media/') || c.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif|webp)/i)) {
+                                const parts = c.split('\n');
+                                const cap = parts.slice(1).join(' ');
+                                return cap ? `📷 ${cap}` : '📷 [Hình ảnh]';
+                              }
+                              if (c.toLowerCase().startsWith('[image') || c.toLowerCase().startsWith('[hình ảnh') || c.toLowerCase() === '[photo]') {
+                                return `📷 ${c.replace(/\[image message\]/gi, '[Hình ảnh]').replace(/\[image\]/gi, '[Hình ảnh]')}`;
+                              }
+                              return c;
+                            })()}
+                          </span>
                         </p>
 
                         <div className="flex items-center space-x-1 shrink-0">
@@ -699,7 +1073,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             <>
               {/* WhatsApp Active Chat Header */}
               <div className="p-3 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0 shadow-sm z-10">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 min-w-0">
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
                       <img
@@ -711,11 +1085,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
                   </div>
 
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h2 className="text-sm font-extrabold text-slate-900 leading-tight">
+                  <div className="min-w-0">
+                    <div className="flex items-center space-x-2 flex-wrap">
+                      <h2 className="text-sm font-extrabold text-slate-900 leading-tight truncate">
                         {activeThread.customerName}
                       </h2>
+                      
+                      {/* 24h Countdown Chip */}
                       {session24hInfo && (
                         <div
                           className={`text-[10px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 select-none shadow-2xs ${
@@ -747,17 +1123,54 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           <span>{session24hInfo.formattedTime}</span>
                         </div>
                       )}
+
+                      {/* Pipeline Status Selector Dropdown */}
+                      <div className="relative">
+                        <select
+                          value={threadStatuses[activeThread.threadId] || 'consulting'}
+                          onChange={(e) => handleUpdateThreadStatus(activeThread.threadId, e.target.value as ConversationStatus)}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border cursor-pointer appearance-none pr-5 focus:outline-none shadow-2xs ${
+                            STATUS_CONFIG[threadStatuses[activeThread.threadId] || 'consulting'].bg
+                          } ${STATUS_CONFIG[threadStatuses[activeThread.threadId] || 'consulting'].text} ${
+                            STATUS_CONFIG[threadStatuses[activeThread.threadId] || 'consulting'].border
+                          }`}
+                          title="Trạng thái tư vấn cuộc trò chuyện"
+                        >
+                          <option value="consulting">💬 Đang tư vấn</option>
+                          <option value="ordered">📦 Đã chốt đơn</option>
+                          <option value="callback">📞 Hẹn gọi lại</option>
+                          <option value="completed">✅ Hoàn thành</option>
+                        </select>
+                        <ChevronDown className="w-2.5 h-2.5 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500" />
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 flex items-center space-x-1.5">
-                      <span className="font-mono">{activeThread.customerPhone}</span>
-                      <span>•</span>
-                      <span>{activeCustomer?.owner || 'Sale Rep: Nguyễn Văn Ánh'}</span>
+
+                    <p className="text-xs text-slate-500 flex items-center space-x-1.5 truncate">
+                      <span className="font-mono">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</span>
                     </p>
                   </div>
                 </div>
 
                 {/* Right Action Icons in Header */}
-                <div className="flex items-center space-x-2 text-slate-600">
+                <div className="flex items-center space-x-2 text-slate-600 shrink-0">
+                  {/* Sound Mute/Unmute Toggle */}
+                  <button
+                    onClick={() => {
+                      const updated = !soundEnabled;
+                      setSoundEnabled(updated);
+                      localStorage.setItem('yumcrm_sound_enabled', String(updated));
+                      if (updated) playPopSound();
+                    }}
+                    className={`p-2 rounded-lg border transition cursor-pointer ${
+                      soundEnabled
+                        ? 'bg-white text-[#008069] border-slate-300 hover:bg-slate-50 shadow-2xs'
+                        : 'bg-slate-100 text-slate-400 border-slate-200'
+                    }`}
+                    title={soundEnabled ? 'Âm thanh thông báo: Bật' : 'Âm thanh thông báo: Tắt'}
+                  >
+                    {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </button>
+
                   <button
                     onClick={() => setIsChatSearchOpen(!isChatSearchOpen)}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
@@ -847,64 +1260,180 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       return (
                         <div
                           key={msg.id}
-                          className={`flex items-start gap-2 group ${isAgent ? 'flex-row-reverse' : 'flex-row'} ${isFirstOfTurn ? 'mt-3' : 'mt-1'}`}
+                          className={`flex flex-col group ${isAgent ? 'items-end' : 'items-start'} ${isFirstOfTurn ? 'mt-2.5' : 'mt-0.5'}`}
                         >
-                          {/* Message Sender Avatar (Only displayed on the first message of a sender turn) */}
-                          {isFirstOfTurn ? (
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden shrink-0 shadow-2xs border border-slate-200/90 bg-white mt-0.5">
-                              {isAgent ? (
-                                currentUser?.avatar ? (
-                                  <img src={currentUser.avatar} alt={senderName} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full bg-[#008069] text-white flex items-center justify-center font-bold text-xs">
-                                    {senderName.charAt(0) || 'A'}
-                                  </div>
-                                )
-                              ) : (
-                                <img
-                                  src={
-                                    activeCustomer?.avatar ||
-                                    `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(
-                                      msg.customerPhone || msg.customerName || activeThread.customerPhone || 'customer'
-                                    )}`
-                                  }
-                                  alt={senderName}
-                                  className="w-full h-full object-cover"
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 pointer-events-none" />
-                          )}
-
-                          {/* Message Bubble */}
-                          <div className={`relative max-w-[80%] sm:max-w-[70%] ${isAgent ? 'whatsapp-bubble-out' : 'whatsapp-bubble-in'} px-3.5 py-2 text-xs space-y-1`}>
-                            
-                            {/* Sender Header (Only show on first message of turn) */}
+                          {/* Authentic WhatsApp Message Bubble */}
+                          <div
+                            className={`relative max-w-[85%] sm:max-w-[65%] px-3 pt-1.5 pb-1.5 text-xs select-text ${
+                              isAgent
+                                ? `whatsapp-bubble-out ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tr-none' : 'rounded-[7.5px]'}`
+                                : `whatsapp-bubble-in ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tl-none' : 'rounded-[7.5px]'}`
+                            }`}
+                          >
+                            {/* SVG Tail for First Message in Cluster */}
                             {isFirstOfTurn && (
-                              <div className="flex items-center justify-between gap-3 text-[10px] pb-0.5 font-bold">
-                                <span className={isAgent ? 'text-[#008069]' : 'text-indigo-600'}>
-                                  {senderName}
-                                </span>
-                              </div>
+                              isAgent ? (
+                                <svg viewBox="0 0 8 13" height="13" width="8" className="absolute top-0 -right-2 text-[#d9fdd3] fill-current pointer-events-none drop-shadow-xs">
+                                  <path d="M2.812 0H8v11.193l-6.467-8.625C0.474 1.156 1.042 0 2.812 0z" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 8 13" height="13" width="8" className="absolute top-0 -left-2 text-white fill-current pointer-events-none drop-shadow-xs">
+                                  <path d="M5.188 0H0v11.193l6.467-8.625C7.526 1.156 6.958 0 5.188 0z" />
+                                </svg>
+                              )
                             )}
 
-                            {/* Message Body Content */}
-                            <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-slate-900 break-words font-normal">
-                              {msg.content}
-                            </p>
+                            {/* Message Body Content with Inline Timestamp */}
+                            {(() => {
+                              const content = msg.content;
+                              const imgInfo = extractImageInfo(content);
 
-                            {/* Time & Double Check status inside bubble */}
-                            <div className="flex items-center justify-end space-x-1 text-[10px] text-slate-500 pt-0.5 select-none">
-                              <span>{timeFormatted}</span>
-                              {isAgent && (
-                                <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
-                              )}
-                            </div>
+                              // 1. Image Message (Uploaded file, Base64, Link, Meta Cloud Media or Incoming Webhook)
+                              if (imgInfo.isImage && imgInfo.imgUrl) {
+                                return (
+                                  <div className="space-y-1">
+                                    <div
+                                      onClick={() => setPreviewLightboxImg(imgInfo.imgUrl)}
+                                      className="relative rounded-lg overflow-hidden cursor-pointer group border border-slate-200 shadow-2xs max-w-sm max-h-72 bg-slate-900/5 min-h-[120px] flex items-center justify-center"
+                                    >
+                                      <img
+                                        src={imgInfo.imgUrl}
+                                        alt="Hình ảnh"
+                                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                                        loading="eager"
+                                      />
+                                      <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                        <Eye className="w-6 h-6 drop-shadow" />
+                                      </div>
+                                    </div>
+                                    {imgInfo.caption && (
+                                      <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal pt-1">
+                                        <span>{imgInfo.caption}</span>
+                                        <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {!imgInfo.caption && (
+                                      <div className="flex justify-end pt-0.5">
+                                        <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
 
-                            {/* Active Reaction Badge */}
+                              // 2. Incoming image placeholder or tag without direct URL like `[image]`, `[image message]`, `[Hình ảnh]`
+                              if (
+                                content.toLowerCase().startsWith('[image') ||
+                                content.toLowerCase().startsWith('[hình ảnh') ||
+                                content.toLowerCase() === '[image message]' ||
+                                content.toLowerCase() === '[photo]'
+                              ) {
+                                const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/[\[\]]/g, '').trim();
+                                return (
+                                  <div className="space-y-1.5 min-w-[220px]">
+                                    <div className="p-3 bg-slate-100/90 rounded-lg border border-slate-200 flex items-center gap-2.5">
+                                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
+                                        <ImageIcon className="w-5 h-5" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-slate-800 truncate">Hình ảnh WhatsApp</p>
+                                        <p className="text-[10px] text-slate-500">Đang đồng bộ từ Meta Cloud...</p>
+                                      </div>
+                                    </div>
+                                    {caption && (
+                                      <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#111b21] font-normal pt-0.5">
+                                        <span>{caption}</span>
+                                        <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {!caption && (
+                                      <div className="flex justify-end pt-0.5">
+                                        <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              // Special Interactive Card Templates (Orders, Quotations, Vouchers, Instructions)
+                              if (
+                                content.startsWith('📄 BÁO GIÁ') ||
+                                content.startsWith('📦 ĐƠN HÀNG') ||
+                                content.startsWith('🏷️ MÃ GIẢM GIÁ') ||
+                                content.startsWith('🔥 SIÊU ƯU ĐÃI') ||
+                                content.startsWith('💳 THÔNG TIN THANH TOÁN') ||
+                                content.startsWith('🚚 CHÍNH SÁCH VẬN CHUYỂN') ||
+                                content.startsWith('📋 HƯỚNG DẪN')
+                              ) {
+                                const lines = content.split('\n');
+                                const headerTitle = lines[0];
+                                const bodyLines = lines.slice(1).join('\n');
+                                const isQuote = headerTitle.includes('BÁO GIÁ');
+                                const isOrder = headerTitle.includes('ĐƠN HÀNG');
+                                const isVoucher = headerTitle.includes('MÃ GIẢM GIÁ') || headerTitle.includes('ƯU ĐÃI');
+
+                                return (
+                                  <div className="space-y-1.5">
+                                    <div className={`p-2 rounded-lg font-bold text-xs flex items-center justify-between border ${
+                                      isOrder ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300' :
+                                      isQuote ? 'bg-blue-100/80 text-blue-900 border-blue-300' :
+                                      isVoucher ? 'bg-purple-100/80 text-purple-900 border-purple-300' :
+                                      'bg-amber-100/80 text-amber-900 border-amber-300'
+                                    }`}>
+                                      <span className="truncate">{headerTitle}</span>
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/90 font-mono shadow-2xs font-extrabold shrink-0">
+                                        Yum Card
+                                      </span>
+                                    </div>
+                                    <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] font-normal pl-0.5">
+                                      <span>{bodyLines}</span>
+                                      <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                        <span>{timeFormatted}</span>
+                                        {isAgent && (
+                                          <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal">
+                                  <span>{content}</span>
+                                  <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                    <span>{timeFormatted}</span>
+                                    {isAgent && (
+                                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0 inline-block" />
+                                    )}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Active Reaction Badge (Positioned overlapping bottom edge) */}
                             {reaction && (
-                              <span className="absolute -bottom-2 right-2 bg-white px-1.5 py-0.5 rounded-full text-xs shadow border border-slate-200">
+                              <span className="absolute -bottom-2.5 right-2 bg-white px-1.5 py-0.5 rounded-full text-xs shadow border border-[#e9edef] z-10 select-none">
                                 {reaction}
                               </span>
                             )}
@@ -963,6 +1492,33 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 <div ref={chatEndRef} />
               </div>
 
+              {/* Floating Slash Commands Autocomplete Popup */}
+              {isSlashActive && filteredSlashTemplates.length > 0 && (
+                <div className="absolute bottom-16 left-16 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-80 max-h-64 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
+                  <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Gợi ý câu trả lời nhanh ({filteredSlashTemplates.length})</span>
+                    <span>Phím tắt /</span>
+                  </div>
+                  {filteredSlashTemplates.map((tmpl) => (
+                    <div
+                      key={tmpl.code}
+                      onClick={() => handleSelectSlashTemplate(tmpl.content)}
+                      className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#008069] group-hover:underline">
+                          {tmpl.title}
+                        </span>
+                        <span className="text-[10px] font-mono bg-emerald-100 text-[#008069] px-1.5 py-0.5 rounded font-bold">
+                          {tmpl.code}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Popups: Emoji Picker, Quick Templates, Attach Menu */}
               {showEmojiPicker && (
                 <div className="absolute bottom-16 left-4 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-30 animate-fadeIn grid grid-cols-7 gap-2">
@@ -1010,7 +1566,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               )}
 
               {showAttachMenu && (
-                <div className="absolute bottom-16 left-8 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-52 animate-fadeIn space-y-1">
+                <div className="absolute bottom-16 left-8 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-56 animate-fadeIn space-y-1">
+                  <button
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.click();
+                      setShowAttachMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-50 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                      <ImageIcon className="w-4 h-4" />
+                    </div>
+                    <span>Gửi Hình Ảnh / Bill</span>
+                  </button>
+
                   <button
                     onClick={() => {
                       if (activeCustomer) onOpenAddOrder(activeCustomer);
@@ -1023,9 +1592,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     </div>
                     <span>Tạo Đơn Hàng Mới</span>
                   </button>
+
                   <button
                     onClick={() => {
-                      handleApplyTemplate('Dạ em gửi anh/chị thông tin tài khoản và xác nhận đơn hàng ạ: ...');
+                      handleApplyTemplate('📄 BÁO GIÁ SẢN PHẨM:\n- Combo 2 Hộp Thảo Mộc: 700.000đ\n- Quà tặng: 1 Bình Giữ Nhiệt Cao Cấp\n- Miễn phí vận chuyển tận nhà (COD).');
                       setShowAttachMenu(false);
                     }}
                     className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
@@ -1033,78 +1603,115 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
                       <FileText className="w-4 h-4" />
                     </div>
-                    <span>Gửi Báo Giá / Bill</span>
+                    <span>Gửi Báo Giá Mẫu</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Hidden File Input for Media Upload */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+
+              {/* Attached Pending Image Thumbnail Strip (Inline inside input bar) */}
+              {pendingImage && (
+                <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center gap-3 shrink-0 animate-fadeIn">
+                  <div className="relative group rounded-xl overflow-hidden border-2 border-[#00a884] bg-white shadow-xs w-14 h-14 shrink-0">
+                    <img src={pendingImage} alt="attached thumbnail" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPendingImage(null)}
+                      className="absolute top-0.5 right-0.5 bg-black/75 hover:bg-rose-600 text-white rounded-full p-0.5 shadow transition cursor-pointer"
+                      title="Xóa ảnh"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-[#008069] border border-emerald-200">
+                      Ảnh đính kèm
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingImage(null)}
+                    className="text-xs font-semibold text-slate-400 hover:text-rose-600 px-2 py-1 rounded hover:bg-slate-200/50 transition cursor-pointer"
+                  >
+                    Xóa
                   </button>
                 </div>
               )}
 
               {/* WhatsApp Authentic Input Bar */}
-              <div className="p-3 bg-[#f0f2f5] border-t border-slate-300 shrink-0 flex items-center space-x-2 z-10">
+              <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
                 {/* Emoji Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`p-2 rounded-xl border transition cursor-pointer ${
-                    showEmojiPicker
-                      ? 'bg-emerald-100 text-[#008069] border-emerald-300 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
-                  }`}
+                  className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
                   title="Emoji"
                 >
-                  <Smile className="w-4 h-4" />
+                  <Smile className="w-5 h-5" />
                 </button>
 
                 {/* Attachment Menu Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowAttachMenu(!showAttachMenu)}
-                  className={`p-2 rounded-xl border transition cursor-pointer ${
-                    showAttachMenu
-                      ? 'bg-emerald-100 text-[#008069] border-emerald-300 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
-                  }`}
-                  title="Đính kèm tài liệu, đơn hàng"
+                  className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
+                  title="Đính kèm hình ảnh, đơn hàng"
                 >
-                  <Paperclip className="w-4 h-4" />
+                  <Paperclip className="w-5 h-5" />
                 </button>
 
                 {/* Quick Canned Template Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                  className={`p-2 rounded-xl border transition cursor-pointer ${
-                    showTemplatePicker
-                      ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
-                      : 'bg-white text-amber-600 border-slate-300 hover:bg-amber-50 shadow-2xs'
-                  }`}
+                  className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/60 rounded-full transition cursor-pointer"
                   title="Mẫu tin nhắn nhanh (/)"
                 >
-                  <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
                 </button>
 
-                {/* Textarea Input */}
-                <div className="flex-1 bg-white rounded-xl border border-slate-300 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] px-3.5 py-1.5 transition">
+                {/* Textarea Input with Clipboard Paste support */}
+                <div className="flex-1 bg-white rounded-lg px-3.5 py-2 transition shadow-2xs">
                   <textarea
                     ref={textareaRef}
                     rows={1}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Nhập tin nhắn WhatsApp (Nhấn Enter để gửi, Shift+Enter xuống dòng)..."
-                    className="w-full bg-transparent text-xs text-slate-900 focus:outline-none resize-none placeholder-slate-400 max-h-24 leading-5"
+                    onPaste={handlePaste}
+                    placeholder={pendingImage ? "Nhập chú thích cho ảnh (Tùy chọn)..." : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."}
+                    className="w-full bg-transparent text-[14px] text-[#111b21] focus:outline-none resize-none placeholder-[#8696a0] max-h-24 leading-5"
                   />
                 </div>
 
-                {/* Send Button */}
-                <button
-                  type="button"
-                  onClick={() => handleSend()}
-                  disabled={!inputText.trim()}
-                  className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#008069] disabled:opacity-50 text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
-                  title="Gửi tin nhắn"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+                {/* Mic vs Send Button */}
+                {inputText.trim() || pendingImage ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSend()}
+                    className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#008069] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
+                    title="Gửi tin nhắn (Enter)"
+                  >
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTemplate('Dạ em gửi lời chào đến anh/chị ạ!')}
+                    className="w-10 h-10 rounded-full text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 flex items-center justify-center transition cursor-pointer shrink-0"
+                    title="Ghi âm thoại (Mic)"
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -1124,7 +1731,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             COLUMN 3: COLLAPSIBLE CRM CUSTOMER PROFILE & QUICK ORDER DRAWER
            ======================================================== */}
         {isDrawerOpen && activeThread && (
-          <div className="w-full lg:w-[320px] xl:w-[360px] bg-white border-l border-slate-300 flex flex-col h-full overflow-y-auto whatsapp-scrollbar select-none shrink-0">
+          <div className="w-full lg:w-[320px] xl:w-[360px] bg-white border-l border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0">
             
             {/* Drawer Header */}
             <div className="p-3.5 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0">
@@ -1141,136 +1748,257 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </button>
             </div>
 
-            <div className="p-4 space-y-4 text-xs">
+            {/* Tab Switcher: Overview vs Internal Notes */}
+            <div className="p-1.5 bg-slate-100 border-b border-slate-200 grid grid-cols-2 gap-1 shrink-0">
+              <button
+                onClick={() => setDrawerTab('overview')}
+                className={`py-1 px-2 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
+                  drawerTab === 'overview'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                👤 Tổng Quan
+              </button>
+              <button
+                onClick={() => setDrawerTab('notes')}
+                className={`py-1 px-2 rounded-md text-[11px] font-bold text-center transition cursor-pointer flex items-center justify-center gap-1 ${
+                  drawerTab === 'notes'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Edit3 className="w-3 h-3 text-amber-600" />
+                <span>Ghi Chú ({internalNotes[activeCustomer?.id || activeThread.threadId]?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs whatsapp-scrollbar">
               
-              {/* Profile Card */}
-              <div className="text-center pb-3 border-b border-slate-200">
-                <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
-                  <img
-                    src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <h4 className="text-sm font-extrabold text-slate-900">{activeThread.customerName}</h4>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">{activeThread.customerPhone}</p>
-                
-                {/* Group Badge */}
-                <div className="mt-2 inline-block">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${groupInfo.badgeColor}`}>
-                    {groupInfo.name}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons: Chốt Đơn & Xem Profile */}
-              <div className="space-y-2">
-                {activeCustomer ? (
-                  <>
-                    <button
-                      onClick={() => onOpenAddOrder(activeCustomer)}
-                      className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                      <span>+ Lên Đơn Hàng Mới</span>
-                    </button>
-
-                    <button
-                      onClick={() => onSelectCustomerDetail(activeCustomer)}
-                      className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-indigo-200 hover:border-indigo-300 shadow-2xs"
-                    >
-                      <span>Xem Hồ Sơ Chi Tiết</span>
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                  </>
-                ) : (
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
-                    Khách hàng này đến từ tin nhắn Webhook mới và chưa tạo hồ sơ khách hàng đầy đủ trong CRM.
-                  </div>
-                )}
-              </div>
-
-              {/* Financial Summary */}
-              {activeCustomer && (
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Tổng số đơn:</span>
-                    <strong className="text-slate-900 font-extrabold">{activeCustomer.totalOrders} đơn</strong>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Tổng chi tiêu:</span>
-                    <strong className="text-emerald-700 font-extrabold">{formatVND(activeCustomer.totalSpent)}</strong>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Thị trường:</span>
-                    <span className="font-semibold text-slate-800">Malaysia (MY)</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Sale phụ trách:</span>
-                    <span className="font-semibold text-slate-800">{activeCustomer.owner || 'Chưa phân công'}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Automation Sequence Progress */}
-              {activeCustomer?.automationSequence && (
-                <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                      Tiến Trình Chăm Sóc (+3, +5, +7, +15)
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-700">
-                      Bước {activeCustomer.automationSequence.currentStep}/4
-                    </span>
+              {drawerTab === 'overview' ? (
+                <>
+                  {/* Profile Card */}
+                  <div className="text-center pb-3 border-b border-slate-200">
+                    <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
+                      <img
+                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
+                        alt="avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <h4 className="text-sm font-extrabold text-slate-900">{activeThread.customerName}</h4>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</p>
+                    
+                    {/* Group Badge */}
+                    <div className="mt-2 inline-block">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${groupInfo.badgeColor}`}>
+                        {groupInfo.name}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1 pt-1">
-                    {['+3', '+5', '+7', '+15'].map((step, idx) => {
-                      const isDone = (activeCustomer.automationSequence?.currentStep || 0) > idx;
-                      const isCurrent = (activeCustomer.automationSequence?.currentStep || 0) === idx + 1;
-
-                      return (
-                        <div
-                          key={step}
-                          className={`p-1.5 rounded-lg text-center font-bold text-[10px] border ${
-                            isDone
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : isCurrent
-                              ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                              : 'bg-white text-slate-400 border-slate-200'
-                          }`}
+                  {/* Action Buttons: Chốt Đơn & Xem Profile */}
+                  <div className="space-y-2">
+                    {activeCustomer ? (
+                      <>
+                        <button
+                          onClick={() => onOpenAddOrder(activeCustomer)}
+                          className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
                         >
-                          Ngày {step}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                          <ShoppingBag className="w-4 h-4" />
+                          <span>+ Lên Đơn Hàng Mới</span>
+                        </button>
 
-              {/* Recent Orders List */}
-              {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between font-bold text-slate-800 text-[11px]">
-                    <span>Đơn hàng gần đây ({activeCustomer.orders.length})</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {activeCustomer.orders.slice(0, 3).map((ord) => (
-                      <div key={ord.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5">
-                        <div className="flex items-center justify-between font-bold text-slate-900">
-                          <span>{ord.orderCode}</span>
-                          <span className="text-emerald-700">{formatVND(ord.totalAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>{new Date(ord.date).toLocaleDateString('vi-VN')}</span>
-                          <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                            {ord.status}
-                          </span>
-                        </div>
+                        <button
+                          onClick={() => onSelectCustomerDetail(activeCustomer)}
+                          className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-indigo-200 hover:border-indigo-300 shadow-2xs"
+                        >
+                          <span>Xem Hồ Sơ Chi Tiết</span>
+                          <ArrowUpRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
+                        Khách hàng này đến từ tin nhắn Webhook mới và chưa tạo hồ sơ khách hàng đầy đủ trong CRM.
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  {/* Financial Summary */}
+                  {activeCustomer && (
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Tổng số đơn:</span>
+                        <strong className="text-slate-900 font-extrabold">{activeCustomer.totalOrders} đơn</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Tổng chi tiêu:</span>
+                        <strong className="text-emerald-700 font-extrabold">{formatVND(activeCustomer.totalSpent)}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Thị trường:</span>
+                        <span className="font-semibold text-slate-800">Malaysia (MY)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Sale phụ trách:</span>
+                        <span className="font-semibold text-slate-800">{activeCustomer.owner || 'Chưa phân công'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Customer Journey Timeline */}
+                  <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
+                    <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#008069]" />
+                      <span>Hành Trình Khách Hàng (Timeline)</span>
+                    </span>
+
+                    <div className="space-y-2 pl-2 border-l-2 border-slate-300 ml-1.5 pt-1">
+                      <div className="relative pl-3 text-[11px]">
+                        <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+                        <p className="font-bold text-slate-900">Đang trò chuyện trực tiếp</p>
+                        <p className="text-[10px] text-slate-500">Phiên chat WhatsApp Webhook</p>
+                      </div>
+
+                      {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
+                        <div className="relative pl-3 text-[11px]">
+                          <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white"></span>
+                          <p className="font-bold text-slate-900">Đã mua {activeCustomer.orders.length} đơn hàng</p>
+                          <p className="text-[10px] text-slate-500">Đơn gần nhất: {activeCustomer.orders[0].orderCode}</p>
+                        </div>
+                      )}
+
+                      <div className="relative pl-3 text-[11px]">
+                        <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white"></span>
+                        <p className="font-bold text-slate-900">Đăng ký & Đồng thuận Opt-In</p>
+                        <p className="text-[10px] text-slate-500">Yum Network WABA Channel</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Automation Sequence Progress */}
+                  {activeCustomer?.automationSequence && (
+                    <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          Tiến Trình Chăm Sóc (+3, +5, +7, +15)
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          Bước {activeCustomer.automationSequence.currentStep}/4
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1 pt-1">
+                        {['+3', '+5', '+7', '+15'].map((step, idx) => {
+                          const isDone = (activeCustomer.automationSequence?.currentStep || 0) > idx;
+                          const isCurrent = (activeCustomer.automationSequence?.currentStep || 0) === idx + 1;
+
+                          return (
+                            <div
+                              key={step}
+                              className={`p-1.5 rounded-lg text-center font-bold text-[10px] border ${
+                                isDone
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : isCurrent
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
+                                  : 'bg-white text-slate-400 border-slate-200'
+                              }`}
+                            >
+                              Ngày {step}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Orders List */}
+                  {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between font-bold text-slate-800 text-[11px]">
+                        <span>Đơn hàng gần đây ({activeCustomer.orders.length})</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {activeCustomer.orders.slice(0, 3).map((ord) => (
+                          <div key={ord.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5">
+                            <div className="flex items-center justify-between font-bold text-slate-900">
+                              <span>{ord.orderCode}</span>
+                              <span className="text-emerald-700">{formatVND(ord.totalAmount)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500">
+                              <span>{new Date(ord.date).toLocaleDateString('vi-VN')}</span>
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
+                                {ord.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Internal Notes Tab */
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-800 flex items-start gap-1.5">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>Ghi chú nội bộ chỉ hiển thị cho nhân viên Yum CRM, khách hàng không thể nhìn thấy.</span>
+                  </div>
+
+                  {/* Add Note Form */}
+                  <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <textarea
+                      rows={2}
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      placeholder="Thêm ghi chú cho khách hàng này (vd: Khách thích nhận hàng chiều, đã giảm giá 10%)..."
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#008069]"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleAddInternalNote(activeCustomer?.id || activeThread.threadId)}
+                        disabled={!newNoteText.trim()}
+                        className="px-3 py-1.5 bg-[#008069] hover:bg-[#006a57] disabled:opacity-50 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Lưu Ghi Chú</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Notes List */}
+                  <div className="space-y-2">
+                    {(() => {
+                      const notes = internalNotes[activeCustomer?.id || activeThread.threadId] || [];
+                      if (notes.length === 0) {
+                        return (
+                          <div className="p-6 text-center text-slate-400 text-xs">
+                            Chưa có ghi chú nội bộ nào cho khách hàng này.
+                          </div>
+                        );
+                      }
+
+                      return notes.map((note) => (
+                        <div key={note.id} className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative group">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="font-bold text-slate-800">{note.author}</span>
+                            <span>{new Date(note.timestamp).toLocaleDateString('vi-VN')} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
+
+                          <button
+                            onClick={() => handleDeleteInternalNote(activeCustomer?.id || activeThread.threadId, note.id)}
+                            className="absolute top-2 right-2 hidden group-hover:block text-slate-400 hover:text-rose-600 transition"
+                            title="Xóa ghi chú"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -1280,6 +2008,29 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         )}
 
       </div>
+
+      {/* Fullscreen Lightbox Image Viewer */}
+      {previewLightboxImg && (
+        <div
+          onClick={() => setPreviewLightboxImg(null)}
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn cursor-zoom-out"
+        >
+          <button
+            onClick={() => setPreviewLightboxImg(null)}
+            className="absolute top-4 right-4 p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition cursor-pointer"
+            title="Đóng"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={previewLightboxImg}
+            alt="fullscreen"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
     </div>
   );
 };

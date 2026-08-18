@@ -187,3 +187,51 @@ export function isSamePhoneNumber(phone1?: string | null, phone2?: string | null
   return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
 }
 
+/**
+ * Formats a phone number into international +country_code format (e.g. +84908123456)
+ */
+export function formatPhoneWithCountryCode(phone?: string | null, country?: string | null): string {
+  if (!phone) return '';
+  let raw = phone.trim();
+  if (raw.startsWith('cust_')) {
+    raw = raw.replace('cust_', '');
+  }
+  if (!raw) return '';
+
+  // If already starts with '+', keep '+' and strip non-digits
+  if (raw.startsWith('+')) {
+    const digitsOnly = raw.slice(1).replace(/\D/g, '');
+    return digitsOnly ? `+${digitsOnly}` : '';
+  }
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+
+  // If already has 84 country code (Vietnam)
+  if (digits.startsWith('84') && digits.length >= 10) {
+    return `+${digits}`;
+  }
+
+  // If already has 60 country code (Malaysia)
+  if (digits.startsWith('60') && digits.length >= 9) {
+    return `+${digits}`;
+  }
+
+  // If starts with 0
+  if (digits.startsWith('0')) {
+    if (country && (country.toLowerCase().includes('malaysia') || country.toLowerCase() === 'my')) {
+      return `+60${digits.slice(1)}`;
+    }
+    return `+84${digits.slice(1)}`;
+  }
+
+  // If 9 digits (standard VN number without leading 0)
+  if (digits.length === 9) {
+    return `+84${digits}`;
+  }
+
+  // Default fallback: prepend +
+  return `+${digits}`;
+}
+
+

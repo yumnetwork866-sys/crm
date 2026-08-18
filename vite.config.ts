@@ -21,6 +21,18 @@ export default defineConfig(({ mode }) => {
           target: `http://localhost:${backendPort}`,
           changeOrigin: true,
         },
+        '/uploads': {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
+        '/webhook': {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
+        '/webhooks': {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

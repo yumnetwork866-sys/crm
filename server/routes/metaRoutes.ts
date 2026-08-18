@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 const prisma: any = new PrismaClient();
@@ -558,6 +560,37 @@ router.delete('/messages/item/:messageId', async (req: Request, res: Response) =
   return res.json({ success: true, message: `Đã xóa tin nhắn ${messageId}` });
 });
 
+// Helper to upload media directly to Meta Graph API for real WhatsApp image dispatch
+async function uploadMediaToMeta(phoneId: string, token: string, buffer: Buffer, mimeType: string, filename: string): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    const blob = new Blob([buffer], { type: mimeType });
+    formData.append('file', blob, filename);
+    formData.append('messaging_product', 'whatsapp');
+    formData.append('type', mimeType);
+
+    const res = await fetch(`https://graph.facebook.com/v22.0/${phoneId}/media`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    const data: any = await res.json().catch(() => ({}));
+    if (res.ok && data?.id) {
+      console.log(`✅ [META DIRECT MEDIA UPLOAD] Uploaded image to Meta Cloud CDN, Media ID: ${data.id}`);
+      return data.id;
+    } else {
+      console.warn('❌ [META DIRECT MEDIA UPLOAD FAILED]', data);
+      return null;
+    }
+  } catch (err) {
+    console.error('❌ [META DIRECT MEDIA UPLOAD ERROR]', err);
+    return null;
+  }
+}
+
 // Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
 router.post('/messages/send', async (req: Request, res: Response) => {
   try {
@@ -623,13 +656,123 @@ router.post('/messages/send', async (req: Request, res: Response) => {
     if (phoneId && token && cleanPhone) {
       try {
         const metaApiUrl = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
-        const payload = {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: cleanPhone,
-          type: 'text',
-          text: { body: content }
+        let payload: any;
+
+        // Meta WhatsApp Cloud API strictly only supports: image/jpeg, image/png, image/webp (Rejects SVG, GIF, etc.)
+        const isSupportedMetaImage = (url: string) => {
+          if (!url) return false;
+          if (url.includes('.svg') || url.includes('/svg') || url.includes('image/svg')) return false;
+          return Boolean(url.match(/\.(png|jpg|jpeg|webp)(\?.*)?$/i));
         };
+
+        if (content.startsWith('http://') || content.startsWith('https://')) {
+          const parts = content.split('\n');
+          const imgUrl = parts[0];
+          const caption = parts.slice(1).join('\n').trim();
+          if (isSupportedMetaImage(imgUrl)) {
+            payload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'image',
+              image: { link: imgUrl, ...(caption ? { caption } : {}) }
+            };
+          } else {
+            payload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'text',
+              text: { body: caption ? `${imgUrl}\n${caption}` : imgUrl }
+            };
+          }
+        } else if (content.startsWith('data:image/')) {
+          const parts = content.split('\n');
+          const dataUrl = parts[0];
+          const caption = parts.slice(1).join('\n').trim();
+
+          // Direct Binary Upload to Meta Cloud API
+          const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          let uploadedMediaId: string | null = null;
+          if (matches && matches.length === 3) {
+            const rawMime = matches[1];
+            const mimeType = rawMime.includes('png') ? 'image/png' : (rawMime.includes('webp') ? 'image/webp' : 'image/jpeg');
+            const buffer = Buffer.from(matches[2], 'base64');
+            uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, `image_${Date.now()}.${mimeType.split('/')[1]}`);
+          }
+
+          if (uploadedMediaId) {
+            payload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'image',
+              image: { id: uploadedMediaId, ...(caption ? { caption } : {}) }
+            };
+          } else {
+            payload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'text',
+              text: { body: caption ? `[Hình ảnh] ${caption}` : '📷 [Hình ảnh gửi từ CRM]' }
+            };
+          }
+        } else if (content.startsWith('/uploads/')) {
+          const parts = content.split('\n');
+          const imgPath = parts[0];
+          const caption = parts.slice(1).join('\n').trim();
+          const localFilePath = path.resolve(process.cwd(), 'public', imgPath.replace(/^\//, ''));
+
+          let uploadedMediaId: string | null = null;
+          if (fs.existsSync(localFilePath)) {
+            try {
+              const buffer = await fs.promises.readFile(localFilePath);
+              const ext = path.extname(localFilePath).toLowerCase();
+              const mimeType = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : 'image/jpeg');
+              uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, path.basename(localFilePath));
+            } catch (readErr) {
+              console.warn('Could not read file from disk for Meta upload:', readErr);
+            }
+          }
+
+          if (uploadedMediaId) {
+            payload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'image',
+              image: { id: uploadedMediaId, ...(caption ? { caption } : {}) }
+            };
+          } else {
+            const appUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+            if (appUrl && isSupportedMetaImage(imgPath)) {
+              payload = {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: cleanPhone,
+                type: 'image',
+                image: { link: `${appUrl}${imgPath}`, ...(caption ? { caption } : {}) }
+              };
+            } else {
+              payload = {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: cleanPhone,
+                type: 'text',
+                text: { body: caption ? `[Hình ảnh] ${caption}` : '📷 [Hình ảnh gửi từ CRM]' }
+              };
+            }
+          }
+        } else {
+          payload = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanPhone,
+            type: 'text',
+            text: { body: content }
+          };
+        }
 
         const apiRes = await fetch(metaApiUrl, {
           method: 'POST',
@@ -769,7 +912,31 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
       const contactData = valueObj?.contacts?.find((c: any) => c.wa_id === msgData.from) || valueObj?.contacts?.[0];
       const fromPhone = msgData.from || 'Khách Hàng';
       const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
-      const textBody = msgData.text?.body || (msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp');
+      let textBody = msgData.text?.body;
+      if (!textBody) {
+        if (msgData.type === 'image') {
+          const mediaId = msgData.image?.id;
+          const caption = msgData.image?.caption || '';
+          if (mediaId) {
+            textBody = `/api/meta/media/${mediaId}${caption ? `\n${caption}` : ''}`;
+          } else {
+            textBody = caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
+          }
+        } else if (msgData.type === 'sticker') {
+          textBody = '[Sticker WhatsApp]';
+        } else if (msgData.type === 'document') {
+          textBody = `[Tài liệu] ${msgData.document?.filename || 'Tập tin đính kèm'}`;
+        } else if (msgData.type === 'audio') {
+          textBody = '[Tin nhắn thoại (Audio)]';
+        } else if (msgData.type === 'video') {
+          textBody = '[Video]';
+        } else if (msgData.type === 'location') {
+          textBody = `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();
+        } else {
+          textBody = msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp';
+        }
+      }
+
       const cleanFrom = fromPhone.replace(/\D/g, '');
 
       // Try to match incoming phone to an existing CRM customer
@@ -858,6 +1025,88 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
   }
 
   return res.status(200).send('EVENT_RECEIVED');
+});
+
+// Endpoint: Proxy Meta Media (Images, Audio, Documents) from Meta Cloud API
+router.get('/media/:mediaId', async (req: Request, res: Response) => {
+  const { mediaId } = req.params;
+  try {
+    // 1. Check if already cached on server disk
+    const chatDir = path.resolve(process.cwd(), 'public/uploads/chat');
+    if (!fs.existsSync(chatDir)) {
+      fs.mkdirSync(chatDir, { recursive: true });
+    }
+
+    const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg'];
+    for (const ext of potentialExtensions) {
+      const cachedPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
+      if (fs.existsSync(cachedPath)) {
+        const mimeType = ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg');
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        const fileStream = fs.createReadStream(cachedPath);
+        return fileStream.pipe(res);
+      }
+    }
+
+    // 2. Retrieve dynamic Meta token
+    const setting = await getIntegrationSetting();
+    const token = setting.whatsappAccessToken?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim() || process.env.META_ACCESS_TOKEN?.trim() || '';
+
+    if (!token) {
+      console.warn('❌ [META MEDIA PROXY] Missing Meta Access Token in config and .env');
+      return res.status(400).json({ error: 'Meta Access Token not configured' });
+    }
+
+    // 3. Step 1: Query Graph API for media download URL
+    const metaMediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!metaMediaRes.ok) {
+      const errText = await metaMediaRes.text().catch(() => '');
+      console.warn(`❌ [META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
+      return res.status(metaMediaRes.status).json({ error: 'Failed to fetch media metadata from Meta' });
+    }
+
+    const metaMediaData: any = await metaMediaRes.json();
+    const downloadUrl = metaMediaData?.url;
+
+    if (!downloadUrl) {
+      return res.status(404).json({ error: 'Media URL not found in Meta response' });
+    }
+
+    // 4. Step 2: Download binary stream from Meta CDN
+    const binaryRes = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!binaryRes.ok) {
+      console.warn(`❌ [META MEDIA PROXY DOWNLOAD FAILED] downloadUrl status: ${binaryRes.status}`);
+      return res.status(binaryRes.status).json({ error: 'Failed to download media content from Meta CDN' });
+    }
+
+    const contentType = binaryRes.headers.get('content-type') || metaMediaData?.mime_type || 'image/jpeg';
+    const buffer = Buffer.from(await binaryRes.arrayBuffer());
+
+    // 5. Cache on disk
+    let ext = 'jpg';
+    if (contentType.includes('png')) ext = 'png';
+    else if (contentType.includes('webp')) ext = 'webp';
+    const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
+    await fs.promises.writeFile(diskPath, buffer).catch((err) => {
+      console.warn('Could not write cache file to disk:', err);
+    });
+
+    console.log(`✅ [META MEDIA PROXY SUCCESS] Streamed & cached media ID ${mediaId} (${buffer.length} bytes) to ${diskPath}`);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error('❌ [META MEDIA PROXY ERROR]', err);
+    return res.status(500).json({ error: err.message || 'Media proxy failed' });
+  }
 });
 
 export default router;
