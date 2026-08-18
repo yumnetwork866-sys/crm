@@ -51,8 +51,12 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/80 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-[#00793d] dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 flex items-center justify-center font-bold text-sm">
-              WA
+            <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+              <img
+                src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`}
+                alt="avatar"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <div className="flex items-center space-x-2">

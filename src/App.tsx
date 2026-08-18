@@ -281,7 +281,8 @@ export default function App() {
     content: string,
     channel: MessageChannel = 'WhatsApp',
     explicitPhone?: string,
-    explicitName?: string
+    explicitName?: string,
+    senderPhoneNumberId?: string
   ) => {
     const cust = customers.find((c) => c.id === customerId || isSamePhoneNumber(c.phone, explicitPhone || customerId));
     const agentName = currentUser?.name || 'Nguyễn Văn Ánh';
@@ -310,7 +311,8 @@ export default function App() {
         customerName: name,
         customerPhone: phone,
         content,
-        agentName
+        agentName,
+        phoneNumberId: senderPhoneNumberId
       });
 
       if (res && res.message) {
@@ -1270,48 +1272,37 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen light-mode bg-slate-50 text-slate-900 flex flex-col font-sans transition-colors duration-200">
+    <div className={`light-mode bg-slate-50 text-slate-900 flex flex-col font-sans transition-colors duration-200 ${activeTab === 'messages' ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       
-      {/* Top Header & Nav Container */}
-      <div className="sticky top-0 z-30 shadow-sm border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-md">
-        <Header
-          customers={customers}
-          currentUser={currentUser}
-          theme={theme}
-          onAddCustomer={() => {
-            setEditingCustomer(null);
-            setIsFormOpen(true);
-          }}
-          onRunAutomationSim={handleRunAutomationSim}
-          onResetData={handleResetData}
-          onOpenLoginModal={() => setIsLoginOpen(true)}
-          onOpenUsersTab={() => setActiveTab('users')}
-          activeTab={activeTab}
-          usersCount={users.length}
-          autoSimCount={autoSimCounter}
-          onCurrencyChange={() => setCurrencyTick((t) => t + 1)}
-        />
-
-        <Navigation
-          activeTab={activeTab}
-          onChangeTab={(tab) => {
-            if (tab === 'users' && currentUser?.role !== 'Admin') {
-              setActiveTab('crm');
-            } else {
-              setActiveTab(tab);
-            }
-          }}
-          customerCounts={customerCounts}
-          usersCount={users.length}
-          ordersCount={customers.reduce((sum, c) => sum + (c.orders ? c.orders.length : 0), 0)}
-          productsCount={products.length}
-          unreadMessagesCount={unreadMessagesCount}
-          currentUser={currentUser}
-        />
-      </div>
+      {/* Single Unified Topbar Header */}
+      <Header
+        activeTab={activeTab}
+        onChangeTab={(tab) => {
+          if (tab === 'users' && currentUser?.role !== 'Admin') {
+            setActiveTab('crm');
+          } else {
+            setActiveTab(tab);
+          }
+        }}
+        customers={customers}
+        currentUser={currentUser}
+        unreadMessagesCount={unreadMessagesCount}
+        onOpenLoginModal={() => setIsLoginOpen(true)}
+        onOpenUsersTab={() => setActiveTab('users')}
+        theme={theme}
+        onAddCustomer={() => {
+          setEditingCustomer(null);
+          setIsFormOpen(true);
+        }}
+        onRunAutomationSim={handleRunAutomationSim}
+        onResetData={handleResetData}
+        usersCount={users.length}
+        autoSimCount={autoSimCounter}
+        onCurrencyChange={() => setCurrencyTick((t) => t + 1)}
+      />
 
       {/* Main View Container */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className={`flex-1 w-full ${activeTab === 'messages' ? 'p-0 flex flex-col min-h-0 overflow-hidden' : 'max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6'}`}>
         {activeTab === 'crm' && (
           <CustomerList
             customers={customers}
@@ -1453,12 +1444,14 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-400 py-6 text-center mt-auto space-y-2">
-        <div>
-          YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động &amp; Meta Graph API Automation.
-        </div>
-      </footer>
+      {/* Footer (hidden on WhatsApp Studio to ensure single full-screen inbox) */}
+      {activeTab !== 'messages' && (
+        <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-400 py-6 text-center mt-auto space-y-2 shrink-0">
+          <div>
+            YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động &amp; Meta Graph API Automation.
+          </div>
+        </footer>
+      )}
 
       {/* Modals */}
       <CustomerDetailModal

@@ -526,4 +526,49 @@ table td {
   font-weight: 500;
 }
 
+/* -------------------------------------------------------------
+ * AUTHENTIC WHATSAPP WEB STYLING SYSTEM
+ * ------------------------------------------------------------- */
+.whatsapp-chat-bg {
+  background-color: #efeae2;
+  background-image: 
+    radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 0),
+    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 0);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+.whatsapp-bubble-out {
+  background-color: #d9fdd3;
+  color: #111b21;
+  border-radius: 8px;
+  border-top-right-radius: 0px;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  position: relative;
+}
+
+.whatsapp-bubble-in {
+  background-color: #ffffff;
+  color: #111b21;
+  border-radius: 8px;
+  border-top-left-radius: 0px;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  position: relative;
+}
+
+.whatsapp-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.whatsapp-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.whatsapp-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+.whatsapp-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+
 

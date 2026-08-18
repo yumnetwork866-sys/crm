@@ -50,8 +50,12 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-11 h-11 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-bold text-lg">
-              {customer.name.charAt(0)}
+            <div className="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+              <img
+                src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`}
+                alt="avatar"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div>
               <div className="flex items-center space-x-2">

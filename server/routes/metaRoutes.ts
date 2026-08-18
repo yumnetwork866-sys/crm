@@ -561,7 +561,7 @@ router.delete('/messages/item/:messageId', async (req: Request, res: Response) =
 // Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
 router.post('/messages/send', async (req: Request, res: Response) => {
   try {
-    const { customerPhone, content, agentName, customerId, customerName } = req.body;
+    const { customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId } = req.body;
 
     if (!content || (!customerPhone && !customerId)) {
       return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
@@ -610,7 +610,10 @@ router.post('/messages/send', async (req: Request, res: Response) => {
     const resolvedCustomerPhone = customerPhone || (cleanPhone ? `+${cleanPhone}` : '');
 
     const setting = await getIntegrationSetting();
-    const phoneId = await resolvePhoneNumberId(setting);
+    const effectiveOverride = (overridePhoneId || senderPhoneId)?.trim();
+    const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
+      ? effectiveOverride
+      : (await resolvePhoneNumberId(setting));
     const token = setting.whatsappAccessToken;
 
     let metaResult: any = null;

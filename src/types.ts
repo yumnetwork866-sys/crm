@@ -68,6 +68,7 @@ export interface Customer {
   address: string;
   country?: string;
   email?: string;
+  avatar?: string;
   note?: string; // Ghi chú / node thông tin khách hàng
 
   // Lead Source
