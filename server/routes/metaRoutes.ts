@@ -499,6 +499,83 @@ router.get('/messages', async (req: Request, res: Response) => {
   return res.json(combined);
 });
 
+// Endpoint: POST /api/meta/messages/read - Mark messages as read in DB & memory with user attribution
+router.post('/messages/read', async (req: Request, res: Response) => {
+  try {
+    const { customerId, customerPhone, messageIds, readBy } = req.body;
+    let rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
+    let cleanPhone = rawPhone.replace(/\D/g, '');
+    let lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
+
+    // If no phone digits from ID, try to lookup phone from DB customer table
+    if (!lastDigits && customerId && !customerId.startsWith('cust_')) {
+      try {
+        const dbCust = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { phone: true }
+        });
+        if (dbCust?.phone) {
+          const cPhone = dbCust.phone.replace(/\D/g, '');
+          if (cPhone.length >= 7) {
+            lastDigits = cPhone.slice(-9);
+          }
+        }
+      } catch (lookupErr) {}
+    }
+
+    const nowIso = new Date().toISOString();
+    const reader = readBy || 'Nhân viên';
+
+    // 1. Update in-memory messages
+    inMemoryMessages = inMemoryMessages.map((m) => {
+      const mPhone = (m.customerPhone || '').replace(/\D/g, '');
+      const isMatch = (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
+        (customerId && m.customerId === customerId) ||
+        (lastDigits && mPhone.endsWith(lastDigits));
+      return isMatch
+        ? {
+            ...m,
+            isRead: true,
+            readBy: m.readBy || reader,
+            readAt: m.readAt || nowIso
+          }
+        : m;
+    });
+
+    // 2. Update DB
+    try {
+      if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
+        await prisma.whatsAppMessage.updateMany({
+          where: { id: { in: messageIds } },
+          data: { isRead: true, readBy: reader, readAt: new Date() }
+        });
+      } else if (customerId || lastDigits) {
+        const orConditions: any[] = [];
+        if (customerId) {
+          orConditions.push({ customerId });
+        }
+        if (lastDigits) {
+          orConditions.push({ customerPhone: { contains: lastDigits } });
+          orConditions.push({ customerId: { contains: lastDigits } });
+        }
+        if (orConditions.length > 0) {
+          await prisma.whatsAppMessage.updateMany({
+            where: { OR: orConditions },
+            data: { isRead: true, readBy: reader, readAt: new Date() }
+          });
+        }
+      }
+    } catch (dbErr) {
+      console.warn('DB mark read offline fallback:', dbErr);
+    }
+
+    return res.json({ success: true, message: 'Đã đánh dấu đã đọc', readBy: reader, readAt: nowIso });
+  } catch (err: any) {
+    console.error('Error in /messages/read:', err);
+    return res.status(500).json({ error: err.message || 'Lỗi cập nhật trạng thái đã đọc' });
+  }
+});
+
 // Endpoint: DELETE /api/meta/messages - Clear messages log in DB & memory
 router.delete('/messages', async (req: Request, res: Response) => {
   inMemoryMessages = [];
@@ -560,6 +637,90 @@ router.delete('/messages/item/:messageId', async (req: Request, res: Response) =
   return res.json({ success: true, message: `Đã xóa tin nhắn ${messageId}` });
 });
 
+// Endpoint: POST /api/meta/messages/react - Send real WhatsApp Reaction
+router.post('/messages/react', async (req: Request, res: Response) => {
+  try {
+    const { messageId, emoji, customerPhone, customerId, phoneNumberId: overridePhoneId, senderPhoneId } = req.body;
+
+    if (!messageId || (!customerPhone && !customerId)) {
+      return res.status(400).json({ error: 'Thiếu messageId hoặc số điện thoại người nhận' });
+    }
+
+    const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
+    let cleanPhone = rawPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '84' + cleanPhone.substring(1);
+    }
+
+    const setting = await getIntegrationSetting();
+    const effectiveOverride = (overridePhoneId || senderPhoneId)?.trim();
+    const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
+      ? effectiveOverride
+      : (await resolvePhoneNumberId(setting));
+    const token = setting.whatsappAccessToken?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+
+    let isRealSent = false;
+    let metaResult: any = null;
+
+    if (phoneId && token && cleanPhone && messageId) {
+      try {
+        const isRealWamid = messageId.startsWith('wamid.') || messageId.length > 20;
+        if (isRealWamid) {
+          const metaApiUrl = `https://graph.facebook.com/v22.0/${phoneId}/messages`;
+          const payload = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanPhone,
+            type: 'reaction',
+            reaction: {
+              message_id: messageId,
+              emoji: emoji || ''
+            }
+          };
+
+          const apiRes = await fetch(metaApiUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const resText = await apiRes.text();
+          try {
+            metaResult = JSON.parse(resText);
+          } catch {
+            metaResult = { error: { message: resText } };
+          }
+
+          if (apiRes.ok && metaResult?.messages?.[0]?.id) {
+            isRealSent = true;
+            console.log(`✅ [META REACTION SENT] Reacted "${emoji || '(gỡ)'}" to message ${messageId} for ${cleanPhone}`);
+          } else {
+            console.warn('⚠️ [META REACTION WARN]', metaResult);
+          }
+        } else {
+          console.log(`ℹ️ [LOCAL REACTION] Saved local reaction "${emoji}" for non-wamid message ${messageId}`);
+        }
+      } catch (metaErr) {
+        console.error('❌ [META REACTION DISPATCH ERROR]', metaErr);
+      }
+    }
+
+    return res.json({
+      success: true,
+      messageId,
+      emoji: emoji || '',
+      isRealSent,
+      metaResult
+    });
+  } catch (err: any) {
+    console.error('❌ [REACTION ENDPOINT ERROR]', err);
+    return res.status(500).json({ error: err.message || 'Lỗi gửi reaction' });
+  }
+});
+
 // Helper to upload media directly to Meta Graph API for real WhatsApp image dispatch
 async function uploadMediaToMeta(phoneId: string, token: string, buffer: Buffer, mimeType: string, filename: string): Promise<string | null> {
   try {
@@ -594,7 +755,7 @@ async function uploadMediaToMeta(phoneId: string, token: string, buffer: Buffer,
 // Endpoint: POST /api/meta/messages/send - Send real WhatsApp Cloud API message
 router.post('/messages/send', async (req: Request, res: Response) => {
   try {
-    const { customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId } = req.body;
+    const { customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId, contextMessageId, replyTo } = req.body;
 
     if (!content || (!customerPhone && !customerId)) {
       return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
@@ -765,13 +926,19 @@ router.post('/messages/send', async (req: Request, res: Response) => {
             }
           }
         } else {
+          const cleanTextForMeta = content.replace(/^\[reply:\{.*?\}\]\n/, '');
           payload = {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to: cleanPhone,
             type: 'text',
-            text: { body: content }
+            text: { body: cleanTextForMeta }
           };
+        }
+
+        const effectiveContextId = contextMessageId || replyTo?.id;
+        if (effectiveContextId && (effectiveContextId.startsWith('wamid.') || effectiveContextId.length > 15)) {
+          payload.context = { message_id: effectiveContextId };
         }
 
         const apiRes = await fetch(metaApiUrl, {
@@ -801,7 +968,7 @@ router.post('/messages/send', async (req: Request, res: Response) => {
       }
     }
 
-    const newMsg = {
+    const newMsg: any = {
       id: metaResult?.messages?.[0]?.id || `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
@@ -812,7 +979,8 @@ router.post('/messages/send', async (req: Request, res: Response) => {
       content,
       timestamp: new Date().toISOString(),
       isRead: true,
-      isRealSent
+      isRealSent,
+      replyTo: replyTo || undefined
     };
 
     inMemoryMessages.push(newMsg);
@@ -974,16 +1142,42 @@ router.post(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) 
         console.warn('[WEBHOOK CUSTOMER LOOKUP ERROR]', lookupErr);
       }
 
-      const newIncoming = {
+      let replyContext: any = null;
+      if (msgData.context?.id) {
+        const origMsg = inMemoryMessages.find((m) => m.id === msgData.context.id) ||
+          await prisma.whatsAppMessage.findUnique({ where: { id: msgData.context.id } }).catch(() => null);
+        if (origMsg) {
+          const rawOrigContent = (origMsg.content || '').replace(/^\[reply:\{.*?\}\]\n/, '');
+          replyContext = {
+            id: origMsg.id,
+            senderName: origMsg.agentName || origMsg.customerName || (origMsg.sender === 'agent' ? 'Nhân viên' : 'Khách hàng'),
+            content: rawOrigContent.slice(0, 150)
+          };
+        } else {
+          replyContext = {
+            id: msgData.context.id,
+            senderName: msgData.context.from ? `+${msgData.context.from}` : 'Tin nhắn trước',
+            content: 'Tin nhắn WhatsApp gốc'
+          };
+        }
+      }
+
+      let fullTextBody = textBody;
+      if (replyContext) {
+        fullTextBody = `[reply:${JSON.stringify(replyContext)}]\n${textBody}`;
+      }
+
+      const newIncoming: any = {
         id: msgData.id || `msg_meta_${Date.now()}`,
         customerId: matchedCustomerId,
         customerName: matchedCustomerName,
         customerPhone: fromPhone,
         sender: 'customer',
         channel: 'WhatsApp',
-        content: textBody,
+        content: fullTextBody,
         timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
-        isRead: false
+        isRead: false,
+        replyTo: replyContext || undefined
       };
 
       if (!inMemoryMessages.some((m) => m.id === newIncoming.id)) {

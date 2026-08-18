@@ -219,6 +219,15 @@ body:not(.light-mode) .text-slate-600 {
   color: #f8fafc !important; /* bright white slate-50 */
 }
 
+/* Ensure buttons and elements with white/light backgrounds in Dark Mode retain crisp dark text and icons */
+body:not(.light-mode) .bg-white svg:not(.text-white),
+body:not(.light-mode) button.bg-white svg:not(.text-white),
+body:not(.light-mode) .bg-white .lucide,
+body:not(.light-mode) button.bg-white .lucide {
+  color: #334155 !important;
+  stroke: #334155 !important;
+}
+
 /* Explicitly preserve white text inside filled primary buttons & badges! */
 .light-mode .bg-indigo-600,
 .light-mode .bg-indigo-600 *,

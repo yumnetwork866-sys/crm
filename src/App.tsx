@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport, CentralMessage, MessageChannel } from './types';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from './data/mockData';
 import { getCustomerGroup, isSamePhoneNumber } from './utils/crmUtils';
@@ -211,6 +211,11 @@ export default function App() {
   } | null>(null);
 
   const [selectedChatCustomerId, setSelectedChatCustomerId] = useState<string | null>(null);
+  const selectedChatCustomerIdRef = useRef<string | null>(selectedChatCustomerId);
+
+  useEffect(() => {
+    selectedChatCustomerIdRef.current = selectedChatCustomerId;
+  }, [selectedChatCustomerId]);
 
   useEffect(() => {
     try {
@@ -222,15 +227,30 @@ export default function App() {
 
   const unreadMessagesCount = centralMessages.filter((m) => !m.isRead && m.sender === 'customer').length;
 
-  const handleSelectCustomerThread = (targetId: string) => {
+  const handleSelectCustomerThread = useCallback((targetId: string, explicitPhone?: string, messageIds?: string[]) => {
     setSelectedChatCustomerId(targetId);
+    const reader = currentUser?.name || 'Nguyễn Văn Ánh';
+    const nowIso = new Date().toISOString();
+    const cust = customers.find((c) => c.id === targetId || isSamePhoneNumber(c.phone, explicitPhone || targetId));
+    const phone = explicitPhone || cust?.phone || (targetId.startsWith('cust_') ? targetId.replace('cust_', '') : (String(targetId).replace(/\D/g, '').length >= 7 ? targetId : ''));
+
     setCentralMessages((prev) =>
       prev.map((msg) => {
-        const match = msg.customerId === targetId || isSamePhoneNumber(msg.customerPhone, targetId);
-        return match ? { ...msg, isRead: true } : msg;
+        const match = (messageIds && messageIds.includes(msg.id)) ||
+          msg.customerId === targetId ||
+          (cust && msg.customerId === cust.id) ||
+          (phone && isSamePhoneNumber(msg.customerPhone, phone));
+        return match ? { ...msg, isRead: true, readBy: msg.readBy || reader, readAt: msg.readAt || nowIso } : msg;
       })
     );
-  };
+    // Persist read status to backend database & in-memory store
+    api.post('/meta/messages/read', {
+      customerId: cust?.id || targetId,
+      customerPhone: phone,
+      messageIds,
+      readBy: reader
+    }).catch(() => null);
+  }, [customers, currentUser?.name]);
 
   // Sync with real WhatsApp Messages from Backend API & Webhook
   useEffect(() => {
@@ -249,10 +269,27 @@ export default function App() {
           realMsgs.forEach((m) => knownMsgIds.add(m.id));
 
           setCentralMessages((prev) => {
-            // Keep optimistic/pending local messages so they don't disappear while syncing
+            const currentSelected = selectedChatCustomerIdRef.current;
             const backendIdSet = new Set(realMsgs.map((m) => m.id));
             const optimisticMsgs = prev.filter((m) => !backendIdSet.has(m.id) && m.id.startsWith('msg_'));
-            const merged = [...realMsgs, ...optimisticMsgs];
+
+            const updatedRealMsgs = realMsgs.map((m) => {
+              const prevMsg = prev.find((p) => p.id === m.id);
+              const wasReadLocally = prevMsg?.isRead === true;
+              const isCurrentlySelected = Boolean(
+                currentSelected &&
+                (m.customerId === currentSelected || isSamePhoneNumber(m.customerPhone, currentSelected))
+              );
+              const isRead = wasReadLocally || isCurrentlySelected || Boolean(m.isRead);
+              return {
+                ...m,
+                isRead,
+                readBy: m.readBy || prevMsg?.readBy || (isCurrentlySelected ? (currentUser?.name || 'Nhân viên') : undefined),
+                readAt: m.readAt || prevMsg?.readAt || (isCurrentlySelected ? new Date().toISOString() : undefined)
+              };
+            });
+
+            const merged = [...updatedRealMsgs, ...optimisticMsgs];
             return merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           });
 
@@ -282,7 +319,8 @@ export default function App() {
     channel: MessageChannel = 'WhatsApp',
     explicitPhone?: string,
     explicitName?: string,
-    senderPhoneNumberId?: string
+    senderPhoneNumberId?: string,
+    replyTo?: { id: string; senderName: string; content: string }
   ) => {
     const cust = customers.find((c) => c.id === customerId || isSamePhoneNumber(c.phone, explicitPhone || customerId));
     const agentName = currentUser?.name || 'Nguyễn Văn Ánh';
@@ -300,6 +338,7 @@ export default function App() {
       content,
       timestamp: new Date().toISOString(),
       isRead: true,
+      replyTo
     };
 
     setCentralMessages((prev) => [...prev, tempMsg]);
@@ -312,12 +351,14 @@ export default function App() {
         customerPhone: phone,
         content,
         agentName,
-        phoneNumberId: senderPhoneNumberId
+        phoneNumberId: senderPhoneNumberId,
+        contextMessageId: replyTo?.id,
+        replyTo
       });
 
       if (res && res.message) {
         setCentralMessages((prev) =>
-          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id, isRealSent: res.isRealSent } : m))
+          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id, isRealSent: res.isRealSent, replyTo: res.message.replyTo || m.replyTo } : m))
         );
       }
     } catch (apiErr) {
@@ -1489,6 +1530,7 @@ export default function App() {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         customer={chatCustomer}
+        currentUser={currentUser}
         centralMessages={centralMessages}
         onSendMessage={handleSendCustomMessage}
       />

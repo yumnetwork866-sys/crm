@@ -15,6 +15,13 @@ export interface CentralMessage {
   content: string;
   timestamp: string;
   isRead: boolean;
+  readBy?: string;
+  readAt?: string;
+  replyTo?: {
+    id: string;
+    senderName: string;
+    content: string;
+  };
 }
 
 export interface CustomerNote {

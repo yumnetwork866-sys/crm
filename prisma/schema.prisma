@@ -172,10 +172,12 @@ model WhatsAppMessage {
   agentName     String?
   channel       String   @default("WhatsApp")
   content       String
-  isRead        Boolean  @default(false)
-  isRealSent    Boolean  @default(true)
-  timestamp     DateTime @default(now())
-  createdAt     DateTime @default(now())
+  isRead        Boolean   @default(false)
+  readBy        String?
+  readAt        DateTime?
+  isRealSent    Boolean   @default(true)
+  timestamp     DateTime  @default(now())
+  createdAt     DateTime  @default(now())
 
   customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   MessageSquare,
   Search,
@@ -47,10 +47,14 @@ import {
   CheckCircle,
   HelpCircle,
   FileSpreadsheet,
-  Edit3
+  Edit3,
+  SmilePlus,
+  Reply
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, isSamePhoneNumber, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
+import { api } from '../../utils/apiClient';
+import { INITIAL_USERS } from '../../data/mockData';
 
 interface BusinessPhoneNumber {
   id: string;
@@ -137,6 +141,31 @@ function extractImageInfo(rawContent: string): { isImage: boolean; imgUrl: strin
   return { isImage: false, imgUrl: null, caption: null };
 }
 
+interface ParsedMessageContent {
+  replyTo?: {
+    id: string;
+    senderName: string;
+    content: string;
+  };
+  cleanContent: string;
+}
+
+function parseMessageContent(content: string, existingReplyTo?: any): ParsedMessageContent {
+  if (existingReplyTo && existingReplyTo.content) {
+    return { replyTo: existingReplyTo, cleanContent: content };
+  }
+  if (content && typeof content === 'string' && content.startsWith('[reply:')) {
+    const match = content.match(/^\[reply:(\{.*?\})\]\n([\s\S]*)$/);
+    if (match) {
+      try {
+        const replyTo = JSON.parse(match[1]);
+        return { replyTo, cleanContent: match[2] };
+      } catch {}
+    }
+  }
+  return { cleanContent: content };
+}
+
 interface InternalNote {
   id: string;
   author: string;
@@ -149,14 +178,15 @@ interface CentralizedMessageViewProps {
   customers: Customer[];
   currentUser?: AppUser | null;
   selectedCustomerId?: string | null;
-  onSelectCustomerThread: (customerId: string) => void;
+  onSelectCustomerThread: (customerId: string, customerPhone?: string, messageIds?: string[]) => void;
   onSendMessage: (
     customerId: string,
     content: string,
     channel: MessageChannel,
     customerPhone?: string,
     customerName?: string,
-    senderPhoneId?: string
+    senderPhoneId?: string,
+    replyTo?: { id: string; senderName: string; content: string }
   ) => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
@@ -223,6 +253,16 @@ const QUICK_TEMPLATES = [
 
 const POPULAR_EMOJIS = ['👍', '❤️', '😊', '🙏', '🔥', '🎉', '👏', '💯', '✨', '💐', '👌', '⭐', '📦', '💬'];
 
+const EXTENDED_EMOJIS = [
+  '👍', '❤️', '😂', '😮', '😢', '🙏',
+  '🔥', '🎉', '👏', '💯', '🥰', '😍',
+  '🥳', '🤝', '🤩', '💪', '✨', '🌹',
+  '💐', '👌', '😎', '🥺', '🙌', '😋',
+  '🤔', '☕', '🍎', '🍰', '🎁', '⭐',
+  '💥', '💖', '🤗', '😇', '🚀', '☀️',
+  '🌸', '🥇', '🏆', '⚡', '🍀', '💎'
+];
+
 export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   messages,
   customers,
@@ -235,7 +275,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onDeleteThread,
   onDeleteMessage,
 }) => {
-  const [inboxScope, setInboxScope] = useState<'all' | 'mine' | 'unassigned'>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'vip' | 'repeat' | 'new'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -286,11 +325,70 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   });
 
   const [messageReactions, setMessageReactions] = useState<Record<string, string>>({});
+  const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
+  const [showExpandedReactionPickerMsgId, setShowExpandedReactionPickerMsgId] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<CentralMessage | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
+  const handleJumpToQuotedMessage = (targetMsgId: string) => {
+    if (!targetMsgId) return;
+    setHighlightedMessageId(targetMsgId);
+
+    setTimeout(() => {
+      const targetEl = document.querySelector(`[data-msg-id="${targetMsgId}"]`) || document.getElementById(`msg-${targetMsgId}`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 30);
+
+    setTimeout(() => {
+      setHighlightedMessageId((prev) => (prev === targetMsgId ? null : prev));
+    }, 2500);
+  };
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setActiveReactionPickerMsgId(null);
+      setShowExpandedReactionPickerMsgId(null);
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isAdmin = currentUser?.role === 'Admin';
+
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (chatContainerRef.current) {
+      const el = chatContainerRef.current;
+      if (behavior === 'auto') {
+        el.scrollTop = el.scrollHeight;
+      } else {
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    } else if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior });
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const isAwayFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight > 180;
+      setShowScrollBottomBtn(isAwayFromBottom);
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const togglePinThread = (threadId: string) => {
     setPinnedThreadIds((prev) => {
@@ -405,28 +503,16 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     });
   }, [messages, customers, pinnedThreadIds]);
 
-  // Filter threads based on inbox scope, search & filter tabs
+  // Filter threads based on category filter and search
   const filteredThreads = useMemo(() => {
     return threads.filter((t) => {
-      // 1. Inbox Scope Filter (All / Mine / Unassigned)
-      if (inboxScope === 'mine') {
-        const owner = t.customer?.owner || '';
-        const curName = currentUser?.name || '';
-        if (!owner || (curName && !owner.toLowerCase().includes(curName.toLowerCase()))) {
-          return false;
-        }
-      } else if (inboxScope === 'unassigned') {
-        const owner = t.customer?.owner || '';
-        if (owner && owner !== 'Chưa phân công') return false;
-      }
-
-      // 2. Category Filter
+      // 1. Category Filter
       if (activeFilter === 'unread' && t.unreadCount === 0) return false;
       if (activeFilter === 'vip' && (!t.customer || t.customer.totalOrders < 2)) return false;
       if (activeFilter === 'repeat' && (!t.customer || t.customer.totalOrders !== 1)) return false;
       if (activeFilter === 'new' && t.customer && t.customer.totalOrders > 0) return false;
 
-      // 3. Search Filter
+      // 2. Search Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = t.customerName.toLowerCase().includes(q);
@@ -436,7 +522,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       }
       return true;
     });
-  }, [threads, inboxScope, activeFilter, searchQuery, currentUser]);
+  }, [threads, activeFilter, searchQuery]);
 
   // Active thread selection
   const activeThread = useMemo(() => {
@@ -459,12 +545,34 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat to bottom:
+  // 1. Instant pinned bottom scroll on active thread switch
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!activeThread?.threadId) return;
+    scrollToBottom('auto');
+    const timer1 = setTimeout(() => scrollToBottom('auto'), 40);
+    const timer2 = setTimeout(() => scrollToBottom('auto'), 120);
+    const timer3 = setTimeout(() => scrollToBottom('auto'), 300);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [activeThread?.threadId, scrollToBottom]);
+
+  // 2. Smooth scroll on new incoming or outgoing messages
+  useEffect(() => {
+    scrollToBottom('smooth');
+    const timer = setTimeout(() => scrollToBottom('smooth'), 80);
+    return () => clearTimeout(timer);
+  }, [activeThread?.messages?.length, scrollToBottom]);
+
+  // Auto-mark active thread as read
+  useEffect(() => {
+    if (activeThread && activeThread.unreadCount > 0) {
+      onSelectCustomerThread(activeThread.threadId, activeThread.customerPhone, activeThread.messages.map((m) => m.id));
     }
-  }, [activeThread?.messages?.length, activeThread?.threadId]);
+  }, [activeThread?.threadId, activeThread?.unreadCount, activeThread?.customerPhone, onSelectCustomerThread]);
 
   // Filter messages inside active thread if searching in chat
   const displayedActiveMessages = useMemo(() => {
@@ -540,22 +648,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         : `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
     };
   }, [activeThread, currentTime]);
-
-  // Count threads for scope tabs
-  const myThreadsCount = useMemo(() => {
-    const curName = currentUser?.name || '';
-    return threads.filter((t) => {
-      const owner = t.customer?.owner || '';
-      return owner && curName && owner.toLowerCase().includes(curName.toLowerCase());
-    }).length;
-  }, [threads, currentUser]);
-
-  const unassignedThreadsCount = useMemo(() => {
-    return threads.filter((t) => {
-      const owner = t.customer?.owner || '';
-      return !owner || owner === 'Chưa phân công';
-    }).length;
-  }, [threads]);
 
   const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>(DEFAULT_BUSINESS_PHONES);
   const [selectedPhoneId, setSelectedPhoneId] = useState<string>(() => {
@@ -687,11 +779,39 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     setTimeout(() => setCopiedMsgId(null), 2000);
   };
 
-  const handleReactMessage = (id: string, emoji: string) => {
+  const handleReactMessage = async (msg: CentralMessage, emoji: string) => {
+    const currentReaction = messageReactions[msg.id];
+    const newEmoji = currentReaction === emoji ? '' : emoji;
+
+    // 1. Optimistic instant local update
     setMessageReactions((prev) => ({
       ...prev,
-      [id]: prev[id] === emoji ? '' : emoji,
+      [msg.id]: newEmoji,
     }));
+    setActiveReactionPickerMsgId(null);
+    setShowExpandedReactionPickerMsgId(null);
+
+    // 2. Real dispatch to WhatsApp Meta Cloud API via backend
+    try {
+      const targetPhone = activeThread?.customerPhone || activeThread?.customer?.phone || msg.customerPhone;
+      await api.post('/meta/messages/react', {
+        messageId: msg.id,
+        emoji: newEmoji,
+        customerPhone: targetPhone,
+        customerId: msg.customerId,
+        senderPhoneId: selectedPhoneId
+      });
+    } catch (err) {
+      console.warn('Real reaction dispatch offline fallback:', err);
+    }
+  };
+
+  const handleReplyMessage = (msg: CentralMessage) => {
+    setReplyingToMessage(msg);
+    setActiveReactionPickerMsgId(null);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 50);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -738,13 +858,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
     const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
 
+    const replyQuote = replyingToMessage ? {
+      id: replyingToMessage.id,
+      senderName: replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng'),
+      content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150)
+    } : undefined;
+    setReplyingToMessage(null);
+
     // Handle Inline Attached Image
     if (pendingImage) {
       const imgToSend = pendingImage;
-      const contentToSend = text ? `${imgToSend}\n${text}` : imgToSend;
+      let contentToSend = text ? `${imgToSend}\n${text}` : imgToSend;
+      if (replyQuote) {
+        contentToSend = `[reply:${JSON.stringify(replyQuote)}]\n${contentToSend}`;
+      }
 
       // 1. Optimistic Instant UI Send (0ms delay)
-      onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId);
+      onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyQuote);
       if (soundEnabled) playPopSound();
 
       // 2. Async background upload to server disk
@@ -765,7 +895,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     }
 
     // Text Only Send
-    onSendMessage(targetId, text, 'WhatsApp', targetPhone, targetName, selectedPhoneId);
+    let contentToSend = text;
+    if (replyQuote) {
+      contentToSend = `[reply:${JSON.stringify(replyQuote)}]\n${text}`;
+    }
+    onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyQuote);
     if (soundEnabled) playPopSound();
     setInputText('');
     setShowTemplatePicker(false);
@@ -828,40 +962,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 <Filter className="w-4 h-4" />
               </button>
             </div>
-          </div>
-
-          {/* Inbox Routing Tabs (Tất cả / Của tôi / Chưa nhận) */}
-          <div className="p-1.5 bg-slate-200/80 border-b border-slate-200 grid grid-cols-3 gap-1 shrink-0">
-            <button
-              onClick={() => setInboxScope('all')}
-              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
-                inboxScope === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/70'
-              }`}
-            >
-              Tất cả ({threads.length})
-            </button>
-            <button
-              onClick={() => setInboxScope('mine')}
-              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
-                inboxScope === 'mine'
-                  ? 'bg-[#008069] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/70'
-              }`}
-            >
-              Của tôi ({myThreadsCount})
-            </button>
-            <button
-              onClick={() => setInboxScope('unassigned')}
-              className={`py-1 px-1 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
-                inboxScope === 'unassigned'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/70'
-              }`}
-            >
-              Chưa nhận ({unassignedThreadsCount})
-            </button>
           </div>
 
           {/* Search Box */}
@@ -930,7 +1030,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 return (
                   <div
                     key={thread.threadId}
-                    onClick={() => onSelectCustomerThread(thread.threadId)}
+                    onClick={() => onSelectCustomerThread(thread.threadId, thread.customerPhone, thread.messages.map((m) => m.id))}
                     className={`group px-3 py-3 flex items-start space-x-3 cursor-pointer transition relative ${
                       isSelected
                         ? 'bg-[#f0f2f5] border-l-4 border-[#008069]'
@@ -1017,12 +1117,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           </span>
                         </p>
 
-                        <div className="flex items-center space-x-1 shrink-0">
+                        <div className="flex items-center space-x-1.5 shrink-0">
                           {thread.isPinned && (
-                            <Pin className="w-3 h-3 text-slate-400 fill-slate-400" />
+                            <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#008069" fill="#008069" strokeWidth={2.2} />
                           )}
                           {hasUnread && (
-                            <span className="min-w-[18px] h-[18px] px-1 bg-[#25d366] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center">
+                            <span className="min-w-[18px] h-[18px] px-1 bg-[#25d366] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
                               {thread.unreadCount}
                             </span>
                           )}
@@ -1030,31 +1130,42 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Pin & Admin Quick Action buttons on hover */}
-                    <div className="absolute right-2 top-2 hidden group-hover:flex items-center space-x-1 bg-white/90 shadow px-1.5 py-0.5 rounded-lg border border-slate-200">
+                    {/* Pin & Admin Quick Action buttons on hover (Clean standalone circular buttons) */}
+                    <div className="absolute right-2.5 top-2.5 hidden group-hover:flex items-center space-x-1.5 z-10 animate-in fade-in duration-100">
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           togglePinThread(thread.threadId);
                         }}
-                        className="p-1 text-slate-400 hover:text-[#008069] transition cursor-pointer"
-                        title={thread.isPinned ? 'Bỏ ghim' : 'Ghim lên đầu'}
+                        className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
+                          thread.isPinned
+                            ? 'bg-[#e6f7f2] border-[#008069] hover:bg-[#d1f2e8]'
+                            : 'bg-white hover:bg-[#f1f5f9] border-[#cbd5e1]'
+                        }`}
+                        title={thread.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại lên đầu'}
                       >
-                        <Pin className={`w-3 h-3 ${thread.isPinned ? 'text-[#008069] fill-[#008069]' : ''}`} />
+                        <Pin
+                          className="w-3.5 h-3.5 rotate-45"
+                          stroke={thread.isPinned ? '#008069' : '#334155'}
+                          fill={thread.isPinned ? '#008069' : 'none'}
+                          strokeWidth={2.2}
+                        />
                       </button>
 
                       {isAdmin && onDeleteThread && (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`[ADMIN] Xóa toàn bộ hội thoại với ${thread.customerName}?`)) {
                               onDeleteThread(thread.customer?.id || thread.threadId || thread.lastMessage.customerId);
                             }
                           }}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                          className="w-7 h-7 rounded-full bg-white hover:bg-[#ffe4e6] border border-[#cbd5e1] hover:border-[#e11d48] shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110"
                           title="Xóa hội thoại"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" stroke="#64748b" strokeWidth={2} />
                         </button>
                       )}
                     </div>
@@ -1145,8 +1256,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-500 flex items-center space-x-1.5 truncate">
+                    <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">
                       <span className="font-mono">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</span>
+                      {activeCustomer?.owner && (
+                        <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                          <span>• Phụ trách:</span>
+                          <span className="font-semibold text-slate-700">{activeCustomer.owner}</span>
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1227,7 +1344,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               )}
 
               {/* WhatsApp Messages Stream with Authentic Wallpaper Pattern */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar">
+              <div
+                ref={chatContainerRef}
+                id="chat-messages-container"
+                className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
+              >
                 
                 {/* Security Encryption Banner */}
                 <div className="flex justify-center my-2">
@@ -1257,19 +1378,164 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const prevMsg = msgIdx > 0 ? group.msgs[msgIdx - 1] : null;
                       const isFirstOfTurn = !prevMsg || prevMsg.sender !== msg.sender;
 
+                      const isHighlighted = highlightedMessageId === msg.id;
+
+                      // Dynamic avatar sources
+                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread?.customerPhone || activeThread?.customerName || activeThread?.threadId || 'Customer')}`;
+                      const agentAvatarSrc = (currentUser?.name && senderName === currentUser.name && currentUser.avatar)
+                        ? currentUser.avatar
+                        : (INITIAL_USERS.find((u) => u.name.toLowerCase() === senderName.toLowerCase())?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
+
                       return (
                         <div
                           key={msg.id}
-                          className={`flex flex-col group ${isAgent ? 'items-end' : 'items-start'} ${isFirstOfTurn ? 'mt-2.5' : 'mt-0.5'}`}
+                          id={`msg-${msg.id}`}
+                          data-msg-id={msg.id}
+                          className={`flex items-end group w-full ${isAgent ? 'justify-end' : 'justify-start'} ${isFirstOfTurn ? 'mt-3' : 'mt-0.5'}`}
                         >
+                          {/* Customer Avatar on the Left (Incoming) */}
+                          {!isAgent && (
+                            <div className="w-7 h-7 mr-2 shrink-0 self-end mb-0.5">
+                              {isFirstOfTurn ? (
+                                <div className="w-7 h-7 rounded-full overflow-hidden bg-white border border-slate-200 shadow-2xs" title={msg.customerName || 'Khách hàng'}>
+                                  <img
+                                    src={customerAvatarSrc}
+                                    alt={msg.customerName || 'Customer'}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-7 h-7" />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Outgoing Message: Left side Action Buttons (Reply + React) in a Unified Pill */}
+                          {isAgent && (
+                            <div className="mr-1.5 mb-1 flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyMessage(msg);
+                                }}
+                                className="w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105"
+                                title="Trả lời tin nhắn này"
+                              >
+                                <Reply className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
+                                }}
+                                className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
+                                  activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
+                                }`}
+                                title="Thả cảm xúc"
+                              >
+                                <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
+                              </button>
+                            </div>
+                          )}
+
                           {/* Authentic WhatsApp Message Bubble */}
                           <div
-                            className={`relative max-w-[85%] sm:max-w-[65%] px-3 pt-1.5 pb-1.5 text-xs select-text ${
+                            data-msg-id={msg.id}
+                            className={`relative max-w-[80%] sm:max-w-[62%] px-3 pt-1.5 pb-1.5 text-xs select-text transition-all duration-300 ${
                               isAgent
                                 ? `whatsapp-bubble-out ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tr-none' : 'rounded-[7.5px]'}`
                                 : `whatsapp-bubble-in ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tl-none' : 'rounded-[7.5px]'}`
+                            } ${
+                              isHighlighted
+                                ? 'scale-[1.04] shadow-md z-20 origin-center'
+                                : ''
                             }`}
                           >
+                            {/* Floating WhatsApp Reaction Picker Bar (Absolute floating overlay, zero layout shift) */}
+                            {activeReactionPickerMsgId === msg.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute -top-11 ${isAgent ? 'right-0' : 'left-0'} flex items-center space-x-1 bg-white/95 backdrop-blur-md px-2 py-1 rounded-full shadow-lg border border-slate-200 z-30 animate-in fade-in zoom-in-95 duration-150`}
+                              >
+                                {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => {
+                                  const isSelected = reaction === emoji;
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      onClick={() => handleReactMessage(msg, emoji)}
+                                      className={`w-7 h-7 flex items-center justify-center text-base rounded-full hover:scale-135 transition-transform duration-150 cursor-pointer ${
+                                        isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
+                                      }`}
+                                      title={`Thả ${emoji}`}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  );
+                                })}
+
+                                <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
+
+                                {/* WhatsApp '+' Button to open extended emoji palette */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowExpandedReactionPickerMsgId(showExpandedReactionPickerMsgId === msg.id ? null : msg.id);
+                                  }}
+                                  className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer hover:scale-110 shadow-2xs ${
+                                    showExpandedReactionPickerMsgId === msg.id
+                                      ? 'bg-[#00a884] text-white'
+                                      : 'bg-[#f0f2f5] text-[#54656f] hover:bg-[#e2e5e9] hover:text-[#111b21]'
+                                  }`}
+                                  title="Thêm biểu cảm khác (+)"
+                                >
+                                  <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Extended WhatsApp Reaction Palette Popover */}
+                            {showExpandedReactionPickerMsgId === msg.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute -top-52 ${isAgent ? 'right-0' : 'left-0'} w-64 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-2xl z-40 animate-in fade-in zoom-in-95 duration-150`}
+                              >
+                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
+                                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tất cả biểu cảm</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowExpandedReactionPickerMsgId(null)}
+                                    className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto pr-0.5 custom-scrollbar">
+                                  {EXTENDED_EMOJIS.map((emoji) => {
+                                    const isSelected = reaction === emoji;
+                                    return (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => {
+                                          handleReactMessage(msg, emoji);
+                                        }}
+                                        className={`w-8 h-8 flex items-center justify-center text-lg rounded-xl hover:scale-125 transition-transform duration-100 cursor-pointer ${
+                                          isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
+                                        }`}
+                                        title={emoji}
+                                      >
+                                        {emoji}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                             {/* SVG Tail for First Message in Cluster */}
                             {isFirstOfTurn && (
                               isAgent ? (
@@ -1283,15 +1549,56 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               )
                             )}
 
+                            {/* Sender Info for Outgoing Agent Message */}
+                            {isAgent && (
+                              <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-[#bbf7d0]/80 text-[10.5px] select-none">
+                                <span className="font-bold text-[#00793d] flex items-center gap-1 truncate">
+                                  <span className="truncate">{senderName}</span>
+                                  {senderName === (currentUser?.name || 'Nguyễn Văn Ánh') && (
+                                    <span className="text-[9px] font-semibold bg-[#bbf7d0] text-[#006e57] px-1 py-0.2 rounded-xs ml-0.5">
+                                      Bạn
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+
                             {/* Message Body Content with Inline Timestamp */}
                             {(() => {
-                              const content = msg.content;
+                              const parsed = parseMessageContent(msg.content, msg.replyTo);
+                              const content = parsed.cleanContent;
+                              const replyQuote = parsed.replyTo;
                               const imgInfo = extractImageInfo(content);
+
+                              const renderQuoteHeader = () => {
+                                if (!replyQuote) return null;
+                                return (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleJumpToQuotedMessage(replyQuote.id);
+                                    }}
+                                    className="mb-1.5 p-1.5 px-2 rounded-md bg-black/5 hover:bg-black/10 active:scale-95 border-l-[3.5px] border-[#00a884] flex flex-col justify-center transition-all cursor-pointer select-none group/quote"
+                                    title="Click để nhảy về tin nhắn được trả lời"
+                                  >
+                                    <div className="flex items-center gap-1 text-[11px] font-bold text-[#00a884] leading-tight truncate group-hover/quote:underline">
+                                      <Reply className="w-3 h-3 shrink-0" />
+                                      <span>{replyQuote.senderName || 'Tin nhắn được trả lời'}</span>
+                                    </div>
+                                    <p className="text-[11.5px] text-[#54656f] truncate leading-tight mt-0.5 max-w-sm">
+                                      {replyQuote.content?.startsWith('/uploads/') || replyQuote.content?.startsWith('data:image/') || replyQuote.content?.startsWith('/api/meta/media/')
+                                        ? '📷 [Hình ảnh]'
+                                        : replyQuote.content || 'Nội dung tin nhắn'}
+                                    </p>
+                                  </div>
+                                );
+                              };
 
                               // 1. Image Message (Uploaded file, Base64, Link, Meta Cloud Media or Incoming Webhook)
                               if (imgInfo.isImage && imgInfo.imgUrl) {
                                 return (
                                   <div className="space-y-1">
+                                    {renderQuoteHeader()}
                                     <div
                                       onClick={() => setPreviewLightboxImg(imgInfo.imgUrl)}
                                       className="relative rounded-lg overflow-hidden cursor-pointer group border border-slate-200 shadow-2xs max-w-sm max-h-72 bg-slate-900/5 min-h-[120px] flex items-center justify-center"
@@ -1301,6 +1608,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         alt="Hình ảnh"
                                         className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                                         loading="eager"
+                                        onLoad={() => scrollToBottom('auto')}
                                       />
                                       <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
                                         <Eye className="w-6 h-6 drop-shadow" />
@@ -1341,6 +1649,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/[\[\]]/g, '').trim();
                                 return (
                                   <div className="space-y-1.5 min-w-[220px]">
+                                    {renderQuoteHeader()}
                                     <div className="p-3 bg-slate-100/90 rounded-lg border border-slate-200 flex items-center gap-2.5">
                                       <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
                                         <ImageIcon className="w-5 h-5" />
@@ -1394,6 +1703,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                                 return (
                                   <div className="space-y-1.5">
+                                    {renderQuoteHeader()}
                                     <div className={`p-2 rounded-lg font-bold text-xs flex items-center justify-between border ${
                                       isOrder ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300' :
                                       isQuote ? 'bg-blue-100/80 text-blue-900 border-blue-300' :
@@ -1419,14 +1729,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               }
 
                               return (
-                                <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal">
-                                  <span>{content}</span>
-                                  <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
-                                    <span>{timeFormatted}</span>
-                                    {isAgent && (
-                                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0 inline-block" />
-                                    )}
-                                  </span>
+                                <div className="space-y-1">
+                                  {renderQuoteHeader()}
+                                  <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal">
+                                    <span>{content}</span>
+                                    <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                      <span>{timeFormatted}</span>
+                                      {isAgent && (
+                                        <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0 inline-block" />
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
                               );
                             })()}
@@ -1438,50 +1751,55 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               </span>
                             )}
 
-                            {/* Hover Action Menu (Reactions, Copy, Delete) */}
-                            <div className={`absolute top-0 ${isAgent ? '-left-20' : '-right-20'} hidden group-hover:flex items-center space-x-1 bg-white/95 backdrop-blur-sm p-1 rounded-full shadow-md border border-slate-200 z-20`}>
-                              {/* Quick Reaction Emojis */}
-                              {['👍', '❤️', '🙏'].map((emoji) => (
-                                <button
-                                  key={emoji}
-                                  onClick={() => handleReactMessage(msg.id, emoji)}
-                                  className="w-5 h-5 flex items-center justify-center text-xs hover:scale-125 transition cursor-pointer"
-                                  title="Thả cảm xúc"
-                                >
-                                  {emoji}
-                                </button>
-                              ))}
+                          </div>
 
-                              {/* Copy Text */}
+                          {/* Incoming Customer Message: Right side Action Buttons (React + Reply) in a Unified Pill */}
+                          {!isAgent && (
+                            <div className="ml-1.5 mb-1 flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
                               <button
-                                onClick={() => handleCopyMessage(msg.id, msg.content)}
-                                className="p-1 text-slate-500 hover:text-slate-900 transition cursor-pointer"
-                                title="Sao chép nội dung"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
+                                }}
+                                className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
+                                  activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
+                                }`}
+                                title="Thả cảm xúc"
                               >
-                                {copiedMsgId === msg.id ? (
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
+                                <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
                               </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyMessage(msg);
+                                }}
+                                className="w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105"
+                                title="Trả lời tin nhắn này"
+                              >
+                                <Reply className="w-3.5 h-3.5 text-[#667781]" />
+                              </button>
+                            </div>
+                          )}
 
-                              {/* Admin Delete */}
-                              {isAdmin && onDeleteMessage && (
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm('Xóa tin nhắn này?')) {
-                                      onDeleteMessage(msg.id);
-                                    }
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                                  title="Xóa tin nhắn"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
+                          {/* Agent Avatar on the Right (Outgoing) */}
+                          {isAgent && (
+                            <div className="w-7 h-7 ml-2 shrink-0 self-end mb-0.5">
+                              {isFirstOfTurn ? (
+                                <div className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shadow-2xs" title={senderName}>
+                                  <img
+                                    src={agentAvatarSrc}
+                                    alt={senderName}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-7 h-7" />
                               )}
                             </div>
-
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1491,6 +1809,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                 <div ref={chatEndRef} />
               </div>
+
+              {/* Floating WhatsApp Scroll-to-Bottom Quick Button */}
+              {showScrollBottomBtn && (
+                <button
+                  type="button"
+                  onClick={() => scrollToBottom('smooth')}
+                  className="absolute bottom-20 right-6 w-9 h-9 rounded-full bg-white/95 text-[#54656f] hover:text-[#111b21] shadow-lg border border-slate-200 flex items-center justify-center transition hover:scale-110 active:scale-95 cursor-pointer z-20 animate-in fade-in zoom-in-95 duration-150"
+                  title="Cuộn xuống tin nhắn mới nhất"
+                >
+                  <ChevronDown className="w-5 h-5" />
+                </button>
+              )}
 
               {/* Floating Slash Commands Autocomplete Popup */}
               {isSlashActive && filteredSlashTemplates.length > 0 && (
@@ -1617,6 +1947,31 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onChange={handleFileSelect}
               />
 
+              {/* WhatsApp Authentic Reply Preview Banner */}
+              {replyingToMessage && (
+                <div className="px-3.5 pt-2.5 pb-1 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+                  <div className="flex-1 min-w-0 bg-white/90 rounded-lg p-2 border-l-4 border-[#00a884] shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#00a884]">
+                      <Reply className="w-3.5 h-3.5 shrink-0" />
+                      <span>Đang trả lời {replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng')}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 truncate mt-0.5 max-w-xl">
+                      {replyingToMessage.content.startsWith('/uploads/') || replyingToMessage.content.startsWith('data:image/') || replyingToMessage.content.startsWith('/api/meta/media/')
+                        ? '📷 [Hình ảnh]'
+                        : replyingToMessage.content}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyingToMessage(null)}
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+                    title="Hủy trả lời"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Attached Pending Image Thumbnail Strip (Inline inside input bar) */}
               {pendingImage && (
                 <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center gap-3 shrink-0 animate-fadeIn">
@@ -1645,6 +2000,40 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   </button>
                 </div>
               )}
+
+              {/* Active Sender Identity Banner */}
+              <div className="px-3.5 py-1.5 bg-[#e9edef] border-t border-[#d1d7db] flex items-center justify-between gap-2 text-xs select-none">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <div className="relative shrink-0">
+                    <img
+                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                      alt={currentUser?.name || 'User'}
+                      className="w-5 h-5 rounded-full object-cover border border-slate-300 shadow-2xs"
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
+                  </div>
+                  <div className="text-[11.5px] text-slate-700 truncate flex items-center gap-1.5">
+                    <span>Đang nhắn tin với tư cách:</span>
+                    <strong className="text-slate-900 font-bold truncate">{currentUser?.name || 'Nguyễn Văn Ánh'}</strong>
+                    <span className="px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                      {currentUser?.role || 'Admin'}
+                    </span>
+                  </div>
+                </div>
+
+                {activeCustomer?.owner && (
+                  <div className="text-[10.5px] text-slate-500 hidden sm:flex items-center gap-1 shrink-0">
+                    <span>Phụ trách khách:</span>
+                    <span className={`font-semibold px-1.5 py-0.2 rounded text-[10px] ${
+                      activeCustomer.owner === currentUser?.name
+                        ? 'bg-emerald-100 text-[#00793d] font-bold'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {activeCustomer.owner === currentUser?.name ? `${activeCustomer.owner} (Chính bạn)` : activeCustomer.owner}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {/* WhatsApp Authentic Input Bar */}
               <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
