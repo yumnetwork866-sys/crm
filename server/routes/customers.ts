@@ -1,10 +1,9 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddleware';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Tên khách hàng không được để trống'),
@@ -26,10 +25,26 @@ const customerSchema = z.object({
 // All routes require authentication
 router.use(authenticateToken);
 
-// GET /api/customers - List customers with search & status filters
+// GET /api/customers - List customers with search, filter & pagination
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { search, status, source, owner } = req.query;
+    const {
+      search,
+      status,
+      source,
+      owner,
+      whatsappOptIn,
+      page: pageQuery,
+      limit: limitQuery,
+      sortBy = 'updatedAt',
+      sortOrder = 'desc',
+      paginate
+    } = req.query;
+
+    const isPaginationRequested = pageQuery !== undefined || limitQuery !== undefined || paginate === 'true';
+    const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '20'), 10) || 20));
+    const skip = (page - 1) * limit;
 
     const whereClause: any = {};
 
@@ -42,26 +57,56 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     if (owner && typeof owner === 'string' && owner !== 'all') {
       whereClause.owner = owner;
     }
+    if (whatsappOptIn !== undefined && whatsappOptIn !== 'all') {
+      whereClause.whatsappOptIn = String(whatsappOptIn) === 'true';
+    }
 
     if (search && typeof search === 'string') {
+      const cleanSearch = search.trim();
       whereClause.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { campaign: { contains: search, mode: 'insensitive' } }
+        { name: { contains: cleanSearch, mode: 'insensitive' } },
+        { phone: { contains: cleanSearch } },
+        { email: { contains: cleanSearch, mode: 'insensitive' } },
+        { campaign: { contains: cleanSearch, mode: 'insensitive' } }
       ];
     }
 
-    const customers = await prisma.customer.findMany({
-      where: whereClause,
-      include: {
-        notes: { orderBy: { createdAt: 'desc' } },
-        orders: { include: { products: true }, orderBy: { date: 'desc' } },
-        automationLogs: { orderBy: { sentAt: 'desc' } },
-        whatsappMessages: { select: { id: true }, take: 1 }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
+    const allowedSortFields = ['updatedAt', 'createdAt', 'name', 'totalSpent', 'totalOrders'];
+    const validSortBy = allowedSortFields.includes(String(sortBy)) ? String(sortBy) : 'updatedAt';
+    const validSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy = { [validSortBy]: validSortOrder };
+
+    const queryInclude = {
+      notes: { orderBy: { createdAt: 'desc' as const } },
+      orders: { include: { products: true }, orderBy: { date: 'desc' as const } },
+      automationLogs: { orderBy: { sentAt: 'desc' as const } },
+      whatsappMessages: { select: { id: true }, take: 1 }
+    };
+
+    let total = 0;
+    let customers: any[] = [];
+
+    if (isPaginationRequested) {
+      const [totalCount, customerRecords] = await Promise.all([
+        prisma.customer.count({ where: whereClause }),
+        prisma.customer.findMany({
+          where: whereClause,
+          include: queryInclude,
+          orderBy,
+          skip,
+          take: limit
+        })
+      ]);
+      total = totalCount;
+      customers = customerRecords;
+    } else {
+      customers = await prisma.customer.findMany({
+        where: whereClause,
+        include: queryInclude,
+        orderBy
+      });
+      total = customers.length;
+    }
 
     // Query distinct phone numbers and customer IDs that have messaged with WABA
     let wabaPhoneSet = new Set<string>();
@@ -102,6 +147,21 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
         whatsappOptIn: isWabaOptIn
       };
     });
+
+    if (isPaginationRequested) {
+      const totalPages = Math.ceil(total / limit);
+      return res.json({
+        data: enrichedCustomers,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      });
+    }
 
     return res.json(enrichedCustomers);
   } catch (error) {

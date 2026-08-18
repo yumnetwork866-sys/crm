@@ -1,25 +1,83 @@
 import { Router, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddleware';
+import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticateToken);
 
-// GET /api/orders
+// GET /api/orders - List orders with pagination, status & customer filtering
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const { page: pageQuery, limit: limitQuery, status, customerId, search, paginate } = req.query;
+
+    const isPaginationRequested = pageQuery !== undefined || limitQuery !== undefined || paginate === 'true';
+    const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '20'), 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {};
+
+    if (status && typeof status === 'string' && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    if (customerId && typeof customerId === 'string') {
+      whereClause.customerId = customerId;
+    }
+
+    if (search && typeof search === 'string') {
+      whereClause.OR = [
+        { orderCode: { contains: search, mode: 'insensitive' } },
+        { customerName: { contains: search, mode: 'insensitive' } },
+        { customerPhone: { contains: search } }
+      ];
+    }
+
+    if (isPaginationRequested) {
+      const [total, orders] = await Promise.all([
+        prisma.order.count({ where: whereClause }),
+        prisma.order.findMany({
+          where: whereClause,
+          include: {
+            products: true,
+            customer: true
+          },
+          orderBy: { date: 'desc' },
+          skip,
+          take: limit
+        })
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      return res.json({
+        data: orders,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
+        }
+      });
+    }
+
+    // Default full query when pagination is not requested
     const orders = await prisma.order.findMany({
+      where: whereClause,
       include: {
         products: true,
         customer: true
       },
       orderBy: { date: 'desc' }
     });
+
     return res.json(orders);
   } catch (error) {
+    console.error('Lỗi khi lấy danh sách đơn hàng:', error);
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách đơn hàng' });
   }
 });

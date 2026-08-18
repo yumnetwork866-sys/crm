@@ -258,8 +258,9 @@ export default function App() {
 
     const pollRealWhatsAppMessages = async () => {
       try {
-        const realMsgs = await api.get<CentralMessage[]>('/meta/messages');
-        if (realMsgs && Array.isArray(realMsgs)) {
+        const rawRes = await api.get<any>('/meta/messages');
+        const realMsgs: CentralMessage[] = Array.isArray(rawRes) ? rawRes : (rawRes?.messages || []);
+        if (realMsgs && Array.isArray(realMsgs) && realMsgs.length > 0) {
           // Detect newly arrived incoming customer messages
           const newIncoming = realMsgs.filter(
             (m) => !knownMsgIds.has(m.id) && m.sender === 'customer'
@@ -476,9 +477,10 @@ export default function App() {
       try {
         const health: any = await api.get('/health');
         if (health && health.status === 'ok') {
-          const apiCustomers = await api.get<any[]>('/customers').catch(() => null);
-          if (apiCustomers && Array.isArray(apiCustomers)) {
-            setCustomers(apiCustomers.map(mapApiCustomerToFrontend));
+          const apiCustomersRes = await api.get<any>('/customers').catch(() => null);
+          const customerList = Array.isArray(apiCustomersRes) ? apiCustomersRes : (apiCustomersRes?.data || []);
+          if (customerList && Array.isArray(customerList)) {
+            setCustomers(customerList.map(mapApiCustomerToFrontend));
           }
           const apiProducts = await api.get<Product[]>('/products').catch(() => null);
           if (apiProducts && Array.isArray(apiProducts)) {
@@ -972,9 +974,10 @@ export default function App() {
       await Promise.all(updatePromises);
       const health: any = await api.get('/health');
       if (health && health.status === 'ok') {
-        const apiCustomers = await api.get<any[]>('/customers').catch(() => null);
-        if (apiCustomers && Array.isArray(apiCustomers)) {
-          setCustomers(apiCustomers.map(mapApiCustomerToFrontend));
+        const apiCustomersRes = await api.get<any>('/customers').catch(() => null);
+        const customerList = Array.isArray(apiCustomersRes) ? apiCustomersRes : (apiCustomersRes?.data || []);
+        if (customerList && Array.isArray(customerList)) {
+          setCustomers(customerList.map(mapApiCustomerToFrontend));
         }
       }
     } catch (e) {

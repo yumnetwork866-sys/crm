@@ -1,12 +1,14 @@
 // Prisma Schema for VietCRM (PostgreSQL)
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
 }
 
 model User {
@@ -63,6 +65,10 @@ model Customer {
   @@index([source])
   @@index([whatsappOptIn])
   @@index([updatedAt(sort: Desc)])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_name_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_phone_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_email_trgm_idx")
+  @@index([campaign(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_campaign_trgm_idx")
 }
 
 model CustomerNote {

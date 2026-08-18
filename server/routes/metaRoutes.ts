@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
 
 const router = Router();
-const prisma: any = new PrismaClient();
 
 // In-memory fallback setting store when Database connection (PostgreSQL) is offline or unavailable
 let inMemorySetting: any = {
@@ -469,34 +468,116 @@ router.get(['/', '/webhook', '/webhooks'], async (req: Request, res: Response) =
 // In-memory real WhatsApp messages log store
 let inMemoryMessages: any[] = [];
 
-// Endpoint: GET /api/meta/messages - Fetch all real WhatsApp messages (DB + memory combined)
+// Endpoint: GET /api/meta/messages - Fetch WhatsApp messages (supports Cursor-based Pagination & thread filtering)
 router.get('/messages', async (req: Request, res: Response) => {
-  let dbMsgs: any[] = [];
   try {
-    dbMsgs = await prisma.whatsAppMessage.findMany({
-      orderBy: { timestamp: 'asc' }
-    });
-  } catch (e) {
-    // DB offline fallback
-  }
+    const { cursor, limit: limitQuery, direction = 'before', customerId, customerPhone, paginate } = req.query;
 
-  const map = new Map<string, any>();
-  for (const m of dbMsgs) {
-    const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
-    map.set(m.id, {
-      ...m,
-      customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
-      timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
-    });
-  }
-  for (const m of inMemoryMessages) {
-    if (!map.has(m.id)) {
-      map.set(m.id, m);
+    const isCursorPaginationRequested = cursor !== undefined || limitQuery !== undefined || paginate === 'true';
+    const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '30'), 10) || 30));
+
+    const whereClause: any = {};
+
+    // Filter by customer or phone if specified
+    if (customerId && typeof customerId === 'string') {
+      const cleanP = customerId.replace('cust_', '').replace(/\D/g, '');
+      const lastDigits = cleanP.length >= 7 ? cleanP.slice(-9) : cleanP;
+      whereClause.OR = [
+        { customerId },
+        ...(lastDigits ? [{ customerPhone: { contains: lastDigits } }] : [])
+      ];
+    } else if (customerPhone && typeof customerPhone === 'string') {
+      const cleanP = customerPhone.replace(/\D/g, '');
+      const lastDigits = cleanP.length >= 7 ? cleanP.slice(-9) : cleanP;
+      whereClause.customerPhone = { contains: lastDigits || customerPhone };
     }
-  }
 
-  const combined = Array.from(map.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  return res.json(combined);
+    if (isCursorPaginationRequested) {
+      // 1. If cursor is provided, lookup cursor message timestamp
+      if (cursor && typeof cursor === 'string') {
+        const cursorMsg = await prisma.whatsAppMessage.findUnique({
+          where: { id: cursor },
+          select: { timestamp: true }
+        }).catch(() => null);
+
+        if (cursorMsg) {
+          if (direction === 'before') {
+            // Older messages (scrolling up)
+            whereClause.timestamp = { lt: cursorMsg.timestamp };
+          } else {
+            // Newer messages (scrolling down)
+            whereClause.timestamp = { gt: cursorMsg.timestamp };
+          }
+        }
+      }
+
+      // Fetch limit + 1 items to determine if there are more
+      let dbMsgs: any[] = [];
+      try {
+        dbMsgs = await prisma.whatsAppMessage.findMany({
+          where: whereClause,
+          take: limit + 1,
+          orderBy: { timestamp: direction === 'after' ? 'asc' : 'desc' }
+        });
+      } catch (e) {
+        console.warn('DB query error in cursor-based messages:', e);
+      }
+
+      const hasMore = dbMsgs.length > limit;
+      const slicedMsgs = hasMore ? dbMsgs.slice(0, limit) : dbMsgs;
+      const nextCursor = slicedMsgs.length > 0 ? slicedMsgs[slicedMsgs.length - 1].id : null;
+
+      // Format messages and sort chronologically (timestamp asc)
+      const formattedMsgs = slicedMsgs.map((m: any) => {
+        const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+        return {
+          ...m,
+          customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
+          timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
+        };
+      }).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+      return res.json({
+        messages: formattedMsgs,
+        nextCursor,
+        hasMore,
+        limit,
+        direction
+      });
+    }
+
+    // Default full-fetch fallback (DB + Memory combined) for backward compatibility
+    let dbMsgs: any[] = [];
+    try {
+      dbMsgs = await prisma.whatsAppMessage.findMany({
+        where: whereClause,
+        orderBy: { timestamp: 'asc' }
+      });
+    } catch (e) {
+      // DB offline fallback
+    }
+
+    const map = new Map<string, any>();
+    for (const m of dbMsgs) {
+      const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+      map.set(m.id, {
+        ...m,
+        customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
+        timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
+      });
+    }
+    for (const m of inMemoryMessages) {
+      if (!map.has(m.id)) {
+        map.set(m.id, m);
+      }
+    }
+
+    const combined = Array.from(map.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return res.json(combined);
+  } catch (error) {
+    console.error('Lỗi khi lấy tin nhắn:', error);
+    return res.status(500).json({ error: 'Không thể tải tin nhắn' });
+  }
 });
 
 // Endpoint: POST /api/meta/messages/read - Mark messages as read in DB & memory with user attribution
