@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --exclude 'src/**' --exclude 'dist/**' server/index.ts",
+    "dev": "tsx watch --exclude 'src/**' --exclude 'dist/**' --exclude 'public/**' --exclude 'index.html' server/index.ts",
     "dev:vite": "vite",
     "server": "NODE_ENV=production tsx server/index.ts",
     "db:generate": "prisma generate",

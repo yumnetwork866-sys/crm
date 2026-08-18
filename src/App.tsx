@@ -252,21 +252,16 @@ export default function App() {
     }).catch(() => null);
   }, [customers, currentUser?.name]);
 
-  // Sync with real WhatsApp Messages from Backend API & Webhook
+  // Real-time Event Stream (SSE) for Instant WhatsApp Messaging (<100ms) - Replaces 4s HTTP Polling
   useEffect(() => {
     const knownMsgIds = new Set<string>();
 
-    const pollRealWhatsAppMessages = async () => {
+    // 1. Initial fetch of existing messages on mount
+    const fetchInitialMessages = async () => {
       try {
         const rawRes = await api.get<any>('/meta/messages');
         const realMsgs: CentralMessage[] = Array.isArray(rawRes) ? rawRes : (rawRes?.messages || []);
         if (realMsgs && Array.isArray(realMsgs) && realMsgs.length > 0) {
-          // Detect newly arrived incoming customer messages
-          const newIncoming = realMsgs.filter(
-            (m) => !knownMsgIds.has(m.id) && m.sender === 'customer'
-          );
-
-          // Update known IDs
           realMsgs.forEach((m) => knownMsgIds.add(m.id));
 
           setCentralMessages((prev) => {
@@ -293,25 +288,137 @@ export default function App() {
             const merged = [...updatedRealMsgs, ...optimisticMsgs];
             return merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           });
-
-          // Trigger notification for the latest new incoming message
-          if (newIncoming.length > 0 && knownMsgIds.size > realMsgs.length) {
-            const latestMsg = newIncoming[newIncoming.length - 1];
-            playNotificationSound();
-            setToastNotification({
-              message: latestMsg,
-              show: true,
-            });
-          }
         }
       } catch (e) {
         // Backend API offline fallback
       }
     };
 
-    pollRealWhatsAppMessages();
-    const interval = setInterval(pollRealWhatsAppMessages, 4000);
-    return () => clearInterval(interval);
+    fetchInitialMessages();
+
+    // 2. Establish persistent Server-Sent Events (SSE) stream
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/meta/messages/stream');
+
+      eventSource.addEventListener('connected', (e: MessageEvent) => {
+        console.log('⚡ [REALTIME SSE] Connected to server event stream:', e.data);
+      });
+
+      // Handle new incoming / outgoing message event instantly (<100ms)
+      eventSource.addEventListener('message:new', (e: MessageEvent) => {
+        try {
+          const newMsg: CentralMessage = JSON.parse(e.data);
+          if (!newMsg || !newMsg.id) return;
+
+          const isAlreadyKnown = knownMsgIds.has(newMsg.id);
+          knownMsgIds.add(newMsg.id);
+
+          setCentralMessages((prev) => {
+            const currentSelected = selectedChatCustomerIdRef.current;
+            const isCurrentlySelected = Boolean(
+              currentSelected &&
+              (newMsg.customerId === currentSelected || isSamePhoneNumber(newMsg.customerPhone, currentSelected))
+            );
+
+            const isRead = isCurrentlySelected || Boolean(newMsg.isRead);
+            const enrichedMsg: CentralMessage = {
+              ...newMsg,
+              isRead,
+              readBy: newMsg.readBy || (isCurrentlySelected ? (currentUser?.name || 'Nhân viên') : undefined),
+              readAt: newMsg.readAt || (isCurrentlySelected ? new Date().toISOString() : undefined)
+            };
+
+            // Remove any optimistic message with same ID or content match
+            const filtered = prev.filter((m) => m.id !== enrichedMsg.id && !(m.id.startsWith('msg_') && m.content === enrichedMsg.content));
+            return [...filtered, enrichedMsg].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          });
+
+          // Play sound and toast notification for incoming customer message
+          if (newMsg.sender === 'customer' && !isAlreadyKnown) {
+            playNotificationSound();
+            setToastNotification({
+              message: newMsg,
+              show: true
+            });
+          }
+        } catch (err) {
+          console.error('[REALTIME SSE] Error processing message:new event:', err);
+        }
+      });
+
+      // Handle message read status update event
+      eventSource.addEventListener('message:read', (e: MessageEvent) => {
+        try {
+          const { messageIds, customerId, customerPhone, readBy, readAt } = JSON.parse(e.data);
+          setCentralMessages((prev) =>
+            prev.map((m) => {
+              const isMatch = (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
+                (customerId && m.customerId === customerId) ||
+                (customerPhone && isSamePhoneNumber(m.customerPhone, customerPhone));
+              if (isMatch) {
+                return {
+                  ...m,
+                  isRead: true,
+                  readBy: m.readBy || readBy || 'Nhân viên',
+                  readAt: m.readAt || readAt || new Date().toISOString()
+                };
+              }
+              return m;
+            })
+          );
+        } catch (err) {
+          console.error('[REALTIME SSE] Error processing message:read event:', err);
+        }
+      });
+
+      // Handle thread deletion event
+      eventSource.addEventListener('message:thread_deleted', (e: MessageEvent) => {
+        try {
+          const { customerId, customerPhone } = JSON.parse(e.data);
+          setCentralMessages((prev) =>
+            prev.filter((m) => m.customerId !== customerId && !(customerPhone && isSamePhoneNumber(m.customerPhone, customerPhone)))
+          );
+        } catch (err) {}
+      });
+
+      // Handle message delete event
+      eventSource.addEventListener('message:deleted', (e: MessageEvent) => {
+        try {
+          const { messageId } = JSON.parse(e.data);
+          setCentralMessages((prev) => prev.filter((m) => m.id !== messageId));
+        } catch (err) {}
+      });
+
+      // Handle clear all messages event
+      eventSource.addEventListener('message:cleared', () => {
+        setCentralMessages([]);
+      });
+
+      // Handle customer opt-in update event
+      eventSource.addEventListener('customer:optin', (e: MessageEvent) => {
+        try {
+          const { customerId, whatsappOptIn } = JSON.parse(e.data);
+          if (customerId) {
+            setCustomers((prev) =>
+              prev.map((c) => (c.id === customerId ? { ...c, whatsappOptIn: Boolean(whatsappOptIn) } : c))
+            );
+          }
+        } catch (err) {}
+      });
+
+      eventSource.onerror = (err) => {
+        console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', err);
+      };
+    } catch (sseErr) {
+      console.warn('[REALTIME SSE] Failed to initialize EventSource:', sseErr);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, []);
 
   const handleSendCentralMessage = async (
