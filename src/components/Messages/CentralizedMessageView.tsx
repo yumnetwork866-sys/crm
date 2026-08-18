@@ -35,7 +35,8 @@ import {
   DollarSign,
   Calendar,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Menu
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, isSamePhoneNumber, formatVND, CUSTOMER_GROUPS } from '../../utils/crmUtils';
@@ -310,6 +311,47 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     return groups;
   }, [displayedActiveMessages]);
 
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute 24h Meta Customer Service Window for active thread
+  const session24hInfo = useMemo(() => {
+    if (!activeThread || !activeThread.messages.length) return null;
+
+    // Find the latest message from customer
+    const custMsgs = activeThread.messages.filter((m) => m.sender === 'customer');
+    const lastCustMsg = custMsgs.length > 0 ? custMsgs[custMsgs.length - 1] : null;
+
+    // Fallback to activeThread lastMessage if no explicit customer msg
+    const referenceTimestamp = lastCustMsg ? lastCustMsg.timestamp : activeThread.lastMessage?.timestamp;
+    if (!referenceTimestamp) return null;
+
+    const lastCustTimeMs = new Date(referenceTimestamp).getTime();
+    const window24hMs = 24 * 60 * 60 * 1000;
+    const expiresAtMs = lastCustTimeMs + window24hMs;
+    const remainingMs = Math.max(0, expiresAtMs - currentTime);
+
+    const isExpired = remainingMs <= 0;
+    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+
+    return {
+      isExpired,
+      hours,
+      minutes,
+      seconds,
+      remainingMs,
+      expiresAt: new Date(expiresAtMs).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      formattedTime: isExpired
+        ? 'Hết hạn'
+        : `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+    };
+  }, [activeThread, currentTime]);
+
   const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>(DEFAULT_BUSINESS_PHONES);
   const [selectedPhoneId, setSelectedPhoneId] = useState<string>(() => {
     return localStorage.getItem('yumcrm_active_waba_phone') || 'phone_601110716895';
@@ -475,7 +517,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             <div className="flex items-center space-x-1 text-slate-600 shrink-0">
               <button
                 onClick={() => setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')}
-                className={`p-1.5 rounded-full transition cursor-pointer ${activeFilter === 'unread' ? 'bg-[#00a884] text-white shadow-sm' : 'hover:bg-slate-200'}`}
+                className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                  activeFilter === 'unread'
+                    ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
+                }`}
                 title="Lọc tin chưa đọc"
               >
                 <Filter className="w-4 h-4" />
@@ -484,8 +530,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* Search Box */}
-          <div className="px-3 py-2 bg-white border-b border-slate-200">
-            <div className="relative flex items-center bg-[#f0f2f5] rounded-lg px-2.5 py-1.5 focus-within:bg-white focus-within:ring-1 focus-within:ring-[#00a884] transition">
+          <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200">
+            <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-2xs transition">
               <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
               <input
                 type="text"
@@ -503,7 +549,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* WhatsApp Filter Pills */}
-          <div className="px-3 py-2 bg-white border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0">
             {[
               { id: 'all', label: `Tất cả (${threads.length})` },
               { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, t) => sum + t.unreadCount, 0)})` },
@@ -514,10 +560,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               <button
                 key={f.id}
                 onClick={() => setActiveFilter(f.id as any)}
-                className={`px-3 py-1 rounded-full text-[11px] font-semibold transition whitespace-nowrap cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-[11px] transition whitespace-nowrap cursor-pointer ${
                   activeFilter === f.id
-                    ? 'bg-[#008069] text-white shadow-sm'
-                    : 'bg-[#f0f2f5] text-slate-600 hover:bg-slate-200'
+                    ? 'bg-[#008069] text-white border border-[#008069] font-bold shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold shadow-2xs'
                 }`}
               >
                 {f.label}
@@ -670,11 +716,36 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <h2 className="text-sm font-extrabold text-slate-900 leading-tight">
                         {activeThread.customerName}
                       </h2>
-                      {activeCustomer?.whatsappOptIn && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-emerald-100 text-[#00793d] border border-emerald-300 flex items-center gap-0.5">
-                          <Check className="w-2.5 h-2.5" />
-                          Opt-In
-                        </span>
+                      {session24hInfo && (
+                        <div
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 select-none shadow-2xs ${
+                            session24hInfo.isExpired
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : session24hInfo.hours < 2
+                              ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                              : session24hInfo.hours < 12
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              : 'bg-emerald-50 text-[#00793d] border-emerald-300'
+                          }`}
+                          title={`Cửa sổ 24h phản hồi miễn phí Meta WhatsApp Business. ${
+                            session24hInfo.isExpired
+                              ? 'Đã hết hạn 24h - Cần gửi Template có phí để tiếp tục nhắn tin'
+                              : `Hết hạn lúc ${session24hInfo.expiresAt}. Nhắn tin tự do không mất phí template.`
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              session24hInfo.isExpired
+                                ? 'bg-rose-500'
+                                : session24hInfo.hours < 2
+                                ? 'bg-rose-500 animate-ping'
+                                : session24hInfo.hours < 12
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                          ></span>
+                          <span>{session24hInfo.formattedTime}</span>
+                        </div>
                       )}
                     </div>
                     <p className="text-xs text-slate-500 flex items-center space-x-1.5">
@@ -686,10 +757,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 </div>
 
                 {/* Right Action Icons in Header */}
-                <div className="flex items-center space-x-1.5 text-slate-600">
+                <div className="flex items-center space-x-2 text-slate-600">
                   <button
                     onClick={() => setIsChatSearchOpen(!isChatSearchOpen)}
-                    className={`p-2 rounded-full transition cursor-pointer ${isChatSearchOpen ? 'bg-slate-200 text-[#008069]' : 'hover:bg-slate-200'}`}
+                    className={`p-2 rounded-lg border transition cursor-pointer ${
+                      isChatSearchOpen
+                        ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
+                    }`}
                     title="Tìm kiếm trong đoạn chat"
                   >
                     <Search className="w-4 h-4" />
@@ -697,15 +772,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                   <button
                     onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-sm ${
+                    className={`p-2 rounded-lg border transition cursor-pointer ${
                       isDrawerOpen
-                        ? 'bg-[#008069] text-white border-[#008069]'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
                     }`}
-                    title="Bật/Tắt Hồ Sơ CRM Khách Hàng"
+                    title="Bật/Tắt Hồ sơ CRM (Menu 3 gạch)"
                   >
-                    <User className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Hồ sơ CRM</span>
+                    <Menu className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -760,25 +834,60 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </span>
                     </div>
 
-                    {group.msgs.map((msg) => {
+                    {group.msgs.map((msg, msgIdx) => {
                       const isAgent = msg.sender === 'agent';
                       const senderName = isAgent ? (msg.agentName || currentUser?.name || 'Nguyễn Văn Ánh') : msg.customerName;
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
 
+                      // Check if sender changed from previous message in this date group
+                      const prevMsg = msgIdx > 0 ? group.msgs[msgIdx - 1] : null;
+                      const isFirstOfTurn = !prevMsg || prevMsg.sender !== msg.sender;
+
                       return (
                         <div
                           key={msg.id}
-                          className={`flex flex-col group ${isAgent ? 'items-end' : 'items-start'}`}
+                          className={`flex items-start gap-2 group ${isAgent ? 'flex-row-reverse' : 'flex-row'} ${isFirstOfTurn ? 'mt-3' : 'mt-1'}`}
                         >
-                          <div className={`relative max-w-[82%] sm:max-w-[70%] ${isAgent ? 'whatsapp-bubble-out' : 'whatsapp-bubble-in'} px-3.5 py-2 text-xs space-y-1`}>
-                            
-                            {/* Sender Header */}
-                            <div className="flex items-center justify-between gap-3 text-[10px] pb-0.5 font-bold">
-                              <span className={isAgent ? 'text-[#008069]' : 'text-indigo-600'}>
-                                {senderName}
-                              </span>
+                          {/* Message Sender Avatar (Only displayed on the first message of a sender turn) */}
+                          {isFirstOfTurn ? (
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden shrink-0 shadow-2xs border border-slate-200/90 bg-white mt-0.5">
+                              {isAgent ? (
+                                currentUser?.avatar ? (
+                                  <img src={currentUser.avatar} alt={senderName} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-[#008069] text-white flex items-center justify-center font-bold text-xs">
+                                    {senderName.charAt(0) || 'A'}
+                                  </div>
+                                )
+                              ) : (
+                                <img
+                                  src={
+                                    activeCustomer?.avatar ||
+                                    `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(
+                                      msg.customerPhone || msg.customerName || activeThread.customerPhone || 'customer'
+                                    )}`
+                                  }
+                                  alt={senderName}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
                             </div>
+                          ) : (
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 pointer-events-none" />
+                          )}
+
+                          {/* Message Bubble */}
+                          <div className={`relative max-w-[80%] sm:max-w-[70%] ${isAgent ? 'whatsapp-bubble-out' : 'whatsapp-bubble-in'} px-3.5 py-2 text-xs space-y-1`}>
+                            
+                            {/* Sender Header (Only show on first message of turn) */}
+                            {isFirstOfTurn && (
+                              <div className="flex items-center justify-between gap-3 text-[10px] pb-0.5 font-bold">
+                                <span className={isAgent ? 'text-[#008069]' : 'text-indigo-600'}>
+                                  {senderName}
+                                </span>
+                              </div>
+                            )}
 
                             {/* Message Body Content */}
                             <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-slate-900 break-words font-normal">
@@ -901,15 +1010,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               )}
 
               {showAttachMenu && (
-                <div className="absolute bottom-16 left-8 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-48 animate-fadeIn space-y-1">
+                <div className="absolute bottom-16 left-8 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-52 animate-fadeIn space-y-1">
                   <button
                     onClick={() => {
                       if (activeCustomer) onOpenAddOrder(activeCustomer);
                       setShowAttachMenu(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 rounded-xl flex items-center space-x-2 transition cursor-pointer"
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
                   >
-                    <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
                     <span>Tạo Đơn Hàng Mới</span>
                   </button>
                   <button
@@ -917,9 +1028,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       handleApplyTemplate('Dạ em gửi anh/chị thông tin tài khoản và xác nhận đơn hàng ạ: ...');
                       setShowAttachMenu(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 rounded-xl flex items-center space-x-2 transition cursor-pointer"
+                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
                   >
-                    <FileText className="w-4 h-4 text-blue-600" />
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
                     <span>Gửi Báo Giá / Bill</span>
                   </button>
                 </div>
@@ -931,30 +1044,42 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`p-2 rounded-full text-slate-600 hover:bg-slate-200 transition cursor-pointer ${showEmojiPicker ? 'text-[#008069]' : ''}`}
+                  className={`p-2 rounded-xl border transition cursor-pointer ${
+                    showEmojiPicker
+                      ? 'bg-emerald-100 text-[#008069] border-emerald-300 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
+                  }`}
                   title="Emoji"
                 >
-                  <Smile className="w-5 h-5" />
+                  <Smile className="w-4 h-4" />
                 </button>
 
                 {/* Attachment Menu Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowAttachMenu(!showAttachMenu)}
-                  className={`p-2 rounded-full text-slate-600 hover:bg-slate-200 transition cursor-pointer ${showAttachMenu ? 'text-[#008069]' : ''}`}
+                  className={`p-2 rounded-xl border transition cursor-pointer ${
+                    showAttachMenu
+                      ? 'bg-emerald-100 text-[#008069] border-emerald-300 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
+                  }`}
                   title="Đính kèm tài liệu, đơn hàng"
                 >
-                  <Paperclip className="w-5 h-5" />
+                  <Paperclip className="w-4 h-4" />
                 </button>
 
                 {/* Quick Canned Template Trigger */}
                 <button
                   type="button"
                   onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                  className={`p-2 rounded-full text-amber-600 hover:bg-amber-100 transition cursor-pointer ${showTemplatePicker ? 'bg-amber-100' : ''}`}
+                  className={`p-2 rounded-xl border transition cursor-pointer ${
+                    showTemplatePicker
+                      ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
+                      : 'bg-white text-amber-600 border-slate-300 hover:bg-amber-50 shadow-2xs'
+                  }`}
                   title="Mẫu tin nhắn nhanh (/)"
                 >
-                  <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  <Zap className="w-4 h-4 fill-amber-500 text-amber-500" />
                 </button>
 
                 {/* Textarea Input */}
@@ -1044,18 +1169,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <>
                     <button
                       onClick={() => onOpenAddOrder(activeCustomer)}
-                      className="w-full py-2 px-3 bg-[#008069] hover:bg-[#006232] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm"
+                      className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
                     >
-                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <ShoppingBag className="w-4 h-4" />
                       <span>+ Lên Đơn Hàng Mới</span>
                     </button>
 
                     <button
                       onClick={() => onSelectCustomerDetail(activeCustomer)}
-                      className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-slate-300"
+                      className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-indigo-200 hover:border-indigo-300 shadow-2xs"
                     >
                       <span>Xem Hồ Sơ Chi Tiết</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <ArrowUpRight className="w-4 h-4" />
                     </button>
                   </>
                 ) : (
