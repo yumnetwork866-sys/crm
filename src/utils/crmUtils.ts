@@ -165,3 +165,25 @@ export function calculateCrmMetrics(customers: Customer[]) {
     repeatPurchaseRate,
   };
 }
+
+/**
+ * Normalizes phone numbers by extracting clean digits and matching by standard last 9 digits
+ */
+export function normalizePhone(phone?: string | null): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : digits;
+}
+
+/**
+ * Robust check to see if two phone numbers (or customer identifiers) refer to the same customer/phone
+ */
+export function isSamePhoneNumber(phone1?: string | null, phone2?: string | null): boolean {
+  if (!phone1 || !phone2) return false;
+  if (phone1 === phone2) return true;
+  const n1 = normalizePhone(phone1);
+  const n2 = normalizePhone(phone2);
+  if (!n1 || !n2) return false;
+  return n1 === n2 || n1.endsWith(n2) || n2.endsWith(n1);
+}
+

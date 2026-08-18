@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport, CentralMessage, MessageChannel } from './types';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from './data/mockData';
-import { getCustomerGroup } from './utils/crmUtils';
+import { getCustomerGroup, isSamePhoneNumber } from './utils/crmUtils';
 import { api, getStoredToken } from './utils/apiClient';
 import { playNotificationSound } from './utils/audioUtils';
 
@@ -222,10 +222,13 @@ export default function App() {
 
   const unreadMessagesCount = centralMessages.filter((m) => !m.isRead && m.sender === 'customer').length;
 
-  const handleSelectCustomerThread = (customerId: string) => {
-    setSelectedChatCustomerId(customerId);
+  const handleSelectCustomerThread = (targetId: string) => {
+    setSelectedChatCustomerId(targetId);
     setCentralMessages((prev) =>
-      prev.map((msg) => (msg.customerId === customerId ? { ...msg, isRead: true } : msg))
+      prev.map((msg) => {
+        const match = msg.customerId === targetId || isSamePhoneNumber(msg.customerPhone, targetId);
+        return match ? { ...msg, isRead: true } : msg;
+      })
     );
   };
 
@@ -237,13 +240,6 @@ export default function App() {
       try {
         const realMsgs = await api.get<CentralMessage[]>('/meta/messages');
         if (realMsgs && Array.isArray(realMsgs)) {
-          // On first poll, just seed the known IDs set
-          if (knownMsgIds.size === 0) {
-            realMsgs.forEach((m) => knownMsgIds.add(m.id));
-            setCentralMessages(realMsgs);
-            return;
-          }
-
           // Detect newly arrived incoming customer messages
           const newIncoming = realMsgs.filter(
             (m) => !knownMsgIds.has(m.id) && m.sender === 'customer'
@@ -252,10 +248,16 @@ export default function App() {
           // Update known IDs
           realMsgs.forEach((m) => knownMsgIds.add(m.id));
 
-          setCentralMessages(realMsgs);
+          setCentralMessages((prev) => {
+            // Keep optimistic/pending local messages so they don't disappear while syncing
+            const backendIdSet = new Set(realMsgs.map((m) => m.id));
+            const optimisticMsgs = prev.filter((m) => !backendIdSet.has(m.id) && m.id.startsWith('msg_'));
+            const merged = [...realMsgs, ...optimisticMsgs];
+            return merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          });
 
           // Trigger notification for the latest new incoming message
-          if (newIncoming.length > 0) {
+          if (newIncoming.length > 0 && knownMsgIds.size > realMsgs.length) {
             const latestMsg = newIncoming[newIncoming.length - 1];
             playNotificationSound();
             setToastNotification({
@@ -274,15 +276,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSendCentralMessage = async (customerId: string, content: string, channel: MessageChannel) => {
-    const cust = customers.find((c) => c.id === customerId);
+  const handleSendCentralMessage = async (
+    customerId: string,
+    content: string,
+    channel: MessageChannel = 'WhatsApp',
+    explicitPhone?: string,
+    explicitName?: string
+  ) => {
+    const cust = customers.find((c) => c.id === customerId || isSamePhoneNumber(c.phone, explicitPhone || customerId));
     const agentName = currentUser?.name || 'Nguyễn Văn Ánh';
+    const phone = explicitPhone || cust?.phone || (customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (customerId.replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
+    const name = explicitName || cust?.name || (phone ? `Khách Hàng (${phone})` : 'Khách Hàng');
 
     const tempMsg: CentralMessage = {
-      id: `msg_${Date.now()}`,
-      customerId,
-      customerName: cust?.name || 'Khách Hàng',
-      customerPhone: cust?.phone || '',
+      id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      customerId: cust?.id || customerId,
+      customerName: name,
+      customerPhone: phone,
       sender: 'agent',
       agentName,
       channel,
@@ -296,16 +306,16 @@ export default function App() {
     // Send real WhatsApp Cloud API message via Backend endpoint
     try {
       const res: any = await api.post('/meta/messages/send', {
-        customerId,
-        customerName: cust?.name,
-        customerPhone: cust?.phone,
+        customerId: cust?.id || customerId,
+        customerName: name,
+        customerPhone: phone,
         content,
         agentName
       });
 
       if (res && res.message) {
         setCentralMessages((prev) =>
-          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id } : m))
+          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id, isRealSent: res.isRealSent } : m))
         );
       }
     } catch (apiErr) {
@@ -313,25 +323,27 @@ export default function App() {
     }
 
     // Update customer last contact and append to customer notes timeline
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId || (c.phone && cust?.phone && c.phone.replace(/\D/g, '') === cust.phone.replace(/\D/g, ''))) {
-          const newNote = {
-            id: `n_wa_${Date.now()}`,
-            author: agentName,
-            content: `[WhatsApp Gửi đi] ${content}`,
-            createdAt: new Date().toLocaleString('vi-VN'),
-            type: 'whatsapp' as const,
-          };
-          return {
-            ...c,
-            lastContact: new Date().toISOString().split('T')[0],
-            notes: [newNote, ...c.notes],
-          };
-        }
-        return c;
-      })
-    );
+    if (cust || phone) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === customerId || (cust && c.id === cust.id) || isSamePhoneNumber(c.phone, phone)) {
+            const newNote = {
+              id: `n_wa_${Date.now()}`,
+              author: agentName,
+              content: `[WhatsApp Gửi đi] ${content}`,
+              createdAt: new Date().toLocaleString('vi-VN'),
+              type: 'whatsapp' as const,
+            };
+            return {
+              ...c,
+              lastContact: new Date().toISOString().split('T')[0],
+              notes: [newNote, ...(c.notes || [])],
+            };
+          }
+          return c;
+        })
+      );
+    }
   };
 
   const handleDeleteThread = async (customerId: string) => {
@@ -341,17 +353,15 @@ export default function App() {
     }
 
     // Extract all matching phone numbers and IDs for this thread
-    const threadMsgs = centralMessages.filter((m) => m.customerId === customerId);
+    const threadMsgs = centralMessages.filter((m) => m.customerId === customerId || isSamePhoneNumber(m.customerPhone, customerId));
     const threadPhone = threadMsgs[0]?.customerPhone || customers.find((c) => c.id === customerId)?.phone || customerId;
     const cleanPhone = threadPhone.replace(/\D/g, '');
-    const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
     // Filter React centralMessages state completely
     setCentralMessages((prev) =>
       prev.filter((m) => {
-        const mPhone = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
         const isSameId = m.customerId === customerId;
-        const isSamePhone = lastDigits && mPhone && mPhone.includes(lastDigits);
+        const isSamePhone = isSamePhoneNumber(m.customerPhone, threadPhone);
         return !isSameId && !isSamePhone;
       })
     );
@@ -881,9 +891,9 @@ export default function App() {
     alert('Tạo đơn hàng thành công! Đã tự động kích hoạt quy trình Chăm sóc WhatsApp Ngày +3!');
   };
 
-  const handleSendCustomMessage = (customerId: string, messageText: string) => {
+  const handleSendCustomMessage = (customerId: string, messageText: string, phone?: string, name?: string) => {
     // Sync to Central WhatsApp Inbox & Meta Cloud API
-    handleSendCentralMessage(customerId, messageText, 'WhatsApp');
+    handleSendCentralMessage(customerId, messageText, 'WhatsApp', phone, name);
   };
 
   // Run Automation Simulation logic

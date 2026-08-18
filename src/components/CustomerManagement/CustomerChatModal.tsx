@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { X, Send, CheckCheck, ShieldAlert, Sparkles } from 'lucide-react';
 import { Customer, CentralMessage } from '../../types';
+import { isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   customer: Customer | null;
   centralMessages?: CentralMessage[];
-  onSendMessage: (customerId: string, text: string) => void;
+  onSendMessage: (customerId: string, text: string, phone?: string, name?: string) => void;
 }
 
 export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
@@ -25,13 +26,15 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    onSendMessage(customer.id, inputText.trim());
+    onSendMessage(customer.id, inputText.trim(), customer.phone, customer.name);
     setInputText('');
   };
 
-  const activeCentralMsgs = centralMessages.filter(
-    (m) => m.customerId === customer.id || (m.customerPhone && m.customerPhone.replace(/\D/g, '') === customer.phone.replace(/\D/g, ''))
-  );
+  const activeCentralMsgs = centralMessages.filter((m) => {
+    const matchId = Boolean(m.customerId && customer.id && m.customerId === customer.id);
+    const matchPhone = isSamePhoneNumber(m.customerPhone || m.customerId, customer.phone || customer.id);
+    return matchId || matchPhone;
+  });
 
   const displayMessages = activeCentralMsgs.map((m) => ({
     id: m.id,

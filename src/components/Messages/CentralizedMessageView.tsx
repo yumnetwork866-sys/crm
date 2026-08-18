@@ -11,7 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup } from '../../utils/crmUtils';
+import { getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
@@ -19,7 +19,7 @@ interface CentralizedMessageViewProps {
   currentUser?: AppUser | null;
   selectedCustomerId?: string | null;
   onSelectCustomerThread: (customerId: string) => void;
-  onSendMessage: (customerId: string, content: string, channel: MessageChannel) => void;
+  onSendMessage: (customerId: string, content: string, channel: MessageChannel, customerPhone?: string, customerName?: string) => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
   onDeleteThread?: (customerId: string) => void;
@@ -44,11 +44,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const isAdmin = currentUser?.role === 'Admin';
 
-  // Group messages by normalized phone number so ALL messages for the same customer group into 1 single thread
+  // Group messages by customer ID and normalized phone number into single unified threads
   const threads = useMemo(() => {
     const map = new Map<
       string,
       {
+        threadId: string;
         customer: Customer | null;
         customerName: string;
         customerPhone: string;
@@ -60,22 +61,24 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
     // 1. Group existing central messages
     messages.forEach((msg) => {
-      const rawPhone = msg.customerPhone || msg.customerId || '';
+      const rawPhone = msg.customerPhone || (msg.customerId && msg.customerId.startsWith('cust_') ? msg.customerId.replace('cust_', '') : '');
       const cleanPhone = rawPhone.replace(/\D/g, '');
       const phoneKey = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : (msg.customerId || 'unknown');
 
       const cust = customers.find((c) => {
-        const cPhone = c.phone ? c.phone.replace(/\D/g, '') : '';
-        return c.id === msg.customerId || (cleanPhone && cPhone && cPhone.includes(phoneKey));
+        return (msg.customerId && c.id === msg.customerId) || isSamePhoneNumber(c.phone, rawPhone || msg.customerId);
       }) || null;
 
-      const existing = map.get(phoneKey);
+      const threadKey = cust?.id || (cleanPhone.length >= 7 ? cleanPhone.slice(-9) : phoneKey);
+
+      const existing = map.get(threadKey);
 
       if (!existing) {
-        map.set(phoneKey, {
+        map.set(threadKey, {
+          threadId: threadKey,
           customer: cust,
           customerName: msg.customerName || cust?.name || 'Khách Hàng',
-          customerPhone: msg.customerPhone || cust?.phone || '',
+          customerPhone: msg.customerPhone || cust?.phone || (cleanPhone ? `+${cleanPhone}` : ''),
           lastMessage: msg,
           unreadCount: !msg.isRead && msg.sender === 'customer' ? 1 : 0,
           messages: [msg],
@@ -84,6 +87,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         existing.messages.push(msg);
         existing.lastMessage = msg;
         if (cust && !existing.customer) existing.customer = cust;
+        if (!existing.customerPhone && (msg.customerPhone || cust?.phone)) {
+          existing.customerPhone = msg.customerPhone || cust?.phone || '';
+        }
+        if (cust && !existing.customerName && cust.name) {
+          existing.customerName = cust.name;
+        }
         if (!msg.isRead && msg.sender === 'customer') {
           existing.unreadCount += 1;
         }
@@ -112,19 +121,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     });
   }, [threads, readFilter, searchQuery]);
 
-  // Active thread selection (matches by customer ID or phone number digits)
+  // Active thread selection (matches by customer ID, threadId, or phone number digits)
   const activeThread = useMemo(() => {
     if (!threads.length) return null;
     if (!selectedCustomerId) return filteredThreads[0] || threads[0];
-    const cleanSelected = selectedCustomerId.replace(/\D/g, '').slice(-9);
 
     return (
       threads.find((t) => {
-        const tPhone = t.customerPhone.replace(/\D/g, '');
         return (
-          t.lastMessage.customerId === selectedCustomerId ||
+          t.threadId === selectedCustomerId ||
           (t.customer && t.customer.id === selectedCustomerId) ||
-          (cleanSelected && tPhone.includes(cleanSelected))
+          t.lastMessage.customerId === selectedCustomerId ||
+          isSamePhoneNumber(t.customerPhone, selectedCustomerId)
         );
       }) || filteredThreads[0] || threads[0] || null
     );
@@ -136,8 +144,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     e.preventDefault();
     if (!inputText.trim() || !activeThread) return;
 
-    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId;
-    onSendMessage(targetId, inputText.trim(), 'WhatsApp');
+    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
+    const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
+    const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
+
+    onSendMessage(targetId, inputText.trim(), 'WhatsApp', targetPhone, targetName);
     setInputText('');
   };
 
@@ -207,13 +218,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               </div>
             ) : (
               filteredThreads.map((thread) => {
-                const isSelected = activeThread?.lastMessage.customerId === thread.lastMessage.customerId;
+                const isSelected = activeThread?.threadId === thread.threadId;
                 const hasUnread = thread.unreadCount > 0;
 
                 return (
                   <div
-                    key={thread.lastMessage.customerId}
-                    onClick={() => onSelectCustomerThread(thread.lastMessage.customerId)}
+                    key={thread.threadId}
+                    onClick={() => onSelectCustomerThread(thread.threadId)}
                     className={`group p-3.5 flex items-start space-x-3 cursor-pointer transition hover:bg-slate-50 relative ${
                       isSelected ? 'bg-emerald-50/80 border-l-4 border-[#00793d]' : ''
                     }`}
@@ -241,7 +252,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (window.confirm(`[QUYỀN ADMIN] Bạn có chắc chắn muốn xóa hội thoại của ${thread.customerName}?`)) {
-                                  onDeleteThread(thread.lastMessage.customerId);
+                                  onDeleteThread(thread.customer?.id || thread.threadId || thread.lastMessage.customerId);
                                 }
                               }}
                               className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-600 transition cursor-pointer"
@@ -309,7 +320,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <button
                       onClick={() => {
                         if (window.confirm(`[QUYỀN ADMIN] Bạn có chắc chắn muốn XÓA HOÀN TOÀN toàn bộ hội thoại WhatsApp với khách hàng "${activeThread.customerName}"? Hành động này sẽ xóa vĩnh viễn khỏi Database.`)) {
-                          onDeleteThread(activeThread.lastMessage.customerId);
+                          onDeleteThread(activeThread.customer?.id || activeThread.threadId || activeThread.lastMessage.customerId);
                         }
                       }}
                       className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold transition cursor-pointer text-xs flex items-center gap-1 border border-rose-300 shadow-sm"

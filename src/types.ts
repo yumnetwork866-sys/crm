@@ -66,6 +66,7 @@ export interface Customer {
   name: string;
   gender: Gender;
   address: string;
+  country?: string;
   email?: string;
   note?: string; // Ghi chú / node thông tin khách hàng
 
