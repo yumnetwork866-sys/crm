@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   MessageSquare,
   Search,
@@ -10,7 +10,6 @@ import {
   Filter,
   ArrowUpRight,
   Trash2,
-  Phone,
   Video,
   MoreVertical,
   Paperclip,
@@ -21,7 +20,6 @@ import {
   Clock,
   X,
   Info,
-  ShieldCheck,
   ShieldAlert,
   ChevronRight,
   ChevronLeft,
@@ -30,7 +28,6 @@ import {
   CheckCircle2,
   FileText,
   Plus,
-  RefreshCw,
   Tag,
   DollarSign,
   Calendar,
@@ -52,126 +49,23 @@ import {
   Reply
 } from 'lucide-react';
 import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, isSamePhoneNumber, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
-import { api } from '../../utils/apiClient';
+import { getCustomerGroup, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
 import { INITIAL_USERS } from '../../data/mockData';
-
-interface BusinessPhoneNumber {
-  id: string;
-  verifiedName: string;
-  displayPhoneNumber: string;
-  qualityRating?: string;
-}
-
-const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
-  {
-    id: 'phone_601110716895',
-    verifiedName: 'Yum Network WABA (Chính)',
-    displayPhoneNumber: '+60 11-1071 6895',
-    qualityRating: 'GREEN',
-  },
-  {
-    id: 'phone_60123456789',
-    verifiedName: 'Yum CSKH & Tư Vấn 01',
-    displayPhoneNumber: '+60 12 345 6789',
-    qualityRating: 'GREEN',
-  },
-  {
-    id: 'phone_84988123456',
-    verifiedName: 'Yum Hotline Việt Nam',
-    displayPhoneNumber: '+84 988 123 456',
-    qualityRating: 'GREEN',
-  }
-];
-
-type ConversationStatus = 'consulting' | 'ordered' | 'callback' | 'completed';
-const STATUS_CONFIG: Record<ConversationStatus, { label: string; bg: string; text: string; border: string; dot: string }> = {
-  consulting: { label: 'Đang tư vấn', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
-  ordered: { label: 'Đã chốt đơn', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-  callback: { label: 'Hẹn gọi lại', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
-  completed: { label: 'Hoàn thành', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', dot: 'bg-slate-400' },
-};
-
-// Robust Helper to detect and extract image URLs and captions from any format
-function extractImageInfo(rawContent: string): { isImage: boolean; imgUrl: string | null; caption: string | null } {
-  if (!rawContent) return { isImage: false, imgUrl: null, caption: null };
-  const content = rawContent.trim();
-
-  // 1. Direct Data URL (Base64)
-  if (content.startsWith('data:image/')) {
-    const parts = content.split('\n');
-    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
-  }
-
-  // 2. Local disk path /uploads/... or /api/meta/media/...
-  if (content.startsWith('/uploads/') || content.startsWith('/api/meta/media/')) {
-    const parts = content.split('\n');
-    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
-  }
-
-  // 3. Direct HTTP/HTTPS Image URL
-  if (content.match(/^https?:\/\/[^\s\n]+\.(png|jpg|jpeg|gif|webp)(\?[^\s\n]*)?$/i)) {
-    const parts = content.split('\n');
-    return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
-  }
-
-  // 4. Content starting with [Hình ảnh] / [image] with embedded URL or Base64
-  const embeddedMatch = content.match(/(https?:\/\/[^\s\]\n]+|data:image\/[a-zA-Z+]+;base64,[^\s\]\n]+|\/uploads\/[^\s\]\n]+|\/api\/meta\/media\/[^\s\]\n]+)/i);
-  if (embeddedMatch) {
-    const imgUrl = embeddedMatch[0];
-    const caption = content
-      .replace(imgUrl, '')
-      .replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '')
-      .replace(/[\[\]]/g, '')
-      .trim();
-    return { isImage: true, imgUrl, caption: caption || null };
-  }
-
-  // 5. Incoming WhatsApp placeholder tag (without direct URL)
-  if (
-    content.toLowerCase().startsWith('[image') ||
-    content.toLowerCase().startsWith('[hình ảnh') ||
-    content.toLowerCase() === '[image message]' ||
-    content.toLowerCase() === '[photo]'
-  ) {
-    const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/[\[\]]/g, '').trim();
-    return { isImage: false, imgUrl: null, caption: caption || null };
-  }
-
-  return { isImage: false, imgUrl: null, caption: null };
-}
-
-interface ParsedMessageContent {
-  replyTo?: {
-    id: string;
-    senderName: string;
-    content: string;
-  };
-  cleanContent: string;
-}
-
-function parseMessageContent(content: string, existingReplyTo?: any): ParsedMessageContent {
-  if (existingReplyTo && existingReplyTo.content) {
-    return { replyTo: existingReplyTo, cleanContent: content };
-  }
-  if (content && typeof content === 'string' && content.startsWith('[reply:')) {
-    const match = content.match(/^\[reply:(\{.*?\})\]\n([\s\S]*)$/);
-    if (match) {
-      try {
-        const replyTo = JSON.parse(match[1]);
-        return { replyTo, cleanContent: match[2] };
-      } catch {}
-    }
-  }
-  return { cleanContent: content };
-}
-
-interface InternalNote {
-  id: string;
-  author: string;
-  content: string;
-  timestamp: string;
-}
+import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
+import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
+import { extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
+import { useBusinessPhones } from '../../features/messages/hooks/useBusinessPhones';
+import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
+import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
+import { useMessagePreferences } from '../../features/messages/hooks/useMessagePreferences';
+import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
+import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
+import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
+import { playPopSound } from '../../features/messages/utils/playPopSound';
+import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
+import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
+import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
+import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
@@ -197,75 +91,6 @@ interface CentralizedMessageViewProps {
   onLoadOlderMessages?: () => Promise<unknown>;
 }
 
-// Synthesize pleasant pop audio using HTML5 Web Audio API
-const playPopSound = () => {
-  try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.08);
-  } catch {}
-};
-
-// Canned Quick Reply Templates with Slash Commands
-const QUICK_TEMPLATES = [
-  {
-    code: '/chao',
-    title: 'Chào hỏi & Tư vấn',
-    content: 'Dạ em chào anh/chị! Em là chuyên viên tư vấn từ YumNetwork. Em có thể hỗ trợ thông tin gì cho mình hôm nay ạ?'
-  },
-  {
-    code: '/gia',
-    title: 'Báo giá Combo Ưu đãi',
-    content: '📄 BÁO GIÁ SẢN PHẨM:\n- Combo 2 Hộp Thảo Mộc: 700.000đ\n- Quà tặng: 1 Bình Giữ Nhiệt Cao Cấp\n- Miễn phí vận chuyển tận nhà (COD).'
-  },
-  {
-    code: '/combo',
-    title: 'Combo Mua 2 Tặng 1',
-    content: '🔥 SIÊU ƯU ĐÃI THÁNG:\n- Mua 2 Hộp tặng ngay 1 Hộp cùng loại\n- Giảm thêm 50.000đ khi thanh toán trước\n- Giao hàng hỏa tốc trong 2-3 ngày.'
-  },
-  {
-    code: '/stk',
-    title: 'Thông tin Chuyển khoản',
-    content: '💳 THÔNG TIN THANH TOÁN:\n- Ngân hàng: Techcombank\n- Số tài khoản: 190368889999\n- Chủ tài khoản: CÔNG TY TNHH YUM NETWORK\n- Nội dung: [Tên khách] + [SĐT]'
-  },
-  {
-    code: '/freeship',
-    title: 'Chính sách Vận chuyển & COD',
-    content: '🚚 CHÍNH SÁCH VẬN CHUYỂN:\n- Miễn phí ship COD toàn quốc cho đơn từ 500k.\n- Khách được đồng kiểm hàng trước khi thanh toán.\n- Đổi trả 1-1 trong 7 ngày nếu lỗi sản phẩm.'
-  },
-  {
-    code: '/voucher',
-    title: 'Tặng Voucher 20%',
-    content: '🏷️ MÃ GIẢM GIÁ ĐỘC QUYỀN:\n- Mã: YUMVIP20 (Giảm 20% tối đa 150k)\n- Hạn dùng: 7 ngày kể từ hôm nay\n- Áp dụng cho toàn bộ sản phẩm tại YumNetwork.'
-  },
-  {
-    code: '/hdsd',
-    title: 'Hướng dẫn sử dụng',
-    content: '📋 HƯỚNG DẪN SỬ DỤNG:\n- Uống 1 gói/ngày sau bữa sáng 30 phút.\n- Pha cùng 150ml - 200ml nước ấm.\n- Duy trì đều đặn 1 liệu trình từ 3-4 tuần để thấy rõ hiệu quả.'
-  }
-];
-
-const POPULAR_EMOJIS = ['👍', '❤️', '😊', '🙏', '🔥', '🎉', '👏', '💯', '✨', '💐', '👌', '⭐', '📦', '💬'];
-
-const EXTENDED_EMOJIS = [
-  '👍', '❤️', '😂', '😮', '😢', '🙏',
-  '🔥', '🎉', '👏', '💯', '🥰', '😍',
-  '🥳', '🤝', '🤩', '💪', '✨', '🌹',
-  '💐', '👌', '😎', '🥺', '🙌', '😋',
-  '🤔', '☕', '🍎', '🍰', '🎁', '⭐',
-  '💥', '💖', '🤗', '😇', '🚀', '☀️',
-  '🌸', '🥇', '🏆', '⚡', '🍀', '💎'
-];
-
 export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   messages,
   customers,
@@ -281,161 +106,30 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   isLoadingOlderMessages = false,
   onLoadOlderMessages,
 }) => {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'vip' | 'repeat' | 'new'>('all');
+  const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
-  const [inputText, setInputText] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
   const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('yumcrm_sound_enabled') !== 'false';
-  });
+  const {
+    soundEnabled,
+    setSoundEnabled,
+    internalNotes,
+    threadStatuses,
+    pinnedThreadIds,
+    togglePinThread,
+    updateThreadStatus: handleUpdateThreadStatus,
+    addInternalNote,
+    deleteInternalNote: handleDeleteInternalNote,
+  } = useMessagePreferences();
 
-  // Media upload & lightbox zoom modal
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  // Media lightbox is view-only state; composer media state lives in useMessageComposer.
   const [previewLightboxImg, setPreviewLightboxImg] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Internal Notes State (Persisted in localStorage)
-  const [internalNotes, setInternalNotes] = useState<Record<string, InternalNote[]>>(() => {
-    try {
-      const saved = localStorage.getItem('yumcrm_internal_notes');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
   const [newNoteText, setNewNoteText] = useState('');
 
-  // Conversation Pipeline Status per thread (Persisted in localStorage)
-  const [threadStatuses, setThreadStatuses] = useState<Record<string, ConversationStatus>>(() => {
-    try {
-      const saved = localStorage.getItem('yumcrm_thread_statuses');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const [pinnedThreadIds, setPinnedThreadIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('yumcrm_pinned_threads');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [messageReactions, setMessageReactions] = useState<Record<string, string>>({});
-  const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
-  const [showExpandedReactionPickerMsgId, setShowExpandedReactionPickerMsgId] = useState<string | null>(null);
-  const [replyingToMessage, setReplyingToMessage] = useState<CentralMessage | null>(null);
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
-  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
-
-  const handleJumpToQuotedMessage = (targetMsgId: string) => {
-    if (!targetMsgId) return;
-    setHighlightedMessageId(targetMsgId);
-
-    setTimeout(() => {
-      const targetEl = document.querySelector(`[data-msg-id="${targetMsgId}"]`) || document.getElementById(`msg-${targetMsgId}`);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 30);
-
-    setTimeout(() => {
-      setHighlightedMessageId((prev) => (prev === targetMsgId ? null : prev));
-    }, 2500);
-  };
-
-  useEffect(() => {
-    const handleGlobalClick = () => {
-      setActiveReactionPickerMsgId(null);
-      setShowExpandedReactionPickerMsgId(null);
-    };
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
-  }, []);
-
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isLoadingOlderRef = useRef(false);
   const isAdmin = currentUser?.role === 'Admin';
-
-  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
-
-  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
-    if (chatContainerRef.current) {
-      const el = chatContainerRef.current;
-      if (behavior === 'auto') {
-        el.scrollTop = el.scrollHeight;
-      } else {
-        el.scrollTo({
-          top: el.scrollHeight,
-          behavior: 'smooth'
-        });
-      }
-    } else if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior });
-    }
-  }, []);
-
-  const handleLoadOlderMessages = useCallback(async () => {
-    if (!onLoadOlderMessages || isLoadingOlderMessages) return;
-    const container = chatContainerRef.current;
-    const previousScrollHeight = container?.scrollHeight ?? 0;
-    isLoadingOlderRef.current = true;
-
-    try {
-      await onLoadOlderMessages();
-    } finally {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (container) {
-            container.scrollTop += container.scrollHeight - previousScrollHeight;
-          }
-          isLoadingOlderRef.current = false;
-        });
-      });
-    }
-  }, [isLoadingOlderMessages, onLoadOlderMessages]);
-
-  useEffect(() => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    const handleScroll = () => {
-      const isAwayFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight > 180;
-      setShowScrollBottomBtn(isAwayFromBottom);
-    };
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const togglePinThread = (threadId: string) => {
-    setPinnedThreadIds((prev) => {
-      const updated = prev.includes(threadId) ? prev.filter((id) => id !== threadId) : [...prev, threadId];
-      try {
-        localStorage.setItem('yumcrm_pinned_threads', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
-  };
-
-  const handleUpdateThreadStatus = (threadId: string, status: ConversationStatus) => {
-    setThreadStatuses((prev) => {
-      const updated = { ...prev, [threadId]: status };
-      try {
-        localStorage.setItem('yumcrm_thread_statuses', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
 
   const handleAddInternalNote = (customerId: string) => {
     if (!newNoteText.trim()) return;
@@ -445,155 +139,35 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       content: newNoteText.trim(),
       timestamp: new Date().toISOString(),
     };
-    setInternalNotes((prev) => {
-      const list = prev[customerId] || [];
-      const updated = { ...prev, [customerId]: [note, ...list] };
-      try {
-        localStorage.setItem('yumcrm_internal_notes', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+    addInternalNote(customerId, note);
     setNewNoteText('');
   };
 
-  const handleDeleteInternalNote = (customerId: string, noteId: string) => {
-    setInternalNotes((prev) => {
-      const list = prev[customerId] || [];
-      const updated = { ...prev, [customerId]: list.filter((n) => n.id !== noteId) };
-      try {
-        localStorage.setItem('yumcrm_internal_notes', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
-
-  // Group messages by customer ID and normalized phone number into single unified threads
-  const threads = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        threadId: string;
-        customer: Customer | null;
-        customerName: string;
-        customerPhone: string;
-        lastMessage: CentralMessage;
-        unreadCount: number;
-        messages: CentralMessage[];
-        isPinned: boolean;
-      }
-    >();
-
-    messages.forEach((msg) => {
-      const rawPhone = msg.customerPhone || (msg.customerId && msg.customerId.startsWith('cust_') ? msg.customerId.replace('cust_', '') : '');
-      const cleanPhone = rawPhone.replace(/\D/g, '');
-      const phoneKey = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : (msg.customerId || 'unknown');
-
-      const cust = customers.find((c) => {
-        return (msg.customerId && c.id === msg.customerId) || isSamePhoneNumber(c.phone, rawPhone || msg.customerId);
-      }) || null;
-
-      const threadKey = cust?.id || (cleanPhone.length >= 7 ? cleanPhone.slice(-9) : phoneKey);
-
-      const existing = map.get(threadKey);
-
-      if (!existing) {
-        map.set(threadKey, {
-          threadId: threadKey,
-          customer: cust,
-          customerName: msg.customerName || cust?.name || 'Khách Hàng',
-          customerPhone: msg.customerPhone || cust?.phone || (cleanPhone ? `+${cleanPhone}` : ''),
-          lastMessage: msg,
-          unreadCount: !msg.isRead && msg.sender === 'customer' ? 1 : 0,
-          messages: [msg],
-          isPinned: pinnedThreadIds.includes(threadKey),
-        });
-      } else {
-        existing.messages.push(msg);
-        existing.lastMessage = msg;
-        if (cust && !existing.customer) existing.customer = cust;
-        if (!existing.customerPhone && (msg.customerPhone || cust?.phone)) {
-          existing.customerPhone = msg.customerPhone || cust?.phone || '';
-        }
-        if (cust && !existing.customerName && cust.name) {
-          existing.customerName = cust.name;
-        }
-        if (!msg.isRead && msg.sender === 'customer') {
-          existing.unreadCount += 1;
-        }
-      }
-    });
-
-    // Sort: Pinned threads first, then by lastMessage timestamp desc
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime();
-    });
-  }, [messages, customers, pinnedThreadIds]);
-
-  // Filter threads based on category filter and search
-  const filteredThreads = useMemo(() => {
-    return threads.filter((t) => {
-      // 1. Category Filter
-      if (activeFilter === 'unread' && t.unreadCount === 0) return false;
-      if (activeFilter === 'vip' && (!t.customer || t.customer.totalOrders < 2)) return false;
-      if (activeFilter === 'repeat' && (!t.customer || t.customer.totalOrders !== 1)) return false;
-      if (activeFilter === 'new' && t.customer && t.customer.totalOrders > 0) return false;
-
-      // 2. Search Filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = t.customerName.toLowerCase().includes(q);
-        const matchesPhone = t.customerPhone.includes(q);
-        const matchesContent = t.messages.some((m) => m.content.toLowerCase().includes(q));
-        if (!matchesName && !matchesPhone && !matchesContent) return false;
-      }
-      return true;
-    });
-  }, [threads, activeFilter, searchQuery]);
-
-  // Active thread selection
-  const activeThread = useMemo(() => {
-    if (!threads.length) return null;
-    if (!selectedCustomerId) return filteredThreads[0] || threads[0];
-
-    return (
-      threads.find((t) => {
-        return (
-          t.threadId === selectedCustomerId ||
-          (t.customer && t.customer.id === selectedCustomerId) ||
-          t.lastMessage.customerId === selectedCustomerId ||
-          isSamePhoneNumber(t.customerPhone, selectedCustomerId)
-        );
-      }) || filteredThreads[0] || threads[0] || null
-    );
-  }, [threads, filteredThreads, selectedCustomerId]);
+  const { threads, filteredThreads, activeThread, groupedMessagesByDate } = useMessageThreads({
+    messages,
+    customers,
+    pinnedThreadIds,
+    activeFilter,
+    searchQuery,
+    selectedCustomerId,
+    chatSearchQuery,
+  });
 
   const activeCustomer = activeThread?.customer || null;
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
-
-  // Auto-scroll chat to bottom:
-  // 1. Instant pinned bottom scroll on active thread switch
-  useEffect(() => {
-    if (!activeThread?.threadId) return;
-    scrollToBottom('auto');
-    const timer1 = setTimeout(() => scrollToBottom('auto'), 40);
-    const timer2 = setTimeout(() => scrollToBottom('auto'), 120);
-    const timer3 = setTimeout(() => scrollToBottom('auto'), 300);
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, [activeThread?.threadId, scrollToBottom]);
-
-  // 2. Smooth scroll on new incoming or outgoing messages
-  useEffect(() => {
-    if (isLoadingOlderRef.current) return;
-    scrollToBottom('smooth');
-    const timer = setTimeout(() => scrollToBottom('smooth'), 80);
-    return () => clearTimeout(timer);
-  }, [activeThread?.messages?.length, scrollToBottom]);
+  const {
+    chatContainerRef,
+    chatEndRef,
+    showScrollBottomBtn,
+    scrollToBottom,
+    handleLoadOlderMessages,
+  } = useMessageViewport({
+    threadId: activeThread?.threadId,
+    messageCount: activeThread?.messages.length || 0,
+    isLoadingOlderMessages,
+    onLoadOlderMessages,
+  });
 
   // Auto-mark active thread as read
   useEffect(() => {
@@ -602,156 +176,55 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     }
   }, [activeThread?.threadId, activeThread?.unreadCount, activeThread?.customerPhone, onSelectCustomerThread]);
 
-  // Filter messages inside active thread if searching in chat
-  const displayedActiveMessages = useMemo(() => {
-    if (!activeThread) return [];
-    if (!chatSearchQuery.trim()) return activeThread.messages;
-    const q = chatSearchQuery.toLowerCase();
-    return activeThread.messages.filter((m) => m.content.toLowerCase().includes(q));
-  }, [activeThread, chatSearchQuery]);
+  const { currentTime, session24hInfo } = useWhatsAppSessionWindow(activeThread);
 
-  // Group active thread messages by calendar date (Date Divider Pill)
-  const groupedMessagesByDate = useMemo(() => {
-    const groups: { dateLabel: string; msgs: CentralMessage[] }[] = [];
-    displayedActiveMessages.forEach((msg) => {
-      const msgDate = new Date(msg.timestamp);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      let dateLabel = msgDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      if (msgDate.toDateString() === today.toDateString()) {
-        dateLabel = 'Hôm nay';
-      } else if (msgDate.toDateString() === yesterday.toDateString()) {
-        dateLabel = 'Hôm qua';
-      }
-
-      const lastGroup = groups[groups.length - 1];
-      if (lastGroup && lastGroup.dateLabel === dateLabel) {
-        lastGroup.msgs.push(msg);
-      } else {
-        groups.push({ dateLabel, msgs: [msg] });
-      }
-    });
-    return groups;
-  }, [displayedActiveMessages]);
-
-  const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Compute 24h Meta Customer Service Window for active thread
-  const session24hInfo = useMemo(() => {
-    if (!activeThread || !activeThread.messages.length) return null;
-
-    // Find the latest message from customer
-    const custMsgs = activeThread.messages.filter((m) => m.sender === 'customer');
-    const lastCustMsg = custMsgs.length > 0 ? custMsgs[custMsgs.length - 1] : null;
-
-    // Fallback to activeThread lastMessage if no explicit customer msg
-    const referenceTimestamp = lastCustMsg ? lastCustMsg.timestamp : activeThread.lastMessage?.timestamp;
-    if (!referenceTimestamp) return null;
-
-    const lastCustTimeMs = new Date(referenceTimestamp).getTime();
-    const window24hMs = 24 * 60 * 60 * 1000;
-    const expiresAtMs = lastCustTimeMs + window24hMs;
-    const remainingMs = Math.max(0, expiresAtMs - currentTime);
-
-    const isExpired = remainingMs <= 0;
-    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
-    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
-
-    return {
-      isExpired,
-      hours,
-      minutes,
-      seconds,
-      remainingMs,
-      expiresAt: new Date(expiresAtMs).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      formattedTime: isExpired
-        ? 'Hết hạn'
-        : `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
-    };
-  }, [activeThread, currentTime]);
-
-  const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>(DEFAULT_BUSINESS_PHONES);
-  const [selectedPhoneId, setSelectedPhoneId] = useState<string>(() => {
-    return localStorage.getItem('yumcrm_active_waba_phone') || 'phone_601110716895';
+  const {
+    businessPhones,
+    selectedPhoneId,
+    selectBusinessPhone: handleSelectBusinessPhone,
+  } = useBusinessPhones();
+  const {
+    inputText,
+    setInputText,
+    showEmojiPicker,
+    setShowEmojiPicker,
+    showTemplatePicker,
+    setShowTemplatePicker,
+    showAttachMenu,
+    setShowAttachMenu,
+    pendingImage,
+    setPendingImage,
+    replyingToMessage,
+    setReplyingToMessage,
+    textareaRef,
+    fileInputRef,
+    filteredSlashTemplates,
+    handleSelectSlashTemplate,
+    handleApplyTemplate,
+    handleAddEmoji,
+    handlePaste,
+    handleFileSelect,
+    handleSend,
+    handleKeyDown,
+    handleReplyMessage: startReplyMessage,
+  } = useMessageComposer({ activeThread, selectedPhoneId, soundEnabled, onSendMessage });
+  const {
+    messageReactions,
+    activeReactionPickerMsgId,
+    setActiveReactionPickerMsgId,
+    showExpandedReactionPickerMsgId,
+    setShowExpandedReactionPickerMsgId,
+    highlightedMessageId,
+    copiedMsgId,
+    handleJumpToQuotedMessage,
+    handleCopyMessage,
+    handleReactMessage,
+    handleReplyMessage,
+  } = useMessageInteractions({
+    activeThread,
+    selectedPhoneId,
+    onReplyMessage: startReplyMessage,
   });
-
-  // Load configured or dynamic Meta phone numbers
-  useEffect(() => {
-    let isMounted = true;
-    const loadPhones = async () => {
-      try {
-        const res = await fetch('/api/meta/config').catch(() => null);
-        if (res && res.ok) {
-          const cfg = await res.json();
-          if (cfg.whatsappWabaId && cfg.hasAccessToken) {
-            const pRes = await fetch('/api/meta/fetch-phone-numbers', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ wabaId: cfg.whatsappWabaId }),
-            }).catch(() => null);
-
-            if (pRes && pRes.ok) {
-              const pData = await pRes.json();
-              if (pData.success && Array.isArray(pData.phoneNumbers) && pData.phoneNumbers.length > 0) {
-                if (isMounted) {
-                  const mapped = pData.phoneNumbers.map((p: any) => ({
-                    id: p.id,
-                    verifiedName: p.verifiedName || 'Yum Network WABA',
-                    displayPhoneNumber: p.displayPhoneNumber || p.id,
-                    qualityRating: p.qualityRating || 'GREEN',
-                  }));
-                  setBusinessPhones(mapped);
-                  const saved = localStorage.getItem('yumcrm_active_waba_phone');
-                  const match = mapped.find((m: any) => m.id === saved || m.id === cfg.whatsappPhoneNumberId);
-                  if (match) {
-                    setSelectedPhoneId(match.id);
-                  } else {
-                    setSelectedPhoneId(mapped[0].id);
-                  }
-                  return;
-                }
-              }
-            }
-          }
-          if (cfg.whatsappPhoneNumberId && isMounted) {
-            const match = DEFAULT_BUSINESS_PHONES.find(
-              (p) => p.id === cfg.whatsappPhoneNumberId || p.displayPhoneNumber.replace(/\D/g, '') === cfg.whatsappPhoneNumberId.replace(/\D/g, '')
-            );
-            if (match) {
-              setSelectedPhoneId(match.id);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to load Meta WABA phone numbers:', err);
-      }
-    };
-    loadPhones();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleSelectBusinessPhone = (phoneId: string) => {
-    setSelectedPhoneId(phoneId);
-    try {
-      localStorage.setItem('yumcrm_active_waba_phone', phoneId);
-      if (!phoneId.startsWith('phone_')) {
-        fetch('/api/meta/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ whatsappPhoneNumberId: phoneId }),
-        }).catch(() => {});
-      }
-    } catch {}
-  };
 
   const getSlaWarning = (thread: { messages: CentralMessage[]; lastMessage: CentralMessage }) => {
     if (thread.lastMessage.sender !== 'customer') return null;
@@ -763,183 +236,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       return { label: `Chờ > ${hours}h`, minutes, isSevere: true };
     }
     return { label: `Chờ ${minutes}p`, minutes, isSevere: false };
-  };
-
-  const isSlashActive = inputText.startsWith('/');
-  const filteredSlashTemplates = useMemo(() => {
-    if (!isSlashActive) return [];
-    const keyword = inputText.slice(1).toLowerCase().trim();
-    if (!keyword) return QUICK_TEMPLATES;
-    return QUICK_TEMPLATES.filter(
-      (t) =>
-        t.code.toLowerCase().includes(keyword) ||
-        t.title.toLowerCase().includes(keyword) ||
-        t.content.toLowerCase().includes(keyword)
-    );
-  }, [inputText, isSlashActive]);
-
-  const handleSelectSlashTemplate = (content: string) => {
-    setInputText(content);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  };
-
-  const handleApplyTemplate = (content: string) => {
-    setInputText(content);
-    setShowTemplatePicker(false);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  };
-
-  const handleAddEmoji = (emoji: string) => {
-    setInputText((prev) => prev + emoji);
-    setShowEmojiPicker(false);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  };
-
-  const handleCopyMessage = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedMsgId(id);
-    setTimeout(() => setCopiedMsgId(null), 2000);
-  };
-
-  const handleReactMessage = async (msg: CentralMessage, emoji: string) => {
-    const currentReaction = messageReactions[msg.id];
-    const newEmoji = currentReaction === emoji ? '' : emoji;
-
-    // 1. Optimistic instant local update
-    setMessageReactions((prev) => ({
-      ...prev,
-      [msg.id]: newEmoji,
-    }));
-    setActiveReactionPickerMsgId(null);
-    setShowExpandedReactionPickerMsgId(null);
-
-    // 2. Real dispatch to WhatsApp Meta Cloud API via backend
-    try {
-      const targetPhone = activeThread?.customerPhone || activeThread?.customer?.phone || msg.customerPhone;
-      await api.post('/meta/messages/react', {
-        messageId: msg.id,
-        emoji: newEmoji,
-        customerPhone: targetPhone,
-        customerId: msg.customerId,
-        senderPhoneId: selectedPhoneId
-      });
-    } catch (err) {
-      console.warn('Real reaction dispatch offline fallback:', err);
-    }
-  };
-
-  const handleReplyMessage = (msg: CentralMessage) => {
-    setReplyingToMessage(msg);
-    setActiveReactionPickerMsgId(null);
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 50);
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.indexOf('image') !== -1) {
-        const file = item.getAsFile();
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            if (event.target?.result) {
-              setPendingImage(event.target.result as string);
-            }
-          };
-          reader.readAsDataURL(file);
-        }
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setPendingImage(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-    e.target.value = '';
-  };
-
-  const handleSend = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!activeThread) return;
-    const text = inputText.trim();
-    if (!text && !pendingImage) return;
-
-    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
-    const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
-    const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
-
-    const replyQuote = replyingToMessage ? {
-      id: replyingToMessage.id,
-      senderName: replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng'),
-      content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150)
-    } : undefined;
-    setReplyingToMessage(null);
-
-    // Handle Inline Attached Image
-    if (pendingImage) {
-      const imgToSend = pendingImage;
-      let contentToSend = text ? `${imgToSend}\n${text}` : imgToSend;
-      if (replyQuote) {
-        contentToSend = `[reply:${JSON.stringify(replyQuote)}]\n${contentToSend}`;
-      }
-
-      // 1. Optimistic Instant UI Send (0ms delay)
-      onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyQuote);
-      if (soundEnabled) playPopSound();
-
-      // 2. Async background upload to server disk
-      if (imgToSend.startsWith('data:image/')) {
-        fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: imgToSend, folder: 'chat' })
-        }).catch(() => null);
-      }
-
-      setPendingImage(null);
-      setInputText('');
-      setShowTemplatePicker(false);
-      setShowEmojiPicker(false);
-      setShowAttachMenu(false);
-      return;
-    }
-
-    // Text Only Send
-    let contentToSend = text;
-    if (replyQuote) {
-      contentToSend = `[reply:${JSON.stringify(replyQuote)}]\n${text}`;
-    }
-    onSendMessage(targetId, contentToSend, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyQuote);
-    if (soundEnabled) playPopSound();
-    setInputText('');
-    setShowTemplatePicker(false);
-    setShowEmojiPicker(false);
-    setShowAttachMenu(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   };
 
   return (
@@ -954,28 +250,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           
           {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
           <div className="p-2.5 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-            {/* Integrated Business Phone Dropdown */}
-            <div className="relative min-w-0 flex-1">
-              <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-[#008069]">
-                <Phone className="w-3.5 h-3.5" />
-              </div>
-              <select
-                id="waba-phone-select"
-                value={selectedPhoneId}
-                onChange={(e) => handleSelectBusinessPhone(e.target.value)}
-                className="w-full appearance-none bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs pl-8 pr-7 py-1.5 rounded-lg border border-slate-300 focus:border-[#008069] focus:ring-1 focus:ring-emerald-500/20 focus:outline-none transition cursor-pointer shadow-xs truncate"
-                title="Chọn số Doanh nghiệp gửi tin (WABA)"
-              >
-                {businessPhones.map((phone) => (
-                  <option key={phone.id} value={phone.id}>
-                    {phone.displayPhoneNumber} — {phone.verifiedName}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
-                <ChevronDown className="w-3.5 h-3.5" />
-              </div>
-            </div>
+            <BusinessPhoneSelector
+              phones={businessPhones}
+              selectedPhoneId={selectedPhoneId}
+              onSelect={handleSelectBusinessPhone}
+            />
 
             <div className="flex items-center space-x-1 text-slate-600 shrink-0">
               <button
@@ -1013,16 +292,16 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
           {/* WhatsApp Filter Pills */}
           <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0">
-            {[
+            {([
               { id: 'all', label: `Tất cả (${threads.length})` },
               { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, t) => sum + t.unreadCount, 0)})` },
               { id: 'vip', label: 'Khách VIP' },
               { id: 'repeat', label: 'Đã mua 1 lần' },
               { id: 'new', label: 'Khách mới' },
-            ].map((f) => (
+            ] satisfies Array<{ id: ActiveMessageFilter; label: string }>).map((f) => (
               <button
                 key={f.id}
-                onClick={() => setActiveFilter(f.id as any)}
+                onClick={() => setActiveFilter(f.id)}
                 className={`px-3 py-1 rounded-lg text-[11px] transition whitespace-nowrap cursor-pointer ${
                   activeFilter === f.id
                     ? 'bg-[#008069] text-white border border-[#008069] font-bold shadow-xs'
@@ -1303,7 +582,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     onClick={() => {
                       const updated = !soundEnabled;
                       setSoundEnabled(updated);
-                      localStorage.setItem('yumcrm_sound_enabled', String(updated));
                       if (updated) playPopSound();
                     }}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
@@ -1377,27 +655,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 id="chat-messages-container"
                 className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
               >
-                {hasOlderMessages && (
-                  <div className="flex justify-center pt-1">
-                    <button
-                      type="button"
-                      onClick={handleLoadOlderMessages}
-                      disabled={isLoadingOlderMessages}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingOlderMessages ? 'animate-spin' : ''}`} />
-                      {isLoadingOlderMessages ? 'Đang tải tin cũ…' : 'Tải tin nhắn cũ hơn'}
-                    </button>
-                  </div>
-                )}
-                
-                {/* Security Encryption Banner */}
-                <div className="flex justify-center my-2">
-                  <div className="bg-[#ffeecd] border border-[#f0dfbe] text-[#54656f] text-[11px] px-3.5 py-1.5 rounded-lg shadow-sm max-w-md text-center flex items-center space-x-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                    <span>Tin nhắn được mã hóa qua Meta Graph Cloud API chính thức của WhatsApp Business.</span>
-                  </div>
-                </div>
+                <LoadOlderMessagesButton
+                  visible={hasOlderMessages}
+                  loading={isLoadingOlderMessages}
+                  onLoad={handleLoadOlderMessages}
+                />
+                <MessageSecurityBanner />
 
                 {groupedMessagesByDate.map((group, groupIndex) => (
                   <div key={groupIndex} className="space-y-2">
@@ -1876,7 +1139,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               )}
 
               {/* Floating Slash Commands Autocomplete Popup */}
-              {isSlashActive && filteredSlashTemplates.length > 0 && (
+              {inputText.startsWith('/') && filteredSlashTemplates.length > 0 && (
                 <div className="absolute bottom-16 left-16 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-80 max-h-64 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
                   <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Gợi ý câu trả lời nhanh ({filteredSlashTemplates.length})</span>
@@ -2451,27 +1714,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
       </div>
 
-      {/* Fullscreen Lightbox Image Viewer */}
-      {previewLightboxImg && (
-        <div
-          onClick={() => setPreviewLightboxImg(null)}
-          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn cursor-zoom-out"
-        >
-          <button
-            onClick={() => setPreviewLightboxImg(null)}
-            className="absolute top-4 right-4 p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition cursor-pointer"
-            title="Đóng"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={previewLightboxImg}
-            alt="fullscreen"
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <MessageLightbox imageUrl={previewLightboxImg} onClose={() => setPreviewLightboxImg(null)} />
 
     </div>
   );
