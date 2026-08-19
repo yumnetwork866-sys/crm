@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   CheckCircle2, 
   Send, 
@@ -42,43 +42,19 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [testAlert, setTestAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const safeJsonFetch = async (url: string, options?: RequestInit) => {
+  const safeJsonFetch = useCallback(async (url: string, options?: RequestInit) => {
     const res = await fetch(url, options);
     const text = await res.text();
     let data: any = {};
     try {
       data = text ? JSON.parse(text) : {};
-    } catch (e) {
-      throw new Error(`Phản hồi từ Server không đúng định dạng JSON (Mã lỗi ${res.status}).`);
+    } catch (cause) {
+      throw new Error(`Phản hồi từ Server không đúng định dạng JSON (Mã lỗi ${res.status}).`, { cause });
     }
     return { ok: res.ok, status: res.status, data };
-  };
-
-  useEffect(() => {
-    fetchConfig();
   }, []);
 
-  const fetchConfig = async () => {
-    try {
-      const { ok, data } = await safeJsonFetch('/api/meta/config');
-      if (ok) {
-        setPhoneId(data.whatsappPhoneNumberId || '');
-        setWabaId(data.whatsappWabaId || '');
-        setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setConnectionStatus(data.status || (data.hasAccessToken ? 'connected' : 'disconnected'));
-        setLastConnectedAt(data.lastConnectedAt || null);
-
-        // Auto fetch phone numbers from Meta WABA ID
-        if (data.whatsappWabaId && data.hasAccessToken) {
-          fetchPhoneNumbersList(data.whatsappWabaId);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch Meta config:', err);
-    }
-  };
-
-  const fetchPhoneNumbersList = async (targetWabaId?: string) => {
+  const fetchPhoneNumbersList = useCallback(async (targetWabaId?: string) => {
     const waba = targetWabaId || wabaId;
     if (!waba) return;
     setIsFetchingPhones(true);
@@ -94,9 +70,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       if (ok && data.success) {
         setPhoneNumbersList(data.phoneNumbers || []);
         if (data.phoneNumbers.length > 0) {
-          if (!phoneId) {
-            setPhoneId(data.phoneNumbers[0].id);
-          }
+          setPhoneId((current) => current || data.phoneNumbers[0].id);
           setFetchPhonesAlert(null);
         } else {
           setFetchPhonesAlert({
@@ -118,7 +92,30 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     } finally {
       setIsFetchingPhones(false);
     }
-  };
+  }, [safeJsonFetch, wabaId]);
+
+  const fetchConfig = useCallback(async () => {
+    try {
+      const { ok, data } = await safeJsonFetch('/api/meta/config');
+      if (ok) {
+        setPhoneId(data.whatsappPhoneNumberId || '');
+        setWabaId(data.whatsappWabaId || '');
+        setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
+        setConnectionStatus(data.status || (data.hasAccessToken ? 'connected' : 'disconnected'));
+        setLastConnectedAt(data.lastConnectedAt || null);
+
+        if (data.whatsappWabaId && data.hasAccessToken) {
+          await fetchPhoneNumbersList(data.whatsappWabaId);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch Meta config:', err);
+    }
+  }, [fetchPhoneNumbersList, safeJsonFetch]);
+
+  useEffect(() => {
+    void fetchConfig();
+  }, [fetchConfig]);
 
   const handleSelectPhone = async (selectedId: string) => {
     setPhoneId(selectedId);
@@ -192,7 +189,10 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         </div>
 
         <button
-          onClick={() => { fetchConfig(); fetchPhoneNumbersList(); }}
+          onClick={() => {
+            void fetchConfig();
+            void fetchPhoneNumbersList();
+          }}
           disabled={isFetchingPhones}
           className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/70 text-slate-700 text-xs font-semibold transition cursor-pointer shrink-0 disabled:opacity-50"
         >

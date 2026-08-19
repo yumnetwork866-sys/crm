@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { messageStore, InMemoryMessage } from '../services/messageStore';
+import type { InMemoryMessage } from '../services/messageStore';
+import { messageStore } from '../services/messageStore';
 import { realtimeHub } from '../services/realtimeHub';
 import {
   getIntegrationSetting,
@@ -141,8 +142,8 @@ export async function getMessages(req: Request, res: Response) {
 export async function markMessagesAsRead(req: Request, res: Response) {
   try {
     const { customerId, customerPhone, messageIds, readBy } = req.body;
-    let rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    let cleanPhone = rawPhone.replace(/\D/g, '');
+    const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
+    const cleanPhone = rawPhone.replace(/\D/g, '');
     let lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
     if (!lastDigits && customerId && !customerId.startsWith('cust_')) {

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   getIntegrationSetting,
   updateIntegrationSetting,
@@ -7,7 +7,8 @@ import {
   fetchWabaPhoneNumbers,
   dispatchMetaMessage
 } from '../services/metaApiClient';
-import { messageStore, InMemoryMessage } from '../services/messageStore';
+import type { InMemoryMessage } from '../services/messageStore';
+import { messageStore } from '../services/messageStore';
 import { verifyWebhookChallenge, processWebhookPayload } from '../services/webhookService';
 import { prisma } from '../lib/prisma';
 
@@ -205,8 +206,8 @@ export async function testConnection(req: Request, res: Response) {
       await prisma.whatsAppMessage.create({
         data: {
           id: testMsgRecord.id,
-          customerName: testMsgRecord.customerName,
-          customerPhone: testMsgRecord.customerPhone,
+          customerName: testMsgRecord.customerName || `Khách WhatsApp (${cleanPhone})`,
+          customerPhone: testMsgRecord.customerPhone || recipientPhone,
           sender: testMsgRecord.sender,
           agentName: testMsgRecord.agentName,
           channel: testMsgRecord.channel,

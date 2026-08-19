@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Customer, MarketingCampaignReport, BroadcastCampaign, AppUser } from '../../types';
+import type { Customer, MarketingCampaignReport, BroadcastCampaign, AppUser } from '../../types';
 import { MarketingReport } from './MarketingReport';
 import { SalesReport } from './SalesReport';
 import { WhatsAppReport } from './WhatsAppReport';

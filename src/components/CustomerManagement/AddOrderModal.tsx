@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, ShoppingBag, Plus, Trash2, CheckCircle2, Sparkles } from 'lucide-react';
-import { Customer, CustomerOrder } from '../../types';
+import type { Customer, CustomerOrder } from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { formatVND } from '../../utils/crmUtils';
 

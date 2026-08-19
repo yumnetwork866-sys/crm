@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, Download, Package, AlertCircle, CheckCircle2, Info } from 'lucide-react';
-import { Product } from '../../types';
+import type { Product } from '../../types';
 import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
 import { formatVND } from '../../utils/crmUtils';
 

@@ -4,7 +4,7 @@ import {
   ShoppingBag, FileText, Send, Sparkles, Plus, CheckCircle2,
   Clock, ShieldCheck, ShieldAlert, MessageSquare, Briefcase
 } from 'lucide-react';
-import { Customer, CustomerStatus, CentralMessage } from '../../types';
+import type { Customer, CustomerStatus, CentralMessage } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface CustomerDetailModalProps {

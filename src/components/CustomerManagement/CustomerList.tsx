@@ -4,7 +4,7 @@ import {
   MessageSquare, MoreHorizontal, Trash2, Edit3, ShieldCheck, ShieldAlert,
   ChevronRight, ArrowUpDown, Tag, FileSpreadsheet, Calendar, RotateCcw
 } from 'lucide-react';
-import { Customer, CustomerStatus, AppUser } from '../../types';
+import type { Customer, CustomerStatus, AppUser } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';

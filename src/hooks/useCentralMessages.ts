@@ -71,7 +71,7 @@ export function useCentralMessages({
           .filter((message) => nextById.has(message.id))
           .map((message) => {
             existingIds.add(message.id);
-            return nextById.get(message.id)!;
+            return nextById.get(message.id) ?? message;
           }),
       }));
       const added = next.filter((message) => !existingIds.has(message.id));
@@ -155,7 +155,7 @@ export function useCentralMessages({
       messageIds,
       readBy: reader,
     });
-  }, [readMutation]);
+  }, [readMutation, setMessages]);
 
   useEffect(() => {
     const knownMessageIds = new Set<string>();
@@ -390,7 +390,7 @@ export function useCentralMessages({
         })
       );
     }
-  }, [sendMutation, setCustomers]);
+  }, [sendMutation, setCustomers, setMessages]);
 
   const deleteThread = useCallback(async (customerId: string) => {
     if (currentUserRef.current?.role !== 'Admin') {

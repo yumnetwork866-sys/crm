@@ -5,7 +5,7 @@ async function testSSERealtime() {
   console.log('--- TEST: Real-time Server-Sent Events (SSE) Hub ---');
 
   // Create a mock response object to simulate an SSE client
-  let receivedEvents: Array<{ event?: string; data: string }> = [];
+  const receivedEvents: Array<{ event?: string; data: string }> = [];
 
   const mockRes: any = {
     writeHead: (status: number, headers: any) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_CAMPAIGNS } from '../data/mockData';
 import type { AppUser, BroadcastCampaign } from '../types';
@@ -29,7 +29,7 @@ export function useCampaigns(currentUser: AppUser | null) {
     initialData: loadCampaigns,
     initialDataUpdatedAt: 0,
   });
-  const campaigns = campaignsQuery.data || [];
+  const campaigns = useMemo(() => campaignsQuery.data ?? [], [campaignsQuery.data]);
 
   useEffect(() => {
     try {

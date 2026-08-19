@@ -3,7 +3,7 @@ import {
   Send, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, MessageSquare,
   Users, Tag, Globe, Play, Layers, Clock, AlertTriangle
 } from 'lucide-react';
-import { Customer, BroadcastCampaign, CentralMessage } from '../../types';
+import type { Customer, BroadcastCampaign, CentralMessage } from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
 

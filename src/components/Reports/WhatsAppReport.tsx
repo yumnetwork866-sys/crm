@@ -1,5 +1,5 @@
 import React from 'react';
-import { Customer, BroadcastCampaign } from '../../types';
+import type { Customer, BroadcastCampaign } from '../../types';
 import { exportWhatsAppReportCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { FileSpreadsheet } from 'lucide-react';
@@ -115,7 +115,7 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="count"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                 >
                   {statusDistributionData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

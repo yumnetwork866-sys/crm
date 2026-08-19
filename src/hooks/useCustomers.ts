@@ -60,18 +60,23 @@ const matchesGender = (customerGender: string | undefined, filterGender: string)
 
 export function useCustomers(currentUser: AppUser | null) {
   const queryClient = useQueryClient();
-  const customersQuery = useQuery({
+  const customersQuery = useQuery<Customer[]>({
     queryKey: queryKeys.customers,
     queryFn: async () => {
-      const response = await api.get<any>('/customers');
-      const customerList = Array.isArray(response) ? response : response?.data || [];
+      const response = await api.get<unknown>('/customers');
+      const customerList = Array.isArray(response)
+        ? response
+        : typeof response === 'object' && response !== null
+          && 'data' in response && Array.isArray(response.data)
+          ? response.data
+          : [];
       return customerList.map(mapApiCustomerToFrontend);
     },
     enabled: Boolean(currentUser),
     initialData: loadCustomers,
     initialDataUpdatedAt: 0,
   });
-  const customers = customersQuery.data || [];
+  const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
   const setCustomers: Dispatch<SetStateAction<Customer[]>> = useCallback((update) => {
     queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
       typeof update === 'function' ? update(current) : update

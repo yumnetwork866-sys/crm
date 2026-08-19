@@ -48,7 +48,7 @@ import {
   SmilePlus,
   Reply
 } from 'lucide-react';
-import { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
+import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
 import { INITIAL_USERS } from '../../data/mockData';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
@@ -174,7 +174,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     if (activeThread && activeThread.unreadCount > 0) {
       onSelectCustomerThread(activeThread.threadId, activeThread.customerPhone, activeThread.messages.map((m) => m.id));
     }
-  }, [activeThread?.threadId, activeThread?.unreadCount, activeThread?.customerPhone, onSelectCustomerThread]);
+  }, [activeThread, onSelectCustomerThread]);
 
   const { currentTime, session24hInfo } = useWhatsAppSessionWindow(activeThread);
 
@@ -835,7 +835,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         key={emoji}
                                         type="button"
                                         onClick={() => {
-                                          handleReactMessage(msg, emoji);
+                                          void handleReactMessage(msg, emoji);
                                         }}
                                         className={`w-8 h-8 flex items-center justify-center text-lg rounded-xl hover:scale-125 transition-transform duration-100 cursor-pointer ${
                                           isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
@@ -959,7 +959,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 content.toLowerCase() === '[image message]' ||
                                 content.toLowerCase() === '[photo]'
                               ) {
-                                const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/[\[\]]/g, '').trim();
+                                const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/\[|\]/g, '').trim();
                                 return (
                                   <div className="space-y-1.5 min-w-[220px]">
                                     {renderQuoteHeader()}

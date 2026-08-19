@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppUser, UserRole } from '../../types';
+import type { AppUser, UserRole } from '../../types';
 import { X, User, Mail, Phone, Shield, Building2, Save, KeyRound } from 'lucide-react';
 
 interface UserFormModalProps {

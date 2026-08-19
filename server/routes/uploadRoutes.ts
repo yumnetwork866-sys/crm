@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import type { Request, Response } from 'express';
+import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 
@@ -25,7 +26,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Extract mime type and base64 data
-    const matches = imageBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    const matches = imageBase64.match(/^data:([-A-Za-z+/]+);base64,(.+)$/);
     let mimeType = 'image/jpeg';
     let base64Data = imageBase64;
     let ext = 'jpg';

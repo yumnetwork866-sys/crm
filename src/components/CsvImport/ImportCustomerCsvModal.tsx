@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, UserPlus, Info } from 'lucide-react';
-import { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
+import type { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
 import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
 
 interface ImportCustomerCsvModalProps {

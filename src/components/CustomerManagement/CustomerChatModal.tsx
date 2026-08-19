@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Send, CheckCheck, ShieldAlert, Sparkles, User } from 'lucide-react';
-import { Customer, CentralMessage, AppUser } from '../../types';
+import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { INITIAL_USERS } from '../../data/mockData';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package, ShieldCheck, MessageSquare } from 'lucide-react';
-import { AppUser } from '../types';
+import type { AppUser } from '../types';
 
 export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'broadcast' | 'reports' | 'users' | 'messages' | 'meta-verification';
 

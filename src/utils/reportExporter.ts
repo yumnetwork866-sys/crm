@@ -1,4 +1,4 @@
-import { Customer, MarketingCampaignReport, BroadcastCampaign } from '../types';
+import type { Customer, MarketingCampaignReport, BroadcastCampaign } from '../types';
 import { downloadCsv } from './csvExport';
 import { calculateCrmMetrics, formatVND } from './crmUtils';
 import { SALES_REPS } from '../data/mockData';

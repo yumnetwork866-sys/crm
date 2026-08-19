@@ -1,4 +1,4 @@
-import { Customer, CustomerGroupId, CustomerGroupInfo, CustomerStatus } from '../types';
+import type { Customer, CustomerGroupId, CustomerGroupInfo, CustomerStatus } from '../types';
 
 export function getStatusColorClass(status: CustomerStatus | string): string {
   switch (status) {

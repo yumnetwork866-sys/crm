@@ -1,5 +1,5 @@
 import React from 'react';
-import { Customer } from '../../types';
+import type { Customer } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
 import { SALES_REPS } from '../../data/mockData';
 import { exportSalesReportCsv } from '../../utils/reportExporter';
@@ -103,7 +103,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = t
               <BarChart data={salesRepPerformance}>
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
                 <YAxis stroke="#94a3b8" fontSize={10} />
-                <Tooltip formatter={(val: number) => formatVND(val)} />
+                <Tooltip formatter={(value) => formatVND(Number(value ?? 0))} />
                 <Bar dataKey="revenue" name="Doanh Thu (VND)" fill="#6366f1" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

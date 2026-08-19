@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Customer, MarketingCampaignReport, LeadSource } from '../../types';
+import type { Customer, MarketingCampaignReport, LeadSource } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
 import { exportMarketingReportCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
@@ -166,7 +166,7 @@ export const MarketingReport: React.FC<MarketingReportProps> = ({
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="leads"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                 >
                   {sourceData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -186,7 +186,7 @@ export const MarketingReport: React.FC<MarketingReportProps> = ({
               <BarChart data={marketingReports}>
                 <XAxis dataKey="campaignName" stroke="#94a3b8" fontSize={10} tick={{ fontSize: 9 }} />
                 <YAxis stroke="#94a3b8" fontSize={10} />
-                <Tooltip formatter={(value: number) => formatVND(value)} />
+                <Tooltip formatter={(value) => formatVND(Number(value ?? 0))} />
                 <Legend />
                 <Bar dataKey="revenue" name="Doanh Thu (VND)" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="adSpend" name="Chi Phí Ads (VND)" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -482,4 +482,3 @@ export const MarketingReport: React.FC<MarketingReportProps> = ({
     </div>
   );
 };
-

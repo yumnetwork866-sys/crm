@@ -1,4 +1,4 @@
-import { Customer, BroadcastCampaign, MarketingCampaignReport, AppUser, Product } from '../types';
+import type { Customer, BroadcastCampaign, MarketingCampaignReport, AppUser, Product } from '../types';
 
 export const INITIAL_PRODUCT_LIST: Product[] = [
   {

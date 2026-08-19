@@ -21,7 +21,7 @@ export function parseCsvContent(csvString: string): ParsedCsvResult {
   }
 
   // Remove UTF-8 BOM if present
-  let cleanText = csvString.replace(/^\uFEFF/, '').trim();
+  const cleanText = csvString.replace(/^\uFEFF/, '').trim();
 
   // Determine delimiter: ',' or ';'
   const firstLine = cleanText.split(/\r?\n/)[0] || '';

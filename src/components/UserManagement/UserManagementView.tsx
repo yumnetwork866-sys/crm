@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppUser, UserRole } from '../../types';
+import type { AppUser, UserRole } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
 import {
   Users,

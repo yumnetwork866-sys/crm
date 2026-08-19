@@ -26,7 +26,7 @@ export function extractImageInfo(rawContent: string): ImageInfo {
     const caption = content
       .replace(imgUrl, '')
       .replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '')
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .trim();
     return { isImage: true, imgUrl, caption: caption || null };
   }
@@ -34,7 +34,7 @@ export function extractImageInfo(rawContent: string): ImageInfo {
   if (/^\[(image|hình ảnh|image message|photo)/i.test(content)) {
     const caption = content
       .replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '')
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .trim();
     return { isImage: false, imgUrl: null, caption: caption || null };
   }

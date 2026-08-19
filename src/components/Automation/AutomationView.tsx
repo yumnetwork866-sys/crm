@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Zap, Heart, MessageCircle, HelpCircle, Gift, Sparkles, Clock, CheckCircle2, Play, User, ArrowRight } from 'lucide-react';
-import { Customer } from '../../types';
+import type { Customer } from '../../types';
 import { formatDate } from '../../utils/crmUtils';
 
 interface AutomationViewProps {

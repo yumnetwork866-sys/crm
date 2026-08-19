@@ -1,5 +1,7 @@
-import { Router, Response } from 'express';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddleware';
+import type { Response } from 'express';
+import { Router } from 'express';
+import type { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { authenticateToken } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 
@@ -109,7 +111,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Query distinct phone numbers and customer IDs that have messaged with WABA
-    let wabaPhoneSet = new Set<string>();
+    const wabaPhoneSet = new Set<string>();
     try {
       const wabaMessages = await prisma.whatsAppMessage.findMany({
         select: { customerPhone: true, customerId: true }

@@ -1,7 +1,9 @@
-import { Router, Request, Response } from 'express';
+import type { Request, Response } from 'express';
+import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddleware';
+import type { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { authenticateToken } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 

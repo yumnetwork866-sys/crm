@@ -10,9 +10,9 @@ import {
   ShieldCheck,
   MessageSquare
 } from 'lucide-react';
-import { Customer, AppUser } from '../types';
+import type { Customer, AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
-import { ActiveTab } from './Navigation';
+import type { ActiveTab } from './Navigation';
 
 interface HeaderProps {
   activeTab: ActiveTab;

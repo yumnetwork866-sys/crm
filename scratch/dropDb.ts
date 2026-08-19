@@ -27,4 +27,4 @@ async function dropOldDb() {
   }
 }
 
-dropOldDb();
+void dropOldDb();

@@ -9,7 +9,7 @@ import { useProducts } from './hooks/useProducts';
 import { useCampaigns } from './hooks/useCampaigns';
 
 import { Header } from './components/Header';
-import { ActiveTab } from './components/Navigation';
+import type { ActiveTab } from './components/Navigation';
 import { NotificationToast } from './components/Common/NotificationToast';
 import { CentralizedMessageView } from './components/Messages/CentralizedMessageView';
 

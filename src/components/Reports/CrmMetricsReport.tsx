@@ -1,5 +1,5 @@
 import React from 'react';
-import { Customer } from '../../types';
+import type { Customer } from '../../types';
 import { calculateCrmMetrics, formatVND } from '../../utils/crmUtils';
 import { exportCustomersCsv, exportOrdersCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
@@ -75,7 +75,7 @@ export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers, i
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="count"
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
                 >
                   {newVsReturningData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

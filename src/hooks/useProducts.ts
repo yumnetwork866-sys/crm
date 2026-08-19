@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_PRODUCT_LIST } from '../data/mockData';
 import type { AppUser, Product } from '../types';
@@ -39,7 +39,7 @@ export function useProducts(currentUser: AppUser | null) {
     initialData: loadProducts,
     initialDataUpdatedAt: 0,
   });
-  const products = productsQuery.data || [];
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
 
   useEffect(() => {
     try {

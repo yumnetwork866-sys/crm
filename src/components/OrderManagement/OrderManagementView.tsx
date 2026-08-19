@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Customer, CustomerOrder, Product } from '../../types';
+import type { Customer, CustomerOrder, Product } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
 import { ImportOrderCsvModal } from '../CsvImport/ImportOrderCsvModal';
 import {

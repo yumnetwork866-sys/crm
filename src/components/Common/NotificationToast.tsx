@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { MessageSquare, X, ArrowRight, BellRing } from 'lucide-react';
-import { CentralMessage } from '../../types';
+import type { CentralMessage } from '../../types';
 
 interface NotificationToastProps {
   toast: {

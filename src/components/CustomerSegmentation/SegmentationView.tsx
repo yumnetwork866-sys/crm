@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Layers, Users, ShoppingBag, ArrowRight, Send, DollarSign, CheckCircle2 } from 'lucide-react';
-import { Customer, CustomerGroupId } from '../../types';
+import type { Customer, CustomerGroupId } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, getCustomerGroup } from '../../utils/crmUtils';
 
 interface SegmentationViewProps {

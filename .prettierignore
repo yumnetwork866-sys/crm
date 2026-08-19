@@ -1,0 +1,6 @@
+dist
+node_modules
+coverage
+public/uploads
+package-lock.json
+server.js

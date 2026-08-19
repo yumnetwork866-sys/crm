@@ -84,7 +84,12 @@ export async function updateIntegrationSetting(data: Partial<IntegrationSettingD
       where: { id: 'default' },
       data
     });
-    inMemorySetting = { ...updated };
+    inMemorySetting = {
+      ...updated,
+      whatsappVerifyToken: updated.whatsappVerifyToken
+        || inMemorySetting.whatsappVerifyToken
+        || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+    };
     return inMemorySetting;
   } catch (dbErr) {
     inMemorySetting = { ...inMemorySetting, ...data, updatedAt: new Date() };
@@ -276,7 +281,7 @@ export async function dispatchMetaMessage(options: {
     const dataUrl = parts[0];
     const caption = parts.slice(1).join('\n').trim();
 
-    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    const matches = dataUrl.match(/^data:([-A-Za-z+/]+);base64,(.+)$/);
     let uploadedMediaId: string | null = null;
     if (matches && matches.length === 3) {
       const rawMime = matches[1];

@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
-import { messageStore, InMemoryMessage } from './messageStore';
+import type { InMemoryMessage } from './messageStore';
+import { messageStore } from './messageStore';
 import { getIntegrationSetting } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 
