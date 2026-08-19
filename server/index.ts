@@ -40,7 +40,17 @@ app.use((req, res, next) => {
 });
 
 // 1. Body Parser & Security Middleware (Supports JSON, text/plain, and raw Meta payloads)
-app.use(express.json({ limit: '10mb', type: ['application/json', 'text/plain', '*/*'] }));
+app.use(express.json({
+  limit: '10mb',
+  type: ['application/json', 'text/plain', '*/*'],
+  verify: (req, res, buffer) => {
+    // Meta signs the exact request bytes. Retain them only for signed requests so
+    // the webhook middleware can verify the body before processing the payload.
+    if (req.headers['x-hub-signature-256']) {
+      (res as express.Response).locals.metaWebhookRawBody = buffer;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(helmet({

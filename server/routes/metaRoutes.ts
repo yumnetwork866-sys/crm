@@ -19,6 +19,7 @@ import {
   getMediaProxy,
   getRealtimeStream
 } from '../controllers/chatController';
+import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
 
 const router = Router();
 
@@ -41,7 +42,7 @@ router.post('/data-deletion', handleDataDeletion);
 // 2. Meta Webhook Routes (Verification & Ingestion)
 // ==========================================
 router.get(['/', '/webhook', '/webhooks'], handleWebhookGet);
-router.post(['/', '/webhook', '/webhooks'], handleWebhookPost);
+router.post(['/', '/webhook', '/webhooks'], verifyMetaWebhookSignature, handleWebhookPost);
 
 // ==========================================
 // 3. Centralized Chat & Messaging Routes

@@ -1,17 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Search, Filter, Plus, Download, Upload, User, Phone, Globe, ShoppingBag,
   MessageSquare, MoreHorizontal, Trash2, Edit3, ShieldCheck, ShieldAlert,
   ChevronRight, ArrowUpDown, Tag, FileSpreadsheet, Calendar, RotateCcw
 } from 'lucide-react';
-import { Customer, CustomerStatus, LeadSource, AppUser, CentralMessage } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
+import { Customer, CustomerStatus, AppUser } from '../../types';
+import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
+import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
 
 interface CustomerListProps {
   customers: Customer[];
   currentUser?: AppUser | null;
-  centralMessages?: CentralMessage[];
+  filterModel: CustomerFilterModel;
   onSelectCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (id: string) => void;
@@ -25,7 +26,7 @@ interface CustomerListProps {
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
   currentUser,
-  centralMessages = [],
+  filterModel,
   onSelectCustomer,
   onEditCustomer,
   onDeleteCustomer,
@@ -37,59 +38,29 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 }) => {
   const isAdmin = currentUser?.role === 'Admin';
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [selectedSource, setSelectedSource] = useState<string>('ALL');
-  const [selectedGender, setSelectedGender] = useState<string>('ALL');
-  const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
-  const [selectedOwner, setSelectedOwner] = useState<string>('ALL');
-  const [selectedOptIn, setSelectedOptIn] = useState<string>('ALL');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
-
-  // Set of phone numbers / customer IDs that have messaged with WABA
-  const wabaChattedPhoneSet = useMemo(() => {
-    const set = new Set<string>();
-    if (centralMessages && Array.isArray(centralMessages)) {
-      centralMessages.forEach((m) => {
-        if (m.customerPhone) {
-          const clean = m.customerPhone.replace(/\D/g, '');
-          if (clean.length >= 7) set.add(clean.slice(-9));
-          else if (clean) set.add(clean);
-        }
-        if (m.customerId) {
-          if (m.customerId.startsWith('cust_')) {
-            const clean = m.customerId.replace('cust_', '').replace(/\D/g, '');
-            if (clean.length >= 7) set.add(clean.slice(-9));
-            else if (clean) set.add(clean);
-          } else {
-            set.add(m.customerId);
-          }
-        }
-      });
-    }
-    return set;
-  }, [centralMessages]);
-
-  const checkIsCustomerOptedIn = (cust: Customer): boolean => {
-    if (cust.whatsappOptIn) return true;
-    if (wabaChattedPhoneSet.has(cust.id)) return true;
-    if (cust.phone) {
-      const clean = cust.phone.replace(/\D/g, '');
-      const last9 = clean.length >= 7 ? clean.slice(-9) : clean;
-      if (wabaChattedPhoneSet.has(last9) || wabaChattedPhoneSet.has(clean)) return true;
-    }
-    if (centralMessages && centralMessages.length > 0) {
-      return centralMessages.some(
-        (m) =>
-          m.customerId === cust.id ||
-          isSamePhoneNumber(m.customerPhone, cust.phone) ||
-          isSamePhoneNumber(m.customerId, cust.phone)
-      );
-    }
-    return false;
-  };
+  const {
+    searchQuery,
+    setSearchQuery,
+    selectedStatus,
+    setSelectedStatus,
+    selectedSource,
+    setSelectedSource,
+    selectedGender,
+    setSelectedGender,
+    selectedGroup,
+    setSelectedGroup,
+    selectedOwner,
+    setSelectedOwner,
+    selectedOptIn,
+    setSelectedOptIn,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    filteredCustomers,
+    isCustomerOptedIn: checkIsCustomerOptedIn,
+  } = filterModel;
 
   const handleToggleSelectAll = () => {
     if (selectedCustomerIds.length === filteredCustomers.length && filteredCustomers.length > 0) {
@@ -132,77 +103,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     setEndDate('');
   };
 
-  // Flexible gender matching helper
-  const matchesGender = (custGender: string | undefined, filterGender: string) => {
-    if (!filterGender || filterGender === 'ALL') return true;
-    if (!custGender) return false;
-
-    const cg = custGender.trim().toLowerCase();
-    const fg = filterGender.trim().toLowerCase();
-
-    if (fg === 'nam') {
-      return cg === 'nam' || cg === 'male' || cg === 'm';
-    }
-    if (fg === 'nữ' || fg === 'nu') {
-      return cg === 'nữ' || cg === 'nu' || cg === 'female' || cg === 'f';
-    }
-    if (fg === 'khác' || fg === 'khac') {
-      return cg === 'khác' || cg === 'khac' || cg === 'other' || (!['nam', 'male', 'm', 'nữ', 'nu', 'female', 'f'].includes(cg));
-    }
-    return cg === fg;
-  };
-
-  // Filter logic
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((c) => {
-      // Search
-      const query = searchQuery.toLowerCase().trim();
-      if (query) {
-        const matchName = c.name.toLowerCase().includes(query);
-        const matchPhone = c.phone.includes(query);
-        const matchEmail = c.email?.toLowerCase().includes(query);
-        const matchCampaign = c.campaign.toLowerCase().includes(query);
-        const matchAddress = c.address?.toLowerCase().includes(query);
-        const matchNote = c.note?.toLowerCase().includes(query);
-        if (!matchName && !matchPhone && !matchEmail && !matchCampaign && !matchAddress && !matchNote) return false;
-      }
-
-      // Status
-      if (selectedStatus !== 'ALL' && c.status !== selectedStatus) return false;
-
-      // Source
-      if (selectedSource !== 'ALL' && c.source !== selectedSource) return false;
-
-      // Gender
-      if (!matchesGender(c.gender, selectedGender)) return false;
-
-      // Owner
-      if (selectedOwner !== 'ALL' && c.owner !== selectedOwner) return false;
-
-      // Opt-in Filter (from WABA message history or optin flag)
-      if (selectedOptIn !== 'ALL') {
-        const isOptedIn = checkIsCustomerOptedIn(c);
-        if (selectedOptIn === 'optin' && !isOptedIn) return false;
-        if (selectedOptIn === 'no_optin' && isOptedIn) return false;
-      }
-
-      // Group
-      if (selectedGroup !== 'ALL') {
-        const grp = getCustomerGroup(c);
-        if (grp !== selectedGroup) return false;
-      }
-
-      // Date Range Filter (firstContact)
-      if (startDate && c.firstContact) {
-        if (c.firstContact < startDate) return false;
-      }
-      if (endDate && c.firstContact) {
-        if (c.firstContact > endDate) return false;
-      }
-
-      return true;
-    });
-  }, [customers, searchQuery, selectedStatus, selectedSource, selectedGender, selectedGroup, selectedOwner, selectedOptIn, startDate, endDate, wabaChattedPhoneSet, centralMessages]);
 
   // Unique values for dropdowns
   const sources = Array.from(new Set(customers.map((c) => c.source)));

@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Customer, CustomerStatus, CustomerOrder, BroadcastCampaign, AppUser, Product, MarketingCampaignReport, CentralMessage, MessageChannel } from './types';
-import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from './data/mockData';
-import { getCustomerGroup, isSamePhoneNumber } from './utils/crmUtils';
-import { api, getStoredToken } from './utils/apiClient';
-import { playNotificationSound } from './utils/audioUtils';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { AppUser, BroadcastCampaign, Customer, MarketingCampaignReport } from './types';
+import { INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS } from './data/mockData';
+import { api } from './utils/apiClient';
+import { mapApiCampaignToFrontend } from './utils/apiMappers';
+import { useAuth } from './contexts/AuthContext';
+import { useCustomers } from './hooks/useCustomers';
+import { useCentralMessages } from './hooks/useCentralMessages';
+import { useOrders } from './hooks/useOrders';
+import { useProducts } from './hooks/useProducts';
 
 import { Header } from './components/Header';
-import { Navigation, ActiveTab } from './components/Navigation';
+import { ActiveTab } from './components/Navigation';
 import { NotificationToast } from './components/Common/NotificationToast';
 import { CentralizedMessageView } from './components/Messages/CentralizedMessageView';
 
@@ -32,66 +36,8 @@ import { PublicLandingView } from './components/Landing/PublicLandingView';
 import { LoginModal } from './components/Auth/LoginModal';
 import { UserFormModal } from './components/UserManagement/UserFormModal';
 
-const STORAGE_KEY_CUSTOMERS = 'yumcrm_customers_v2';
 const STORAGE_KEY_CAMPAIGNS = 'yumcrm_campaigns_v2';
-const STORAGE_KEY_USERS = 'yumcrm_users_v2';
-const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
-const STORAGE_KEY_PRODUCTS = 'yumcrm_products_v2';
 const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
-const STORAGE_KEY_CENTRAL_MESSAGES = 'yumcrm_central_messages_v2';
-
-const INITIAL_CENTRAL_MESSAGES: CentralMessage[] = [];
-
-const mapApiCustomerToFrontend = (apiCust: any): Customer => {
-  const logs = apiCust.automationLogs || [];
-  const currentStep = logs.length > 0 ? Math.max(...logs.map((l: any) => l.step)) : 0;
-  
-  const mappedLogs = logs.map((l: any) => ({
-    step: l.step,
-    stepName: l.stepName,
-    sentAt: l.sentAt ? new Date(l.sentAt).toLocaleString('vi-VN') : '',
-    message: l.message,
-    status: l.status
-  }));
-
-  return {
-    ...apiCust,
-    firstContact: apiCust.firstContact ? new Date(apiCust.firstContact).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    lastContact: apiCust.lastContact ? new Date(apiCust.lastContact).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    whatsappOptInDate: apiCust.whatsappOptInDate ? new Date(apiCust.whatsappOptInDate).toISOString().split('T')[0] : undefined,
-    lastPurchaseDate: apiCust.lastPurchaseDate ? new Date(apiCust.lastPurchaseDate).toISOString().split('T')[0] : undefined,
-    notes: (apiCust.notes || []).map((n: any) => ({
-      ...n,
-      createdAt: n.createdAt ? new Date(n.createdAt).toLocaleString('vi-VN') : ''
-    })),
-    orders: (apiCust.orders || []).map((o: any) => ({
-      ...o,
-      date: o.date ? new Date(o.date).toISOString().split('T')[0] : '',
-      products: o.products || []
-    })),
-    automationSequence: {
-      active: apiCust.totalOrders > 0,
-      currentStep,
-      startDate: apiCust.lastPurchaseDate ? new Date(apiCust.lastPurchaseDate).toISOString().split('T')[0] : undefined,
-      logs: mappedLogs
-    }
-  };
-};
-
-const mapApiCampaignToFrontend = (apiCamp: any): BroadcastCampaign => {
-  return {
-    ...apiCamp,
-    createdAt: apiCamp.createdAt ? new Date(apiCamp.createdAt).toLocaleString('vi-VN') : '',
-    stats: apiCamp.stats || {
-      totalTargeted: apiCamp.totalTargeted ?? 0,
-      optedInCount: apiCamp.optedInCount ?? 0,
-      sentCount: apiCamp.sentCount ?? 0,
-      deliveredCount: apiCamp.deliveredCount ?? 0,
-      readCount: apiCamp.readCount ?? 0,
-      respondedCount: apiCamp.respondedCount ?? 0,
-    }
-  };
-};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('crm');
@@ -117,17 +63,18 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Load persistent customers
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CUSTOMERS);
-      return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
-    } catch {
-      return INITIAL_CUSTOMERS;
-    }
-  });
+  const {
+    users,
+    currentUser,
+    isAdmin,
+    selectUser,
+    saveUser: handleSaveUser,
+    deleteUser: handleDeleteUser,
+    toggleUserStatus: handleToggleUserStatus,
+    switchUser: handleSwitchUser,
+    resetAuth,
+  } = useAuth();
 
-  // Load persistent campaigns
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CAMPAIGNS);
@@ -136,45 +83,6 @@ export default function App() {
       return INITIAL_CAMPAIGNS;
     }
   });
-
-  // Load persistent products
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-      return saved ? JSON.parse(saved) : INITIAL_PRODUCT_LIST;
-    } catch {
-      return INITIAL_PRODUCT_LIST;
-    }
-  });
-
-  // Sync products to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
-    } catch (e) {
-      console.error('Error saving products to localStorage', e);
-    }
-  }, [products]);
-  const [users, setUsers] = useState<AppUser[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_USERS);
-      return saved ? JSON.parse(saved) : INITIAL_USERS;
-    } catch {
-      return INITIAL_USERS;
-    }
-  });
-
-  // Load active logged-in user
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-      if (saved) return JSON.parse(saved);
-      return null;
-    } catch {
-      return null;
-    }
-  });
-
   const [marketingReports, setMarketingReports] = useState<MarketingCampaignReport[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_MARKETING_REPORTS);
@@ -184,427 +92,74 @@ export default function App() {
     }
   });
 
+  const {
+    customers,
+    setCustomers,
+    saveCustomer: handleSaveCustomer,
+    importCustomers: handleImportCustomers,
+    deleteCustomer,
+    updateStatus: handleUpdateStatus,
+    toggleOptIn: handleToggleOptIn,
+    addNote: handleAddNote,
+    runAutomationSimulation,
+    resetCustomers,
+    buildFilterModel,
+  } = useCustomers(currentUser);
+  const {
+    products,
+    addProduct: handleAddProduct,
+    editProduct: handleEditProduct,
+    deleteProduct: handleDeleteProduct,
+    importProducts: handleImportProducts,
+    resetProducts,
+  } = useProducts(currentUser);
+  const {
+    addOrder: handleAddOrder,
+    createOrder: handleCreateOrderCentral,
+    updateOrderStatus: handleUpdateOrderStatus,
+    deleteOrder: handleDeleteOrder,
+    importOrders: handleImportOrders,
+  } = useOrders({ setCustomers });
+  const {
+    messages: centralMessages,
+    unreadCount: unreadMessagesCount,
+    toastNotification,
+    setToastNotification,
+    selectedCustomerId: selectedChatCustomerId,
+    selectCustomerThread: handleSelectCustomerThread,
+    sendMessage: handleSendCentralMessage,
+    deleteThread: handleDeleteThread,
+    deleteMessage: handleDeleteMessage,
+  } = useCentralMessages({ customers, setCustomers, currentUser });
+  const customerFilterModel = useMemo(
+    () => buildFilterModel(centralMessages),
+    [buildFilterModel, centralMessages]
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_CAMPAIGNS, JSON.stringify(campaigns));
+    } catch (error) {
+      console.error('Error saving campaigns to localStorage', error);
+    }
+  }, [campaigns]);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_MARKETING_REPORTS, JSON.stringify(marketingReports));
-    } catch (e) {
-      console.error('Error saving marketing reports to localStorage', e);
+    } catch (error) {
+      console.error('Error saving marketing reports to localStorage', error);
     }
   }, [marketingReports]);
 
-  // Central Messages & Notifications State
-  const [centralMessages, setCentralMessages] = useState<CentralMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CENTRAL_MESSAGES);
-      if (!saved) return [];
-      const parsed: CentralMessage[] = JSON.parse(saved);
-      const sampleIds = new Set(['msg_1', 'msg_2', 'msg_3', 'msg_4', 'msg_5']);
-      return parsed.filter((m) => !sampleIds.has(m.id));
-    } catch {
-      return [];
-    }
-  });
-
-  const [toastNotification, setToastNotification] = useState<{
-    message: CentralMessage;
-    show: boolean;
-  } | null>(null);
-
-  const [selectedChatCustomerId, setSelectedChatCustomerId] = useState<string | null>(null);
-  const selectedChatCustomerIdRef = useRef<string | null>(selectedChatCustomerId);
-
   useEffect(() => {
-    selectedChatCustomerIdRef.current = selectedChatCustomerId;
-  }, [selectedChatCustomerId]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CENTRAL_MESSAGES, JSON.stringify(centralMessages));
-    } catch (e) {
-      console.error('Error saving central messages to localStorage', e);
-    }
-  }, [centralMessages]);
-
-  const unreadMessagesCount = centralMessages.filter((m) => !m.isRead && m.sender === 'customer').length;
-
-  const handleSelectCustomerThread = useCallback((targetId: string, explicitPhone?: string, messageIds?: string[]) => {
-    setSelectedChatCustomerId(targetId);
-    const reader = currentUser?.name || 'Nguyễn Văn Ánh';
-    const nowIso = new Date().toISOString();
-    const cust = customers.find((c) => c.id === targetId || isSamePhoneNumber(c.phone, explicitPhone || targetId));
-    const phone = explicitPhone || cust?.phone || (targetId.startsWith('cust_') ? targetId.replace('cust_', '') : (String(targetId).replace(/\D/g, '').length >= 7 ? targetId : ''));
-
-    setCentralMessages((prev) =>
-      prev.map((msg) => {
-        const match = (messageIds && messageIds.includes(msg.id)) ||
-          msg.customerId === targetId ||
-          (cust && msg.customerId === cust.id) ||
-          (phone && isSamePhoneNumber(msg.customerPhone, phone));
-        return match ? { ...msg, isRead: true, readBy: msg.readBy || reader, readAt: msg.readAt || nowIso } : msg;
+    if (!currentUser) return;
+    api.get<any[]>('/campaigns')
+      .then((response) => {
+        if (Array.isArray(response)) setCampaigns(response.map(mapApiCampaignToFrontend));
       })
-    );
-    // Persist read status to backend database & in-memory store
-    api.post('/meta/messages/read', {
-      customerId: cust?.id || targetId,
-      customerPhone: phone,
-      messageIds,
-      readBy: reader
-    }).catch(() => null);
-  }, [customers, currentUser?.name]);
-
-  // Real-time Event Stream (SSE) for Instant WhatsApp Messaging (<100ms) - Replaces 4s HTTP Polling
-  useEffect(() => {
-    const knownMsgIds = new Set<string>();
-
-    // 1. Initial fetch of existing messages on mount
-    const fetchInitialMessages = async () => {
-      try {
-        const rawRes = await api.get<any>('/meta/messages');
-        const realMsgs: CentralMessage[] = Array.isArray(rawRes) ? rawRes : (rawRes?.messages || []);
-        if (realMsgs && Array.isArray(realMsgs) && realMsgs.length > 0) {
-          realMsgs.forEach((m) => knownMsgIds.add(m.id));
-
-          setCentralMessages((prev) => {
-            const currentSelected = selectedChatCustomerIdRef.current;
-            const backendIdSet = new Set(realMsgs.map((m) => m.id));
-            const optimisticMsgs = prev.filter((m) => !backendIdSet.has(m.id) && m.id.startsWith('msg_'));
-
-            const updatedRealMsgs = realMsgs.map((m) => {
-              const prevMsg = prev.find((p) => p.id === m.id);
-              const wasReadLocally = prevMsg?.isRead === true;
-              const isCurrentlySelected = Boolean(
-                currentSelected &&
-                (m.customerId === currentSelected || isSamePhoneNumber(m.customerPhone, currentSelected))
-              );
-              const isRead = wasReadLocally || isCurrentlySelected || Boolean(m.isRead);
-              return {
-                ...m,
-                isRead,
-                readBy: m.readBy || prevMsg?.readBy || (isCurrentlySelected ? (currentUser?.name || 'Nhân viên') : undefined),
-                readAt: m.readAt || prevMsg?.readAt || (isCurrentlySelected ? new Date().toISOString() : undefined)
-              };
-            });
-
-            const merged = [...updatedRealMsgs, ...optimisticMsgs];
-            return merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          });
-        }
-      } catch (e) {
-        // Backend API offline fallback
-      }
-    };
-
-    fetchInitialMessages();
-
-    // 2. Establish persistent Server-Sent Events (SSE) stream
-    let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource('/api/meta/messages/stream');
-
-      eventSource.addEventListener('connected', (e: MessageEvent) => {
-        console.log('⚡ [REALTIME SSE] Connected to server event stream:', e.data);
-      });
-
-      // Handle new incoming / outgoing message event instantly (<100ms)
-      eventSource.addEventListener('message:new', (e: MessageEvent) => {
-        try {
-          const newMsg: CentralMessage = JSON.parse(e.data);
-          if (!newMsg || !newMsg.id) return;
-
-          const isAlreadyKnown = knownMsgIds.has(newMsg.id);
-          knownMsgIds.add(newMsg.id);
-
-          setCentralMessages((prev) => {
-            const currentSelected = selectedChatCustomerIdRef.current;
-            const isCurrentlySelected = Boolean(
-              currentSelected &&
-              (newMsg.customerId === currentSelected || isSamePhoneNumber(newMsg.customerPhone, currentSelected))
-            );
-
-            const isRead = isCurrentlySelected || Boolean(newMsg.isRead);
-            const enrichedMsg: CentralMessage = {
-              ...newMsg,
-              isRead,
-              readBy: newMsg.readBy || (isCurrentlySelected ? (currentUser?.name || 'Nhân viên') : undefined),
-              readAt: newMsg.readAt || (isCurrentlySelected ? new Date().toISOString() : undefined)
-            };
-
-            // Remove any optimistic message with same ID or content match
-            const filtered = prev.filter((m) => m.id !== enrichedMsg.id && !(m.id.startsWith('msg_') && m.content === enrichedMsg.content));
-            return [...filtered, enrichedMsg].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          });
-
-          // Play sound and toast notification for incoming customer message
-          if (newMsg.sender === 'customer' && !isAlreadyKnown) {
-            playNotificationSound();
-            setToastNotification({
-              message: newMsg,
-              show: true
-            });
-          }
-        } catch (err) {
-          console.error('[REALTIME SSE] Error processing message:new event:', err);
-        }
-      });
-
-      // Handle message read status update event
-      eventSource.addEventListener('message:read', (e: MessageEvent) => {
-        try {
-          const { messageIds, customerId, customerPhone, readBy, readAt } = JSON.parse(e.data);
-          setCentralMessages((prev) =>
-            prev.map((m) => {
-              const isMatch = (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
-                (customerId && m.customerId === customerId) ||
-                (customerPhone && isSamePhoneNumber(m.customerPhone, customerPhone));
-              if (isMatch) {
-                return {
-                  ...m,
-                  isRead: true,
-                  readBy: m.readBy || readBy || 'Nhân viên',
-                  readAt: m.readAt || readAt || new Date().toISOString()
-                };
-              }
-              return m;
-            })
-          );
-        } catch (err) {
-          console.error('[REALTIME SSE] Error processing message:read event:', err);
-        }
-      });
-
-      // Handle thread deletion event
-      eventSource.addEventListener('message:thread_deleted', (e: MessageEvent) => {
-        try {
-          const { customerId, customerPhone } = JSON.parse(e.data);
-          setCentralMessages((prev) =>
-            prev.filter((m) => m.customerId !== customerId && !(customerPhone && isSamePhoneNumber(m.customerPhone, customerPhone)))
-          );
-        } catch (err) {}
-      });
-
-      // Handle message delete event
-      eventSource.addEventListener('message:deleted', (e: MessageEvent) => {
-        try {
-          const { messageId } = JSON.parse(e.data);
-          setCentralMessages((prev) => prev.filter((m) => m.id !== messageId));
-        } catch (err) {}
-      });
-
-      // Handle clear all messages event
-      eventSource.addEventListener('message:cleared', () => {
-        setCentralMessages([]);
-      });
-
-      // Handle customer opt-in update event
-      eventSource.addEventListener('customer:optin', (e: MessageEvent) => {
-        try {
-          const { customerId, whatsappOptIn } = JSON.parse(e.data);
-          if (customerId) {
-            setCustomers((prev) =>
-              prev.map((c) => (c.id === customerId ? { ...c, whatsappOptIn: Boolean(whatsappOptIn) } : c))
-            );
-          }
-        } catch (err) {}
-      });
-
-      eventSource.onerror = (err) => {
-        console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', err);
-      };
-    } catch (sseErr) {
-      console.warn('[REALTIME SSE] Failed to initialize EventSource:', sseErr);
-    }
-
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, []);
-
-  const handleSendCentralMessage = async (
-    customerId: string,
-    content: string,
-    channel: MessageChannel = 'WhatsApp',
-    explicitPhone?: string,
-    explicitName?: string,
-    senderPhoneNumberId?: string,
-    replyTo?: { id: string; senderName: string; content: string }
-  ) => {
-    const cust = customers.find((c) => c.id === customerId || isSamePhoneNumber(c.phone, explicitPhone || customerId));
-    const agentName = currentUser?.name || 'Nguyễn Văn Ánh';
-    const phone = explicitPhone || cust?.phone || (customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (customerId.replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    const name = explicitName || cust?.name || (phone ? `Khách Hàng (${phone})` : 'Khách Hàng');
-
-    const tempMsg: CentralMessage = {
-      id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      customerId: cust?.id || customerId,
-      customerName: name,
-      customerPhone: phone,
-      sender: 'agent',
-      agentName,
-      channel,
-      content,
-      timestamp: new Date().toISOString(),
-      isRead: true,
-      replyTo
-    };
-
-    setCentralMessages((prev) => [...prev, tempMsg]);
-
-    // Send real WhatsApp Cloud API message via Backend endpoint
-    try {
-      const res: any = await api.post('/meta/messages/send', {
-        customerId: cust?.id || customerId,
-        customerName: name,
-        customerPhone: phone,
-        content,
-        agentName,
-        phoneNumberId: senderPhoneNumberId,
-        contextMessageId: replyTo?.id,
-        replyTo
-      });
-
-      if (res && res.message) {
-        setCentralMessages((prev) =>
-          prev.map((m) => (m.id === tempMsg.id ? { ...m, id: res.message.id, isRealSent: res.isRealSent, replyTo: res.message.replyTo || m.replyTo } : m))
-        );
-      }
-    } catch (apiErr) {
-      console.log('Real WhatsApp API offline fallback');
-    }
-
-    // Update customer last contact and append to customer notes timeline
-    if (cust || phone) {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === customerId || (cust && c.id === cust.id) || isSamePhoneNumber(c.phone, phone)) {
-            const newNote = {
-              id: `n_wa_${Date.now()}`,
-              author: agentName,
-              content: `[WhatsApp Gửi đi] ${content}`,
-              createdAt: new Date().toLocaleString('vi-VN'),
-              type: 'whatsapp' as const,
-            };
-            return {
-              ...c,
-              lastContact: new Date().toISOString().split('T')[0],
-              notes: [newNote, ...(c.notes || [])],
-            };
-          }
-          return c;
-        })
-      );
-    }
-  };
-
-  const handleDeleteThread = async (customerId: string) => {
-    if (currentUser?.role !== 'Admin') {
-      alert('Chỉ tài khoản Admin mới có quyền xóa hội thoại!');
-      return;
-    }
-
-    // Extract all matching phone numbers and IDs for this thread
-    const threadMsgs = centralMessages.filter((m) => m.customerId === customerId || isSamePhoneNumber(m.customerPhone, customerId));
-    const threadPhone = threadMsgs[0]?.customerPhone || customers.find((c) => c.id === customerId)?.phone || customerId;
-    const cleanPhone = threadPhone.replace(/\D/g, '');
-
-    // Filter React centralMessages state completely
-    setCentralMessages((prev) =>
-      prev.filter((m) => {
-        const isSameId = m.customerId === customerId;
-        const isSamePhone = isSamePhoneNumber(m.customerPhone, threadPhone);
-        return !isSameId && !isSamePhone;
-      })
-    );
-
-    // Call Backend API with both customerId and customerPhone query param
-    try {
-      const queryPhone = cleanPhone ? `?customerPhone=${encodeURIComponent(cleanPhone)}` : '';
-      await api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${queryPhone}`);
-    } catch (e) {
-      console.error('Error deleting thread via API:', e);
-    }
-  };
-
-  const handleDeleteMessage = async (messageId: string) => {
-    if (currentUser?.role !== 'Admin') {
-      alert('Chỉ tài khoản Admin mới có quyền xóa tin nhắn!');
-      return;
-    }
-
-    setCentralMessages((prev) => prev.filter((m) => m.id !== messageId));
-
-    try {
-      await api.delete(`/meta/messages/item/${encodeURIComponent(messageId)}`);
-    } catch (e) {
-      console.error('Error deleting message via API:', e);
-    }
-  };
-
-  const handleSimulateIncomingMessage = () => {
-    const sampleCust = customers[Math.floor(Math.random() * customers.length)] || {
-      id: 'cust_1',
-      name: 'Nguyễn Thị Minh Châu',
-      phone: '0908123456',
-    };
-
-    const sampleContents = [
-      'Dạ shop ơi, cho em hỏi sản phẩm mỹ phẩm này còn hàng trên WhatsApp không ạ?',
-      'Anh muốn hỏi giá sỉ cho đơn 10 bộ về Kuala Lumpur qua WhatsApp ạ.',
-      'Shop kiểm tra giúp em tình trạng đơn hàng với ạ!',
-      'Mã ưu đãi 20% gửi qua WhatsApp áp dụng như nào shop nhỉ?',
-      'Em vừa thanh toán đơn hàng rồi, shop xác nhận giúp em trên WhatsApp nhé!',
-    ];
-    const randomContent = sampleContents[Math.floor(Math.random() * sampleContents.length)];
-
-    const incomingMsg: CentralMessage = {
-      id: `msg_in_${Date.now()}`,
-      customerId: sampleCust.id,
-      customerName: sampleCust.name,
-      customerPhone: sampleCust.phone,
-      sender: 'customer',
-      channel: 'WhatsApp',
-      content: randomContent,
-      timestamp: new Date().toISOString(),
-      isRead: false,
-    };
-
-    setCentralMessages((prev) => [...prev, incomingMsg]);
-    playNotificationSound();
-    setToastNotification({
-      message: incomingMsg,
-      show: true,
-    });
-  };
-
-  // Sync with Backend API if server is online - re-fetches whenever user logs in/out
-  useEffect(() => {
-    const fetchApiData = async () => {
-      if (!currentUser) return; // Chỉ fetch khi đã đăng nhập
-      try {
-        const health: any = await api.get('/health');
-        if (health && health.status === 'ok') {
-          const apiCustomersRes = await api.get<any>('/customers').catch(() => null);
-          const customerList = Array.isArray(apiCustomersRes) ? apiCustomersRes : (apiCustomersRes?.data || []);
-          if (customerList && Array.isArray(customerList)) {
-            setCustomers(customerList.map(mapApiCustomerToFrontend));
-          }
-          const apiProducts = await api.get<Product[]>('/products').catch(() => null);
-          if (apiProducts && Array.isArray(apiProducts)) {
-            setProducts(apiProducts);
-          }
-          const apiCampaigns = await api.get<any[]>('/campaigns').catch(() => null);
-          if (apiCampaigns && Array.isArray(apiCampaigns)) {
-            setCampaigns(apiCampaigns.map(mapApiCampaignToFrontend));
-          }
-        }
-      } catch (err) {
-        // Backend offline, fallback to local storage mode
-      }
-    };
-    fetchApiData();
-  }, [currentUser]); // ← Re-fetch khi currentUser thay đổi (đăng nhập / đăng xuất)
-
+      .catch(() => null);
+  }, [currentUser]);
 
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);
@@ -632,499 +187,34 @@ export default function App() {
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
-  // Sync state to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CUSTOMERS, JSON.stringify(customers));
-    } catch (e) {
-      console.error('Error saving customers to localStorage', e);
+    if (!selectedCustomer) return;
+    const latestCustomer = customers.find((customer) => customer.id === selectedCustomer.id);
+    if (!latestCustomer) {
+      setSelectedCustomer(null);
+      setIsDetailOpen(false);
+      return;
     }
-  }, [customers]);
+    if (latestCustomer !== selectedCustomer) setSelectedCustomer(latestCustomer);
+  }, [customers, selectedCustomer]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CAMPAIGNS, JSON.stringify(campaigns));
-    } catch (e) {
-      console.error('Error saving campaigns to localStorage', e);
-    }
-  }, [campaigns]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-    } catch (e) {
-      console.error('Error saving users to localStorage', e);
-    }
-  }, [users]);
-
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
-      }
-    } catch (e) {
-      console.error('Error saving current user to localStorage', e);
-    }
-  }, [currentUser]);
-
-  // Customer Group Counts
-  const customerCounts = {
-    total: customers.length,
-    g1: customers.filter((c) => getCustomerGroup(c) === 'group_1').length,
-    g2: customers.filter((c) => getCustomerGroup(c) === 'group_2').length,
-    g3: customers.filter((c) => getCustomerGroup(c) === 'group_3').length,
-    g4: customers.filter((c) => getCustomerGroup(c) === 'group_4').length,
+  const handleDeleteCustomer = async (customerId: string) => {
+    const wasDeleted = await deleteCustomer(customerId);
+    if (wasDeleted && selectedCustomer?.id === customerId) setIsDetailOpen(false);
   };
 
-  const handleSaveCustomer = async (data: Partial<Customer>) => {
-    if (data.id) {
-      // Edit existing
-      let updatedCust: Customer | null = null;
-      try {
-        const res = await api.put<any>(`/customers/${data.id}`, data);
-        if (res) {
-          updatedCust = mapApiCustomerToFrontend(res);
-        }
-      } catch (err) {
-        console.error('API error updating customer, falling back to local:', err);
-      }
-
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === data.id) {
-            return updatedCust || ({ ...c, ...data } as Customer);
-          }
-          return c;
-        })
-      );
-      if (selectedCustomer?.id === data.id) {
-        setSelectedCustomer((prev) => (prev ? { ...prev, ...data } : null));
-      }
-    } else {
-      // Add new
-      let savedCust: Customer | null = null;
-      try {
-        const res = await api.post<any>('/customers', data);
-        if (res) {
-          savedCust = mapApiCustomerToFrontend(res);
-        }
-      } catch (err) {
-        console.error('API error creating customer, falling back to local:', err);
-      }
-
-      const newCust: Customer = savedCust || {
-        id: `cust_${Date.now()}`,
-        phone: data.phone || '',
-        name: data.name || '',
-        gender: data.gender || 'Nữ',
-        address: data.address || 'Kuala Lumpur, Malaysia',
-        email: data.email,
-        note: data.note || '',
-        source: data.source || 'Facebook',
-        campaign: data.campaign || 'Default Campaign',
-        adSet: data.adSet,
-        landingPage: data.landingPage,
-        firstContact: data.firstContact || new Date().toISOString().split('T')[0],
-        lastContact: data.lastContact || new Date().toISOString().split('T')[0],
-        owner: data.owner || 'Nguyễn Văn Ánh',
-        status: data.status || 'New Lead',
-        notes: data.notes || [],
-        totalOrders: 0,
-        totalSpent: 0,
-        interestedProducts: data.interestedProducts || [],
-        whatsappOptIn: data.whatsappOptIn ?? true,
-        whatsappOptInDate: new Date().toISOString().split('T')[0],
-        orders: [],
-      };
-      setCustomers((prev) => [newCust, ...prev]);
-    }
+  const handleSendCustomMessage = (
+    customerId: string,
+    messageText: string,
+    phone?: string,
+    name?: string
+  ) => {
+    void handleSendCentralMessage(customerId, messageText, 'WhatsApp', phone, name);
   };
 
-  const handleImportCustomers = (newCusts: Customer[]) => {
-    setCustomers((prev) => [...newCusts, ...prev]);
-  };
-
-  const handleImportProducts = (newPrds: Product[]) => {
-    setProducts((prev) => [...newPrds, ...prev]);
-  };
-
-  const handleImportOrders = (importedOrders: { customerPhone: string; order: CustomerOrder }[]) => {
-    setCustomers((prev) => {
-      let updatedList = [...prev];
-      importedOrders.forEach(({ customerPhone, order }) => {
-        const normalizedPhone = customerPhone.replace(/\s+/g, '');
-        let targetCustIndex = updatedList.findIndex(
-          (c) => c.phone.replace(/\s+/g, '') === normalizedPhone
-        );
-
-        if (targetCustIndex === -1) {
-          const newCustId = `cust_ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          const newCust: Customer = {
-            id: newCustId,
-            phone: customerPhone,
-            name: order.customerName || `Khách Hàng (${customerPhone})`,
-            gender: 'Nữ',
-            address: 'Malaysia',
-            source: 'Direct',
-            campaign: 'Import CSV Đơn Hàng',
-            firstContact: new Date().toISOString().split('T')[0],
-            lastContact: new Date().toISOString().split('T')[0],
-            owner: 'Nguyễn Văn Ánh',
-            status: order.status === 'Completed' ? 'Won' : 'Contacted',
-            notes: [],
-            totalOrders: 1,
-            totalSpent: order.status === 'Completed' ? order.totalAmount : 0,
-            interestedProducts: order.products.map((p) => p.productName),
-            whatsappOptIn: true,
-            whatsappOptInDate: new Date().toISOString().split('T')[0],
-            orders: [{ ...order, customerId: newCustId }],
-          };
-          updatedList = [newCust, ...updatedList];
-        } else {
-          const existingCust = updatedList[targetCustIndex];
-          const newOrder = { ...order, customerId: existingCust.id };
-          const updatedOrders = [newOrder, ...(existingCust.orders || [])];
-          const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-          const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-
-          updatedList[targetCustIndex] = {
-            ...existingCust,
-            status: existingCust.status === 'Won' ? 'Won' : (order.status === 'Completed' ? 'Won' : existingCust.status),
-            orders: updatedOrders,
-            totalOrders: updatedOrders.length,
-            totalSpent,
-            lastPurchaseDate: order.date,
-          };
-        }
-      });
-      return updatedList;
-    });
-  };
-
-  const handleDeleteCustomer = async (id: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa khách hàng này khỏi CRM?')) {
-      try {
-        await api.delete(`/customers/${id}`);
-      } catch (err) {
-        console.error('API error deleting customer, falling back to local:', err);
-      }
-      setCustomers((prev) => prev.filter((c) => c.id !== id));
-      if (selectedCustomer?.id === id) setIsDetailOpen(false);
-    }
-  };
-
-  const handleUpdateStatus = async (customerId: string, newStatus: CustomerStatus) => {
-    const cust = customers.find((c) => c.id === customerId);
-    if (!cust) return;
-    const oldStatus = cust.status;
-
-    let updatedCust: Customer | null = null;
-    try {
-      await api.put(`/customers/${customerId}`, { status: newStatus });
-      const systemNoteContent = `Chuyển trạng thái từ "${oldStatus}" sang "${newStatus}".`;
-      await api.post(`/customers/${customerId}/notes`, {
-        content: systemNoteContent,
-        type: 'system',
-        author: 'Hệ Thống'
-      });
-      const res = await api.get<any>(`/customers/${customerId}`);
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error updating customer status, fallback to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer(updatedCust);
-      }
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === customerId) {
-            const updatedNotes = [
-              ...(c.notes || []),
-              {
-                id: `n_${Date.now()}`,
-                author: 'Hệ Thống',
-                content: `Chuyển trạng thái từ "${c.status}" sang "${newStatus}".`,
-                createdAt: new Date().toLocaleString('vi-VN'),
-                type: 'system' as const,
-              },
-            ];
-            return { ...c, status: newStatus, notes: updatedNotes };
-          }
-          return c;
-        })
-      );
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer((prev) => (prev ? { ...prev, status: newStatus } : null));
-      }
-    }
-  };
-
-  const handleToggleOptIn = async (customerId: string) => {
-    const cust = customers.find((c) => c.id === customerId);
-    if (!cust) return;
-    const newOptIn = !cust.whatsappOptIn;
-
-    let updatedCust: Customer | null = null;
-    try {
-      const res = await api.put<any>(`/customers/${customerId}`, { whatsappOptIn: newOptIn });
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error toggling opt-in, fallback to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer(updatedCust);
-      }
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => (c.id === customerId ? { ...c, whatsappOptIn: newOptIn } : c))
-      );
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer((prev) => (prev ? { ...prev, whatsappOptIn: newOptIn } : null));
-      }
-    }
-  };
-
-  const handleAddNote = async (customerId: string, noteText: string) => {
-    const cust = customers.find((c) => c.id === customerId);
-    if (!cust) return;
-
-    let updatedCust: Customer | null = null;
-    try {
-      await api.post(`/customers/${customerId}/notes`, {
-        content: noteText,
-        type: 'note',
-        author: cust.owner
-      });
-      const res = await api.get<any>(`/customers/${customerId}`);
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error adding note, fallback to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer(updatedCust);
-      }
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === customerId) {
-            const newNote = {
-              id: `n_${Date.now()}`,
-              author: c.owner,
-              content: noteText,
-              createdAt: new Date().toLocaleString('vi-VN'),
-              type: 'note' as const,
-            };
-            return { ...c, notes: [newNote, ...c.notes] };
-          }
-          return c;
-        })
-      );
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer((prev) =>
-          prev
-            ? {
-                ...prev,
-                notes: [
-                  {
-                    id: `n_${Date.now()}`,
-                    author: prev.owner,
-                    content: noteText,
-                    createdAt: new Date().toLocaleString('vi-VN'),
-                    type: 'note',
-                  },
-                  ...prev.notes,
-                ],
-              }
-            : null
-        );
-      }
-    }
-  };
-
-  const handleAddOrder = async (customerId: string, newOrder: CustomerOrder) => {
-    let updatedCust: Customer | null = null;
-    try {
-      await api.post('/orders', {
-        customerId,
-        customerName: newOrder.customerName,
-        customerPhone: newOrder.customerPhone,
-        products: newOrder.products,
-        totalAmount: newOrder.totalAmount,
-        notes: newOrder.notes
-      });
-      try {
-        await api.post(`/customers/${customerId}/automation-logs`, {
-          step: 1,
-          stepName: 'Ngày +3 (Lời cảm ơn)',
-          message: `Cảm ơn ${newOrder.customerName || 'Khách hàng'} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
-          status: 'Delivered'
-        });
-      } catch (logErr) {
-        console.error('Failed to create automation log on backend:', logErr);
-      }
-      const res = await api.get<any>(`/customers/${customerId}`);
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error adding order, falling back to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer(updatedCust);
-      }
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === customerId) {
-            const updatedOrders = [newOrder, ...c.orders];
-            const totalOrders = updatedOrders.length;
-            const totalSpent = updatedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-
-            const nowStr = new Date().toLocaleString('vi-VN');
-            const currentSeq = c.automationSequence || {
-              active: true,
-              currentStep: 0,
-              startDate: newOrder.date,
-              logs: [],
-            };
-
-            const updatedSeq = {
-              ...currentSeq,
-              active: true,
-              currentStep: Math.max(1, currentSeq.currentStep),
-              logs: [
-                ...currentSeq.logs,
-                {
-                  step: 1,
-                  stepName: 'Ngày +3 (Lời cảm ơn)',
-                  sentAt: nowStr,
-                  message: `Cảm ơn ${c.name} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
-                  status: 'Delivered' as const,
-                },
-              ],
-            };
-
-            return {
-              ...c,
-              status: 'Won',
-              totalOrders,
-              totalSpent,
-              lastPurchaseDate: newOrder.date,
-              orders: updatedOrders,
-              automationSequence: updatedSeq,
-            };
-          }
-          return c;
-        })
-      );
-    }
-
-    alert('Tạo đơn hàng thành công! Đã tự động kích hoạt quy trình Chăm sóc WhatsApp Ngày +3!');
-  };
-
-  const handleSendCustomMessage = (customerId: string, messageText: string, phone?: string, name?: string) => {
-    // Sync to Central WhatsApp Inbox & Meta Cloud API
-    handleSendCentralMessage(customerId, messageText, 'WhatsApp', phone, name);
-  };
-
-  // Run Automation Simulation logic
   const handleRunAutomationSim = async () => {
-    const nowStr = new Date().toLocaleString('vi-VN');
-    
-    const updatePromises = customers.map(async (c) => {
-      if (c.totalOrders >= 1 && c.automationSequence) {
-        const stepNames = [
-          'Ngày +3 (Lời cảm ơn & HDSD)',
-          'Ngày +5 (Hỏi trải nghiệm)',
-          'Ngày +7 (Giải đáp & Gợi ý)',
-          'Ngày +15 (Gửi Voucher 20%)',
-        ];
-        const nextStep = (c.automationSequence.currentStep % 4) + 1;
-        const stepTitle = stepNames[nextStep - 1];
-        const message = `[Tự Động Kích Hoạt - ${stepTitle}] Chào ${c.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`;
-        
-        try {
-          await api.post(`/customers/${c.id}/automation-logs`, {
-            step: nextStep,
-            stepName: stepTitle,
-            message,
-            status: 'Read'
-          });
-        } catch (err) {
-          console.error(`Failed to post simulation log for customer ${c.id}:`, err);
-        }
-      }
-    });
-
-    try {
-      await Promise.all(updatePromises);
-      const health: any = await api.get('/health');
-      if (health && health.status === 'ok') {
-        const apiCustomersRes = await api.get<any>('/customers').catch(() => null);
-        const customerList = Array.isArray(apiCustomersRes) ? apiCustomersRes : (apiCustomersRes?.data || []);
-        if (customerList && Array.isArray(customerList)) {
-          setCustomers(customerList.map(mapApiCustomerToFrontend));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to run simulation on backend:', e);
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.totalOrders >= 1 && c.automationSequence) {
-            const stepNames = [
-              'Ngày +3 (Lời cảm ơn & HDSD)',
-              'Ngày +5 (Hỏi trải nghiệm)',
-              'Ngày +7 (Giải đáp & Gợi ý)',
-              'Ngày +15 (Gửi Voucher 20%)',
-            ];
-            const nextStep = (c.automationSequence.currentStep % 4) + 1;
-            const stepTitle = stepNames[nextStep - 1];
-
-            const newLog = {
-              step: nextStep,
-              stepName: stepTitle,
-              sentAt: nowStr,
-              message: `[Tự Động Kích Hoạt - ${stepTitle}] Chào ${c.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
-              status: 'Read' as const,
-            };
-
-            return {
-              ...c,
-              automationSequence: {
-                ...c.automationSequence,
-                active: true,
-                currentStep: nextStep,
-                logs: [...c.automationSequence.logs, newLog],
-              },
-            };
-          }
-          return c;
-        })
-      );
-    }
-
-    setAutoSimCounter((prev) => prev + 1);
+    await runAutomationSimulation();
+    setAutoSimCounter((previous) => previous + 1);
     alert('Đã kích hoạt mô phỏng chạy gửi tin nhắn Automation Ngày +3, +5, +7, +15 thành công cho tất cả khách hàng!');
   };
 
@@ -1134,16 +224,11 @@ export default function App() {
 
   const handleResetData = () => {
     if (confirm('Khôi phục lại dữ liệu CRM ban đầu?')) {
-      localStorage.removeItem(STORAGE_KEY_CUSTOMERS);
       localStorage.removeItem(STORAGE_KEY_CAMPAIGNS);
-      localStorage.removeItem(STORAGE_KEY_USERS);
-      localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
-      localStorage.removeItem(STORAGE_KEY_PRODUCTS);
-      setCustomers(INITIAL_CUSTOMERS);
+      resetCustomers();
+      resetProducts();
+      resetAuth();
       setCampaigns(INITIAL_CAMPAIGNS);
-      setUsers(INITIAL_USERS);
-      setProducts(INITIAL_PRODUCT_LIST);
-      setCurrentUser(INITIAL_USERS[0]);
       alert('Đã khôi phục dữ liệu mẫu VietCRM!');
     }
   };
@@ -1153,214 +238,6 @@ export default function App() {
     setActiveTab('broadcast');
   };
 
-  // Product Handlers
-  const handleAddProduct = async (newPrd: Partial<Product>) => {
-    let savedProduct: Product | null = null;
-    try {
-      const res = await api.post<Product>('/products', newPrd);
-      if (res) savedProduct = res;
-    } catch (err) {
-      console.error('API error adding product, falling back to local:', err);
-    }
-
-    const prd: Product = savedProduct || {
-      id: newPrd.id || `prd_${Date.now()}`,
-      code: newPrd.code || `SP-${Math.floor(100 + Math.random() * 900)}`,
-      name: newPrd.name || '',
-      category: newPrd.category || 'Mỹ Phẩm',
-      price: newPrd.price || 0,
-      costPrice: newPrd.costPrice || 0,
-      stock: newPrd.stock ?? 50,
-      status: newPrd.status || 'In Stock',
-      sku: newPrd.sku || '',
-      description: newPrd.description || '',
-      image: newPrd.image || '',
-    };
-    setProducts((prev) => [prd, ...prev]);
-  };
-
-  const handleEditProduct = async (updatedPrd: Product) => {
-    let savedProduct: Product | null = null;
-    try {
-      const res = await api.put<Product>(`/products/${updatedPrd.id}`, updatedPrd);
-      if (res) savedProduct = res;
-    } catch (err) {
-      console.error('API error updating product, falling back to local:', err);
-    }
-
-    setProducts((prev) => prev.map((p) => (p.id === updatedPrd.id ? (savedProduct || updatedPrd) : p)));
-  };
-
-  const handleDeleteProduct = async (productId: string) => {
-    try {
-      await api.delete(`/products/${productId}`);
-    } catch (err) {
-      console.error('API error deleting product, falling back to local:', err);
-    }
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-  };
-
-  // Order Handlers
-  const handleCreateOrderCentral = async (order: CustomerOrder) => {
-    if (!order.customerId) return;
-    let updatedCust: Customer | null = null;
-    try {
-      await api.post('/orders', {
-        customerId: order.customerId,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        products: order.products,
-        totalAmount: order.totalAmount,
-        notes: order.notes
-      });
-      const res = await api.get<any>(`/customers/${order.customerId}`);
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error creating order central, falling back to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === order.customerId ? updatedCust! : c)));
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === order.customerId) {
-            const updatedOrders = [order, ...(c.orders || [])];
-            const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-            const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-            return {
-              ...c,
-              status: c.status === 'Won' ? 'Won' : (order.status === 'Completed' ? 'Won' : c.status),
-              orders: updatedOrders,
-              totalOrders: updatedOrders.length,
-              totalSpent,
-              lastPurchaseDate: order.date,
-            };
-          }
-          return c;
-        })
-      );
-    }
-  };
-
-  const handleUpdateOrderStatus = async (orderId: string, customerId: string, newStatus: CustomerOrder['status']) => {
-    let updatedCust: Customer | null = null;
-    try {
-      await api.patch(`/orders/${orderId}/status`, { status: newStatus });
-      const res = await api.get<any>(`/customers/${customerId}`);
-      if (res) {
-        updatedCust = mapApiCustomerToFrontend(res);
-      }
-    } catch (err) {
-      console.error('API error updating order status, falling back to local:', err);
-    }
-
-    if (updatedCust) {
-      setCustomers((prev) => prev.map((c) => (c.id === customerId ? updatedCust! : c)));
-      if (selectedCustomer?.id === customerId) {
-        setSelectedCustomer(updatedCust);
-      }
-    } else {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === customerId) {
-            const updatedOrders = (c.orders || []).map((o) => (o.id === orderId ? { ...o, status: newStatus } : o));
-            const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-            const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-            return {
-              ...c,
-              orders: updatedOrders,
-              totalOrders: updatedOrders.length,
-              totalSpent,
-            };
-          }
-          return c;
-        })
-      );
-    }
-  };
-
-  const handleDeleteOrder = (orderId: string, customerId: string) => {
-    setCustomers((prev) =>
-      prev.map((c) => {
-        if (c.id === customerId) {
-          const updatedOrders = (c.orders || []).filter((o) => o.id !== orderId);
-          const completedOrders = updatedOrders.filter((o) => o.status === 'Completed');
-          const totalSpent = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-          return {
-            ...c,
-            orders: updatedOrders,
-            totalOrders: updatedOrders.length,
-            totalSpent,
-          };
-        }
-        return c;
-      })
-    );
-  };
-
-  // User Management Handlers
-  const handleSaveUser = (data: Partial<AppUser> & { password?: string }) => {
-    if (data.id) {
-      setUsers((prev) =>
-        prev.map((u) => (u.id === data.id ? ({ ...u, ...data } as AppUser) : u))
-      );
-      if (currentUser?.id === data.id) {
-        setCurrentUser((prev) => (prev ? ({ ...prev, ...data } as AppUser) : null));
-      }
-      // Call backend API if available
-      api.put(`/users/${data.id}`, data).catch(() => null);
-    } else {
-      const newUser: AppUser = {
-        id: `usr_${Date.now()}`,
-        name: data.name || '',
-        email: data.email || '',
-        phone: data.phone || '',
-        role: data.role || 'Sales Rep',
-        department: data.department || 'Phòng Sales',
-        status: data.status || 'active',
-        avatar: data.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-        lastActive: 'Vừa kích hoạt',
-        assignedLeadsCount: 0,
-        totalRevenue: 0,
-      };
-      setUsers((prev) => [...prev, newUser]);
-      // Call backend API if available
-      api.post('/users', { ...newUser, password: data.password || 'admin123' }).catch(() => null);
-    }
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi hệ thống?')) {
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      if (currentUser?.id === userId) {
-        setCurrentUser(null);
-      }
-    }
-  };
-
-  const handleToggleUserStatus = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const nextStatus = u.status === 'active' ? 'inactive' : 'active';
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      })
-    );
-  };
-
-  const handleSwitchUser = (user: AppUser) => {
-    if (user.status === 'inactive') {
-      alert('Tài khoản này đang ở trạng thái Inactive (vô hiệu hóa).');
-      return;
-    }
-    setCurrentUser(user);
-    alert(`Đã chuyển tài khoản thành công sang: ${user.name} (${user.role})`);
-  };
 
   if (legalView === 'privacy') {
     return <PrivacyPolicyView onBackToApp={() => { window.location.hash = ''; setLegalView(null); }} />;
@@ -1403,7 +280,7 @@ export default function App() {
             window.location.hash = `#${page === 'deletion' ? 'data-deletion' : page}`;
           }}
           onQuickDemoLogin={() => {
-            setCurrentUser(users[0]);
+            selectUser(users[0]);
           }}
         />
 
@@ -1411,12 +288,6 @@ export default function App() {
           isOpen={isLoginOpen}
           isMandatory={false}
           onClose={() => setIsLoginOpen(false)}
-          users={users}
-          currentUser={currentUser}
-          onSelectUser={(u) => {
-            setCurrentUser(u);
-            if (u) setIsLoginOpen(false);
-          }}
         />
       </>
     );
@@ -1429,7 +300,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         onChangeTab={(tab) => {
-          if (tab === 'users' && currentUser?.role !== 'Admin') {
+          if (tab === 'users' && !isAdmin) {
             setActiveTab('crm');
           } else {
             setActiveTab(tab);
@@ -1458,7 +329,7 @@ export default function App() {
           <CustomerList
             customers={customers}
             currentUser={currentUser}
-            centralMessages={centralMessages}
+            filterModel={customerFilterModel}
             onSelectCustomer={(cust) => {
               setSelectedCustomer(cust);
               setIsDetailOpen(true);
@@ -1556,7 +427,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'users' && currentUser?.role === 'Admin' && (
+        {activeTab === 'users' && isAdmin && (
           <UserManagementView
             users={users}
             currentUser={currentUser}
@@ -1651,9 +522,6 @@ export default function App() {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
-        users={users}
-        currentUser={currentUser}
-        onSelectUser={(u) => setCurrentUser(u)}
       />
 
       <UserFormModal
@@ -1676,4 +544,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,25 +1,20 @@
 import React, { useState } from 'react';
-import { AppUser } from '../../types';
 import { LogIn, LogOut, X, Mail, Lock, Loader2 } from 'lucide-react';
 import { YumLogo } from '../Common/YumLogo';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  users: AppUser[];
-  currentUser: AppUser | null;
-  onSelectUser: (user: AppUser | null) => void;
   isMandatory?: boolean;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
-  users,
-  currentUser,
-  onSelectUser,
   isMandatory = false,
 }) => {
+  const { currentUser, login, logout } = useAuth();
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -29,10 +24,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   const handleCustomLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = emailInput.trim().toLowerCase();
-    const cleanPass = passwordInput.trim();
-
-    if (!cleanEmail || !cleanPass) {
+    if (!emailInput.trim() || !passwordInput.trim()) {
       setLoginError('Vui lòng nhập đầy đủ Email và Mật khẩu.');
       return;
     }
@@ -41,66 +33,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setLoginError('');
 
     try {
-      // Gọi API Backend thật để lấy JWT Token
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setLoginError(data.error || 'Email hoặc mật khẩu không chính xác.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Lưu JWT Token thật vào localStorage
-      if (data.token) {
-        localStorage.setItem('vietcrm_jwt_token', data.token);
-      }
-
-      // Cập nhật user trong App state
-      const loggedInUser: AppUser = {
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email,
-        role: data.user.role,
-        avatar: data.user.avatar || '',
-        phone: data.user.phone || '',
-        department: data.user.department || 'Sales',
-        status: data.user.status || 'active',
-        lastActive: 'Đang hoạt động',
-        assignedLeadsCount: data.user.assignedLeadsCount || 0,
-        totalRevenue: data.user.totalRevenue || 0,
-      };
-
-      onSelectUser(loggedInUser);
-      setLoginError('');
-      setIsLoading(false);
+      await login(emailInput, passwordInput);
       if (!isMandatory) onClose();
-    } catch (err) {
-      // Fallback: thử tìm trong danh sách users local nếu backend offline
-      const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
-      if (found) {
-        if (found.status === 'inactive') {
-          setLoginError('Tài khoản này đang bị vô hiệu hóa.');
-        } else {
-          onSelectUser(found);
-          setLoginError('');
-          if (!isMandatory) onClose();
-        }
-      } else {
-        setLoginError('Không thể kết nối máy chủ. Vui lòng thử lại.');
-      }
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Không thể đăng nhập. Vui lòng thử lại.');
+    } finally {
       setIsLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('vietcrm_jwt_token');
-    onSelectUser(null);
+    logout();
     if (!isMandatory) onClose();
   };
 
