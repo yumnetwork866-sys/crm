@@ -1,21 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
 import type { AppUser, CentralMessage, Customer, MessageChannel } from '../types';
 import { api } from '../utils/apiClient';
 import { playNotificationSound } from '../utils/audioUtils';
 import { isSamePhoneNumber } from '../utils/crmUtils';
+import { queryKeys } from '../lib/queryClient';
 
-const STORAGE_KEY_CENTRAL_MESSAGES = 'yumcrm_central_messages_v2';
+interface MessagePage {
+  messages: CentralMessage[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
+  direction: string;
+}
 
-const loadMessages = (): CentralMessage[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_CENTRAL_MESSAGES);
-    if (!saved) return [];
-    const sampleIds = new Set(['msg_1', 'msg_2', 'msg_3', 'msg_4', 'msg_5']);
-    return (JSON.parse(saved) as CentralMessage[]).filter((message) => !sampleIds.has(message.id));
-  } catch {
-    return [];
-  }
+const flattenMessagePages = (data?: InfiniteData<MessagePage, string | null>) => {
+  const byId = new Map<string, CentralMessage>();
+  data?.pages.forEach((page) => page.messages.forEach((message) => byId.set(message.id, message)));
+  return Array.from(byId.values()).sort((first, second) =>
+    new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime()
+  );
 };
 
 interface UseCentralMessagesOptions {
@@ -29,7 +35,57 @@ export function useCentralMessages({
   setCustomers,
   currentUser,
 }: UseCentralMessagesOptions) {
-  const [messages, setMessages] = useState<CentralMessage[]>(loadMessages);
+  const queryClient = useQueryClient();
+  const messagesQuery = useInfiniteQuery<
+    MessagePage,
+    Error,
+    InfiniteData<MessagePage, string | null>,
+    typeof queryKeys.centralMessages,
+    string | null
+  >({
+    queryKey: queryKeys.centralMessages,
+    queryFn: ({ pageParam }) => api.get<MessagePage>(
+      `/meta/messages?paginate=true&limit=30${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`
+    ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
+    enabled: Boolean(currentUser),
+  });
+  const messages = useMemo(() => flattenMessagePages(messagesQuery.data), [messagesQuery.data]);
+
+  useEffect(() => {
+    // Remove the legacy full-message cache once. PostgreSQL + TanStack Query are now the source of truth.
+    localStorage.removeItem('yumcrm_central_messages_v2');
+  }, []);
+
+  const setMessages: Dispatch<SetStateAction<CentralMessage[]>> = useCallback((update) => {
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(queryKeys.centralMessages, (data) => {
+      if (!data) return data;
+      const current = flattenMessagePages(data);
+      const next = typeof update === 'function' ? update(current) : update;
+      const nextById = new Map(next.map((message) => [message.id, message]));
+      const existingIds = new Set<string>();
+      const pages = data.pages.map((page) => ({
+        ...page,
+        messages: page.messages
+          .filter((message) => nextById.has(message.id))
+          .map((message) => {
+            existingIds.add(message.id);
+            return nextById.get(message.id)!;
+          }),
+      }));
+      const added = next.filter((message) => !existingIds.has(message.id));
+      if (pages[0] && added.length > 0) {
+        pages[0] = {
+          ...pages[0],
+          messages: [...pages[0].messages, ...added].sort((first, second) =>
+            new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime()
+          ),
+        };
+      }
+      return { ...data, pages };
+    });
+  }, [queryClient]);
   const [toastNotification, setToastNotification] = useState<{
     message: CentralMessage;
     show: boolean;
@@ -52,18 +108,15 @@ export function useCentralMessages({
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CENTRAL_MESSAGES, JSON.stringify(messages));
-    } catch (error) {
-      console.error('Error saving central messages to localStorage', error);
-    }
-  }, [messages]);
-
   const unreadCount = useMemo(
     () => messages.filter((message) => !message.isRead && message.sender === 'customer').length,
     [messages]
   );
+
+  const readMutation = useMutation({
+    mutationFn: (variables: { customerId: string; customerPhone: string; messageIds?: string[]; readBy: string }) =>
+      api.post('/meta/messages/read', variables),
+  });
 
   const selectCustomerThread = useCallback((
     targetId: string,
@@ -96,60 +149,21 @@ export function useCentralMessages({
       })
     );
 
-    api.post('/meta/messages/read', {
+    readMutation.mutate({
       customerId: customer?.id || targetId,
       customerPhone: phone,
       messageIds,
       readBy: reader,
-    }).catch(() => null);
-  }, []);
+    });
+  }, [readMutation]);
 
   useEffect(() => {
     const knownMessageIds = new Set<string>();
+    flattenMessagePages(
+      queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(queryKeys.centralMessages)
+    )
+      .forEach((message) => knownMessageIds.add(message.id));
 
-    const fetchInitialMessages = async () => {
-      try {
-        const response = await api.get<any>('/meta/messages');
-        const realMessages: CentralMessage[] = Array.isArray(response)
-          ? response
-          : response?.messages || [];
-        if (!Array.isArray(realMessages) || realMessages.length === 0) return;
-
-        realMessages.forEach((message) => knownMessageIds.add(message.id));
-        setMessages((previous) => {
-          const currentSelected = selectedCustomerIdRef.current;
-          const backendIds = new Set(realMessages.map((message) => message.id));
-          const optimisticMessages = previous.filter(
-            (message) => !backendIds.has(message.id) && message.id.startsWith('msg_')
-          );
-          const hydratedMessages = realMessages.map((message) => {
-            const previousMessage = previous.find((item) => item.id === message.id);
-            const isSelected = Boolean(
-              currentSelected
-              && (message.customerId === currentSelected
-                || isSamePhoneNumber(message.customerPhone, currentSelected))
-            );
-            return {
-              ...message,
-              isRead: previousMessage?.isRead === true || isSelected || Boolean(message.isRead),
-              readBy: message.readBy
-                || previousMessage?.readBy
-                || (isSelected ? currentUserRef.current?.name || 'Nhân viên' : undefined),
-              readAt: message.readAt
-                || previousMessage?.readAt
-                || (isSelected ? new Date().toISOString() : undefined),
-            };
-          });
-          return [...hydratedMessages, ...optimisticMessages].sort(
-            (first, second) => new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime()
-          );
-        });
-      } catch {
-        // Keep locally cached messages while the backend is unavailable.
-      }
-    };
-
-    void fetchInitialMessages();
 
     let eventSource: EventSource | null = null;
     try {
@@ -262,7 +276,30 @@ export function useCentralMessages({
     }
 
     return () => eventSource?.close();
-  }, [setCustomers]);
+  }, [queryClient, setCustomers, setMessages]);
+
+  const sendMutation = useMutation({
+    mutationFn: (variables: {
+      customerId: string;
+      customerName: string;
+      customerPhone: string;
+      content: string;
+      agentName: string;
+      phoneNumberId?: string;
+      contextMessageId?: string;
+      replyTo?: { id: string; senderName: string; content: string };
+    }) => api.post<any>('/meta/messages/send', variables),
+  });
+  const threadDeleteMutation = useMutation({
+    mutationFn: ({ customerId, phone }: { customerId: string; phone: string }) => {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const query = cleanPhone ? `?customerPhone=${encodeURIComponent(cleanPhone)}` : '';
+      return api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${query}`);
+    },
+  });
+  const messageDeleteMutation = useMutation({
+    mutationFn: (messageId: string) => api.delete(`/meta/messages/item/${encodeURIComponent(messageId)}`),
+  });
 
   const sendMessage = useCallback(async (
     customerId: string,
@@ -301,7 +338,7 @@ export function useCentralMessages({
 
     setMessages((previous) => [...previous, temporaryMessage]);
     try {
-      const response: any = await api.post('/meta/messages/send', {
+      const response = await sendMutation.mutateAsync({
         customerId: customer?.id || customerId,
         customerName,
         customerPhone: phone,
@@ -353,7 +390,7 @@ export function useCentralMessages({
         })
       );
     }
-  }, [setCustomers]);
+  }, [sendMutation, setCustomers]);
 
   const deleteThread = useCallback(async (customerId: string) => {
     if (currentUserRef.current?.role !== 'Admin') {
@@ -367,6 +404,9 @@ export function useCentralMessages({
     const phone = threadMessages[0]?.customerPhone
       || customersRef.current.find((customer) => customer.id === customerId)?.phone
       || customerId;
+    const previousMessages = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+      queryKeys.centralMessages
+    );
     setMessages((previous) =>
       previous.filter(
         (message) => message.customerId !== customerId
@@ -374,26 +414,29 @@ export function useCentralMessages({
       )
     );
     try {
-      const cleanPhone = phone.replace(/\D/g, '');
-      const query = cleanPhone ? `?customerPhone=${encodeURIComponent(cleanPhone)}` : '';
-      await api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${query}`);
+      await threadDeleteMutation.mutateAsync({ customerId, phone });
     } catch (error) {
+      if (previousMessages) queryClient.setQueryData(queryKeys.centralMessages, previousMessages);
       console.error('Error deleting thread via API:', error);
     }
-  }, [messages]);
+  }, [messages, queryClient, setMessages, threadDeleteMutation]);
 
   const deleteMessage = useCallback(async (messageId: string) => {
     if (currentUserRef.current?.role !== 'Admin') {
       alert('Chỉ tài khoản Admin mới có quyền xóa tin nhắn!');
       return;
     }
+    const previousMessages = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+      queryKeys.centralMessages
+    );
     setMessages((previous) => previous.filter((message) => message.id !== messageId));
     try {
-      await api.delete(`/meta/messages/item/${encodeURIComponent(messageId)}`);
+      await messageDeleteMutation.mutateAsync(messageId);
     } catch (error) {
+      if (previousMessages) queryClient.setQueryData(queryKeys.centralMessages, previousMessages);
       console.error('Error deleting message via API:', error);
     }
-  }, []);
+  }, [messageDeleteMutation, queryClient, setMessages]);
 
   return {
     messages,
@@ -406,5 +449,16 @@ export function useCentralMessages({
     sendMessage,
     deleteThread,
     deleteMessage,
+    hasOlderMessages: Boolean(messagesQuery.hasNextPage),
+    isLoadingOlderMessages: messagesQuery.isFetchingNextPage,
+    loadOlderMessages: messagesQuery.fetchNextPage,
+    isLoading: messagesQuery.isLoading,
+    isFetching: messagesQuery.isFetching,
+    isError: messagesQuery.isError || readMutation.isError || sendMutation.isError
+      || threadDeleteMutation.isError || messageDeleteMutation.isError,
+    error: messagesQuery.error || readMutation.error || sendMutation.error
+      || threadDeleteMutation.error || messageDeleteMutation.error,
+    isMutating: readMutation.isPending || sendMutation.isPending
+      || threadDeleteMutation.isPending || messageDeleteMutation.isPending,
   };
 }

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
 import type { AppUser, CentralMessage, Customer, CustomerStatus } from '../types';
 import { getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
+import { queryKeys } from '../lib/queryClient';
 
 const STORAGE_KEY_CUSTOMERS = 'yumcrm_customers_v2';
 
@@ -57,7 +59,24 @@ const matchesGender = (customerGender: string | undefined, filterGender: string)
 };
 
 export function useCustomers(currentUser: AppUser | null) {
-  const [customers, setCustomers] = useState<Customer[]>(loadCustomers);
+  const queryClient = useQueryClient();
+  const customersQuery = useQuery({
+    queryKey: queryKeys.customers,
+    queryFn: async () => {
+      const response = await api.get<any>('/customers');
+      const customerList = Array.isArray(response) ? response : response?.data || [];
+      return customerList.map(mapApiCustomerToFrontend);
+    },
+    enabled: Boolean(currentUser),
+    initialData: loadCustomers,
+    initialDataUpdatedAt: 0,
+  });
+  const customers = customersQuery.data || [];
+  const setCustomers: Dispatch<SetStateAction<Customer[]>> = useCallback((update) => {
+    queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+      typeof update === 'function' ? update(current) : update
+    );
+  }, [queryClient]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedSource, setSelectedSource] = useState('ALL');
@@ -77,243 +96,249 @@ export function useCustomers(currentUser: AppUser | null) {
   }, [customers]);
 
   const fetchCustomers = useCallback(async () => {
-    if (!currentUser) return;
-    try {
-      const response = await api.get<any>('/customers');
-      const customerList = Array.isArray(response) ? response : response?.data || [];
-      if (Array.isArray(customerList)) {
-        setCustomers(customerList.map(mapApiCustomerToFrontend));
-      }
-    } catch {
-      // Keep local data when the backend is unavailable.
-    }
-  }, [currentUser]);
+    await customersQuery.refetch();
+  }, [customersQuery]);
 
-  useEffect(() => {
-    void fetchCustomers();
-  }, [fetchCustomers]);
 
-  const saveCustomer = useCallback(async (data: Partial<Customer>) => {
-    if (data.id) {
-      let updatedCustomer: Customer | null = null;
-      try {
-        const response = await api.put<any>(`/customers/${data.id}`, data);
-        if (response) updatedCustomer = mapApiCustomerToFrontend(response);
-      } catch (error) {
-        console.error('API error updating customer, falling back to local:', error);
+  const saveMutation = useMutation({
+    mutationFn: async (data: Partial<Customer>) => {
+      const response = data.id
+        ? await api.put<any>(`/customers/${data.id}`, data)
+        : await api.post<any>('/customers', data);
+      return mapApiCustomerToFrontend(response);
+    },
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      if (data.id) {
+        queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+          current.map((customer) => customer.id === data.id ? { ...customer, ...data } as Customer : customer)
+        );
+        return { previous, optimisticId: data.id };
       }
 
-      setCustomers((previous) =>
-        previous.map((customer) =>
-          customer.id === data.id
-            ? updatedCustomer || ({ ...customer, ...data } as Customer)
-            : customer
-        )
+      const optimistic: Customer = {
+        id: `cust_${Date.now()}`,
+        phone: data.phone || '',
+        name: data.name || '',
+        gender: data.gender || 'Nữ',
+        address: data.address || 'Kuala Lumpur, Malaysia',
+        email: data.email,
+        note: data.note || '',
+        source: data.source || 'Facebook',
+        campaign: data.campaign || 'Default Campaign',
+        adSet: data.adSet,
+        landingPage: data.landingPage,
+        firstContact: data.firstContact || new Date().toISOString().split('T')[0],
+        lastContact: data.lastContact || new Date().toISOString().split('T')[0],
+        owner: data.owner || 'Nguyễn Văn Ánh',
+        status: data.status || 'New Lead',
+        notes: data.notes || [],
+        totalOrders: 0,
+        totalSpent: 0,
+        interestedProducts: data.interestedProducts || [],
+        whatsappOptIn: data.whatsappOptIn ?? true,
+        whatsappOptInDate: new Date().toISOString().split('T')[0],
+        orders: [],
+      };
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, [optimistic, ...previous]);
+      return { previous, optimisticId: optimistic.id };
+    },
+    onError: (_error, _data, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSuccess: (saved, _data, context) => {
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === context?.optimisticId ? saved : customer)
       );
-      return;
-    }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
 
-    let savedCustomer: Customer | null = null;
-    try {
-      const response = await api.post<any>('/customers', data);
-      if (response) savedCustomer = mapApiCustomerToFrontend(response);
-    } catch (error) {
-      console.error('API error creating customer, falling back to local:', error);
-    }
+  const importMutation = useMutation({
+    mutationFn: async (newCustomers: Customer[]) => newCustomers,
+    onMutate: async (newCustomers) => {
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, [...newCustomers, ...previous]);
+      return { previous };
+    },
+    onError: (_error, _customers, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+  });
 
-    const newCustomer: Customer = savedCustomer || {
-      id: `cust_${Date.now()}`,
-      phone: data.phone || '',
-      name: data.name || '',
-      gender: data.gender || 'Nữ',
-      address: data.address || 'Kuala Lumpur, Malaysia',
-      email: data.email,
-      note: data.note || '',
-      source: data.source || 'Facebook',
-      campaign: data.campaign || 'Default Campaign',
-      adSet: data.adSet,
-      landingPage: data.landingPage,
-      firstContact: data.firstContact || new Date().toISOString().split('T')[0],
-      lastContact: data.lastContact || new Date().toISOString().split('T')[0],
-      owner: data.owner || 'Nguyễn Văn Ánh',
-      status: data.status || 'New Lead',
-      notes: data.notes || [],
-      totalOrders: 0,
-      totalSpent: 0,
-      interestedProducts: data.interestedProducts || [],
-      whatsappOptIn: data.whatsappOptIn ?? true,
-      whatsappOptInDate: new Date().toISOString().split('T')[0],
-      orders: [],
-    };
-    setCustomers((previous) => [newCustomer, ...previous]);
-  }, []);
+  const deleteMutation = useMutation({
+    mutationFn: (customerId: string) => api.delete(`/customers/${customerId}`),
+    onMutate: async (customerId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.filter((customer) => customer.id !== customerId)
+      );
+      return { previous };
+    },
+    onError: (_error, _customerId, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
 
-  const importCustomers = useCallback((newCustomers: Customer[]) => {
-    setCustomers((previous) => [...newCustomers, ...previous]);
-  }, []);
-
-  const deleteCustomer = useCallback(async (customerId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa khách hàng này khỏi CRM?')) return false;
-    try {
-      await api.delete(`/customers/${customerId}`);
-    } catch (error) {
-      console.error('API error deleting customer, falling back to local:', error);
-    }
-    setCustomers((previous) => previous.filter((customer) => customer.id !== customerId));
-    return true;
-  }, []);
-
-  const updateStatus = useCallback(async (customerId: string, newStatus: CustomerStatus) => {
-    const customer = customers.find((item) => item.id === customerId);
-    if (!customer) return;
-
-    let updatedCustomer: Customer | null = null;
-    try {
-      await api.put(`/customers/${customerId}`, { status: newStatus });
+  const statusMutation = useMutation({
+    mutationFn: async ({ customerId, status }: { customerId: string; status: CustomerStatus }) => {
+      const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
+      await api.put(`/customers/${customerId}`, { status });
       await api.post(`/customers/${customerId}/notes`, {
-        content: `Chuyển trạng thái từ "${customer.status}" sang "${newStatus}".`,
+        content: `Chuyển trạng thái từ "${customer?.status || ''}" sang "${status}".`,
         type: 'system',
         author: 'Hệ Thống',
       });
-      const response = await api.get<any>(`/customers/${customerId}`);
-      if (response) updatedCustomer = mapApiCustomerToFrontend(response);
+      return mapApiCustomerToFrontend(await api.get<any>(`/customers/${customerId}`));
+    },
+    onMutate: async ({ customerId, status }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === customerId ? {
+          ...customer,
+          status,
+          notes: [...(customer.notes || []), {
+            id: `n_${Date.now()}`,
+            author: 'Hệ Thống',
+            content: `Chuyển trạng thái từ "${customer.status}" sang "${status}".`,
+            createdAt: new Date().toLocaleString('vi-VN'),
+            type: 'system' as const,
+          }],
+        } : customer)
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === saved.id ? saved : customer)
+      );
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const optInMutation = useMutation({
+    mutationFn: async ({ customerId, whatsappOptIn }: { customerId: string; whatsappOptIn: boolean }) =>
+      mapApiCustomerToFrontend(await api.put<any>(`/customers/${customerId}`, { whatsappOptIn })),
+    onMutate: async ({ customerId, whatsappOptIn }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === customerId ? { ...customer, whatsappOptIn } : customer)
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === saved.id ? saved : customer)
+      );
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const noteMutation = useMutation({
+    mutationFn: async ({ customerId, noteText, author }: { customerId: string; noteText: string; author: string }) => {
+      await api.post(`/customers/${customerId}/notes`, { content: noteText, type: 'note', author });
+      return mapApiCustomerToFrontend(await api.get<any>(`/customers/${customerId}`));
+    },
+    onMutate: async ({ customerId, noteText, author }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === customerId ? {
+          ...customer,
+          notes: [{ id: `n_${Date.now()}`, author, content: noteText, createdAt: new Date().toLocaleString('vi-VN'), type: 'note' as const }, ...customer.notes],
+        } : customer)
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === saved.id ? saved : customer)
+      );
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const automationMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(customers.map(async (customer) => {
+        if (customer.totalOrders < 1 || !customer.automationSequence) return;
+        const stepNames = ['Ngày +3 (Lời cảm ơn & HDSD)', 'Ngày +5 (Hỏi trải nghiệm)', 'Ngày +7 (Giải đáp & Gợi ý)', 'Ngày +15 (Gửi Voucher 20%)'];
+        const nextStep = (customer.automationSequence.currentStep % 4) + 1;
+        const stepName = stepNames[nextStep - 1];
+        await api.post(`/customers/${customer.id}/automation-logs`, {
+          step: nextStep,
+          stepName,
+          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
+          status: 'Read',
+        });
+      }));
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      const stepNames = ['Ngày +3 (Lời cảm ơn & HDSD)', 'Ngày +5 (Hỏi trải nghiệm)', 'Ngày +7 (Giải đáp & Gợi ý)', 'Ngày +15 (Gửi Voucher 20%)'];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, previous.map((customer) => {
+        if (customer.totalOrders < 1 || !customer.automationSequence) return customer;
+        const nextStep = (customer.automationSequence.currentStep % 4) + 1;
+        const stepName = stepNames[nextStep - 1];
+        return { ...customer, automationSequence: { ...customer.automationSequence, active: true, currentStep: nextStep, logs: [...customer.automationSequence.logs, {
+          step: nextStep,
+          stepName,
+          sentAt: new Date().toLocaleString('vi-VN'),
+          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
+          status: 'Read' as const,
+        }] } };
+      }));
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const saveCustomer = useCallback(async (data: Partial<Customer>) => {
+    await saveMutation.mutateAsync(data).catch((error) => console.error('Error saving customer:', error));
+  }, [saveMutation]);
+  const importCustomers = useCallback((newCustomers: Customer[]) => importMutation.mutate(newCustomers), [importMutation]);
+  const deleteCustomer = useCallback(async (customerId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa khách hàng này khỏi CRM?')) return false;
+    try {
+      await deleteMutation.mutateAsync(customerId);
+      return true;
     } catch (error) {
-      console.error('API error updating customer status, fallback to local:', error);
+      console.error('Error deleting customer:', error);
+      return false;
     }
-
-    setCustomers((previous) =>
-      previous.map((item) => {
-        if (item.id !== customerId) return item;
-        if (updatedCustomer) return updatedCustomer;
-        return {
-          ...item,
-          status: newStatus,
-          notes: [
-            ...(item.notes || []),
-            {
-              id: `n_${Date.now()}`,
-              author: 'Hệ Thống',
-              content: `Chuyển trạng thái từ "${item.status}" sang "${newStatus}".`,
-              createdAt: new Date().toLocaleString('vi-VN'),
-              type: 'system' as const,
-            },
-          ],
-        };
-      })
-    );
-  }, [customers]);
-
+  }, [deleteMutation]);
+  const updateStatus = useCallback(async (customerId: string, status: CustomerStatus) => {
+    await statusMutation.mutateAsync({ customerId, status }).catch((error) => console.error('Error updating status:', error));
+  }, [statusMutation]);
   const toggleOptIn = useCallback(async (customerId: string) => {
-    const customer = customers.find((item) => item.id === customerId);
-    if (!customer) return;
-    const whatsappOptIn = !customer.whatsappOptIn;
-
-    let updatedCustomer: Customer | null = null;
-    try {
-      const response = await api.put<any>(`/customers/${customerId}`, { whatsappOptIn });
-      if (response) updatedCustomer = mapApiCustomerToFrontend(response);
-    } catch (error) {
-      console.error('API error toggling opt-in, fallback to local:', error);
-    }
-
-    setCustomers((previous) =>
-      previous.map((item) =>
-        item.id === customerId ? updatedCustomer || { ...item, whatsappOptIn } : item
-      )
-    );
-  }, [customers]);
-
+    const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
+    if (customer) await optInMutation.mutateAsync({ customerId, whatsappOptIn: !customer.whatsappOptIn }).catch((error) => console.error('Error updating opt-in:', error));
+  }, [optInMutation, queryClient]);
   const addNote = useCallback(async (customerId: string, noteText: string) => {
-    const customer = customers.find((item) => item.id === customerId);
-    if (!customer) return;
-
-    let updatedCustomer: Customer | null = null;
-    try {
-      await api.post(`/customers/${customerId}/notes`, {
-        content: noteText,
-        type: 'note',
-        author: customer.owner,
-      });
-      const response = await api.get<any>(`/customers/${customerId}`);
-      if (response) updatedCustomer = mapApiCustomerToFrontend(response);
-    } catch (error) {
-      console.error('API error adding note, fallback to local:', error);
-    }
-
-    setCustomers((previous) =>
-      previous.map((item) => {
-        if (item.id !== customerId) return item;
-        if (updatedCustomer) return updatedCustomer;
-        return {
-          ...item,
-          notes: [
-            {
-              id: `n_${Date.now()}`,
-              author: item.owner,
-              content: noteText,
-              createdAt: new Date().toLocaleString('vi-VN'),
-              type: 'note' as const,
-            },
-            ...item.notes,
-          ],
-        };
-      })
-    );
-  }, [customers]);
-
+    const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
+    if (customer) await noteMutation.mutateAsync({ customerId, noteText, author: customer.owner }).catch((error) => console.error('Error adding note:', error));
+  }, [noteMutation, queryClient]);
   const runAutomationSimulation = useCallback(async () => {
-    const now = new Date().toLocaleString('vi-VN');
-    const stepNames = [
-      'Ngày +3 (Lời cảm ơn & HDSD)',
-      'Ngày +5 (Hỏi trải nghiệm)',
-      'Ngày +7 (Giải đáp & Gợi ý)',
-      'Ngày +15 (Gửi Voucher 20%)',
-    ];
-
-    try {
-      await Promise.all(
-        customers.map(async (customer) => {
-          if (customer.totalOrders < 1 || !customer.automationSequence) return;
-          const nextStep = (customer.automationSequence.currentStep % 4) + 1;
-          const stepName = stepNames[nextStep - 1];
-          await api.post(`/customers/${customer.id}/automation-logs`, {
-            step: nextStep,
-            stepName,
-            message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
-            status: 'Read',
-          });
-        })
-      );
-      await fetchCustomers();
-    } catch (error) {
-      console.error('Failed to run simulation on backend:', error);
-      setCustomers((previous) =>
-        previous.map((customer) => {
-          if (customer.totalOrders < 1 || !customer.automationSequence) return customer;
-          const nextStep = (customer.automationSequence.currentStep % 4) + 1;
-          const stepName = stepNames[nextStep - 1];
-          return {
-            ...customer,
-            automationSequence: {
-              ...customer.automationSequence,
-              active: true,
-              currentStep: nextStep,
-              logs: [
-                ...customer.automationSequence.logs,
-                {
-                  step: nextStep,
-                  stepName,
-                  sentAt: now,
-                  message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
-                  status: 'Read' as const,
-                },
-              ],
-            },
-          };
-        })
-      );
-    }
-  }, [customers, fetchCustomers]);
+    await automationMutation.mutateAsync().catch((error) => console.error('Error running automation:', error));
+  }, [automationMutation]);
 
   const customerCounts = useMemo(
     () => ({
@@ -328,8 +353,8 @@ export function useCustomers(currentUser: AppUser | null) {
 
   const resetCustomers = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_CUSTOMERS);
-    setCustomers(INITIAL_CUSTOMERS);
-  }, []);
+    queryClient.setQueryData(queryKeys.customers, INITIAL_CUSTOMERS);
+  }, [queryClient]);
 
   const buildFilterModel = useCallback((messages: CentralMessage[]): CustomerFilterModel => {
     const chattedIdentifiers = new Set<string>();
@@ -417,6 +442,8 @@ export function useCustomers(currentUser: AppUser | null) {
     endDate,
   ]);
 
+  const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
+    || statusMutation.error || optInMutation.error || noteMutation.error || automationMutation.error;
   return {
     customers,
     setCustomers,
@@ -431,5 +458,11 @@ export function useCustomers(currentUser: AppUser | null) {
     runAutomationSimulation,
     resetCustomers,
     buildFilterModel,
+    isLoading: customersQuery.isLoading,
+    isFetching: customersQuery.isFetching,
+    isError: customersQuery.isError || Boolean(mutationError),
+    error: customersQuery.error || mutationError,
+    isMutating: saveMutation.isPending || importMutation.isPending || deleteMutation.isPending
+      || statusMutation.isPending || optInMutation.isPending || noteMutation.isPending || automationMutation.isPending,
   };
 }

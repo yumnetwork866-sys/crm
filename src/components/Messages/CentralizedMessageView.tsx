@@ -192,6 +192,9 @@ interface CentralizedMessageViewProps {
   onSelectCustomerDetail: (customer: Customer) => void;
   onDeleteThread?: (customerId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
+  hasOlderMessages?: boolean;
+  isLoadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => Promise<unknown>;
 }
 
 // Synthesize pleasant pop audio using HTML5 Web Audio API
@@ -274,6 +277,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onSelectCustomerDetail,
   onDeleteThread,
   onDeleteMessage,
+  hasOlderMessages = false,
+  isLoadingOlderMessages = false,
+  onLoadOlderMessages,
 }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'vip' | 'repeat' | 'new'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -359,6 +365,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isLoadingOlderRef = useRef(false);
   const isAdmin = currentUser?.role === 'Admin';
 
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
@@ -378,6 +385,26 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       chatEndRef.current.scrollIntoView({ behavior });
     }
   }, []);
+
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!onLoadOlderMessages || isLoadingOlderMessages) return;
+    const container = chatContainerRef.current;
+    const previousScrollHeight = container?.scrollHeight ?? 0;
+    isLoadingOlderRef.current = true;
+
+    try {
+      await onLoadOlderMessages();
+    } finally {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop += container.scrollHeight - previousScrollHeight;
+          }
+          isLoadingOlderRef.current = false;
+        });
+      });
+    }
+  }, [isLoadingOlderMessages, onLoadOlderMessages]);
 
   useEffect(() => {
     const el = chatContainerRef.current;
@@ -562,6 +589,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   // 2. Smooth scroll on new incoming or outgoing messages
   useEffect(() => {
+    if (isLoadingOlderRef.current) return;
     scrollToBottom('smooth');
     const timer = setTimeout(() => scrollToBottom('smooth'), 80);
     return () => clearTimeout(timer);
@@ -1349,6 +1377,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 id="chat-messages-container"
                 className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
               >
+                {hasOlderMessages && (
+                  <div className="flex justify-center pt-1">
+                    <button
+                      type="button"
+                      onClick={handleLoadOlderMessages}
+                      disabled={isLoadingOlderMessages}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingOlderMessages ? 'animate-spin' : ''}`} />
+                      {isLoadingOlderMessages ? 'Đang tải tin cũ…' : 'Tải tin nhắn cũ hơn'}
+                    </button>
+                  </div>
+                )}
                 
                 {/* Security Encryption Banner */}
                 <div className="flex justify-center my-2">

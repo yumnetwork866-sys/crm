@@ -40,15 +40,28 @@ export async function getMessages(req: Request, res: Response) {
       if (cursor && typeof cursor === 'string') {
         const cursorMsg = await prisma.whatsAppMessage.findUnique({
           where: { id: cursor },
-          select: { timestamp: true }
+          select: { id: true, timestamp: true }
         }).catch(() => null);
 
         if (cursorMsg) {
-          if (direction === 'before') {
-            whereClause.timestamp = { lt: cursorMsg.timestamp };
-          } else {
-            whereClause.timestamp = { gt: cursorMsg.timestamp };
-          }
+          // Use timestamp + id as a stable boundary so messages sharing the same
+          // timestamp are not skipped between pages.
+          whereClause.AND = [
+            ...(whereClause.AND || []),
+            direction === 'before'
+              ? {
+                  OR: [
+                    { timestamp: { lt: cursorMsg.timestamp } },
+                    { timestamp: cursorMsg.timestamp, id: { lt: cursorMsg.id } }
+                  ]
+                }
+              : {
+                  OR: [
+                    { timestamp: { gt: cursorMsg.timestamp } },
+                    { timestamp: cursorMsg.timestamp, id: { gt: cursorMsg.id } }
+                  ]
+                }
+          ];
         }
       }
 
@@ -57,7 +70,10 @@ export async function getMessages(req: Request, res: Response) {
         dbMsgs = await prisma.whatsAppMessage.findMany({
           where: whereClause,
           take: limit + 1,
-          orderBy: { timestamp: direction === 'after' ? 'asc' : 'desc' }
+          orderBy: [
+            { timestamp: direction === 'after' ? 'asc' : 'desc' },
+            { id: direction === 'after' ? 'asc' : 'desc' }
+          ]
         });
       } catch (e) {
         console.warn('DB query error in cursor-based messages:', e);

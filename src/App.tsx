@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AppUser, BroadcastCampaign, Customer, MarketingCampaignReport } from './types';
-import { INITIAL_CAMPAIGNS, INITIAL_MARKETING_REPORTS } from './data/mockData';
-import { api } from './utils/apiClient';
-import { mapApiCampaignToFrontend } from './utils/apiMappers';
+import type { AppUser, Customer, MarketingCampaignReport } from './types';
+import { INITIAL_MARKETING_REPORTS } from './data/mockData';
 import { useAuth } from './contexts/AuthContext';
 import { useCustomers } from './hooks/useCustomers';
 import { useCentralMessages } from './hooks/useCentralMessages';
 import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
+import { useCampaigns } from './hooks/useCampaigns';
 
 import { Header } from './components/Header';
 import { ActiveTab } from './components/Navigation';
@@ -36,7 +35,6 @@ import { PublicLandingView } from './components/Landing/PublicLandingView';
 import { LoginModal } from './components/Auth/LoginModal';
 import { UserFormModal } from './components/UserManagement/UserFormModal';
 
-const STORAGE_KEY_CAMPAIGNS = 'yumcrm_campaigns_v2';
 const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 
 export default function App() {
@@ -75,14 +73,6 @@ export default function App() {
     resetAuth,
   } = useAuth();
 
-  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CAMPAIGNS);
-      return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
-    } catch {
-      return INITIAL_CAMPAIGNS;
-    }
-  });
   const [marketingReports, setMarketingReports] = useState<MarketingCampaignReport[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_MARKETING_REPORTS);
@@ -104,6 +94,8 @@ export default function App() {
     runAutomationSimulation,
     resetCustomers,
     buildFilterModel,
+    isFetching: isCustomersFetching,
+    isError: isCustomersError,
   } = useCustomers(currentUser);
   const {
     products,
@@ -112,14 +104,25 @@ export default function App() {
     deleteProduct: handleDeleteProduct,
     importProducts: handleImportProducts,
     resetProducts,
+    isFetching: isProductsFetching,
+    isError: isProductsError,
   } = useProducts(currentUser);
+  const {
+    campaigns,
+    launchCampaign: handleLaunchCampaign,
+    resetCampaigns,
+    isFetching: isCampaignsFetching,
+    isError: isCampaignsError,
+  } = useCampaigns(currentUser);
   const {
     addOrder: handleAddOrder,
     createOrder: handleCreateOrderCentral,
     updateOrderStatus: handleUpdateOrderStatus,
     deleteOrder: handleDeleteOrder,
     importOrders: handleImportOrders,
-  } = useOrders({ setCustomers });
+    isMutating: isOrdersMutating,
+    isError: isOrdersError,
+  } = useOrders();
   const {
     messages: centralMessages,
     unreadCount: unreadMessagesCount,
@@ -130,19 +133,20 @@ export default function App() {
     sendMessage: handleSendCentralMessage,
     deleteThread: handleDeleteThread,
     deleteMessage: handleDeleteMessage,
+    hasOlderMessages,
+    isLoadingOlderMessages,
+    loadOlderMessages,
+    isFetching: isMessagesFetching,
+    isError: isMessagesError,
   } = useCentralMessages({ customers, setCustomers, currentUser });
   const customerFilterModel = useMemo(
     () => buildFilterModel(centralMessages),
     [buildFilterModel, centralMessages]
   );
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CAMPAIGNS, JSON.stringify(campaigns));
-    } catch (error) {
-      console.error('Error saving campaigns to localStorage', error);
-    }
-  }, [campaigns]);
+  const isBackgroundFetching = isCustomersFetching || isProductsFetching
+    || isCampaignsFetching || isMessagesFetching || isOrdersMutating;
+  const hasDataError = isCustomersError || isProductsError || isCampaignsError
+    || isMessagesError || isOrdersError;
 
   useEffect(() => {
     try {
@@ -151,15 +155,6 @@ export default function App() {
       console.error('Error saving marketing reports to localStorage', error);
     }
   }, [marketingReports]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    api.get<any[]>('/campaigns')
-      .then((response) => {
-        if (Array.isArray(response)) setCampaigns(response.map(mapApiCampaignToFrontend));
-      })
-      .catch(() => null);
-  }, [currentUser]);
 
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);
@@ -218,17 +213,12 @@ export default function App() {
     alert('Đã kích hoạt mô phỏng chạy gửi tin nhắn Automation Ngày +3, +5, +7, +15 thành công cho tất cả khách hàng!');
   };
 
-  const handleLaunchCampaign = (newCampaign: BroadcastCampaign) => {
-    setCampaigns((prev) => [newCampaign, ...prev]);
-  };
-
   const handleResetData = () => {
     if (confirm('Khôi phục lại dữ liệu CRM ban đầu?')) {
-      localStorage.removeItem(STORAGE_KEY_CAMPAIGNS);
       resetCustomers();
       resetProducts();
+      resetCampaigns();
       resetAuth();
-      setCampaigns(INITIAL_CAMPAIGNS);
       alert('Đã khôi phục dữ liệu mẫu VietCRM!');
     }
   };
@@ -322,6 +312,21 @@ export default function App() {
         autoSimCount={autoSimCounter}
         onCurrencyChange={() => setCurrencyTick((t) => t + 1)}
       />
+
+      {(isBackgroundFetching || hasDataError) && (
+        <div
+          role={hasDataError ? 'alert' : 'status'}
+          className={`px-4 py-2 text-center text-xs font-bold ${
+            hasDataError
+              ? 'bg-amber-50 text-amber-800 border-b border-amber-200'
+              : 'bg-sky-50 text-sky-700 border-b border-sky-200'
+          }`}
+        >
+          {hasDataError
+            ? 'Một số dữ liệu chưa đồng bộ được. Hệ thống đang hiển thị cache gần nhất và sẽ tự thử lại.'
+            : 'Đang đồng bộ dữ liệu mới nhất…'}
+        </div>
+      )}
 
       {/* Main View Container */}
       <main className={`flex-1 w-full ${activeTab === 'messages' ? 'p-0 flex flex-col min-h-0 overflow-hidden' : 'max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6'}`}>
@@ -464,6 +469,9 @@ export default function App() {
             }}
             onDeleteThread={handleDeleteThread}
             onDeleteMessage={handleDeleteMessage}
+            hasOlderMessages={hasOlderMessages}
+            isLoadingOlderMessages={isLoadingOlderMessages}
+            onLoadOlderMessages={loadOlderMessages}
           />
         )}
       </main>
