@@ -115,15 +115,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         {/* Direct Email/Password Form */}
         <form onSubmit={handleCustomLogin} className="space-y-5">
           <div>
-            <label className="block text-xs font-black text-slate-950 mb-1.5">Email Tài Khoản *</label>
+            <label className="block text-xs font-black text-slate-950 mb-1.5">Email / Tài Khoản *</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-600 absolute left-3.5 top-3.5" />
               <input
-                type="email"
+                type="text"
                 required
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="Nhập email tài khoản của bạn..."
+                placeholder="Nhập email hoặc tài khoản của bạn..."
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-3 text-xs text-slate-950 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent font-bold shadow-xs"
               />
             </div>

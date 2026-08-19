@@ -159,8 +159,6 @@ export default function App() {
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);
 
-  // Theme state (fixed to light mode)
-  const [theme] = useState<'light'>('light');
 
   // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -301,7 +299,6 @@ export default function App() {
         unreadMessagesCount={unreadMessagesCount}
         onOpenLoginModal={() => setIsLoginOpen(true)}
         onOpenUsersTab={() => setActiveTab('users')}
-        theme={theme}
         onAddCustomer={() => {
           setEditingCustomer(null);
           setIsFormOpen(true);

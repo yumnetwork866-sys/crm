@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from '../src/data/mockData';
@@ -20,14 +22,22 @@ async function main() {
   console.log('✅ Đã dọn dẹp bảng dữ liệu cũ.');
 
   // 2. Seed Users
-  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const adminEmail = process.env.ADMIN?.trim() || 'anh.nguyen@vietcrm.vn';
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim() || 'admin123';
+  const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
+  const hashedDefaultPassword = await bcrypt.hash(adminPassword, 10);
+
   for (const u of INITIAL_USERS) {
+    const isTargetAdmin = u.role === 'Admin' || u.id === 'usr_001';
+    const userEmail = isTargetAdmin && process.env.ADMIN?.trim() ? process.env.ADMIN.trim() : u.email;
+    const userPassword = isTargetAdmin ? hashedAdminPassword : hashedDefaultPassword;
+
     await prisma.user.create({
       data: {
         id: u.id,
         name: u.name,
-        email: u.email,
-        password: hashedPassword,
+        email: userEmail,
+        password: userPassword,
         avatar: u.avatar || '',
         role: u.role,
         phone: u.phone || '',
@@ -38,7 +48,7 @@ async function main() {
       }
     });
   }
-  console.log(`✅ Đã nạp ${INITIAL_USERS.length} tài khoản người dùng (Mật khẩu mặc định: admin123).`);
+  console.log(`✅ Đã nạp ${INITIAL_USERS.length} tài khoản người dùng (Admin: ${adminEmail}, Mật khẩu: ${adminPassword}).`);
 
   // 3. Seed Products
   for (const p of INITIAL_PRODUCT_LIST) {

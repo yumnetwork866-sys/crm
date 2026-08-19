@@ -22,8 +22,6 @@ interface HeaderProps {
   unreadMessagesCount?: number;
   onOpenLoginModal: () => void;
   onOpenUsersTab?: () => void;
-  theme?: 'dark' | 'light';
-  onToggleTheme?: () => void;
   onAddCustomer?: () => void;
   onRunAutomationSim?: () => void;
   onResetData?: () => void;

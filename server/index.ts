@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-import authRoutes from './routes/auth';
+import authRoutes, { ensureAdminUser } from './routes/auth';
 import customerRoutes from './routes/customers';
 import orderRoutes from './routes/orders';
 import productRoutes from './routes/products';
@@ -195,7 +195,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // 8. Start Server with HMR support
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`🚀 YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
   console.log(`⚡ Vite HMR Hot Reload & API đã sẵn sàng.`);
+  await ensureAdminUser();
 });

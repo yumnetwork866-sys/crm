@@ -12,8 +12,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_
 
 // Input Schemas
 const loginSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
-  password: z.string().min(4, 'Mật khẩu phải có ít nhất 4 ký tự')
+  email: z.string().min(1, 'Email / Tên đăng nhập không được để trống'),
+  password: z.string().min(1, 'Mật khẩu không được để trống')
 });
 
 const registerSchema = z.object({
@@ -25,6 +25,73 @@ const registerSchema = z.object({
   phone: z.string().optional()
 });
 
+import dotenv from 'dotenv';
+
+/**
+ * Đọc cấu hình ADMIN và ADMIN_PASSWORD mới nhất từ .env
+ */
+function getAdminCredentials() {
+  dotenv.config({ override: true });
+  return {
+    admin: (process.env.ADMIN || '').trim(),
+    adminPassword: (process.env.ADMIN_PASSWORD || '').trim()
+  };
+}
+
+/**
+ * Tự động đảm bảo tài khoản Admin từ biến môi trường ADMIN và ADMIN_PASSWORD tồn tại và được đồng bộ trong DB.
+ */
+export async function ensureAdminUser(): Promise<void> {
+  const { admin: adminEmail, adminPassword } = getAdminCredentials();
+
+  if (!adminEmail || !adminPassword) {
+    return;
+  }
+
+  try {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: adminEmail, mode: 'insensitive' } },
+          ...(adminEmail === 'admin' ? [{ role: 'Admin' }] : [])
+        ]
+      }
+    });
+
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          name: 'Quản Trị Viên (Admin)',
+          email: adminEmail,
+          password: hashedPassword,
+          role: 'Admin',
+          department: 'Ban Giám Đốc',
+          status: 'active'
+        }
+      });
+      console.log(`👑 [Auth] Đã tự động tạo tài khoản Admin từ .env (${adminEmail})`);
+    } else {
+      const isMatch = await bcrypt.compare(adminPassword, existing.password);
+      if (!isMatch || existing.role !== 'Admin' || existing.status !== 'active' || existing.email !== adminEmail) {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            email: adminEmail,
+            password: hashedPassword,
+            role: 'Admin',
+            status: 'active'
+          }
+        });
+        console.log(`👑 [Auth] Đã đồng bộ tài khoản Admin từ .env (${adminEmail})`);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ [Auth] Không thể đồng bộ tài khoản Admin từ .env:', err);
+  }
+}
+
 // POST /api/auth/login
 router.post('/login', async (req: Request, res: Response) => {
   try {
@@ -34,19 +101,67 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const { email, password } = parseResult.data;
+    const { admin: envAdmin, adminPassword: envAdminPassword } = getAdminCredentials();
+    const cleanEmail = email.trim().toLowerCase();
+    const envAdminLower = envAdmin.toLowerCase();
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: cleanEmail, mode: 'insensitive' } },
+          { name: { equals: email.trim(), mode: 'insensitive' } },
+          ...(cleanEmail === 'admin' ? [{ role: 'Admin' }] : [])
+        ]
+      }
+    });
+
+    const isEnvAdminLogin = Boolean(
+      envAdmin &&
+      (cleanEmail === envAdminLower || cleanEmail === 'admin' || user?.role === 'Admin') &&
+      envAdminPassword &&
+      password === envAdminPassword
+    );
+
     if (!user) {
-      return res.status(400).json({ error: 'Email hoặc mật khẩu không chính xác.' });
-    }
+      if (isEnvAdminLogin) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user = await prisma.user.create({
+          data: {
+            name: 'Quản Trị Viên (Admin)',
+            email: envAdmin || 'admin',
+            password: hashedPassword,
+            role: 'Admin',
+            department: 'Ban Giám Đốc',
+            status: 'active'
+          }
+        });
+      } else {
+        return res.status(400).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+      }
+    } else {
+      if (user.status === 'inactive') {
+        return res.status(403).json({ error: 'Tài khoản đã bị vô hiệu hóa.' });
+      }
 
-    if (user.status === 'inactive') {
-      return res.status(403).json({ error: 'Tài khoản đã bị vô hiệu hóa.' });
-    }
+      let isMatch = await bcrypt.compare(password, user.password);
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+      // Nếu mật khẩu khớp ADMIN_PASSWORD trong .env, tự động đồng bộ lại hash trong DB
+      if (!isMatch && (isEnvAdminLogin || (user.role === 'Admin' && envAdminPassword && password === envAdminPassword))) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            password: hashedPassword,
+            role: 'Admin',
+            status: 'active'
+          }
+        });
+        isMatch = true;
+      }
+
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Email hoặc mật khẩu không chính xác.' });
+      }
     }
 
     // Update lastActive
