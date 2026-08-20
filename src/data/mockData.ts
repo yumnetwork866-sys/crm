@@ -1,4 +1,4 @@
-import type { Customer, BroadcastCampaign, MarketingCampaignReport, AppUser, Product } from '../types';
+import type { Customer, BroadcastCampaign, MarketingCampaignReport, AppUser, Product, CentralMessage } from '../types';
 
 export const INITIAL_PRODUCT_LIST: Product[] = [
   {
@@ -535,6 +535,360 @@ export const INITIAL_USERS: AppUser[] = [
     lastActive: 'Hôm qua',
     assignedLeadsCount: 5,
     totalRevenue: 0,
+  }
+];
+
+export const INITIAL_MESSAGES: CentralMessage[] = [
+  // --- Khách hàng 1: Nguyễn Thị Minh Châu (cust_001) ---
+  {
+    id: 'msg_001',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Chào shop, mình thấy quảng cáo bộ Kem Dưỡng Collagen với Serum Vitamin C trên Facebook, da mình nhạy cảm thì dùng có hợp không?',
+    timestamp: '2026-07-01T09:15:00.000Z',
+    isRead: true,
+    readBy: 'Nguyễn Văn Ánh',
+    readAt: '2026-07-01T09:16:00.000Z'
+  },
+  {
+    id: 'msg_002',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
+    channel: 'WhatsApp',
+    content: 'Dạ chào chị Minh Châu ạ! Bộ sản phẩm bên em chiết xuất thiên nhiên lành tính, không cồn hay hương liệu nồng, hoàn toàn an toàn và dịu nhẹ cho da nhạy cảm chị nhé.',
+    timestamp: '2026-07-01T09:18:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_003',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Giá combo 2 món này bao nhiêu vậy bạn? Có ưu đãi freeship sang Kuala Lumpur không?',
+    timestamp: '2026-07-01T09:20:00.000Z',
+    isRead: true,
+    readBy: 'Nguyễn Văn Ánh',
+    readAt: '2026-07-01T09:21:00.000Z'
+  },
+  {
+    id: 'msg_004',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
+    channel: 'WhatsApp',
+    content: 'Dạ combo Kem Collagen (1.800.000đ) + Serum Vitamin C (1.000.000đ) tổng 2.800.000đ. Hôm nay bên em đang có ưu đãi tặng kèm 1 nước hoa hồng mini và freeship tận nơi tại Jalan Ampang, KL cho chị ạ!',
+    timestamp: '2026-07-01T09:25:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_005',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Ok ship cho mình combo này về địa chỉ Jalan Ampang nhé!',
+    timestamp: '2026-07-01T09:30:00.000Z',
+    isRead: true,
+    readBy: 'Nguyễn Văn Ánh',
+    readAt: '2026-07-01T09:31:00.000Z'
+  },
+  {
+    id: 'msg_006',
+    customerId: 'cust_001',
+    customerName: 'Nguyễn Thị Minh Châu',
+    customerPhone: '0908123456',
+    sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
+    channel: 'WhatsApp',
+    content: 'Dạ em đã lên đơn DH-20260702-01 cho chị rồi ạ. Cảm ơn chị Châu nhiều, hàng sẽ được đóng gói giao ngay hôm nay ạ!',
+    timestamp: '2026-07-01T09:32:00.000Z',
+    isRead: true
+  },
+
+  // --- Khách hàng 2: Trần Hoài Nam (cust_002) ---
+  {
+    id: 'msg_010',
+    customerId: 'cust_002',
+    customerName: 'Trần Hoài Nam',
+    customerPhone: '0987654321',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Hi shop, mình xem livestream trên TikTok thấy giới thiệu Serum Vitamin C, bên mình có giao gấp về khu Bandar Sunway, Selangor được không?',
+    timestamp: '2026-07-15T16:10:00.000Z',
+    isRead: true,
+    readBy: 'Trần Thu Hà',
+    readAt: '2026-07-15T16:12:00.000Z'
+  },
+  {
+    id: 'msg_011',
+    customerId: 'cust_002',
+    customerName: 'Trần Hoài Nam',
+    customerPhone: '0987654321',
+    sender: 'agent',
+    agentName: 'Trần Thu Hà',
+    channel: 'WhatsApp',
+    content: 'Chào anh Nam! Bên em có hỗ trợ ship hỏa tốc trong 1-2 ngày tới khu vực Selangor anh nhé. Chai Serum Vitamin C đang có giá ưu đãi là 1.000.000đ ạ.',
+    timestamp: '2026-07-15T16:15:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_012',
+    customerId: 'cust_002',
+    customerName: 'Trần Hoài Nam',
+    customerPhone: '0987654321',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Serum này dùng buổi sáng trước khi ra ngoài có cần bôi thêm kem chống nắng không shop?',
+    timestamp: '2026-07-22T08:30:00.000Z',
+    isRead: false
+  },
+
+  // --- Khách hàng 3: Lê Thanh Thảo (cust_003) ---
+  {
+    id: 'msg_020',
+    customerId: 'cust_003',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Shop ơi Bộ Chăm Sóc Tóc Thảo Dược có giúp giảm rụng tóc và kích thích mọc tóc nhanh không?',
+    timestamp: '2026-07-18T10:45:00.000Z',
+    isRead: true,
+    readBy: 'Lê Hoàng Nam',
+    readAt: '2026-07-18T10:48:00.000Z'
+  },
+  {
+    id: 'msg_021',
+    customerId: 'cust_003',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'agent',
+    agentName: 'Lê Hoàng Nam',
+    channel: 'WhatsApp',
+    content: 'Chào chị Thảo! Bộ thảo dược chứa tinh chất bưởi rừng và hà thủ ô, thông thường sau 2-3 tuần gội xả đều đặn sẽ thấy giảm rụng rõ rệt và chân tóc mới mọc khỏe hơn nhiều ạ.',
+    timestamp: '2026-07-18T10:50:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_022',
+    customerId: 'cust_003',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Cho mình đặt 1 bộ về Georgetown Penang nhé, nhớ giao trong giờ hành chính giúp mình.',
+    timestamp: '2026-07-18T11:15:00.000Z',
+    isRead: true,
+    readBy: 'Lê Hoàng Nam',
+    readAt: '2026-07-18T11:18:00.000Z'
+  },
+  {
+    id: 'msg_023',
+    customerId: 'cust_003',
+    customerName: 'Lê Thanh Thảo',
+    customerPhone: '0912999888',
+    sender: 'agent',
+    agentName: 'Lê Hoàng Nam',
+    channel: 'WhatsApp',
+    content: 'Dạ em đã lưu ghi chú giao giờ hành chính tại Penang và xuất đơn DH-20260718-02 (1.100.000đ) cho chị rồi ạ!',
+    timestamp: '2026-07-18T11:20:00.000Z',
+    isRead: true
+  },
+
+  // --- Khách hàng 4: David Nguyen (cust_004) ---
+  {
+    id: 'msg_030',
+    customerId: 'cust_004',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Hello shop, mình muốn mua 2 Máy Rửa Mặt Ultrasonic Pro làm quà tặng bạn bè ở Mont Kiara, bên bạn có hỗ trợ gói quà không?',
+    timestamp: '2026-07-10T19:30:00.000Z',
+    isRead: true,
+    readBy: 'Phạm Minh Đức',
+    readAt: '2026-07-10T19:35:00.000Z'
+  },
+  {
+    id: 'msg_031',
+    customerId: 'cust_004',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'agent',
+    agentName: 'Phạm Minh Đức',
+    channel: 'WhatsApp',
+    content: 'Dạ chào anh David! Bên em có hỗ trợ hộp quà thắt nơ cao cấp và viết thiệp chúc mừng hoàn toàn miễn phí ạ. Máy chính hãng bảo hành 12 tháng 1 đổi 1.',
+    timestamp: '2026-07-10T19:40:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_032',
+    customerId: 'cust_004',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Tuyệt vời, mình vừa chuyển khoản 7.000.000đ rồi nhé. Giao sớm giúp mình.',
+    timestamp: '2026-07-10T20:00:00.000Z',
+    isRead: true,
+    readBy: 'Phạm Minh Đức',
+    readAt: '2026-07-10T20:01:00.000Z'
+  },
+  {
+    id: 'msg_033',
+    customerId: 'cust_004',
+    customerName: 'David Nguyen',
+    customerPhone: '+1 415 555 2671',
+    sender: 'agent',
+    agentName: 'Phạm Minh Đức',
+    channel: 'WhatsApp',
+    content: 'Dạ em đã nhận được thanh toán 7.000.000đ của anh David, em đóng gói quà gửi đi Mont Kiara ngay sáng mai ạ!',
+    timestamp: '2026-07-10T20:05:00.000Z',
+    isRead: true
+  },
+
+  // --- Khách hàng 5: Phạm Bích Phương (cust_005) ---
+  {
+    id: 'msg_040',
+    customerId: 'cust_005',
+    customerName: 'Phạm Bích Phương',
+    customerPhone: '0977112233',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Chào shop, mình vừa để lại form trên website. Cho mình hỏi Kem Chống Nắng SPF50+ kiềm dầu tốt không và có bị bí da không ạ?',
+    timestamp: '2026-07-23T08:35:00.000Z',
+    isRead: false
+  },
+
+  // --- Khách hàng 6: Hoàng Anh Tuấn (cust_006) ---
+  {
+    id: 'msg_050',
+    customerId: 'cust_006',
+    customerName: 'Hoàng Anh Tuấn',
+    customerPhone: '0933445566',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Shop tư vấn giúp mình chai Sữa Rửa Mặt Balance cho nam da dầu nhờn với.',
+    timestamp: '2026-07-08T15:20:00.000Z',
+    isRead: true,
+    readBy: 'Nguyễn Văn Ánh',
+    readAt: '2026-07-08T15:25:00.000Z'
+  },
+  {
+    id: 'msg_051',
+    customerId: 'cust_006',
+    customerName: 'Hoàng Anh Tuấn',
+    customerPhone: '0933445566',
+    sender: 'agent',
+    agentName: 'Nguyễn Văn Ánh',
+    channel: 'WhatsApp',
+    content: 'Chào anh Tuấn! Chai Balance làm sạch sâu bã nhờn nhưng giữ ẩm tự nhiên không gây căng rát. Giá ưu đãi đợt này là 450.000đ/chai 150ml anh nhé.',
+    timestamp: '2026-07-08T15:35:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_052',
+    customerId: 'cust_006',
+    customerName: 'Hoàng Anh Tuấn',
+    customerPhone: '0933445566',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Để mình xem lại rồi nhắn bạn sau nhé.',
+    timestamp: '2026-07-08T15:40:00.000Z',
+    isRead: true,
+    readBy: 'Nguyễn Văn Ánh',
+    readAt: '2026-07-08T15:45:00.000Z'
+  },
+
+  // --- Khách hàng 7: Sato Kenji (cust_007) ---
+  {
+    id: 'msg_060',
+    customerId: 'cust_007',
+    customerName: 'Sato Kenji',
+    customerPhone: '+60 12 345 6789',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Hello, do you support fast delivery to Kota Kinabalu, Sabah? I want to order 1 Collagen Cream and 1 Ultrasonic Cleanser.',
+    timestamp: '2026-07-05T17:30:00.000Z',
+    isRead: true,
+    readBy: 'Trần Thu Hà',
+    readAt: '2026-07-05T17:35:00.000Z'
+  },
+  {
+    id: 'msg_061',
+    customerId: 'cust_007',
+    customerName: 'Sato Kenji',
+    customerPhone: '+60 12 345 6789',
+    sender: 'agent',
+    agentName: 'Trần Thu Hà',
+    channel: 'WhatsApp',
+    content: 'Hello Mr. Kenji! Yes, we provide express shipping to Sabah. The total for Collagen Cream (1,800,000đ) and Ultrasonic Cleanser (3,500,000đ) with VIP discount is 4,200,000 VND.',
+    timestamp: '2026-07-05T17:45:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_062',
+    customerId: 'cust_007',
+    customerName: 'Sato Kenji',
+    customerPhone: '+60 12 345 6789',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Confirmed, please ship to my Sabah address tomorrow. Thank you!',
+    timestamp: '2026-07-05T17:55:00.000Z',
+    isRead: true,
+    readBy: 'Trần Thu Hà',
+    readAt: '2026-07-05T17:58:00.000Z'
+  },
+
+  // --- Khách hàng 8: Đặng Ngọc Kim Anh (cust_008) ---
+  {
+    id: 'msg_070',
+    customerId: 'cust_008',
+    customerName: 'Đặng Ngọc Kim Anh',
+    customerPhone: '0966554433',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Nam ơi, gửi cho chị thêm 2 hũ Kem Dưỡng Collagen với 1 Son Dưỡng như lần trước nhé, giao về Melaka City cho chị!',
+    timestamp: '2026-07-15T09:30:00.000Z',
+    isRead: true,
+    readBy: 'Lê Hoàng Nam',
+    readAt: '2026-07-15T09:32:00.000Z'
+  },
+  {
+    id: 'msg_071',
+    customerId: 'cust_008',
+    customerName: 'Đặng Ngọc Kim Anh',
+    customerPhone: '0966554433',
+    sender: 'agent',
+    agentName: 'Lê Hoàng Nam',
+    channel: 'WhatsApp',
+    content: 'Dạ vâng chị Kim Anh! Em lên đơn DH-20260715-11 ngay cho chị (3.500.000đ), em áp mã VIP giảm giá và tặng thêm quà cho chị nhé ạ!',
+    timestamp: '2026-07-15T09:35:00.000Z',
+    isRead: true
+  },
+  {
+    id: 'msg_072',
+    customerId: 'cust_008',
+    customerName: 'Đặng Ngọc Kim Anh',
+    customerPhone: '0966554433',
+    sender: 'customer',
+    channel: 'WhatsApp',
+    content: 'Ok em, cảm ơn Nam nhiều nhé ❤️',
+    timestamp: '2026-07-15T09:40:00.000Z',
+    isRead: true,
+    readBy: 'Lê Hoàng Nam',
+    readAt: '2026-07-15T09:41:00.000Z'
   }
 ];
 

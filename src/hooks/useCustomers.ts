@@ -138,6 +138,7 @@ export function useCustomers(currentUser: AppUser | null) {
         lastContact: data.lastContact || new Date().toISOString().split('T')[0],
         owner: data.owner || 'Nguyễn Văn Ánh',
         status: data.status || 'New Lead',
+        group: data.group || 'group_1',
         notes: data.notes || [],
         totalOrders: 0,
         totalSpent: 0,
@@ -191,7 +192,10 @@ export function useCustomers(currentUser: AppUser | null) {
   const statusMutation = useMutation({
     mutationFn: async ({ customerId, status }: { customerId: string; status: CustomerStatus }) => {
       const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
-      await api.put(`/customers/${customerId}`, { status });
+      await api.put(`/customers/${customerId}`, {
+        status,
+        group: customer ? getCustomerGroup(customer) : 'group_1',
+      });
       await api.post(`/customers/${customerId}/notes`, {
         content: `Chuyển trạng thái từ "${customer?.status || ''}" sang "${status}".`,
         type: 'system',

@@ -132,14 +132,14 @@ async function setupFrontend() {
     const { createServer: createViteServer } = await import('vite');
     const hmrClientPort = process.env.HMR_CLIENT_PORT
       ? Number(process.env.HMR_CLIENT_PORT)
-      : (process.env.APP_URL?.startsWith('https') ? 443 : undefined);
+      : undefined;
 
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
         hmr: {
           server: httpServer,
-          clientPort: hmrClientPort,
+          ...(hmrClientPort ? { clientPort: hmrClientPort } : {}),
         },
         allowedHosts: true,
       },

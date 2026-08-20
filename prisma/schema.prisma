@@ -15,9 +15,9 @@ model User {
   id                 String   @id @default(uuid())
   name               String
   email              String   @unique
-  password           String   // Hashed with bcrypt
+  password           String // Hashed with bcrypt
   avatar             String?
-  role               String   // 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Marketing Lead' | 'Customer Support'
+  role               String // 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Marketing Lead' | 'Customer Support'
   phone              String?
   department         String   @default("Sales")
   status             String   @default("active") // 'active' | 'inactive'
@@ -29,35 +29,36 @@ model User {
 }
 
 model Customer {
-  id                 String         @id @default(uuid())
+  id                 String    @id @default(uuid())
   phone              String
   name               String
-  gender             String         @default("Khác") // 'Nam' | 'Nữ' | 'Khác'
-  address            String         @default("")
+  gender             String    @default("Khác") // 'Nam' | 'Nữ' | 'Khác'
+  address            String    @default("")
   email              String?
   note               String?
-  source             String         @default("Direct") // 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'Referral' | 'Direct'
-  campaign           String         @default("N/A")
+  source             String    @default("Direct") // 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'Referral' | 'Direct'
+  campaign           String    @default("N/A")
   adSet              String?
   landingPage        String?
-  firstContact       DateTime       @default(now())
-  lastContact        DateTime       @default(now())
-  owner              String         @default("Chưa phân công")
-  status             String         @default("New Lead") // 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost'
-  totalOrders        Int            @default(0)
-  totalSpent         Float          @default(0)
+  firstContact       DateTime  @default(now())
+  lastContact        DateTime  @default(now())
+  owner              String    @default("Chưa phân công")
+  status             String    @default("New Lead") // 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost'
+  group              String? // 'group_1' | 'group_2' | 'group_3' | 'group_4' — independent from status
+  totalOrders        Int       @default(0)
+  totalSpent         Float     @default(0)
   lastPurchaseDate   DateTime?
-  interestedProducts String[]       @default([])
-  whatsappOptIn      Boolean        @default(false)
+  interestedProducts String[]  @default([])
+  whatsappOptIn      Boolean   @default(false)
   whatsappOptInDate  DateTime?
-  
-  notes              CustomerNote[]
-  orders             Order[]
-  automationLogs     AutomationLog[]
-  whatsappMessages   WhatsAppMessage[]
 
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  notes            CustomerNote[]
+  orders           Order[]
+  automationLogs   AutomationLog[]
+  whatsappMessages WhatsAppMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([phone])
   @@index([status])
@@ -79,49 +80,49 @@ model CustomerNote {
   createdAt  DateTime @default(now())
   type       String   @default("note") // 'note' | 'call' | 'whatsapp' | 'email' | 'system'
 
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, createdAt(sort: Desc)])
 }
 
 model Product {
-  id          String      @id @default(uuid())
-  code        String      @unique
+  id          String  @id @default(uuid())
+  code        String  @unique
   name        String
-  category    String      // 'Mỹ Phẩm' | 'Thực Phẩm Chức Năng' | 'Thời Trang' | 'Gia Dụng' | 'Khác'
+  category    String // 'Mỹ Phẩm' | 'Thực Phẩm Chức Năng' | 'Thời Trang' | 'Gia Dụng' | 'Khác'
   price       Float
   costPrice   Float
-  stock       Int         @default(0)
-  status      String      @default("In Stock") // 'In Stock' | 'Low Stock' | 'Out of Stock'
+  stock       Int     @default(0)
+  status      String  @default("In Stock") // 'In Stock' | 'Low Stock' | 'Out of Stock'
   sku         String?
   description String?
   image       String?
-  
-  orderItems  OrderItem[]
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([category])
   @@index([status])
 }
 
 model Order {
-  id            String      @id @default(uuid())
-  orderCode     String      @unique
+  id            String   @id @default(uuid())
+  orderCode     String   @unique
   customerId    String?
   customerName  String?
   customerPhone String?
-  date          DateTime    @default(now())
-  totalAmount   Float       @default(0)
-  status        String      @default("Processing") // 'Completed' | 'Processing' | 'Cancelled'
+  date          DateTime @default(now())
+  totalAmount   Float    @default(0)
+  status        String   @default("Processing") // 'Completed' | 'Processing' | 'Cancelled'
   notes         String?
 
-  customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  products      OrderItem[]
+  customer Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  products OrderItem[]
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([customerId])
   @@index([status])
@@ -129,15 +130,15 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   orderId     String
   productId   String?
   productName String
-  quantity    Int      @default(1)
+  quantity    Int     @default(1)
   price       Float
 
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([productId])
@@ -166,15 +167,15 @@ model BroadcastCampaign {
 }
 
 model AutomationLog {
-  id          String   @id @default(uuid())
-  customerId  String
-  step        Int
-  stepName    String
-  sentAt      DateTime @default(now())
-  message     String
-  status      String   @default("Sent") // 'Sent' | 'Delivered' | 'Read' | 'Failed'
+  id         String   @id @default(uuid())
+  customerId String
+  step       Int
+  stepName   String
+  sentAt     DateTime @default(now())
+  message    String
+  status     String   @default("Sent") // 'Sent' | 'Delivered' | 'Read' | 'Failed'
 
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, sentAt(sort: Desc)])
 }
@@ -194,13 +195,13 @@ model IntegrationSetting {
 }
 
 model WhatsAppMessage {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   customerId    String?
   customerName  String
   customerPhone String
-  sender        String   // 'customer' | 'agent'
+  sender        String // 'customer' | 'agent'
   agentName     String?
-  channel       String   @default("WhatsApp")
+  channel       String    @default("WhatsApp")
   content       String
   isRead        Boolean   @default(false)
   readBy        String?
@@ -209,11 +210,10 @@ model WhatsAppMessage {
   timestamp     DateTime  @default(now())
   createdAt     DateTime  @default(now())
 
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
   @@index([customerPhone])
   @@index([timestamp(sort: Desc)])
   @@index([isRead, sender])
 }
-

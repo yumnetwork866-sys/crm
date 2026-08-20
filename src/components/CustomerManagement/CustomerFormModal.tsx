@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, Globe, MapPin, Tag, Briefcase, FileText, CheckCircle2 } from 'lucide-react';
-import type { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
+import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender } from '../../types';
 import { INITIAL_PRODUCTS, SALES_REPS } from '../../data/mockData';
+import { CUSTOMER_GROUPS, getCustomerGroup } from '../../utils/crmUtils';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface CustomerFormModalProps {
 const GENDER_OPTIONS: Gender[] = ['Nam', 'Nữ', 'Khác'];
 const LEAD_SOURCES: LeadSource[] = ['Facebook', 'TikTok', 'Google', 'Website', 'Zalo', 'Referral', 'Direct'];
 const STATUS_OPTIONS: CustomerStatus[] = ['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'];
+const GROUP_OPTIONS: CustomerGroupId[] = ['group_1', 'group_2', 'group_3', 'group_4'];
 
 export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   isOpen,
@@ -36,6 +38,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   const [owner, setOwner] = useState(SALES_REPS[0]);
   const [status, setStatus] = useState<CustomerStatus>('New Lead');
+  const [group, setGroup] = useState<CustomerGroupId>('group_1');
   const [noteContent, setNoteContent] = useState('');
   const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -58,6 +61,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
       setOwner(initialData.owner || SALES_REPS[0]);
       setStatus(initialData.status || 'New Lead');
+      setGroup(getCustomerGroup(initialData));
       setWhatsappOptIn(initialData.whatsappOptIn ?? true);
       setSelectedProducts(initialData.interestedProducts || []);
     } else {
@@ -76,6 +80,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setLastContact(today);
       setOwner(SALES_REPS[0]);
       setStatus('New Lead');
+      setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
       setWhatsappOptIn(true);
       setSelectedProducts([INITIAL_PRODUCTS[0]]);
@@ -115,6 +120,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       lastContact: lastContact || new Date().toISOString().split('T')[0],
       owner,
       status,
+      group,
       whatsappOptIn,
       interestedProducts: selectedProducts,
       ...(noteContent && !initialData
@@ -346,14 +352,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* Section 3: Status & Assignment */}
+          {/* Section 3: Status, Group & Assignment */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
               <Briefcase className="w-4 h-4" />
-              <span>3. Trạng Thái & Nhân Viên Phụ Trách</span>
+              <span>3. Trạng Thái, Phân Nhóm & Nhân Viên Phụ Trách</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Nhân Viên Phụ Trách (Owner)</label>
                 <select
@@ -376,6 +382,19 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 >
                   {STATUS_OPTIONS.map((st) => (
                     <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Phân Nhóm CRM</label>
+                <select
+                  value={group}
+                  onChange={(e) => setGroup(e.target.value as CustomerGroupId)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium"
+                >
+                  {GROUP_OPTIONS.map((groupId) => (
+                    <option key={groupId} value={groupId}>{CUSTOMER_GROUPS[groupId].name}</option>
                   ))}
                 </select>
               </div>

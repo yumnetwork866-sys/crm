@@ -89,6 +89,7 @@ export interface Customer {
   // Status & Assignment
   owner: string; // Sales rep name
   status: CustomerStatus;
+  group?: CustomerGroupId; // Independent CRM segmentation group
   notes: CustomerNote[];
 
   // Orders Summary

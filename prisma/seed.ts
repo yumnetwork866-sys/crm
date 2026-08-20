@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_USERS, INITIAL_PRODUCT_LIST } from '../src/data/mockData';
+import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_USERS, INITIAL_PRODUCT_LIST, INITIAL_MESSAGES } from '../src/data/mockData';
 
 const prisma = new PrismaClient();
 
@@ -10,6 +10,7 @@ async function main() {
   console.log('🌱 Đang khởi tạo dữ liệu mẫu cho PostgreSQL database...');
 
   // 1. Clear existing records
+  await prisma.whatsAppMessage.deleteMany();
   await prisma.automationLog.deleteMany();
   await prisma.customerNote.deleteMany();
   await prisma.orderItem.deleteMany();
@@ -179,6 +180,27 @@ async function main() {
     });
   }
   console.log(`✅ Đã nạp ${INITIAL_CAMPAIGNS.length} chiến dịch broadcast mẫu.`);
+
+  // 6. Seed WhatsApp Messages
+  for (const msg of INITIAL_MESSAGES) {
+    await prisma.whatsAppMessage.create({
+      data: {
+        id: msg.id,
+        customerId: msg.customerId,
+        customerName: msg.customerName,
+        customerPhone: msg.customerPhone,
+        sender: msg.sender === 'customer' ? 'customer' : 'agent',
+        agentName: msg.agentName || null,
+        channel: msg.channel || 'WhatsApp',
+        content: msg.content,
+        isRead: msg.isRead,
+        readBy: msg.readBy || null,
+        readAt: msg.readAt ? new Date(msg.readAt) : null,
+        timestamp: new Date(msg.timestamp)
+      }
+    });
+  }
+  console.log(`✅ Đã nạp ${INITIAL_MESSAGES.length} tin nhắn mẫu.`);
 
   console.log('🎉 Hoàn tất nạp dữ liệu mẫu vào PostgreSQL!');
 }

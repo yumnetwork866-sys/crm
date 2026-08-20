@@ -1,16 +1,40 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Search, Filter, Plus, Download, Upload, User, Phone, Globe, ShoppingBag,
-  MessageSquare, MoreHorizontal, Trash2, Edit3, ShieldCheck, ShieldAlert,
-  ChevronRight, ArrowUpDown, Tag, FileSpreadsheet, Calendar, RotateCcw
+  Crown,
+  Download,
+  Edit3,
+  Filter,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+  Search,
+  ShoppingBag,
+  Trash2,
+  Upload,
+  User,
+  UserRoundX,
+  Users,
+  X,
 } from 'lucide-react';
-import type { Customer, CustomerStatus, AppUser } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
+import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../../types';
+import {
+  CUSTOMER_GROUPS,
+  formatDate,
+  formatVND,
+  getCustomerGroup,
+  getOwnerBadgeClass,
+  getStatusColorClass,
+  isSamePhoneNumber,
+} from '../../utils/crmUtils';
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
 
+type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'unread' | 'vip' | 'unassigned';
+
 interface CustomerListProps {
   customers: Customer[];
+  centralMessages?: CentralMessage[];
   currentUser?: AppUser | null;
   filterModel: CustomerFilterModel;
   onSelectCustomer: (customer: Customer) => void;
@@ -20,11 +44,16 @@ interface CustomerListProps {
   onOpenAddOrder: (customer: Customer) => void;
   onOpenChat: (customer: Customer) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
+  onUpdateGroup: (customerId: string, group: CustomerGroupId) => void;
+  onUpdateOwner: (customerId: string, owner: string) => void;
   onImportCustomers?: (newCustomers: Customer[]) => void;
 }
 
+const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
+
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
+  centralMessages = [],
   currentUser,
   filterModel,
   onSelectCustomer,
@@ -34,11 +63,19 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onOpenAddOrder,
   onOpenChat,
   onUpdateStatus,
+  onUpdateGroup,
+  onUpdateOwner,
   onImportCustomers,
 }) => {
   const isAdmin = currentUser?.role === 'Admin';
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>('all');
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkOwner, setBulkOwner] = useState('');
+
   const {
     searchQuery,
     setSearchQuery,
@@ -59,187 +96,194 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     endDate,
     setEndDate,
     filteredCustomers,
-    isCustomerOptedIn: checkIsCustomerOptedIn,
+    isCustomerOptedIn,
   } = filterModel;
 
-  const handleToggleSelectAll = () => {
-    if (selectedCustomerIds.length === filteredCustomers.length && filteredCustomers.length > 0) {
-      setSelectedCustomerIds([]);
-    } else {
-      setSelectedCustomerIds(filteredCustomers.map((c) => c.id));
-    }
+  const sources = useMemo(() => Array.from(new Set(customers.map((c) => c.source))).sort(), [customers]);
+  const owners = useMemo(
+    () => Array.from(new Set(customers.map((c) => c.owner).filter((owner) => owner && !UNASSIGNED_OWNERS.includes(owner)))).sort(),
+    [customers]
+  );
+
+  const hasUnreadMessage = (customer: Customer) => centralMessages.some((message) =>
+    message.sender === 'customer' && !message.isRead && (
+      message.customerId === customer.id || isSamePhoneNumber(message.customerPhone, customer.phone)
+    )
+  );
+
+  const matchesWorkQueue = (customer: Customer, filter: WorkQueueFilter) => {
+    if (filter === 'new') return getCustomerGroup(customer) === 'group_1';
+    if (filter === 'quoted') return getCustomerGroup(customer) === 'group_2';
+    if (filter === 'purchased_once') return getCustomerGroup(customer) === 'group_3';
+    if (filter === 'unread') return hasUnreadMessage(customer);
+    if (filter === 'vip') return getCustomerGroup(customer) === 'group_4';
+    if (filter === 'unassigned') return UNASSIGNED_OWNERS.includes(customer.owner || '');
+    return true;
   };
 
-  const handleToggleSelect = (id: string) => {
-    setSelectedCustomerIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+  const displayedCustomers = useMemo(
+    () => filteredCustomers.filter((customer) => matchesWorkQueue(customer, workQueueFilter)),
+    [filteredCustomers, workQueueFilter, centralMessages]
+  );
+
+  const queueCounts = useMemo(() => ({
+    new: customers.filter((customer) => getCustomerGroup(customer) === 'group_1').length,
+    quoted: customers.filter((customer) => getCustomerGroup(customer) === 'group_2').length,
+    purchased_once: customers.filter((customer) => getCustomerGroup(customer) === 'group_3').length,
+    unread: customers.filter(hasUnreadMessage).length,
+    vip: customers.filter((customer) => getCustomerGroup(customer) === 'group_4').length,
+    unassigned: customers.filter((customer) => UNASSIGNED_OWNERS.includes(customer.owner || '')).length,
+  }), [customers, centralMessages]);
+
+  const advancedFilterCount = [
+    selectedSource !== 'ALL',
+    selectedGender !== 'ALL',
+    selectedGroup !== 'ALL',
+    selectedOptIn !== 'ALL',
+    Boolean(startDate || endDate),
+  ].filter(Boolean).length;
+
+  const hasAnyFilter = Boolean(
+    searchQuery || selectedStatus !== 'ALL' || selectedOwner !== 'ALL' ||
+    advancedFilterCount > 0 || workQueueFilter !== 'all'
+  );
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedStatus('ALL');
+    setSelectedSource('ALL');
+    setSelectedGender('ALL');
+    setSelectedGroup('ALL');
+    setSelectedOwner('ALL');
+    setSelectedOptIn('ALL');
+    setStartDate('');
+    setEndDate('');
+    setWorkQueueFilter('all');
+  };
+
+  const handleToggleSelectAll = () => {
+    const visibleIds = displayedCustomers.map((customer) => customer.id);
+    const areAllVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedCustomerIds.includes(id));
+    setSelectedCustomerIds((current) => areAllVisibleSelected
+      ? current.filter((id) => !visibleIds.includes(id))
+      : Array.from(new Set([...current, ...visibleIds]))
     );
   };
 
-  // Quick Date Helpers
-  const handleSetToday = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setStartDate(today);
-    setEndDate(today);
+  const handleToggleSelect = (id: string) => {
+    setSelectedCustomerIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]
+    );
   };
 
-  const handleSetLast7Days = () => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 7);
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
-  };
-
-  const handleSetThisMonth = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    setStartDate(firstDay.toISOString().split('T')[0]);
-    setEndDate(now.toISOString().split('T')[0]);
-  };
-
-  const handleClearDateFilter = () => {
-    setStartDate('');
-    setEndDate('');
-  };
-
-
-  // Unique values for dropdowns
-  const sources = Array.from(new Set(customers.map((c) => c.source)));
-  const owners = Array.from(new Set(customers.map((c) => c.owner)));
-
-  // Export CSV
-  const handleExportCSV = () => {
+  const exportCustomers = (records: Customer[]) => {
     if (!isAdmin) {
       alert('Quyền bị hạn chế: Chỉ tài khoản Admin mới có quyền xuất dữ liệu.');
       return;
     }
     const headers = [
-      'ID', 'Name', 'Phone', 'Gender', 'Address', 'Email', 'Note',
-      'Source', 'Campaign', 'AdSet', 'LandingPage', 'FirstContact', 'LastContact',
-      'Owner', 'Status', 'Group', 'TotalOrders', 'TotalSpentVND', 'WhatsAppOptIn'
+      'ID', 'Name', 'Phone', 'Gender', 'Address', 'Email', 'Note', 'Source', 'Campaign',
+      'AdSet', 'LandingPage', 'FirstContact', 'LastContact', 'Owner', 'Status', 'Group',
+      'TotalOrders', 'TotalSpentVND', 'WhatsAppOptIn',
     ];
-
-    const rows = filteredCustomers.map((c) => [
-      c.id,
-      `"${c.name}"`,
-      `"${c.phone}"`,
-      `"${c.gender || ''}"`,
-      `"${c.address || ''}"`,
-      `"${c.email || ''}"`,
-      `"${c.note || ''}"`,
-      `"${c.source}"`,
-      `"${c.campaign}"`,
-      `"${c.adSet || ''}"`,
-      `"${c.landingPage || ''}"`,
-      c.firstContact,
-      c.lastContact,
-      `"${c.owner}"`,
-      c.status,
-      CUSTOMER_GROUPS[getCustomerGroup(c)].name,
-      c.totalOrders,
-      c.totalSpent,
-      checkIsCustomerOptedIn(c) ? 'Opt-in' : 'No Opt-in'
+    const rows = records.map((customer) => [
+      customer.id,
+      `"${customer.name}"`,
+      `"${customer.phone}"`,
+      `"${customer.gender || ''}"`,
+      `"${customer.address || ''}"`,
+      `"${customer.email || ''}"`,
+      `"${customer.note || ''}"`,
+      `"${customer.source}"`,
+      `"${customer.campaign}"`,
+      `"${customer.adSet || ''}"`,
+      `"${customer.landingPage || ''}"`,
+      customer.firstContact,
+      customer.lastContact,
+      `"${customer.owner}"`,
+      customer.status,
+      CUSTOMER_GROUPS[getCustomerGroup(customer)].name,
+      customer.totalOrders,
+      customer.totalSpent,
+      isCustomerOptedIn(customer) ? 'Opt-in' : 'No Opt-in',
     ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = `data:text/csv;charset=utf-8,\uFEFF${[headers.join(','), ...rows.map((row) => row.join(','))].join('\n')}`;
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `VietCRM_KhachHang_${new Date().toISOString().split('T')[0]}.csv`);
+    link.href = encodeURI(csvContent);
+    link.download = `VietCRM_KhachHang_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  const selectedCustomers = customers.filter((customer) => selectedCustomerIds.includes(customer.id));
+
+  const queueCards: Array<{
+    id: Exclude<WorkQueueFilter, 'all'>;
+    label: string;
+    count: number;
+    icon: React.ComponentType<{ className?: string }>;
+    accent: string;
+  }> = [
+    { id: 'new', label: 'Khách mới', count: queueCounts.new, icon: Users, accent: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+    { id: 'quoted', label: 'Đã hỏi giá', count: queueCounts.quoted, icon: MessageSquare, accent: 'text-sky-700 bg-sky-50 border-sky-200' },
+    { id: 'purchased_once', label: 'Đã mua 1 lần', count: queueCounts.purchased_once, icon: ShoppingBag, accent: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+    { id: 'vip', label: 'VIP', count: queueCounts.vip, icon: Crown, accent: 'text-purple-700 bg-purple-50 border-purple-200' },
+    { id: 'unread', label: 'Chưa đọc', count: queueCounts.unread, icon: MessageSquare, accent: 'text-teal-700 bg-teal-50 border-teal-200' },
+    { id: 'unassigned', label: 'Chưa phân Sales', count: queueCounts.unassigned, icon: UserRoundX, accent: 'text-rose-700 bg-rose-50 border-rose-200' },
+  ];
+
   return (
     <div className="space-y-4">
-      
-      {/* Top Filter Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-        
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          
-          {/* Search Box */}
-          <div className="relative flex-1">
+      <section aria-label="Phân nhóm khách hàng" className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        {queueCards.map((card) => {
+          const Icon = card.icon;
+          const isActive = workQueueFilter === card.id;
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => setWorkQueueFilter(isActive ? 'all' : card.id)}
+              aria-pressed={isActive}
+              title={card.label}
+              className={`min-h-20 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${card.accent} ${
+                isActive ? 'ring-2 ring-indigo-500 ring-offset-2 shadow-sm' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-2xl font-black leading-none">{card.count}</div>
+                  <div className="mt-2 text-xs font-bold truncate">{card.label}</div>
+                </div>
+                <span className="w-8 h-8 rounded-lg bg-white/70 border border-white flex items-center justify-center shrink-0">
+                  <Icon className="w-4 h-4" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-col xl:flex-row gap-3">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              type="text"
+              type="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm theo Tên, SĐT, Email, Chiến dịch..."
-              className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Tìm theo tên, SĐT, email hoặc chiến dịch..."
+              className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setIsImportCsvOpen(true)}
-              className="px-3 py-2 bg-emerald-700/80 hover:bg-emerald-600 text-white border border-emerald-600/40 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer shadow-sm"
-              title="Nhập danh sách khách hàng hàng loạt bằng file CSV"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Nhập CSV</span>
-            </button>
-
-            {isAdmin ? (
-              <button
-                onClick={handleExportCSV}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium flex items-center space-x-1.5 transition cursor-pointer"
-                title="Xuất danh sách ra file CSV"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Xuất CSV</span>
-              </button>
-            ) : (
-              <button
-                disabled
-                className="px-3 py-2 bg-slate-800/40 text-slate-500 border border-slate-800/80 rounded-xl text-xs font-medium flex items-center space-x-1.5 cursor-not-allowed opacity-60"
-                title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Xuất CSV (Chỉ Admin)</span>
-              </button>
-            )}
-
-            <button
-              onClick={onOpenAddModal}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Thêm Khách Hàng</span>
-            </button>
-          </div>
-
-        </div>
-
-        {/* Filter Dropdowns Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs pt-1">
-          
-          {/* Group Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Phân Nhóm CRM</label>
-            <select
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
-            >
-              <option value="ALL">Tất cả nhóm (1 - 4)</option>
-              <option value="group_1">Nhóm 1: Khách mới</option>
-              <option value="group_2">Nhóm 2: Đã hỏi giá</option>
-              <option value="group_3">Nhóm 3: Đã mua 1 lần</option>
-              <option value="group_4">Nhóm 4: Đã mua ≥2 lần (VIP)</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Trạng Thái</label>
+          <div className="grid grid-cols-2 sm:flex gap-2">
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
+              onChange={(event) => setSelectedStatus(event.target.value)}
+              aria-label="Lọc theo trạng thái"
+              className="bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             >
               <option value="ALL">Tất cả trạng thái</option>
               <option value="New Lead">New Lead</option>
@@ -248,432 +292,358 @@ export const CustomerList: React.FC<CustomerListProps> = ({
               <option value="Won">Won</option>
               <option value="Lost">Lost</option>
             </select>
-          </div>
 
-          {/* Source Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Nguồn Khách (Source)</label>
-            <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
-            >
-              <option value="ALL">Tất cả nguồn</option>
-              {sources.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Gender Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Giới Tính</label>
-            <select
-              value={selectedGender}
-              onChange={(e) => setSelectedGender(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
-            >
-              <option value="ALL">Tất cả giới tính</option>
-              <option value="Nam">Nam</option>
-              <option value="Nữ">Nữ</option>
-              <option value="Khác">Khác</option>
-            </select>
-          </div>
-
-          {/* Owner Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Nhân Viên Phụ Trách</label>
             <select
               value={selectedOwner}
-              onChange={(e) => setSelectedOwner(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
+              onChange={(event) => setSelectedOwner(event.target.value)}
+              aria-label="Lọc theo Sales phụ trách"
+              className="bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             >
-              <option value="ALL">Tất cả nhân viên</option>
-              {owners.map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
+              <option value="ALL">Tất cả Sales</option>
+              {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
             </select>
-          </div>
 
-          {/* Opt-In (WABA) Filter */}
-          <div>
-            <label className="block text-[10px] text-slate-700 dark:text-slate-300 font-semibold mb-0.5">Trạng Thái Opt-In</label>
-            <select
-              value={selectedOptIn}
-              onChange={(e) => setSelectedOptIn(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none"
-            >
-              <option value="ALL">Tất cả Opt-In</option>
-              <option value="optin">✓ Opt-in (Đã nhắn WABA)</option>
-              <option value="no_optin">! No Opt-in (Chưa nhắn WABA)</option>
-            </select>
-          </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdvancedFilters((current) => !current);
+                  setShowActionsMenu(false);
+                }}
+                aria-expanded={showAdvancedFilters}
+                className={`w-full px-3 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
+                  showAdvancedFilters || advancedFilterCount > 0
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+                Bộ lọc
+                {advancedFilterCount > 0 && <span className="bg-indigo-600 text-white rounded-full px-1.5 py-0.5 text-[10px]">{advancedFilterCount}</span>}
+              </button>
 
-        </div>
+              {showAdvancedFilters && (
+                <div className="fixed inset-x-4 top-24 z-40 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(42rem,calc(100vw-2rem))]">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Bộ lọc nâng cao</h3>
 
-        {/* Date Filter Row (firstContact) */}
-        <div className="pt-2 border-t border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center space-x-2 text-slate-800 dark:text-slate-200 font-semibold shrink-0">
-            <Calendar className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-            <span>Khoảng thời gian tiếp cận (firstContact):</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <div className="flex items-center space-x-1.5 bg-slate-800 border border-slate-700/80 rounded-lg px-2 py-1">
-              <span className="text-[10px] text-slate-300 font-medium">Từ ngày:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-white text-xs focus:outline-none cursor-pointer"
-              />
+                    </div>
+                    <button type="button" onClick={() => setShowAdvancedFilters(false)} aria-label="Đóng bộ lọc" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="text-xs font-semibold text-slate-600">
+                      Nguồn khách
+                      <select value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800">
+                        <option value="ALL">Tất cả nguồn</option>
+                        {sources.map((source) => <option key={source} value={source}>{source}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Phân nhóm CRM
+                      <select value={selectedGroup} onChange={(event) => setSelectedGroup(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800">
+                        <option value="ALL">Tất cả nhóm</option>
+                        <option value="group_1">Khách mới</option>
+                        <option value="group_2">Đã hỏi giá</option>
+                        <option value="group_3">Đã mua 1 lần</option>
+                        <option value="group_4">VIP — đã mua ≥2 lần</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Giới tính
+                      <select value={selectedGender} onChange={(event) => setSelectedGender(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800">
+                        <option value="ALL">Tất cả giới tính</option>
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      WhatsApp Opt-in
+                      <select value={selectedOptIn} onChange={(event) => setSelectedOptIn(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800">
+                        <option value="ALL">Tất cả Opt-in</option>
+                        <option value="optin">Đã Opt-in</option>
+                        <option value="no_optin">Chưa Opt-in</option>
+                      </select>
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Tiếp cận từ ngày
+                      <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800" />
+                    </label>
+                    <label className="text-xs font-semibold text-slate-600">
+                      Đến ngày
+                      <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800" />
+                    </label>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
+                    <button type="button" onClick={clearAllFilters} className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-rose-600 flex items-center gap-1.5">
+                      <RotateCcw className="w-3.5 h-3.5" /> Xóa bộ lọc
+                    </button>
+                    <button type="button" onClick={() => setShowAdvancedFilters(false)} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Xong</button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <span className="text-slate-500 font-bold">-</span>
+            <button type="button" onClick={onOpenAddModal} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5">
+              <Plus className="w-4 h-4" /> Thêm khách hàng
+            </button>
 
-            <div className="flex items-center space-x-1.5 bg-slate-800 border border-slate-700/80 rounded-lg px-2 py-1">
-              <span className="text-[10px] text-slate-300 font-medium">Đến ngày:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-white text-xs focus:outline-none cursor-pointer"
-              />
-            </div>
-
-            {/* Quick Presets */}
-            <div className="flex items-center space-x-1.5 ml-auto md:ml-2">
+            <div className="relative">
               <button
                 type="button"
-                onClick={handleSetToday}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[11px] font-medium transition cursor-pointer border border-slate-700/60"
+                onClick={() => {
+                  setShowActionsMenu((current) => !current);
+                  setShowAdvancedFilters(false);
+                }}
+                aria-label="Thêm thao tác"
+                aria-expanded={showActionsMenu}
+                className="w-full h-full min-h-10 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl flex items-center justify-center"
               >
-                Hôm nay
+                <MoreHorizontal className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={handleSetLast7Days}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[11px] font-medium transition cursor-pointer border border-slate-700/60"
-              >
-                7 ngày qua
-              </button>
-              <button
-                type="button"
-                onClick={handleSetThisMonth}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-[11px] font-medium transition cursor-pointer border border-slate-700/60"
-              >
-                Tháng này
-              </button>
-              {(startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={handleClearDateFilter}
-                  className="px-2.5 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 rounded-md text-[11px] font-semibold transition cursor-pointer border border-rose-800/40 flex items-center space-x-1"
-                  title="Xóa bộ lọc ngày"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Xóa lọc ngày</span>
-                </button>
+              {showActionsMenu && (
+                <div className="absolute right-0 top-full mt-2 z-40 w-48 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5">
+                  <button type="button" onClick={() => { setIsImportCsvOpen(true); setShowActionsMenu(false); }} className="w-full px-3 py-2.5 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2">
+                    <Upload className="w-4 h-4" /> Nhập từ CSV
+                  </button>
+                  <button type="button" onClick={() => { exportCustomers(displayedCustomers); setShowActionsMenu(false); }} disabled={!isAdmin} title={isAdmin ? 'Xuất danh sách đang hiển thị' : 'Chỉ Admin được xuất dữ liệu'} className="w-full px-3 py-2.5 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Download className="w-4 h-4" /> Xuất CSV
+                  </button>
+                </div>
               )}
             </div>
           </div>
         </div>
 
-      </div>
 
-      {/* Customer Table Container */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        
-        {/* Table Summary Bar */}
-        <div className="px-5 py-3 bg-slate-800/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <div className="flex flex-wrap items-center gap-2">
-            <span>
-              Hiển thị <span className="font-bold text-white">{filteredCustomers.length}</span> / {customers.length} khách hàng
-            </span>
-
-            {selectedCustomerIds.length > 0 && (
-              <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Đã chọn: {selectedCustomerIds.length} / {filteredCustomers.length}
-              </span>
-            )}
-            {selectedGender !== 'ALL' && (
-              <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center space-x-1">
-                <span>Giới tính: {selectedGender}</span>
-                <button onClick={() => setSelectedGender('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
-            {selectedStatus !== 'ALL' && (
-              <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1">
-                <span>Trạng thái: {selectedStatus}</span>
-                <button onClick={() => setSelectedStatus('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
-            {selectedSource !== 'ALL' && (
-              <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1">
-                <span>Nguồn: {selectedSource}</span>
-                <button onClick={() => setSelectedSource('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
-            {selectedOptIn !== 'ALL' && (
-              <span className={`font-semibold text-xs px-2.5 py-0.5 rounded-full border flex items-center space-x-1 ${
-                selectedOptIn === 'optin'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-              }`}>
-                <span>Opt-in: {selectedOptIn === 'optin' ? '✓ Opt-in (Đã nhắn WABA)' : '! No Opt-in'}</span>
-                <button onClick={() => setSelectedOptIn('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
-            {selectedGroup !== 'ALL' && (
-              <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1">
-                <span>Nhóm: {CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name || selectedGroup}</span>
-                <button onClick={() => setSelectedGroup('ALL')} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
-            {(startDate || endDate) && (
-              <span className="font-mono text-[11px] text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 flex items-center space-x-1">
-                <span>Ngày: {startDate || '...'} đến {endDate || '...'}</span>
-                <button onClick={handleClearDateFilter} className="hover:text-white ml-1 font-bold text-sm cursor-pointer">×</button>
-              </span>
-            )}
+        {hasAnyFilter && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+            <span className="text-[11px] font-semibold text-slate-500">Đang lọc:</span>
+            {workQueueFilter !== 'all' && <FilterChip label={queueCards.find((card) => card.id === workQueueFilter)?.label || workQueueFilter} onClear={() => setWorkQueueFilter('all')} />}
+            {selectedStatus !== 'ALL' && <FilterChip label={`Trạng thái: ${selectedStatus}`} onClear={() => setSelectedStatus('ALL')} />}
+            {selectedOwner !== 'ALL' && <FilterChip label={`Sales: ${selectedOwner}`} onClear={() => setSelectedOwner('ALL')} />}
+            {selectedSource !== 'ALL' && <FilterChip label={`Nguồn: ${selectedSource}`} onClear={() => setSelectedSource('ALL')} />}
+            {selectedGroup !== 'ALL' && <FilterChip label={`Nhóm: ${CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name}`} onClear={() => setSelectedGroup('ALL')} />}
+            {selectedGender !== 'ALL' && <FilterChip label={`Giới tính: ${selectedGender}`} onClear={() => setSelectedGender('ALL')} />}
+            {selectedOptIn !== 'ALL' && <FilterChip label={selectedOptIn === 'optin' ? 'Đã Opt-in' : 'Chưa Opt-in'} onClear={() => setSelectedOptIn('ALL')} />}
+            {(startDate || endDate) && <FilterChip label={`Ngày: ${startDate || '…'} – ${endDate || '…'}`} onClear={() => { setStartDate(''); setEndDate(''); }} />}
+            <button type="button" onClick={clearAllFilters} className="ml-auto text-[11px] font-semibold text-indigo-600 hover:underline">Xóa tất cả</button>
           </div>
-          {(selectedStatus !== 'ALL' || selectedSource !== 'ALL' || selectedGender !== 'ALL' || selectedGroup !== 'ALL' || selectedOwner !== 'ALL' || selectedOptIn !== 'ALL' || searchQuery || startDate || endDate) && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedStatus('ALL');
-                setSelectedSource('ALL');
-                setSelectedGender('ALL');
-                setSelectedGroup('ALL');
-                setSelectedOwner('ALL');
-                setSelectedOptIn('ALL');
-                setStartDate('');
-                setEndDate('');
-              }}
-              className="text-indigo-400 hover:underline text-[11px] cursor-pointer font-medium ml-auto"
-            >
-              Xóa tất cả bộ lọc
-            </button>
-          )}
+        )}
+      </section>
+
+      {selectedCustomerIds.length > 0 && (
+        <section className="sticky top-[58px] z-20 bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3 shadow-xl flex flex-wrap items-center gap-2">
+          <div className="mr-2">
+            <div className="text-sm font-bold">Đã chọn {selectedCustomerIds.length} khách hàng</div>
+            <div className="text-[11px] text-slate-400">Thao tác áp dụng cho toàn bộ danh sách đã chọn</div>
+          </div>
+          <select
+            value={bulkOwner}
+            onChange={(event) => {
+              const owner = event.target.value;
+              setBulkOwner(owner);
+              if (!owner) return;
+              selectedCustomerIds.forEach((customerId) => onUpdateOwner(customerId, owner));
+              setSelectedCustomerIds([]);
+              setBulkOwner('');
+            }}
+            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white"
+          >
+            <option value="">Gán Sales…</option>
+            {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
+          </select>
+          <select
+            value={bulkStatus}
+            onChange={(event) => {
+              const status = event.target.value as CustomerStatus;
+              setBulkStatus(event.target.value);
+              if (!event.target.value) return;
+              selectedCustomerIds.forEach((customerId) => onUpdateStatus(customerId, status));
+              setSelectedCustomerIds([]);
+              setBulkStatus('');
+            }}
+            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white"
+          >
+            <option value="">Đổi trạng thái…</option>
+            <option value="New Lead">New Lead</option>
+            <option value="Contacted">Contacted</option>
+            <option value="Quoted">Quoted</option>
+            <option value="Won">Won</option>
+            <option value="Lost">Lost</option>
+          </select>
+          <button type="button" onClick={() => exportCustomers(selectedCustomers)} disabled={!isAdmin} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50">
+            <Download className="w-3.5 h-3.5" /> Xuất CSV
+          </button>
+          <button type="button" onClick={() => setSelectedCustomerIds([])} className="ml-auto px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5">
+            <X className="w-4 h-4" /> Bỏ chọn
+          </button>
+        </section>
+      )}
+
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">
+            Hiển thị <strong className="text-slate-900">{displayedCustomers.length}</strong> / {customers.length} khách hàng
+          </p>
+
         </div>
 
-        {/* Table Element */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-800/90 text-slate-300 border-b border-slate-800 uppercase text-[10px] tracking-wider font-semibold">
+              <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase text-[10px] tracking-wider font-bold">
                 <th className="py-3 px-3 text-center w-10">
-                  <input
-                    type="checkbox"
-                    checked={
-                      filteredCustomers.length > 0 &&
-                      selectedCustomerIds.length === filteredCustomers.length
-                    }
-                    onChange={handleToggleSelectAll}
-                    title="Chọn tất cả / Bỏ chọn tất cả"
-                    className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-                  />
+                  <input type="checkbox" checked={displayedCustomers.length > 0 && displayedCustomers.every((customer) => selectedCustomerIds.includes(customer.id))} onChange={handleToggleSelectAll} aria-label="Chọn tất cả khách đang hiển thị" className="w-4 h-4 accent-indigo-600" />
                 </th>
-                <th className="py-3 px-4">Khách Hàng (Malaysia)</th>
-                <th className="py-3 px-3">Số Điện Thoại</th>
-                <th className="py-3 px-3">Nguồn Khách (Source)</th>
-                <th className="py-3 px-3">Trạng Thái</th>
-                <th className="py-3 px-3">Sales Phụ Trách</th>
-                <th className="py-3 px-3">Phân Nhóm CRM</th>
-                <th className="py-3 px-4 text-right">Đơn Hàng & Giá Trị</th>
-                <th className="py-3 px-4 text-center">Hành Động</th>
+                <th className="py-3 px-4">Khách hàng</th>
+                <th className="py-3 px-3">Nguồn khách</th>
+                <th className="py-3 px-3">Trạng thái</th>
+                <th className="py-3 px-3">Phân nhóm CRM</th>
+                <th className="py-3 px-3">Sales phụ trách</th>
+                <th className="py-3 px-4 text-right">Giá trị</th>
+                <th className="py-3 px-4 text-center">Hành động</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-300">
-              {filteredCustomers.length === 0 ? (
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {displayedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-slate-500">
-                    Không tìm thấy khách hàng nào phù hợp với bộ lọc.
+                  <td colSpan={8} className="text-center py-16">
+                    <Users className="w-9 h-9 mx-auto text-slate-300" />
+                    <div className="mt-3 font-semibold text-slate-600">Không tìm thấy khách hàng phù hợp</div>
+                    <button type="button" onClick={clearAllFilters} className="mt-2 text-xs font-semibold text-indigo-600 hover:underline">Xóa bộ lọc và xem tất cả</button>
                   </td>
                 </tr>
-              ) : (
-                filteredCustomers.map((cust) => {
-                  const grpKey = getCustomerGroup(cust);
-                  const grpInfo = CUSTOMER_GROUPS[grpKey];
-                  const isSelected = selectedCustomerIds.includes(cust.id);
-                  const isBatchActive = selectedCustomerIds.length > 0;
-                  const isOptedIn = checkIsCustomerOptedIn(cust);
-
-                  return (
-                    <tr
-                      key={cust.id}
-                      className={`transition group ${isSelected ? 'bg-indigo-50/80' : ''}`}
-                    >
-                      {/* Checkbox */}
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleSelect(cust.id)}
-                          className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-                        />
-                      </td>
-
-                      {/* Customer Info */}
-                      <td className="py-3 px-4">
-                        <div className="min-w-[140px]">
-                          <button
-                            onClick={() => onSelectCustomer(cust)}
-                            className="font-bold text-slate-100 hover:text-indigo-400 text-sm text-left transition cursor-pointer"
-                            title="Click để xem chi tiết khách hàng"
-                          >
-                            {cust.name}
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Phone Number */}
-                      <td className="py-3 px-3">
-                        <div className="space-y-1">
-                          <div className="font-mono text-xs font-semibold text-slate-200">
-                            {cust.phone}
-                          </div>
-                          <div>
-                            {isOptedIn ? (
-                              <span
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded"
-                                title="Đã có tin nhắn tương tác với WABA (WhatsApp Business Account)"
-                              >
-                                ✓ Opt-in
-                              </span>
+              ) : displayedCustomers.map((customer) => {
+                const isSelected = selectedCustomerIds.includes(customer.id);
+                const unread = hasUnreadMessage(customer);
+                const group = getCustomerGroup(customer);
+                const isNewCustomer = group === 'group_1';
+                const quoted = group === 'group_2';
+                const purchasedOnce = group === 'group_3';
+                const vip = group === 'group_4';
+                const unassigned = UNASSIGNED_OWNERS.includes(customer.owner || '');
+                return (
+                  <tr key={customer.id} className={`group transition hover:bg-slate-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
+                    <td className="py-3 px-3 text-center">
+                      <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(customer.id)} aria-label={`Chọn ${customer.name}`} className="w-4 h-4 accent-indigo-600" />
+                    </td>
+                    <td className="py-3 px-4 min-w-[240px]">
+                      <div className="flex items-center gap-3">
+                        <img src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
+                        <div className="min-w-0">
+                          <button type="button" onClick={() => onSelectCustomer(customer)} className="font-bold text-slate-900 hover:text-indigo-600 text-sm text-left truncate block max-w-[190px]">{customer.name}</button>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-slate-500">{customer.phone}</span>
+                            {isCustomerOptedIn(customer) ? (
+                              <SignalBadge label="Opt-in" className="bg-emerald-50 text-emerald-700 border-emerald-200" />
                             ) : (
-                              <span
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded"
-                                title="Chưa có tin nhắn tương tác với WABA"
-                              >
-                                ! No Opt-in
-                              </span>
+                              <SignalBadge label="No Opt-in" className="bg-rose-50 text-rose-700 border-rose-200" />
                             )}
                           </div>
-                        </div>
-                      </td>
-
-                      {/* Lead Source */}
-                      <td className="py-3 px-3">
-                        <div className="space-y-0.5">
-                          <div className="font-semibold text-indigo-300">{cust.source}</div>
-                          <div className="text-[11px] text-slate-400 truncate max-w-[140px]" title={cust.campaign}>
-                            {cust.campaign}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            Lần đầu: {formatDate(cust.firstContact)}
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {isNewCustomer && <SignalBadge label="Khách mới" className="bg-indigo-50 text-indigo-700 border-indigo-200" />}
+                            {quoted && <SignalBadge label="Đã hỏi giá" className="bg-sky-50 text-sky-700 border-sky-200" />}
+                            {purchasedOnce && <SignalBadge label="Đã mua 1 lần" className="bg-emerald-50 text-emerald-700 border-emerald-200" />}
+                            {unread && <SignalBadge label="Chưa đọc" className="bg-teal-50 text-teal-700 border-teal-200" />}
+                            {vip && <SignalBadge label="VIP" className="bg-purple-50 text-purple-700 border-purple-200" />}
                           </div>
                         </div>
-                      </td>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 min-w-32">
+                      <div className="font-bold text-indigo-700">{customer.source}</div>
+                      <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>{customer.campaign}</div>
+                      <div className="mt-1 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <select value={customer.status} onChange={(event) => onUpdateStatus(customer.id, event.target.value as CustomerStatus)} className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${getStatusColorClass(customer.status)}`}>
+                        <option value="New Lead">New Lead</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Quoted">Quoted</option>
+                        <option value="Won">Won</option>
+                        <option value="Lost">Lost</option>
+                      </select>
+                    </td>
+                    <td className="py-3 px-3 min-w-40">
+                      <select
+                        value={group}
+                        onChange={(event) => onUpdateGroup(customer.id, event.target.value as CustomerGroupId)}
+                        aria-label={`Phân nhóm CRM của ${customer.name}`}
+                        className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${CUSTOMER_GROUPS[group].badgeColor}`}
+                      >
+                        <option value="group_1">Khách mới</option>
+                        <option value="group_2">Đã hỏi giá</option>
+                        <option value="group_3">Đã mua 1 lần</option>
+                        <option value="group_4">VIP</option>
+                      </select>
+                    </td>
 
-                      {/* Status */}
-                      <td className="py-3 px-3">
-                        <select
-                          value={cust.status}
-                          onChange={(e) => onUpdateStatus(cust.id, e.target.value as CustomerStatus)}
-                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border focus:outline-none cursor-pointer transition shadow-sm ${getStatusColorClass(cust.status)}`}
-                        >
-                          <option value="New Lead" className="bg-white text-purple-800 dark:bg-slate-900 dark:text-purple-300 font-bold">New Lead</option>
-                          <option value="Contacted" className="bg-white text-blue-800 dark:bg-slate-900 dark:text-blue-300 font-bold">Contacted</option>
-                          <option value="Quoted" className="bg-white text-amber-800 dark:bg-slate-900 dark:text-amber-300 font-bold">Quoted</option>
-                          <option value="Won" className="bg-white text-emerald-800 dark:bg-slate-900 dark:text-emerald-300 font-bold">Won</option>
-                          <option value="Lost" className="bg-white text-rose-800 dark:bg-slate-900 dark:text-rose-300 font-bold">Lost</option>
-                        </select>
-                      </td>
-
-                      {/* Sales Phụ Trách */}
-                      <td className="py-3 px-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border shadow-xs ${getOwnerBadgeClass(cust.owner)}`}>
-                          <User className="w-3 h-3 shrink-0" />
-                          <span>{cust.owner}</span>
-                        </span>
-                      </td>
-
-                      {/* CRM Segmentation Group */}
-                      <td className="py-3 px-3">
-                        <span className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold border ${grpInfo.badgeColor}`}>
-                          {grpInfo.name}
-                        </span>
-                      </td>
-
-                      {/* Orders & Total Spent */}
-                      <td className="py-3 px-3 text-right">
-                        <div className="font-bold text-emerald-400 text-sm">
-                          {formatVND(cust.totalSpent)}
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {cust.totalOrders} đơn hàng
-                        </div>
-                        {cust.lastPurchaseDate && (
-                          <div className="text-[10px] text-slate-500">
-                            Lần cuối: {formatDate(cust.lastPurchaseDate)}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-1">
-                          
-                          <button
-                            onClick={() => onOpenChat(cust)}
-                            className="p-1.5 rounded-lg text-teal-400 hover:bg-teal-500/20 transition"
-                            title="Mở Chat WhatsApp"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => onOpenAddOrder(cust)}
-                            className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition"
-                            title="Tạo đơn hàng mới"
-                          >
-                            <ShoppingBag className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => onEditCustomer(cust)}
-                            className="p-1.5 rounded-lg text-slate-900 dark:text-indigo-400 hover:text-indigo-600 hover:bg-slate-200 dark:hover:bg-indigo-500/20 transition cursor-pointer font-bold"
-                            title="Chỉnh sửa thông tin"
-                          >
-                            <Edit3 className="w-4 h-4 text-slate-900 dark:text-indigo-400" />
-                          </button>
-
-                          <button
-                            onClick={() => onDeleteCustomer(cust.id)}
-                            className="p-1.5 rounded-lg text-slate-900 dark:text-rose-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition cursor-pointer font-bold"
-                            title="Xóa khách hàng"
-                          >
-                            <Trash2 className="w-4 h-4 text-slate-900 dark:text-rose-400" />
-                          </button>
-
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })
-              )}
+                    <td className="py-3 px-3">
+                      {unassigned ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200"><UserRoundX className="w-3 h-3" /> Chưa phân công</span>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${getOwnerBadgeClass(customer.owner)}`}><User className="w-3 h-3" />{customer.owner}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right min-w-[130px]">
+                      <div className="font-black text-emerald-700 text-sm">{formatVND(customer.totalSpent)}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{customer.totalOrders} đơn hàng</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-1">
+                        <ActionButton title="Mở chat WhatsApp" onClick={() => onOpenChat(customer)}><MessageSquare className="w-4 h-4" /></ActionButton>
+                        <ActionButton title="Tạo đơn hàng" onClick={() => onOpenAddOrder(customer)}><ShoppingBag className="w-4 h-4" /></ActionButton>
+                        <ActionButton title="Chỉnh sửa khách hàng" onClick={() => onEditCustomer(customer)}><Edit3 className="w-4 h-4" /></ActionButton>
+                        <ActionButton title="Xóa khách hàng" onClick={() => onDeleteCustomer(customer.id)} danger><Trash2 className="w-4 h-4" /></ActionButton>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+      </section>
 
-      </div>
-
-      {/* CSV Import Modal */}
       {isImportCsvOpen && (
         <ImportCustomerCsvModal
           isOpen={isImportCsvOpen}
           onClose={() => setIsImportCsvOpen(false)}
-          onImportCustomers={(newCustomers) => {
-            if (onImportCustomers) {
-              onImportCustomers(newCustomers);
-            }
-          }}
+          onImportCustomers={(newCustomers) => onImportCustomers?.(newCustomers)}
           existingCustomersCount={customers.length}
         />
       )}
-
     </div>
   );
 };
+
+const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
+  <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 text-[11px] font-semibold">
+    {label}
+    <button type="button" onClick={onClear} aria-label={`Xóa bộ lọc ${label}`} className="hover:text-rose-600"><X className="w-3 h-3" /></button>
+  </span>
+);
+
+const SignalBadge = ({ label, className }: { label: string; className: string }) => (
+  <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${className}`}>{label}</span>
+);
+
+const ActionButton = ({ title, onClick, danger = false, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) => (
+  <button
+    type="button"
+    title={title}
+    aria-label={title}
+    onClick={onClick}
+    className={`p-2 rounded-lg transition ${
+      danger
+        ? 'text-rose-600 hover:bg-rose-50'
+        : 'text-slate-600 hover:text-indigo-600 hover:bg-indigo-50'
+    }`}
+  >
+    {children}
+  </button>
+);

@@ -20,6 +20,7 @@ const customerSchema = z.object({
   landingPage: z.string().optional(),
   owner: z.string().default('Chưa phân công'),
   status: z.string().default('New Lead'),
+  group: z.enum(['group_1', 'group_2', 'group_3', 'group_4']).default('group_1'),
   interestedProducts: z.array(z.string()).default([]),
   whatsappOptIn: z.boolean().default(false)
 });
@@ -255,6 +256,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
         landingPage: data.landingPage || null,
         owner: data.owner,
         status: data.status,
+        group: data.group,
         interestedProducts: data.interestedProducts,
         whatsappOptIn: data.whatsappOptIn,
         whatsappOptInDate: data.whatsappOptIn ? new Date() : null,

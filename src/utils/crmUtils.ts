@@ -72,6 +72,11 @@ export const CUSTOMER_GROUPS: Record<CustomerGroupId, CustomerGroupInfo> = {
  * Nhóm 4: Đã mua từ 2 lần trở lên
  */
 export function getCustomerGroup(customer: Customer): CustomerGroupId {
+  if (customer.group && Object.hasOwn(CUSTOMER_GROUPS, customer.group)) {
+    return customer.group;
+  }
+
+  // Legacy fallback for customer records created before the independent group field.
   if (customer.totalOrders >= 2) {
     return 'group_4';
   }

@@ -330,6 +330,7 @@ export default function App() {
         {activeTab === 'crm' && (
           <CustomerList
             customers={customers}
+            centralMessages={centralMessages}
             currentUser={currentUser}
             filterModel={customerFilterModel}
             onSelectCustomer={(cust) => {
@@ -354,6 +355,12 @@ export default function App() {
               setIsChatOpen(true);
             }}
             onUpdateStatus={handleUpdateStatus}
+            onUpdateGroup={(customerId, group) => {
+              void handleSaveCustomer({ id: customerId, group });
+            }}
+            onUpdateOwner={(customerId, owner) => {
+              void handleSaveCustomer({ id: customerId, owner });
+            }}
             onImportCustomers={handleImportCustomers}
           />
         )}
