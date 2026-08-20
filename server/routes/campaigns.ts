@@ -6,7 +6,8 @@ import { authenticateToken, requireRole } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { kickCampaignWorker } from '../services/campaignWorker';
 import {
-  fetchApprovedMessageTemplates,
+  createMessageTemplate,
+  fetchMessageTemplates,
   getIntegrationSetting,
   verifyApprovedMessageTemplate,
 } from '../services/metaApiClient';
@@ -15,13 +16,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
-const categorySchema = z.enum([
-  'Khuyến mại',
-  'Flash Sale',
-  'Voucher',
-  'Sản phẩm mới',
-  'Thông báo',
-]);
+const categorySchema = z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']);
 
 const campaignInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -35,7 +30,7 @@ const campaignInputSchema = z.object({
   ]),
   targetProduct: z.string().trim().min(1).max(200).optional(),
   targetGender: z.enum(['Nam', 'Nữ', 'Khác']).optional(),
-  category: categorySchema.default('Thông báo'),
+  category: categorySchema,
   templateName: z.string().trim().regex(/^[a-z0-9_]+$/, 'Tên template chỉ gồm chữ thường, số và dấu gạch dưới.'),
   templateLanguage: z.string().trim().min(2).max(12).default('vi'),
   templateParameterSources: z.array(
@@ -46,6 +41,33 @@ const campaignInputSchema = z.object({
 });
 
 type CampaignInput = z.infer<typeof campaignInputSchema>;
+
+const templateCreateSchema = z.object({
+  name: z.string().trim().regex(/^[a-z0-9_]+$/, 'Tên template chỉ gồm chữ thường, số và dấu gạch dưới.').max(512),
+  language: z.string().trim().min(2).max(12),
+  category: z.enum(['MARKETING', 'UTILITY']),
+  body: z.string().trim().min(1).max(1024),
+  footer: z.string().trim().max(60).optional(),
+  bodyExamples: z.array(z.string().trim().min(1).max(1024)).max(20).default([]),
+}).superRefine((data, context) => {
+  const positions = Array.from(data.body.matchAll(/\{\{(\d+)\}\}/g)).map((match) => Number(match[1]));
+  const uniquePositions = Array.from(new Set(positions)).sort((a, b) => a - b);
+  const expected = Array.from({ length: uniquePositions.length }, (_, index) => index + 1);
+  if (uniquePositions.some((position, index) => position !== expected[index])) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['body'],
+      message: 'Biến BODY phải liên tục từ {{1}}, {{2}}, ...',
+    });
+  }
+  if (data.bodyExamples.length !== uniquePositions.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['bodyExamples'],
+      message: `Template có ${uniquePositions.length} biến nhưng nhận được ${data.bodyExamples.length} giá trị ví dụ.`,
+    });
+  }
+});
 
 function getGroupId(targetGroup: string) {
   if (targetGroup === 'Khách mới') return 'group_1';
@@ -188,7 +210,7 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-// GET /api/campaigns/templates - Approved templates loaded directly from WABA
+// GET /api/campaigns/templates - All templates loaded directly from WABA
 router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const setting = await getIntegrationSetting();
@@ -199,14 +221,48 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
         error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
       });
     }
-    const templates = await fetchApprovedMessageTemplates({ wabaId, token });
+    const templates = await fetchMessageTemplates({ wabaId, token });
     return res.json(templates);
   } catch (error: any) {
     return res.status(502).json({
-      error: error?.message || 'Không thể tải approved template từ WABA.',
+      error: error?.message || 'Không thể tải template từ WABA.',
     });
   }
 });
+
+// POST /api/campaigns/templates - Submit a positional BODY template to Meta for review
+router.post(
+  '/templates',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = templateCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Dữ liệu template không hợp lệ.',
+      });
+    }
+    try {
+      const setting = await getIntegrationSetting();
+      const wabaId = setting.whatsappWabaId?.trim();
+      const token = setting.whatsappAccessToken?.trim();
+      if (!wabaId || !token) {
+        return res.status(409).json({
+          error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
+        });
+      }
+      const result = await createMessageTemplate({
+        wabaId,
+        token,
+        ...parsed.data,
+      });
+      return res.status(201).json(result);
+    } catch (error: any) {
+      return res.status(502).json({
+        error: error?.message || 'Không thể gửi template sang Meta xét duyệt.',
+      });
+    }
+  },
+);
 
 // POST /api/campaigns/preview - Authoritative audience count from the server
 router.post('/preview', async (req: AuthenticatedRequest, res: Response) => {

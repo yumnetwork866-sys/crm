@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppUser,
   BroadcastCampaign,
+  CreateWhatsAppTemplateInput,
   LaunchCampaignInput,
   WhatsAppApprovedTemplate,
 } from '../types';
@@ -36,10 +37,28 @@ export function useCampaigns(currentUser: AppUser | null) {
     enabled: Boolean(currentUser),
     staleTime: 60_000,
     retry: false,
+    refetchInterval: (query) => {
+      const templates = query.state.data as WhatsAppApprovedTemplate[] | undefined;
+      return templates?.some((template) => template.status === 'PENDING') ? 30_000 : false;
+    },
   });
-  const approvedTemplates = useMemo(
+  const whatsappTemplates = useMemo(
     () => templatesQuery.data ?? [],
     [templatesQuery.data]
+  );
+  const approvedTemplates = useMemo(
+    () => whatsappTemplates.filter((template) => template.status === 'APPROVED'),
+    [whatsappTemplates]
+  );
+
+  const createTemplateMutation = useMutation<unknown, Error, CreateWhatsAppTemplateInput>({
+    mutationFn: (input) => api.post('/campaigns/templates', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.whatsappTemplates }),
+  });
+
+  const createTemplate = useCallback(
+    (input: CreateWhatsAppTemplateInput) => createTemplateMutation.mutateAsync(input),
+    [createTemplateMutation]
   );
 
   const launchMutation = useMutation<BroadcastCampaign, Error, LaunchCampaignInput>({
@@ -67,10 +86,15 @@ export function useCampaigns(currentUser: AppUser | null) {
 
   return {
     campaigns,
+    whatsappTemplates,
     approvedTemplates,
     isTemplatesLoading: templatesQuery.isLoading,
     templatesError: templatesQuery.error,
     refetchTemplates: templatesQuery.refetch,
+    createTemplate,
+    isCreateTemplatePending: createTemplateMutation.isPending,
+    createTemplateError: createTemplateMutation.error,
+    resetCreateTemplateError: createTemplateMutation.reset,
     launchCampaign,
     resetCampaigns,
     isLoading: campaignsQuery.isLoading,

@@ -110,10 +110,15 @@ export default function App() {
   } = useProducts(currentUser);
   const {
     campaigns,
+    whatsappTemplates,
     approvedTemplates,
     isTemplatesLoading,
     templatesError,
     refetchTemplates,
+    createTemplate: handleCreateTemplate,
+    isCreateTemplatePending,
+    createTemplateError,
+    resetCreateTemplateError,
     launchCampaign: handleLaunchCampaign,
     resetCampaigns,
     isFetching: isCampaignsFetching,
@@ -422,6 +427,7 @@ export default function App() {
             onChangeSection={setAutomationSection}
             customers={customers}
             campaigns={campaigns}
+            templates={whatsappTemplates}
             approvedTemplates={approvedTemplates}
             isTemplatesLoading={isTemplatesLoading}
             templatesError={templatesError}
@@ -436,6 +442,10 @@ export default function App() {
             isLaunchPending={isCampaignLaunchPending}
             launchError={campaignLaunchError}
             onResetLaunchError={resetCampaignLaunchError}
+            onCreateTemplate={handleCreateTemplate}
+            isCreateTemplatePending={isCreateTemplatePending}
+            createTemplateError={createTemplateError}
+            onResetCreateTemplateError={resetCreateTemplateError}
           />
         )}
 

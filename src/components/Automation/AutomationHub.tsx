@@ -1,21 +1,24 @@
 import React from 'react';
-import { Send, Zap } from 'lucide-react';
+import { FileText, Send, Zap } from 'lucide-react';
 import type {
   BroadcastCampaign,
+  CreateWhatsAppTemplateInput,
   Customer,
   LaunchCampaignInput,
   WhatsAppApprovedTemplate,
 } from '../../types';
 import { BroadcastView } from '../Broadcast/BroadcastView';
 import { AutomationView } from './AutomationView';
+import { TemplateManagementView } from './TemplateManagementView';
 
-export type AutomationSection = 'workflow' | 'broadcast';
+export type AutomationSection = 'workflow' | 'broadcast' | 'templates';
 
 interface AutomationHubProps {
   activeSection: AutomationSection;
   onChangeSection: (section: AutomationSection) => void;
   customers: Customer[];
   campaigns: BroadcastCampaign[];
+  templates: WhatsAppApprovedTemplate[];
   approvedTemplates: WhatsAppApprovedTemplate[];
   isTemplatesLoading: boolean;
   templatesError: Error | null;
@@ -27,6 +30,10 @@ interface AutomationHubProps {
   isLaunchPending: boolean;
   launchError: Error | null;
   onResetLaunchError: () => void;
+  onCreateTemplate: (input: CreateWhatsAppTemplateInput) => Promise<unknown>;
+  isCreateTemplatePending: boolean;
+  createTemplateError: Error | null;
+  onResetCreateTemplateError: () => void;
 }
 
 const sections = [
@@ -42,6 +49,12 @@ const sections = [
     description: 'Chiến dịch WhatsApp theo nhóm',
     icon: Send,
   },
+  {
+    id: 'templates' as const,
+    label: 'Quản lý Template',
+    description: 'Tạo và theo dõi xét duyệt WABA',
+    icon: FileText,
+  },
 ];
 
 export const AutomationHub: React.FC<AutomationHubProps> = ({
@@ -49,6 +62,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   onChangeSection,
   customers,
   campaigns,
+  templates,
   approvedTemplates,
   isTemplatesLoading,
   templatesError,
@@ -60,12 +74,16 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   isLaunchPending,
   launchError,
   onResetLaunchError,
+  onCreateTemplate,
+  isCreateTemplatePending,
+  createTemplateError,
+  onResetCreateTemplateError,
 }) => {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <div
-          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+          className="grid grid-cols-1 gap-2 sm:grid-cols-3"
           role="tablist"
           aria-label="Chức năng Automation"
         >
@@ -112,7 +130,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
             onRunSimulation={onRunSimulation}
             onSelectCustomer={onSelectCustomer}
           />
-        ) : (
+        ) : activeSection === 'broadcast' ? (
           <BroadcastView
             customers={customers}
             campaigns={campaigns}
@@ -125,6 +143,17 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
             launchError={launchError}
             onResetLaunchError={onResetLaunchError}
             defaultTargetGroup={defaultTargetGroup}
+          />
+        ) : (
+          <TemplateManagementView
+            templates={templates}
+            isLoading={isTemplatesLoading}
+            error={templatesError}
+            onRefetch={onRefetchTemplates}
+            onCreateTemplate={onCreateTemplate}
+            isCreatePending={isCreateTemplatePending}
+            createError={createTemplateError}
+            onResetCreateError={onResetCreateTemplateError}
           />
         )}
       </div>

@@ -136,7 +136,10 @@ export interface AutomationStepConfig {
   iconName: string;
 }
 
+export type WhatsAppTemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+
 export type BroadcastCampaignCategory =
+  | WhatsAppTemplateCategory
   | 'Khuyến mại'
   | 'Flash Sale'
   | 'Voucher'
@@ -159,6 +162,8 @@ export interface WhatsAppApprovedTemplate {
   category: string;
   status: string;
   parameter_format?: string;
+  rejected_reason?: string;
+  quality_score?: { score?: string; date?: number };
   components: Array<{
     type: string;
     text?: string;
@@ -168,12 +173,21 @@ export interface WhatsAppApprovedTemplate {
   }>;
 }
 
+export interface CreateWhatsAppTemplateInput {
+  name: string;
+  language: string;
+  category: Exclude<WhatsAppTemplateCategory, 'AUTHENTICATION'>;
+  body: string;
+  footer?: string;
+  bodyExamples: string[];
+}
+
 export interface LaunchCampaignInput {
   name: string;
   targetGroup: string;
   targetProduct?: string;
   targetGender?: 'Nam' | 'Nữ' | 'Khác';
-  category: BroadcastCampaignCategory;
+  category: WhatsAppTemplateCategory;
   templateName: string;
   templateLanguage: string;
   templateParameterSources?: Array<'customer_name' | 'phone' | 'product' | 'voucher_code'>;

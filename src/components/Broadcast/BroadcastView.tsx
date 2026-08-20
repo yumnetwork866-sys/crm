@@ -8,6 +8,7 @@ import type {
   BroadcastCampaign,
   LaunchCampaignInput,
   WhatsAppApprovedTemplate,
+  WhatsAppTemplateCategory,
 } from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
@@ -25,8 +26,6 @@ interface BroadcastViewProps {
   onResetLaunchError: () => void;
   defaultTargetGroup?: string;
 }
-
-const CATEGORIES = ['Khuyến mại', 'Flash Sale', 'Voucher', 'Sản phẩm mới', 'Thông báo'] as const;
 
 type TemplateParameterSource = 'customer_name' | 'phone' | 'product' | 'voucher_code';
 
@@ -48,6 +47,7 @@ const mapTemplateBody = (body: string, sources: TemplateParameterSource[]) =>
   });
 
 const isTemplateSupported = (template: WhatsAppApprovedTemplate) => {
+  if (!['MARKETING', 'UTILITY', 'AUTHENTICATION'].includes(template.category?.toUpperCase())) return false;
   if (template.parameter_format?.toUpperCase() === 'NAMED') return false;
   const body = template.components.find((component) => component.type?.toUpperCase() === 'BODY');
   if (!body?.text) return false;
@@ -77,7 +77,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   const [targetGroup, setTargetGroup] = useState<string>(defaultTargetGroup);
   const [targetProduct, setTargetProduct] = useState<string>('ALL');
   const [targetGender, setTargetGender] = useState<string>('ALL');
-  const [category, setCategory] = useState<typeof CATEGORIES[number]>('Flash Sale');
+  const [category, setCategory] = useState<WhatsAppTemplateCategory | ''>('');
   const [templateName, setTemplateName] = useState('');
   const [templateLanguage, setTemplateLanguage] = useState('vi');
   const [templateBody, setTemplateBody] = useState('');
@@ -134,6 +134,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
     );
     if (!template || !isTemplateSupported(template)) {
       setTemplateName('');
+      setCategory('');
       setTemplateBody('');
       setParameterSources([]);
       return;
@@ -149,6 +150,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
     setTemplateName(template.name);
     setTemplateLanguage(template.language);
+    setCategory(template.category.toUpperCase() as WhatsAppTemplateCategory);
     setTemplateBody(body);
     setParameterSources(defaults);
     setTemplateText(mapTemplateBody(body, defaults));
@@ -169,6 +171,10 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
     }
     if (!templateName.trim()) {
       alert('Vui lòng nhập tên WhatsApp template đã được Meta phê duyệt!');
+      return;
+    }
+    if (!category) {
+      alert('Template không có category Meta hợp lệ!');
       return;
     }
     if (!templateText.trim()) {
@@ -328,34 +334,13 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* Category & Message Template */}
+          {/* WABA Message Template */}
           <h3 className="font-bold text-white text-sm flex items-center space-x-2">
             <MessageSquare className="w-4 h-4 text-teal-400" />
-            <span>2. Loại Tin Nhắn & Nội Dung Template</span>
+            <span>2. Approved Template từ WABA</span>
           </h3>
 
           <div className="space-y-4 text-xs">
-            
-            {/* Category selection */}
-            <div>
-              <label className="block text-slate-300 font-medium mb-1.5">Loại Tin Nhắn</label>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    className={`px-3 py-1.5 rounded-xl font-medium border transition ${
-                      category === cat
-                        ? 'bg-teal-600 border-teal-500 text-white shadow'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             <div>
               <div className="mb-1 flex items-center justify-between gap-3">
@@ -400,6 +385,11 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
               {templatesError ? (
                 <div role="alert" className="mt-2 rounded-lg border border-rose-300 bg-rose-50 p-2 text-[11px] font-medium text-rose-700">
                   {templatesError.message}
+                </div>
+              ) : null}
+              {category ? (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                  Meta Category: {category}
                 </div>
               ) : null}
             </div>

@@ -411,6 +411,8 @@ export interface WhatsAppApprovedTemplate {
   category: string;
   status: string;
   parameter_format?: string;
+  rejected_reason?: string;
+  quality_score?: { score?: string; date?: number };
   components: Array<{
     type: string;
     text?: string;
@@ -420,13 +422,13 @@ export interface WhatsAppApprovedTemplate {
   }>;
 }
 
-export async function fetchApprovedMessageTemplates(options: {
+export async function fetchMessageTemplates(options: {
   wabaId: string;
   token: string;
 }): Promise<WhatsAppApprovedTemplate[]> {
   const { wabaId, token } = options;
   const query = new URLSearchParams({
-    fields: 'id,name,status,language,category,parameter_format,components',
+    fields: 'id,name,status,language,category,parameter_format,rejected_reason,quality_score,components',
     limit: '100',
   });
   let nextUrl: string | null = `https://graph.facebook.com/v26.0/${wabaId}/message_templates?${query.toString()}`;
@@ -443,7 +445,7 @@ export async function fetchApprovedMessageTemplates(options: {
       throw new Error(result?.error?.message || 'Không thể tải WhatsApp template từ Meta.');
     }
     if (Array.isArray(result?.data)) {
-      templates.push(...result.data.filter((template: any) => template?.status === 'APPROVED'));
+      templates.push(...result.data);
     }
     nextUrl = typeof result?.paging?.next === 'string' ? result.paging.next : null;
     pageCount += 1;
@@ -452,6 +454,58 @@ export async function fetchApprovedMessageTemplates(options: {
   return templates.sort((a, b) =>
     a.name.localeCompare(b.name) || a.language.localeCompare(b.language)
   );
+}
+
+export async function fetchApprovedMessageTemplates(options: {
+  wabaId: string;
+  token: string;
+}): Promise<WhatsAppApprovedTemplate[]> {
+  const templates = await fetchMessageTemplates(options);
+  return templates.filter((template) => template.status === 'APPROVED');
+}
+
+export async function createMessageTemplate(options: {
+  wabaId: string;
+  token: string;
+  name: string;
+  language: string;
+  category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+  body: string;
+  bodyExamples: string[];
+  footer?: string;
+}): Promise<any> {
+  const { wabaId, token, name, language, category, body, bodyExamples, footer } = options;
+  const components: any[] = [{
+    type: 'BODY',
+    text: body,
+    ...(bodyExamples.length > 0
+      ? { example: { body_text: [bodyExamples] } }
+      : {}),
+  }];
+  if (footer?.trim()) {
+    components.push({ type: 'FOOTER', text: footer.trim() });
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v26.0/${wabaId}/message_templates`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name,
+      language,
+      category,
+      parameter_format: 'POSITIONAL',
+      components,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const result: any = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error?.error_user_msg || result?.error?.message || 'Meta từ chối yêu cầu tạo template.');
+  }
+  return result;
 }
 
 export async function verifyApprovedMessageTemplate(options: {
