@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { Customer, BroadcastCampaign, CentralMessage } from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
-import { getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
+import { formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface BroadcastViewProps {
   customers: Customer[];
@@ -120,7 +120,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
             targetCountry: targetGender !== 'ALL' ? `Giới tính: ${targetGender}` : undefined,
             category,
             messageTemplate: templateText,
-            createdAt: new Date().toLocaleString('vi-VN'),
+            createdAt: new Date().toISOString(),
             status: 'Completed',
             stats: {
               totalTargeted: targetedTotal,
@@ -419,7 +419,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                     <div className="text-slate-400 text-[11px] flex items-center space-x-2">
                       <span>Target: <strong className="text-teal-300">{camp.targetGroup}</strong></span>
                       <span>•</span>
-                      <span>{camp.createdAt}</span>
+                      <span>{formatDateTime(camp.createdAt)}</span>
                     </div>
 
                     <div className="grid grid-cols-4 gap-1 text-[10px] text-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">

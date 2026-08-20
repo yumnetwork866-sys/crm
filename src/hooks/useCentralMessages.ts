@@ -5,7 +5,7 @@ import type { InfiniteData } from '@tanstack/react-query';
 import type { AppUser, CentralMessage, Customer, MessageChannel } from '../types';
 import { api } from '../utils/apiClient';
 import { playNotificationSound } from '../utils/audioUtils';
-import { isSamePhoneNumber } from '../utils/crmUtils';
+import { formatDateTime, isSamePhoneNumber } from '../utils/crmUtils';
 import { queryKeys } from '../lib/queryClient';
 
 interface MessagePage {
@@ -381,7 +381,7 @@ export function useCentralMessages({
                 id: `n_wa_${Date.now()}`,
                 author: agentName,
                 content: `[WhatsApp Gửi đi] ${content}`,
-                createdAt: new Date().toLocaleString('vi-VN'),
+                createdAt: formatDateTime(new Date()),
                 type: 'whatsapp' as const,
               },
               ...(item.notes || []),

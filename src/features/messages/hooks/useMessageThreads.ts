@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CentralMessage, Customer } from '../../../types';
-import { isSamePhoneNumber } from '../../../utils/crmUtils';
+import { formatDate, isSamePhoneNumber } from '../../../utils/crmUtils';
 import type { ActiveMessageFilter, MessageDateGroup, MessageThread } from '../types';
 
 interface UseMessageThreadsOptions {
@@ -105,7 +105,7 @@ export function useMessageThreads({
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      let dateLabel = messageDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      let dateLabel = formatDate(messageDate);
       if (messageDate.toDateString() === today.toDateString()) dateLabel = 'Hôm nay';
       else if (messageDate.toDateString() === yesterday.toDateString()) dateLabel = 'Hôm qua';
 

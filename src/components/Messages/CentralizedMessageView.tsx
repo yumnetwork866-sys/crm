@@ -49,7 +49,7 @@ import {
   Reply
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
+import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
 import { INITIAL_USERS } from '../../data/mockData';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
@@ -328,7 +328,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 const isToday = threadTime.toDateString() === new Date().toDateString();
                 const timeString = isToday
                   ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                  : threadTime.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                  : formatDate(threadTime);
 
                 const slaWarning = getSlaWarning(thread);
                 const currentStatusKey = threadStatuses[thread.threadId] || 'consulting';
@@ -1634,7 +1634,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               <span className="text-emerald-700">{formatVND(ord.totalAmount)}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-slate-500">
-                              <span>{new Date(ord.date).toLocaleDateString('vi-VN')}</span>
+                              <span>{formatDate(ord.date)}</span>
                               <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
                                 {ord.status}
                               </span>
@@ -1690,7 +1690,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <div key={note.id} className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative group">
                           <div className="flex items-center justify-between text-[10px] text-slate-500">
                             <span className="font-bold text-slate-800">{note.author}</span>
-                            <span>{new Date(note.timestamp).toLocaleDateString('vi-VN')} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>{formatDate(note.timestamp)} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                           <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
 

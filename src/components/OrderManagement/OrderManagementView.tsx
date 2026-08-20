@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Customer, CustomerOrder, Product } from '../../types';
-import { formatVND } from '../../utils/crmUtils';
+import { formatDate, formatVND } from '../../utils/crmUtils';
 import { ImportOrderCsvModal } from '../CsvImport/ImportOrderCsvModal';
 import {
   ShoppingBag,
@@ -370,7 +370,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
                     {/* Order Code & Date */}
                     <td className="py-3 px-4">
                       <div className="font-mono font-bold text-purple-700 dark:text-purple-400 text-xs">{ord.orderCode}</div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{ord.date}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{formatDate(ord.date)}</div>
                     </td>
 
                     {/* Customer Info */}
@@ -660,7 +660,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
                 </div>
                 <div className="text-right">
                   <div className="font-mono text-sm font-bold text-white">{invoiceOrder.orderCode}</div>
-                  <div className="text-xs text-slate-400">{invoiceOrder.date}</div>
+                  <div className="text-xs text-slate-400">{formatDate(invoiceOrder.date)}</div>
                 </div>
               </div>
 

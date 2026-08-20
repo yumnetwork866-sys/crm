@@ -1,4 +1,5 @@
 import type { BroadcastCampaign, Customer } from '../types';
+import { formatDateTime } from './crmUtils';
 
 export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
   const logs = apiCustomer.automationLogs || [];
@@ -20,7 +21,7 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
       : undefined,
     notes: (apiCustomer.notes || []).map((note: any) => ({
       ...note,
-      createdAt: note.createdAt ? new Date(note.createdAt).toLocaleString('vi-VN') : '',
+      createdAt: note.createdAt ? formatDateTime(note.createdAt) : '',
     })),
     orders: (apiCustomer.orders || []).map((order: any) => ({
       ...order,
@@ -36,7 +37,7 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
       logs: logs.map((log: any) => ({
         step: log.step,
         stepName: log.stepName,
-        sentAt: log.sentAt ? new Date(log.sentAt).toLocaleString('vi-VN') : '',
+        sentAt: log.sentAt ? formatDateTime(log.sentAt) : '',
         message: log.message,
         status: log.status,
       })),
@@ -47,7 +48,7 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
 export const mapApiCampaignToFrontend = (apiCampaign: any): BroadcastCampaign => ({
   ...apiCampaign,
   createdAt: apiCampaign.createdAt
-    ? new Date(apiCampaign.createdAt).toLocaleString('vi-VN')
+    ? new Date(apiCampaign.createdAt).toISOString()
     : '',
   stats: apiCampaign.stats || {
     totalTargeted: apiCampaign.totalTargeted ?? 0,

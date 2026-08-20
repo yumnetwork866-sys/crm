@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, User, Phone, Mail, Globe, MapPin, Tag, Briefcase, FileText, CheckCircle2 } from 'lucide-react';
 import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender } from '../../types';
 import { INITIAL_PRODUCTS, SALES_REPS } from '../../data/mockData';
-import { CUSTOMER_GROUPS, getCustomerGroup } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -130,7 +130,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 id: `n_${Date.now()}`,
                 author: owner,
                 content: noteContent,
-                createdAt: new Date().toLocaleString('vi-VN'),
+                createdAt: formatDateTime(new Date()),
                 type: 'note',
               },
             ],

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
-import type { AppUser, CentralMessage, Customer, CustomerStatus } from '../types';
-import { getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
+import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../types';
+import { formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
@@ -214,7 +214,7 @@ export function useCustomers(currentUser: AppUser | null) {
             id: `n_${Date.now()}`,
             author: 'Hệ Thống',
             content: `Chuyển trạng thái từ "${customer.status}" sang "${status}".`,
-            createdAt: new Date().toLocaleString('vi-VN'),
+            createdAt: formatDateTime(new Date()),
             type: 'system' as const,
           }],
         } : customer)
@@ -230,6 +230,28 @@ export function useCustomers(currentUser: AppUser | null) {
       );
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const groupMutation = useMutation({
+    mutationFn: ({ customerId, group }: { customerId: string; group: CustomerGroupId }) =>
+      api.put<any>(`/customers/${customerId}`, { group }),
+    onMutate: async ({ customerId, group }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === customerId ? { ...customer, group } : customer)
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSuccess: (saved) => {
+      const mapped = mapApiCustomerToFrontend(saved);
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) => customer.id === mapped.id ? mapped : customer)
+      );
+    },
   });
 
   const optInMutation = useMutation({
@@ -265,7 +287,7 @@ export function useCustomers(currentUser: AppUser | null) {
       queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
         current.map((customer) => customer.id === customerId ? {
           ...customer,
-          notes: [{ id: `n_${Date.now()}`, author, content: noteText, createdAt: new Date().toLocaleString('vi-VN'), type: 'note' as const }, ...customer.notes],
+          notes: [{ id: `n_${Date.now()}`, author, content: noteText, createdAt: formatDateTime(new Date()), type: 'note' as const }, ...customer.notes],
         } : customer)
       );
       return { previous };
@@ -307,7 +329,7 @@ export function useCustomers(currentUser: AppUser | null) {
         return { ...customer, automationSequence: { ...customer.automationSequence, active: true, currentStep: nextStep, logs: [...customer.automationSequence.logs, {
           step: nextStep,
           stepName,
-          sentAt: new Date().toLocaleString('vi-VN'),
+          sentAt: formatDateTime(new Date()),
           message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
           status: 'Read' as const,
         }] } };
@@ -337,6 +359,9 @@ export function useCustomers(currentUser: AppUser | null) {
   const updateStatus = useCallback(async (customerId: string, status: CustomerStatus) => {
     await statusMutation.mutateAsync({ customerId, status }).catch((error) => console.error('Error updating status:', error));
   }, [statusMutation]);
+  const updateGroup = useCallback(async (customerId: string, group: CustomerGroupId) => {
+    await groupMutation.mutateAsync({ customerId, group }).catch((error) => console.error('Error updating customer group:', error));
+  }, [groupMutation]);
   const toggleOptIn = useCallback(async (customerId: string) => {
     const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
     if (customer) await optInMutation.mutateAsync({ customerId, whatsappOptIn: !customer.whatsappOptIn }).catch((error) => console.error('Error updating opt-in:', error));
@@ -452,7 +477,7 @@ export function useCustomers(currentUser: AppUser | null) {
   ]);
 
   const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
-    || statusMutation.error || optInMutation.error || noteMutation.error || automationMutation.error;
+    || statusMutation.error || groupMutation.error || optInMutation.error || noteMutation.error || automationMutation.error;
   return {
     customers,
     setCustomers,
@@ -462,6 +487,7 @@ export function useCustomers(currentUser: AppUser | null) {
     importCustomers,
     deleteCustomer,
     updateStatus,
+    updateGroup,
     toggleOptIn,
     addNote,
     runAutomationSimulation,
@@ -472,6 +498,6 @@ export function useCustomers(currentUser: AppUser | null) {
     isError: customersQuery.isError || Boolean(mutationError),
     error: customersQuery.error || mutationError,
     isMutating: saveMutation.isPending || importMutation.isPending || deleteMutation.isPending
-      || statusMutation.isPending || optInMutation.isPending || noteMutation.isPending || automationMutation.isPending,
+      || statusMutation.isPending || groupMutation.isPending || optInMutation.isPending || noteMutation.isPending || automationMutation.isPending,
   };
 }

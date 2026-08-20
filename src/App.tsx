@@ -89,6 +89,7 @@ export default function App() {
     importCustomers: handleImportCustomers,
     deleteCustomer,
     updateStatus: handleUpdateStatus,
+    updateGroup: handleUpdateGroup,
     toggleOptIn: handleToggleOptIn,
     addNote: handleAddNote,
     runAutomationSimulation,
@@ -356,7 +357,7 @@ export default function App() {
             }}
             onUpdateStatus={handleUpdateStatus}
             onUpdateGroup={(customerId, group) => {
-              void handleSaveCustomer({ id: customerId, group });
+              void handleUpdateGroup(customerId, group);
             }}
             onUpdateOwner={(customerId, owner) => {
               void handleSaveCustomer({ id: customerId, owner });

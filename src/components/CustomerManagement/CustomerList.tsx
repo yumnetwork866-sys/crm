@@ -30,7 +30,7 @@ import {
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
 
-type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'unread' | 'vip' | 'unassigned';
+type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'vip' | 'unassigned';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -50,6 +50,19 @@ interface CustomerListProps {
 }
 
 const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
+
+const parseDisplayDate = (value: string) => {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day)
+  ) return null;
+  return `${year}-${month}-${day}`;
+};
 
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
@@ -98,6 +111,27 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     filteredCustomers,
     isCustomerOptedIn,
   } = filterModel;
+  const [startDateInput, setStartDateInput] = useState(startDate ? formatDate(startDate) : '');
+  const [endDateInput, setEndDateInput] = useState(endDate ? formatDate(endDate) : '');
+
+  const handleStartDateChange = (value: string) => {
+    setStartDateInput(value);
+    if (!value) setStartDate('');
+    else setStartDate(parseDisplayDate(value) || '');
+  };
+
+  const handleEndDateChange = (value: string) => {
+    setEndDateInput(value);
+    if (!value) setEndDate('');
+    else setEndDate(parseDisplayDate(value) || '');
+  };
+
+  const clearDateFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setStartDateInput('');
+    setEndDateInput('');
+  };
 
   const sources = useMemo(() => Array.from(new Set(customers.map((c) => c.source))).sort(), [customers]);
   const owners = useMemo(
@@ -115,7 +149,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     if (filter === 'new') return getCustomerGroup(customer) === 'group_1';
     if (filter === 'quoted') return getCustomerGroup(customer) === 'group_2';
     if (filter === 'purchased_once') return getCustomerGroup(customer) === 'group_3';
-    if (filter === 'unread') return hasUnreadMessage(customer);
     if (filter === 'vip') return getCustomerGroup(customer) === 'group_4';
     if (filter === 'unassigned') return UNASSIGNED_OWNERS.includes(customer.owner || '');
     return true;
@@ -130,7 +163,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     new: customers.filter((customer) => getCustomerGroup(customer) === 'group_1').length,
     quoted: customers.filter((customer) => getCustomerGroup(customer) === 'group_2').length,
     purchased_once: customers.filter((customer) => getCustomerGroup(customer) === 'group_3').length,
-    unread: customers.filter(hasUnreadMessage).length,
     vip: customers.filter((customer) => getCustomerGroup(customer) === 'group_4').length,
     unassigned: customers.filter((customer) => UNASSIGNED_OWNERS.includes(customer.owner || '')).length,
   }), [customers, centralMessages]);
@@ -156,8 +188,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     setSelectedGroup('ALL');
     setSelectedOwner('ALL');
     setSelectedOptIn('ALL');
-    setStartDate('');
-    setEndDate('');
+    clearDateFilters();
     setWorkQueueFilter('all');
   };
 
@@ -199,8 +230,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       `"${customer.campaign}"`,
       `"${customer.adSet || ''}"`,
       `"${customer.landingPage || ''}"`,
-      customer.firstContact,
-      customer.lastContact,
+      formatDate(customer.firstContact),
+      formatDate(customer.lastContact),
       `"${customer.owner}"`,
       customer.status,
       CUSTOMER_GROUPS[getCustomerGroup(customer)].name,
@@ -230,13 +261,12 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     { id: 'quoted', label: 'Đã hỏi giá', count: queueCounts.quoted, icon: MessageSquare, accent: 'text-sky-700 bg-sky-50 border-sky-200' },
     { id: 'purchased_once', label: 'Đã mua 1 lần', count: queueCounts.purchased_once, icon: ShoppingBag, accent: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
     { id: 'vip', label: 'VIP', count: queueCounts.vip, icon: Crown, accent: 'text-purple-700 bg-purple-50 border-purple-200' },
-    { id: 'unread', label: 'Chưa đọc', count: queueCounts.unread, icon: MessageSquare, accent: 'text-teal-700 bg-teal-50 border-teal-200' },
     { id: 'unassigned', label: 'Chưa phân Sales', count: queueCounts.unassigned, icon: UserRoundX, accent: 'text-rose-700 bg-rose-50 border-rose-200' },
   ];
 
   return (
     <div className="space-y-4">
-      <section aria-label="Phân nhóm khách hàng" className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+      <section aria-label="Phân nhóm khách hàng" className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
         {queueCards.map((card) => {
           const Icon = card.icon;
           const isActive = workQueueFilter === card.id;
@@ -370,11 +400,29 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     </label>
                     <label className="text-xs font-semibold text-slate-600">
                       Tiếp cận từ ngày
-                      <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={startDateInput}
+                        onChange={(event) => handleStartDateChange(event.target.value)}
+                        placeholder="dd/mm/yyyy"
+                        aria-label="Ngày bắt đầu, định dạng dd/mm/yyyy"
+                        className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400"
+                      />
                     </label>
                     <label className="text-xs font-semibold text-slate-600">
                       Đến ngày
-                      <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={endDateInput}
+                        onChange={(event) => handleEndDateChange(event.target.value)}
+                        placeholder="dd/mm/yyyy"
+                        aria-label="Ngày kết thúc, định dạng dd/mm/yyyy"
+                        className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400"
+                      />
                     </label>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
@@ -429,7 +477,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
             {selectedGroup !== 'ALL' && <FilterChip label={`Nhóm: ${CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name}`} onClear={() => setSelectedGroup('ALL')} />}
             {selectedGender !== 'ALL' && <FilterChip label={`Giới tính: ${selectedGender}`} onClear={() => setSelectedGender('ALL')} />}
             {selectedOptIn !== 'ALL' && <FilterChip label={selectedOptIn === 'optin' ? 'Đã Opt-in' : 'Chưa Opt-in'} onClear={() => setSelectedOptIn('ALL')} />}
-            {(startDate || endDate) && <FilterChip label={`Ngày: ${startDate || '…'} – ${endDate || '…'}`} onClear={() => { setStartDate(''); setEndDate(''); }} />}
+            {(startDate || endDate) && <FilterChip label={`Ngày: ${startDate ? formatDate(startDate) : '…'} – ${endDate ? formatDate(endDate) : '…'}`} onClear={clearDateFilters} />}
             <button type="button" onClick={clearAllFilters} className="ml-auto text-[11px] font-semibold text-indigo-600 hover:underline">Xóa tất cả</button>
           </div>
         )}
@@ -500,9 +548,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   <input type="checkbox" checked={displayedCustomers.length > 0 && displayedCustomers.every((customer) => selectedCustomerIds.includes(customer.id))} onChange={handleToggleSelectAll} aria-label="Chọn tất cả khách đang hiển thị" className="w-4 h-4 accent-indigo-600" />
                 </th>
                 <th className="py-3 px-4">Khách hàng</th>
+                <th className="py-3 px-3">Giới tính</th>
                 <th className="py-3 px-3">Nguồn khách</th>
                 <th className="py-3 px-3">Trạng thái</th>
-                <th className="py-3 px-3">Phân nhóm CRM</th>
                 <th className="py-3 px-3">Sales phụ trách</th>
                 <th className="py-3 px-4 text-right">Giá trị</th>
                 <th className="py-3 px-4 text-center">Hành động</th>
@@ -521,10 +569,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                 const isSelected = selectedCustomerIds.includes(customer.id);
                 const unread = hasUnreadMessage(customer);
                 const group = getCustomerGroup(customer);
-                const isNewCustomer = group === 'group_1';
-                const quoted = group === 'group_2';
-                const purchasedOnce = group === 'group_3';
-                const vip = group === 'group_4';
                 const unassigned = UNASSIGNED_OWNERS.includes(customer.owner || '');
                 return (
                   <tr key={customer.id} className={`group transition hover:bg-slate-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
@@ -536,26 +580,44 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                         <img src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
                         <div className="min-w-0">
                           <button type="button" onClick={() => onSelectCustomer(customer)} className="font-bold text-slate-900 hover:text-indigo-600 text-sm text-left truncate block max-w-[190px]">{customer.name}</button>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                            <span className="text-[11px] text-slate-500">{customer.phone}</span>
-                            {isCustomerOptedIn(customer) ? (
-                              <SignalBadge label="Opt-in" className="bg-emerald-50 text-emerald-700 border-emerald-200" />
-                            ) : (
-                              <SignalBadge label="No Opt-in" className="bg-rose-50 text-rose-700 border-rose-200" />
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {isNewCustomer && <SignalBadge label="Khách mới" className="bg-indigo-50 text-indigo-700 border-indigo-200" />}
-                            {quoted && <SignalBadge label="Đã hỏi giá" className="bg-sky-50 text-sky-700 border-sky-200" />}
-                            {purchasedOnce && <SignalBadge label="Đã mua 1 lần" className="bg-emerald-50 text-emerald-700 border-emerald-200" />}
+                          <div className="text-[11px] text-slate-500 mt-0.5">{customer.phone}</div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <select
+                              value={group}
+                              onChange={(event) => onUpdateGroup(customer.id, event.target.value as CustomerGroupId)}
+                              aria-label={`Phân nhóm CRM của ${customer.name}`}
+                              className={`max-w-32 rounded-full px-2 py-0.5 text-[10px] font-bold border focus:outline-none cursor-pointer ${CUSTOMER_GROUPS[group].badgeColor}`}
+                            >
+                              <option value="group_1">Khách mới</option>
+                              <option value="group_2">Đã hỏi giá</option>
+                              <option value="group_3">Đã mua 1 lần</option>
+                              <option value="group_4">VIP</option>
+                            </select>
                             {unread && <SignalBadge label="Chưa đọc" className="bg-teal-50 text-teal-700 border-teal-200" />}
-                            {vip && <SignalBadge label="VIP" className="bg-purple-50 text-purple-700 border-purple-200" />}
                           </div>
                         </div>
                       </div>
                     </td>
+                    <td className="py-3 px-3">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                        customer.gender === 'Nam'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          : customer.gender === 'Nữ'
+                            ? 'bg-pink-50 text-pink-700 border-pink-200'
+                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                      }`}>
+                        {customer.gender === 'Khác' || !customer.gender ? 'Chưa rõ' : customer.gender}
+                      </span>
+                    </td>
                     <td className="py-3 px-3 min-w-32">
-                      <div className="font-bold text-indigo-700">{customer.source}</div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="font-bold text-indigo-700">{customer.source}</div>
+                        {isCustomerOptedIn(customer) ? (
+                          <SignalBadge label="Opt-in" className="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                        ) : (
+                          <SignalBadge label="No Opt-in" className="bg-rose-50 text-rose-700 border-rose-200" />
+                        )}
+                      </div>
                       <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>{customer.campaign}</div>
                       <div className="mt-1 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
                     </td>
@@ -566,19 +628,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                         <option value="Quoted">Quoted</option>
                         <option value="Won">Won</option>
                         <option value="Lost">Lost</option>
-                      </select>
-                    </td>
-                    <td className="py-3 px-3 min-w-40">
-                      <select
-                        value={group}
-                        onChange={(event) => onUpdateGroup(customer.id, event.target.value as CustomerGroupId)}
-                        aria-label={`Phân nhóm CRM của ${customer.name}`}
-                        className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${CUSTOMER_GROUPS[group].badgeColor}`}
-                      >
-                        <option value="group_1">Khách mới</option>
-                        <option value="group_2">Đã hỏi giá</option>
-                        <option value="group_3">Đã mua 1 lần</option>
-                        <option value="group_4">VIP</option>
                       </select>
                     </td>
 

@@ -42,25 +42,25 @@ export const CUSTOMER_GROUPS: Record<CustomerGroupId, CustomerGroupInfo> = {
     id: 'group_1',
     name: 'Khách mới',
     description: 'Chưa được tư vấn & chưa phát sinh đơn hàng',
-    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+    badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   },
   group_2: {
     id: 'group_2',
     name: 'Đã hỏi giá',
     description: 'Đã tư vấn/báo giá nhưng chưa mua',
-    badgeColor: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800',
+    badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
   },
   group_3: {
     id: 'group_3',
     name: 'Đã mua 1 lần',
     description: 'Khách đã mua 1 đơn duy nhất - Cần chăm sóc quay lại',
-    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   group_4: {
     id: 'group_4',
     name: 'Đã mua từ 2 lần trở lên (VIP)',
     description: 'Khách hàng thân thiết / VIP mua nhiều lần',
-    badgeColor: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800',
+    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
   },
 };
 
@@ -124,19 +124,40 @@ export function formatVND(amount: number, overrideUnit?: CurrencyUnit): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num);
 }
 
-export function formatDate(dateStr?: string): string {
-  if (!dateStr) return 'N/A';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-  } catch {
-    return dateStr;
+export function formatDate(dateValue?: string | Date): string {
+  if (!dateValue) return 'N/A';
+
+  if (typeof dateValue === 'string') {
+    const dateOnlyMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+    if (dateOnlyMatch && !dateValue.includes('T')) {
+      const [, year, month, day] = dateOnlyMatch;
+      return `${day}/${month}/${year}`;
+    }
   }
+
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+export function formatTime(dateValue?: string | Date): string {
+  if (!dateValue) return '';
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+export function formatDateTime(dateValue?: string | Date): string {
+  if (!dateValue) return 'N/A';
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  return `${formatDate(date)} ${formatTime(date)}`;
 }
 
 export function calculateCrmMetrics(customers: Customer[]) {

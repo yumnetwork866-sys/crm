@@ -5,7 +5,7 @@ import {
   Clock, ShieldCheck, ShieldAlert, MessageSquare, Briefcase
 } from 'lucide-react';
 import type { Customer, CustomerStatus, CentralMessage } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -410,7 +410,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     <div key={n.id} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl text-xs space-y-1">
                       <div className="flex items-center justify-between text-[11px] text-slate-400">
                         <span className="font-semibold text-indigo-300">{n.author}</span>
-                        <span>{n.createdAt}</span>
+                        <span>{formatDateTime(n.createdAt)}</span>
                       </div>
                       <p className="text-slate-200">{n.content}</p>
                     </div>
@@ -485,7 +485,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     <div key={idx} className="bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 p-3 rounded-xl text-xs space-y-1 shadow-sm">
                       <div className="flex justify-between text-slate-600 dark:text-slate-400 text-[11px]">
                         <span className="font-bold text-emerald-700 dark:text-teal-300">{log.stepName}</span>
-                        <span className="font-semibold text-slate-500 dark:text-slate-400">{log.sentAt}</span>
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">{formatDateTime(log.sentAt)}</span>
                       </div>
                       <p className="text-slate-900 dark:text-slate-200 italic font-medium">"{log.message}"</p>
                     </div>

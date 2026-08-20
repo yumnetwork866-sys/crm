@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, UserPlus, Info } from 'lucide-react';
 import type { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
 import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
+import { formatDate, formatDateTime } from '../../utils/crmUtils';
 
 interface ImportCustomerCsvModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
         note,
         source,
         status,
-        campaign: 'Import CSV ' + new Date().toLocaleDateString('vi-VN'),
+        campaign: `Import CSV ${formatDate(new Date())}`,
         owner: 'Nguyễn Văn Ánh',
         whatsappOptIn: true,
       };
@@ -149,7 +150,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
           id: `n_imp_${Date.now()}_${idx}`,
           author: 'Hệ Thống',
           content: 'Được nhập danh sách hàng loạt qua file CSV.',
-          createdAt: new Date().toLocaleString('vi-VN'),
+          createdAt: formatDateTime(new Date()),
           type: 'system',
         },
       ],

@@ -10,6 +10,7 @@ import {
   Smartphone,
   Building2
 } from 'lucide-react';
+import { formatDateTime } from '../../utils/crmUtils';
 
 interface MetaVerificationViewProps {
   onNavigateLegal?: (page: 'privacy' | 'terms' | 'deletion') => void;
@@ -149,7 +150,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipientPhone: testPhone,
-          messageText: testMessage || `[YumNetwork CRM Test] Xin chào! Kết nối WhatsApp Cloud API thành công vào lúc ${new Date().toLocaleString('vi-VN')}!`,
+          messageText: testMessage || `[YumNetwork CRM Test] Xin chào! Kết nối WhatsApp Cloud API thành công vào lúc ${formatDateTime(new Date())}!`,
           phoneNumberId: phoneId,
         }),
       });

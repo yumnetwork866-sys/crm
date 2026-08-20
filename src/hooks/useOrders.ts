@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Customer, CustomerOrder } from '../types';
+import type { Customer, CustomerOrder, Product } from '../types';
+import { formatDateTime } from '../utils/crmUtils';
 import { queryKeys } from '../lib/queryClient';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
@@ -60,7 +61,7 @@ export function useOrders() {
             logs: [...sequence.logs, {
               step: 1,
               stepName: 'Ngày +3 (Lời cảm ơn)',
-              sentAt: new Date().toLocaleString('vi-VN'),
+              sentAt: formatDateTime(new Date()),
               message: `Cảm ơn ${customer.name} đã mua hàng! Kích hoạt quy trình tự động chăm sóc dịch vụ...`,
               status: 'Delivered' as const,
             }],

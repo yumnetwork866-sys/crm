@@ -123,32 +123,20 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     key={item.id}
                     onClick={() => onChangeTab(item.id)}
-                    className={`relative flex items-center space-x-2 px-3 py-1.5 rounded-xl text-left whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    title={item.subtitle}
+                    className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl text-left whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive
                         ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-semibold'
                     }`}
                   >
-                    <div className="relative shrink-0">
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
-                    </div>
-                    <div className="flex flex-col justify-center leading-none">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-bold tracking-tight">{item.label}</span>
-                        {badge && badge > 0 ? (
-                          <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[9px] font-black leading-none text-white bg-rose-500 rounded-full animate-pulse">
-                            {badge}
-                          </span>
-                        ) : null}
-                      </div>
-                      <span
-                        className={`text-[9px] mt-0.5 ${
-                          isActive ? 'text-indigo-100 font-normal' : 'text-slate-400 font-normal'
-                        }`}
-                      >
-                        {item.subtitle}
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                    <span className="text-xs font-bold tracking-tight">{item.label}</span>
+                    {badge && badge > 0 ? (
+                      <span className="inline-flex items-center justify-center min-w-4.5 h-4.5 px-1 text-[9px] font-black leading-none text-white bg-rose-500 rounded-full">
+                        {badge}
                       </span>
-                    </div>
+                    ) : null}
                   </button>
                 );
               })}
