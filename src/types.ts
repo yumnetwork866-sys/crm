@@ -136,16 +136,65 @@ export interface AutomationStepConfig {
   iconName: string;
 }
 
+export type BroadcastCampaignCategory =
+  | 'Khuyến mại'
+  | 'Flash Sale'
+  | 'Voucher'
+  | 'Sản phẩm mới'
+  | 'Thông báo';
+
+export type BroadcastCampaignStatus =
+  | 'Draft'
+  | 'Pending'
+  | 'Sending'
+  | 'Completed'
+  | 'PartiallyFailed'
+  | 'Failed'
+  | 'Cancelled';
+
+export interface WhatsAppApprovedTemplate {
+  id?: string;
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  parameter_format?: string;
+  components: Array<{
+    type: string;
+    text?: string;
+    format?: string;
+    buttons?: unknown[];
+    example?: unknown;
+  }>;
+}
+
+export interface LaunchCampaignInput {
+  name: string;
+  targetGroup: string;
+  targetProduct?: string;
+  targetGender?: 'Nam' | 'Nữ' | 'Khác';
+  category: BroadcastCampaignCategory;
+  templateName: string;
+  templateLanguage: string;
+  templateParameterSources?: Array<'customer_name' | 'phone' | 'product' | 'voucher_code'>;
+  messageTemplate: string;
+  voucherCode?: string;
+}
+
 export interface BroadcastCampaign {
   id: string;
   name: string;
   targetGroup: string;
   targetProduct?: string;
+  targetGender?: string;
   targetCountry?: string;
-  category: 'Khuyến mại' | 'Flash Sale' | 'Voucher' | 'Sản phẩm mới' | 'Thông báo';
+  category: BroadcastCampaignCategory;
+  templateName?: string;
+  templateLanguage?: string;
   messageTemplate: string;
   createdAt: string;
-  status: 'Draft' | 'Sending' | 'Completed';
+  status: BroadcastCampaignStatus;
+  lastError?: string;
   stats: {
     totalTargeted: number;
     optedInCount: number;
@@ -153,6 +202,7 @@ export interface BroadcastCampaign {
     deliveredCount: number;
     readCount: number;
     respondedCount: number;
+    failedCount?: number;
   };
 }
 

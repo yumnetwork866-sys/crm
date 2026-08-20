@@ -1,8 +1,8 @@
 import React from 'react';
-import { Users, Layers, Zap, Send, BarChart3, ShoppingBag, Package, ShieldCheck, MessageSquare } from 'lucide-react';
+import { Users, Layers, Zap, BarChart3, ShoppingBag, Package, ShieldCheck, MessageSquare } from 'lucide-react';
 import type { AppUser } from '../types';
 
-export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'broadcast' | 'reports' | 'users' | 'messages' | 'meta-verification';
+export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'reports' | 'users' | 'messages' | 'meta-verification';
 
 interface NavigationProps {
   activeTab: ActiveTab;
@@ -61,14 +61,8 @@ export const Navigation: React.FC<NavigationProps> = ({
     {
       id: 'automation' as ActiveTab,
       label: 'Automation',
-      subtitle: 'Chăm sóc tự động',
+      subtitle: 'Tự động & Gửi hàng loạt',
       icon: Zap,
-    },
-    {
-      id: 'broadcast' as ActiveTab,
-      label: 'Gửi Hàng Loạt',
-      subtitle: 'WhatsApp Campaign',
-      icon: Send,
     },
     {
       id: 'reports' as ActiveTab,

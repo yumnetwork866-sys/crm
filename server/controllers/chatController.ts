@@ -345,11 +345,7 @@ export async function sendMessage(req: Request, res: Response) {
       if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
         await prisma.customer.update({
           where: { id: matchedCustomerId },
-          data: {
-            whatsappOptIn: true,
-            whatsappOptInDate: new Date(),
-            lastContact: new Date()
-          }
+          data: { lastContact: new Date() }
         }).catch(() => {});
       }
     } catch (dbErr: any) {

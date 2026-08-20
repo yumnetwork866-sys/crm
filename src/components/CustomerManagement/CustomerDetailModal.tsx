@@ -4,14 +4,13 @@ import {
   ShoppingBag, FileText, Send, Sparkles, Plus, CheckCircle2,
   Clock, ShieldCheck, ShieldAlert, MessageSquare, Briefcase
 } from 'lucide-react';
-import type { Customer, CustomerStatus, CentralMessage } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass, isSamePhoneNumber } from '../../utils/crmUtils';
+import type { Customer, CustomerStatus } from '../../types';
+import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   customer: Customer | null;
-  centralMessages?: CentralMessage[];
   onOpenAddOrder: (customer: Customer) => void;
   onOpenChat: (customer: Customer) => void;
   onAddNote: (customerId: string, noteText: string) => void;
@@ -23,7 +22,6 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   isOpen,
   onClose,
   customer,
-  centralMessages = [],
   onOpenAddOrder,
   onOpenChat,
   onAddNote,
@@ -38,15 +36,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const groupKey = getCustomerGroup(customer);
   const groupInfo = CUSTOMER_GROUPS[groupKey];
 
-  const isOptedIn = Boolean(
-    customer.whatsappOptIn ||
-    (centralMessages && centralMessages.some(
-      (m) =>
-        m.customerId === customer.id ||
-        isSamePhoneNumber(m.customerPhone, customer.phone) ||
-        isSamePhoneNumber(m.customerId, customer.phone)
-    ))
-  );
+  const isOptedIn = Boolean(customer.whatsappOptIn);
 
   const handleAddNoteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,7 +234,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         <span className="text-slate-500 text-xs">WhatsApp Opt-In:</span>
                         {isOptedIn ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            ✓ Opt-in (Đã nhắn WABA)
+                            ✓ Opt-in Marketing
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">

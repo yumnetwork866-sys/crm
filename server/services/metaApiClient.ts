@@ -395,6 +395,144 @@ export async function dispatchMetaMessage(options: {
   return { isRealSent, metaResult };
 }
 
+export interface MetaTemplateDispatchResult {
+  isRealSent: boolean;
+  messageId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  retryable: boolean;
+  metaResult: any;
+}
+
+export interface WhatsAppApprovedTemplate {
+  id?: string;
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  parameter_format?: string;
+  components: Array<{
+    type: string;
+    text?: string;
+    format?: string;
+    buttons?: any[];
+    example?: any;
+  }>;
+}
+
+export async function fetchApprovedMessageTemplates(options: {
+  wabaId: string;
+  token: string;
+}): Promise<WhatsAppApprovedTemplate[]> {
+  const { wabaId, token } = options;
+  const query = new URLSearchParams({
+    fields: 'id,name,status,language,category,parameter_format,components',
+    limit: '100',
+  });
+  let nextUrl: string | null = `https://graph.facebook.com/v26.0/${wabaId}/message_templates?${query.toString()}`;
+  const templates: WhatsAppApprovedTemplate[] = [];
+  let pageCount = 0;
+
+  while (nextUrl && pageCount < 10) {
+    const response = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const result: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error?.message || 'Không thể tải WhatsApp template từ Meta.');
+    }
+    if (Array.isArray(result?.data)) {
+      templates.push(...result.data.filter((template: any) => template?.status === 'APPROVED'));
+    }
+    nextUrl = typeof result?.paging?.next === 'string' ? result.paging.next : null;
+    pageCount += 1;
+  }
+
+  return templates.sort((a, b) =>
+    a.name.localeCompare(b.name) || a.language.localeCompare(b.language)
+  );
+}
+
+export async function verifyApprovedMessageTemplate(options: {
+  wabaId: string;
+  token: string;
+  templateName: string;
+  languageCode: string;
+}): Promise<WhatsAppApprovedTemplate> {
+  const templates = await fetchApprovedMessageTemplates(options);
+  const approved = templates.find(
+    (template) =>
+      template.name === options.templateName &&
+      template.language === options.languageCode
+  );
+  if (!approved) {
+    throw new Error(`Template '${options.templateName}' (${options.languageCode}) chưa được Meta phê duyệt hoặc không tồn tại.`);
+  }
+  return approved;
+}
+
+export async function dispatchMetaTemplateMessage(options: {
+  phoneId: string;
+  token: string;
+  cleanPhone: string;
+  templateName: string;
+  languageCode: string;
+  bodyParameters?: string[];
+}): Promise<MetaTemplateDispatchResult> {
+  const { phoneId, token, cleanPhone, templateName, languageCode, bodyParameters = [] } = options;
+  const payload: any = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: cleanPhone,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode }
+    }
+  };
+
+  if (bodyParameters.length > 0) {
+    payload.template.components = [{
+      type: 'body',
+      parameters: bodyParameters.map((text) => ({ type: 'text', text }))
+    }];
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v26.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000)
+    });
+    const metaResult: any = await response.json().catch(() => ({}));
+    const messageId = metaResult?.messages?.[0]?.id;
+    const metaCode = metaResult?.error?.code;
+    const retryable = response.status === 429 || response.status >= 500 || [1, 2, 4, 17, 32, 613].includes(metaCode);
+
+    return {
+      isRealSent: Boolean(response.ok && messageId),
+      messageId,
+      errorCode: metaCode ? String(metaCode) : undefined,
+      errorMessage: metaResult?.error?.message,
+      retryable,
+      metaResult
+    };
+  } catch (error: any) {
+    return {
+      isRealSent: false,
+      errorCode: error?.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK_ERROR',
+      errorMessage: error?.message || 'Không thể kết nối WhatsApp Cloud API.',
+      retryable: true,
+      metaResult: null
+    };
+  }
+}
+
 /**
  * Dispatch reaction to Meta WhatsApp Cloud API
  */

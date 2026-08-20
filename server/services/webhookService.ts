@@ -3,6 +3,7 @@ import type { InMemoryMessage } from './messageStore';
 import { messageStore } from './messageStore';
 import { getIntegrationSetting } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
+import { aggregateCampaign } from './campaignWorker';
 
 /**
  * Verifies webhook subscription request from Meta
@@ -118,6 +119,62 @@ export function extractWebhookItems(body: any): Array<{ msgData: any; valueObj: 
   return extractedItems;
 }
 
+function extractWebhookStatuses(body: any): any[] {
+  const statuses: any[] = [];
+  const collect = (value: any) => {
+    if (Array.isArray(value?.statuses)) statuses.push(...value.statuses);
+  };
+  if (Array.isArray(body?.entry)) {
+    for (const entry of body.entry) {
+      if (Array.isArray(entry?.changes)) {
+        for (const change of entry.changes) collect(change?.value || change);
+      } else collect(entry?.value || entry);
+    }
+  } else if (Array.isArray(body?.changes)) {
+    for (const change of body.changes) collect(change?.value || change);
+  } else {
+    collect(body?.value || body);
+  }
+  return statuses;
+}
+
+async function processCampaignStatuses(body: any) {
+  const affectedCampaigns = new Set<string>();
+  for (const item of extractWebhookStatuses(body)) {
+    if (!item?.id || !item?.status) continue;
+    const recipient = await prisma.broadcastRecipient.findUnique({
+      where: { metaMessageId: item.id },
+      select: { id: true, campaignId: true },
+    }).catch(() => null);
+    if (!recipient) continue;
+
+    const eventAt = new Date(Number(item.timestamp) * 1000 || Date.now());
+    if (item.status === 'delivered') {
+      await prisma.broadcastRecipient.updateMany({
+        where: { id: recipient.id, status: 'Sent' },
+        data: { status: 'Delivered', deliveredAt: eventAt },
+      });
+    } else if (item.status === 'read') {
+      await prisma.broadcastRecipient.updateMany({
+        where: { id: recipient.id, status: { in: ['Sent', 'Delivered'] } },
+        data: { status: 'Read', deliveredAt: eventAt, readAt: eventAt },
+      });
+    } else if (item.status === 'failed') {
+      const error = item.errors?.[0];
+      await prisma.broadcastRecipient.updateMany({
+        where: { id: recipient.id, status: { in: ['Pending', 'Processing', 'Retry', 'Sent'] } },
+        data: {
+          status: 'Failed',
+          lastErrorCode: error?.code ? String(error.code) : 'META_FAILED',
+          lastErrorMessage: error?.title || error?.message || 'Meta báo gửi thất bại.',
+        },
+      });
+    }
+    affectedCampaigns.add(recipient.campaignId);
+  }
+  await Promise.all(Array.from(affectedCampaigns, (campaignId) => aggregateCampaign(campaignId)));
+}
+
 /**
  * Process entire Meta Webhook payload: parse, match, save, and mark opt-in
  */
@@ -131,6 +188,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
 
   console.log('[META WEBHOOK POST RECEIVED]', JSON.stringify(parsedBody, null, 2));
 
+  await processCampaignStatuses(parsedBody);
   const extractedItems = extractWebhookItems(parsedBody);
   let processedCount = 0;
 
@@ -189,6 +247,26 @@ export async function processWebhookPayload(body: any): Promise<number> {
       }
     }
 
+    if (msgData.context?.id) {
+      const campaignRecipient = await prisma.broadcastRecipient.findUnique({
+        where: { metaMessageId: msgData.context.id },
+        select: { id: true, campaignId: true, respondedAt: true },
+      }).catch(() => null);
+      if (campaignRecipient && !campaignRecipient.respondedAt) {
+        await prisma.broadcastRecipient.update({
+          where: { id: campaignRecipient.id },
+          data: { respondedAt: new Date() },
+        });
+        const respondedCount = await prisma.broadcastRecipient.count({
+          where: { campaignId: campaignRecipient.campaignId, respondedAt: { not: null } },
+        });
+        await prisma.broadcastCampaign.update({
+          where: { id: campaignRecipient.campaignId },
+          data: { respondedCount },
+        });
+      }
+    }
+
     let fullTextBody = textBody;
     if (replyContext) {
       fullTextBody = `[reply:${JSON.stringify(replyContext)}]\n${textBody}`;
@@ -233,15 +311,10 @@ export async function processWebhookPayload(body: any): Promise<number> {
       });
       console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
 
-      // Auto mark customer WhatsApp Opt-In
       if (isCrmCustomer) {
         await prisma.customer.update({
           where: { id: customerId },
-          data: {
-            whatsappOptIn: true,
-            whatsappOptInDate: new Date(),
-            lastContact: new Date()
-          }
+          data: { lastContact: new Date() }
         }).catch(() => {});
       }
     } catch (dbErr: any) {
@@ -252,10 +325,6 @@ export async function processWebhookPayload(body: any): Promise<number> {
 
     // Broadcast instant real-time event to all connected clients
     realtimeHub.broadcast('message:new', newIncoming);
-    if (isCrmCustomer) {
-      realtimeHub.broadcast('customer:optin', { customerId, whatsappOptIn: true });
-    }
-
     processedCount++;
   }
 

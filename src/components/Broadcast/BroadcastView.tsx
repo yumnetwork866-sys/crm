@@ -3,25 +3,74 @@ import {
   Send, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, MessageSquare,
   Users, Tag, Globe, Play, Layers, Clock, AlertTriangle
 } from 'lucide-react';
-import type { Customer, BroadcastCampaign, CentralMessage } from '../../types';
+import type {
+  Customer,
+  BroadcastCampaign,
+  LaunchCampaignInput,
+  WhatsAppApprovedTemplate,
+} from '../../types';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
-import { formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../../utils/crmUtils';
+import { formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
 
 interface BroadcastViewProps {
   customers: Customer[];
   campaigns: BroadcastCampaign[];
-  centralMessages?: CentralMessage[];
-  onLaunchCampaign: (newCampaign: BroadcastCampaign) => void;
+  approvedTemplates: WhatsAppApprovedTemplate[];
+  isTemplatesLoading: boolean;
+  templatesError: Error | null;
+  onRefetchTemplates: () => void;
+  onLaunchCampaign: (input: LaunchCampaignInput) => Promise<BroadcastCampaign>;
+  isLaunchPending: boolean;
+  launchError: Error | null;
+  onResetLaunchError: () => void;
   defaultTargetGroup?: string;
 }
 
 const CATEGORIES = ['Khuyến mại', 'Flash Sale', 'Voucher', 'Sản phẩm mới', 'Thông báo'] as const;
 
+type TemplateParameterSource = 'customer_name' | 'phone' | 'product' | 'voucher_code';
+
+const PARAMETER_SOURCE_OPTIONS: Array<{
+  value: TemplateParameterSource;
+  label: string;
+  tag: string;
+}> = [
+  { value: 'customer_name', label: 'Tên khách hàng', tag: '{{Customer Name}}' },
+  { value: 'phone', label: 'Số điện thoại', tag: '{{Phone}}' },
+  { value: 'product', label: 'Sản phẩm quan tâm', tag: '{{Product}}' },
+  { value: 'voucher_code', label: 'Mã voucher', tag: '{{Voucher Code}}' },
+];
+
+const mapTemplateBody = (body: string, sources: TemplateParameterSource[]) =>
+  body.replace(/\{\{(\d+)\}\}/g, (_match, position: string) => {
+    const source = sources[Number(position) - 1] || 'customer_name';
+    return PARAMETER_SOURCE_OPTIONS.find((option) => option.value === source)?.tag || '{{Customer Name}}';
+  });
+
+const isTemplateSupported = (template: WhatsAppApprovedTemplate) => {
+  if (template.parameter_format?.toUpperCase() === 'NAMED') return false;
+  const body = template.components.find((component) => component.type?.toUpperCase() === 'BODY');
+  if (!body?.text) return false;
+  return !template.components.some((component) => {
+    const type = component.type?.toUpperCase();
+    if (type === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(component.format?.toUpperCase() || '')) {
+      return true;
+    }
+    return type !== 'BODY' && /\{\{\d+\}\}/.test(JSON.stringify(component));
+  });
+};
+
 export const BroadcastView: React.FC<BroadcastViewProps> = ({
   customers,
   campaigns,
-  centralMessages = [],
+  approvedTemplates,
+  isTemplatesLoading,
+  templatesError,
+  onRefetchTemplates,
   onLaunchCampaign,
+  isLaunchPending,
+  launchError,
+  onResetLaunchError,
   defaultTargetGroup = 'Tất cả khách hàng',
 }) => {
   const [campaignName, setCampaignName] = useState('Chiến Dịch Khuyến Mại WhatsApp');
@@ -29,13 +78,14 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   const [targetProduct, setTargetProduct] = useState<string>('ALL');
   const [targetGender, setTargetGender] = useState<string>('ALL');
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('Flash Sale');
+  const [templateName, setTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('vi');
+  const [templateBody, setTemplateBody] = useState('');
+  const [parameterSources, setParameterSources] = useState<TemplateParameterSource[]>([]);
+  const [voucherCode, setVoucherCode] = useState('VOUCHER30OFF');
 
-  const [templateText, setTemplateText] = useState(
-    'Chào {{Customer Name}}, VietCRM gửi tặng bạn mã giảm giá đặc biệt VOUCHER30OFF giảm 30% cho bộ sản phẩm {{Product}}. Áp dụng ngay hôm nay nhé!'
-  );
+  const [templateText, setTemplateText] = useState('');
 
-  const [isSending, setIsSending] = useState(false);
-  const [sendingProgress, setSendingProgress] = useState(0);
 
   // Calculate targeted audience strictly conforming to WhatsApp Opt-in
   const { targetedTotal, optedInTotal, eligibleCustomers } = useMemo(() => {
@@ -69,33 +119,60 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
       return true;
     });
 
-    const optedIn = matched.filter((c) => {
-      if (c.whatsappOptIn) return true;
-      if (centralMessages && centralMessages.length > 0) {
-        return centralMessages.some(
-          (m) =>
-            m.customerId === c.id ||
-            isSamePhoneNumber(m.customerPhone, c.phone) ||
-            isSamePhoneNumber(m.customerId, c.phone)
-        );
-      }
-      return false;
-    });
+    const optedIn = matched.filter((c) => c.whatsappOptIn);
 
     return {
       targetedTotal: matched.length,
       optedInTotal: optedIn.length,
       eligibleCustomers: optedIn,
     };
-  }, [customers, targetGroup, targetProduct, targetGender, centralMessages]);
+  }, [customers, targetGroup, targetProduct, targetGender]);
 
-  const handleInsertTag = (tag: string) => {
-    setTemplateText((prev) => `${prev} ${tag}`);
+  const handleTemplateSelect = (templateKey: string) => {
+    const template = approvedTemplates.find(
+      (item) => `${item.name}::${item.language}` === templateKey
+    );
+    if (!template || !isTemplateSupported(template)) {
+      setTemplateName('');
+      setTemplateBody('');
+      setParameterSources([]);
+      return;
+    }
+
+    const body = template.components.find((component) => component.type?.toUpperCase() === 'BODY')?.text || '';
+    const positions = Array.from(body.matchAll(/\{\{(\d+)\}\}/g)).map((match) => Number(match[1]));
+    const parameterCount = positions.length > 0 ? Math.max(...positions) : 0;
+    const defaults: TemplateParameterSource[] = Array.from(
+      { length: parameterCount },
+      (_, index) => (['customer_name', 'product', 'voucher_code', 'phone'][index] || 'customer_name') as TemplateParameterSource
+    );
+
+    setTemplateName(template.name);
+    setTemplateLanguage(template.language);
+    setTemplateBody(body);
+    setParameterSources(defaults);
+    setTemplateText(mapTemplateBody(body, defaults));
   };
 
-  const handleLaunch = () => {
+  const handleParameterSourceChange = (index: number, source: TemplateParameterSource) => {
+    setParameterSources((current) => {
+      const next = current.map((item, itemIndex) => itemIndex === index ? source : item);
+      setTemplateText(mapTemplateBody(templateBody, next));
+      return next;
+    });
+  };
+
+  const handleLaunch = async () => {
     if (!campaignName.trim()) {
       alert('Vui lòng nhập tên chiến dịch!');
+      return;
+    }
+    if (!templateName.trim()) {
+      alert('Vui lòng nhập tên WhatsApp template đã được Meta phê duyệt!');
+      return;
+    }
+    if (!templateText.trim()) {
+      alert('Vui lòng nhập nội dung xem trước của template!');
       return;
     }
     if (optedInTotal === 0) {
@@ -103,42 +180,26 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
       return;
     }
 
-    setIsSending(true);
-    setSendingProgress(10);
-
-    const interval = setInterval(() => {
-      setSendingProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsSending(false);
-
-          const newCampaign: BroadcastCampaign = {
-            id: `bc_${Date.now()}`,
-            name: campaignName,
-            targetGroup,
-            targetProduct: targetProduct !== 'ALL' ? targetProduct : undefined,
-            targetCountry: targetGender !== 'ALL' ? `Giới tính: ${targetGender}` : undefined,
-            category,
-            messageTemplate: templateText,
-            createdAt: new Date().toISOString(),
-            status: 'Completed',
-            stats: {
-              totalTargeted: targetedTotal,
-              optedInCount: optedInTotal,
-              sentCount: optedInTotal,
-              deliveredCount: Math.round(optedInTotal * 0.96),
-              readCount: Math.round(optedInTotal * 0.82),
-              respondedCount: Math.round(optedInTotal * 0.35),
-            },
-          };
-
-          onLaunchCampaign(newCampaign);
-          alert(`Đã hoàn tất gửi Broadcast WhatsApp cho ${optedInTotal} khách hàng!`);
-          return 100;
-        }
-        return prev + 25;
+    onResetLaunchError();
+    try {
+      const campaign = await onLaunchCampaign({
+        name: campaignName.trim(),
+        targetGroup,
+        targetProduct: targetProduct !== 'ALL' ? targetProduct : undefined,
+        targetGender: targetGender !== 'ALL'
+          ? targetGender as 'Nam' | 'Nữ' | 'Khác'
+          : undefined,
+        category,
+        templateName: templateName.trim(),
+        templateLanguage: templateLanguage.trim() || 'vi',
+        templateParameterSources: parameterSources,
+        messageTemplate: templateText.trim(),
+        voucherCode: voucherCode.trim() || undefined,
       });
-    }, 400);
+      alert(`Chiến dịch đã được xếp hàng cho ${campaign.stats.optedInCount} khách hàng. Trạng thái gửi sẽ được cập nhật tự động.`);
+    } catch {
+      // Mutation error is rendered inline below the launch button.
+    }
   };
 
   // Preview formatting
@@ -147,7 +208,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
     .replace(/\{\{Customer Name\}\}/g, previewSampleCustomer?.name || 'Nguyễn Văn Minh')
     .replace(/\{\{Phone\}\}/g, previewSampleCustomer?.phone || '0901234567')
     .replace(/\{\{Product\}\}/g, previewSampleCustomer?.interestedProducts?.[0] || 'Kem Dưỡng Da Premium')
-    .replace(/\{\{Voucher Code\}\}/g, 'VOUCHER30OFF');
+    .replace(/\{\{Voucher Code\}\}/g, voucherCode || 'VOUCHER30OFF');
 
   return (
     <div className="space-y-6">
@@ -160,9 +221,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
             <span>WhatsApp Business Platform Broadcast</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">Gửi Tin Nhắn Hàng Loạt (Broadcast)</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
-            Tạo chiến dịch gửi thông báo, voucher, flash sale đến từng nhóm khách hàng mục tiêu theo đúng chính sách chấp thuận (Opt-In) của WhatsApp.
-          </p>
+
         </div>
       </div>
 
@@ -298,32 +357,98 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
               </div>
             </div>
 
-            {/* Dynamic Tags */}
             <div>
-              <span className="block text-slate-400 mb-1">Chèn thẻ biến số tự động:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {['{{Customer Name}}', '{{Phone}}', '{{Product}}', '{{Voucher Code}}'].map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => handleInsertTag(tag)}
-                    className="px-2 py-1 bg-indigo-950 border border-indigo-700 text-indigo-300 rounded-lg text-[11px] font-mono hover:bg-indigo-900 transition"
-                  >
-                    + {tag}
-                  </button>
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <label className="block text-slate-300 font-medium">
+                  Approved Template từ WABA
+                </label>
+                <button
+                  type="button"
+                  onClick={onRefetchTemplates}
+                  disabled={isTemplatesLoading}
+                  className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 disabled:opacity-50"
+                >
+                  {isTemplatesLoading ? 'Đang tải...' : 'Tải lại template'}
+                </button>
+              </div>
+              <select
+                value={templateName ? `${templateName}::${templateLanguage}` : ''}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
+                disabled={isTemplatesLoading || approvedTemplates.length === 0}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-teal-500 font-mono disabled:opacity-60"
+              >
+                <option value="">
+                  {isTemplatesLoading
+                    ? 'Đang tải template từ WABA...'
+                    : approvedTemplates.length === 0
+                      ? 'Không có approved template'
+                      : 'Chọn template và ngôn ngữ'}
+                </option>
+                {approvedTemplates.map((template) => {
+                  const isSupported = isTemplateSupported(template);
+                  return (
+                    <option
+                      key={`${template.name}::${template.language}`}
+                      value={`${template.name}::${template.language}`}
+                      disabled={!isSupported}
+                    >
+                      {template.name} · {template.language} · {template.category}{!isSupported ? ' · Chưa hỗ trợ cấu trúc này' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {templatesError ? (
+                <div role="alert" className="mt-2 rounded-lg border border-rose-300 bg-rose-50 p-2 text-[11px] font-medium text-rose-700">
+                  {templatesError.message}
+                </div>
+              ) : null}
+            </div>
+
+            {parameterSources.length > 0 ? (
+              <div className="space-y-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                <span className="block font-semibold text-indigo-900">
+                  Ánh xạ biến BODY của template
+                </span>
+                {parameterSources.map((source, index) => (
+                  <div key={index} className="grid grid-cols-[70px_1fr] items-center gap-2">
+                    <span className="font-mono font-bold text-indigo-700">{`{{${index + 1}}}`}</span>
+                    <select
+                      value={source}
+                      onChange={(e) => handleParameterSourceChange(index, e.target.value as TemplateParameterSource)}
+                      className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-slate-900 focus:outline-none focus:border-indigo-500"
+                    >
+                      {PARAMETER_SOURCE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
               </div>
+            ) : null}
+
+            <div>
+              <label className="block text-slate-300 font-medium mb-1">Mã voucher mặc định</label>
+              <input
+                type="text"
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                placeholder="VOUCHER30OFF"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-teal-500 font-mono"
+              />
             </div>
 
             {/* Textarea */}
             <div>
-              <label className="block text-slate-300 font-medium mb-1">Soạn Nội Dung Tin Nhắn</label>
+              <label className="block text-slate-300 font-medium mb-1">Nội dung BODY từ WABA</label>
               <textarea
                 value={templateText}
-                onChange={(e) => setTemplateText(e.target.value)}
+                readOnly
                 rows={4}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-xs leading-relaxed focus:outline-none focus:border-teal-500 font-sans"
+                className="w-full bg-slate-100 border border-slate-300 rounded-xl p-3 text-slate-900 text-xs leading-relaxed focus:outline-none font-sans"
               />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Nội dung được khóa theo approved template; chỉ dữ liệu các biến được cá nhân hóa.
+              </p>
             </div>
 
           </div>
@@ -331,28 +456,23 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
           {/* Launch Trigger */}
           <div className="pt-2">
             <button
-              onClick={handleLaunch}
-              disabled={isSending || optedInTotal === 0}
+              onClick={() => void handleLaunch()}
+              disabled={isLaunchPending || optedInTotal === 0 || !templateName.trim()}
               className="w-full py-3 bg-[#00793d] hover:bg-[#006232] disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-[#00793d]/25 transition flex items-center justify-center space-x-2 text-sm"
             >
               <Send className="w-4 h-4" />
-              <span>Gửi Broadcast Cho {optedInTotal} Khách Hàng</span>
+              <span>
+                {isLaunchPending
+                  ? 'Đang kiểm tra template và xếp hàng...'
+                  : `Gửi Broadcast Cho ${optedInTotal} Khách Hàng`}
+              </span>
             </button>
 
-            {isSending && (
-              <div className="mt-3 space-y-1">
-                <div className="flex justify-between text-xs text-[#00793d] dark:text-teal-400 font-bold">
-                  <span>Đang gửi qua WhatsApp API...</span>
-                  <span>{sendingProgress}%</span>
-                </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-[#00793d] h-full transition-all duration-300"
-                    style={{ width: `${sendingProgress}%` }}
-                  />
-                </div>
+            {launchError ? (
+              <div role="alert" className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs font-medium text-rose-700">
+                {launchError.message}
               </div>
-            )}
+            ) : null}
           </div>
 
         </div>
@@ -400,12 +520,10 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                {campaigns.map((camp) => {
-                const totalTargeted = camp.stats?.totalTargeted ?? (camp as any).totalTargeted ?? 0;
-                const optedInCount = camp.stats?.optedInCount ?? (camp as any).optedInCount ?? 0;
-                const sentCount = camp.stats?.sentCount ?? (camp as any).sentCount ?? 0;
-                const deliveredCount = camp.stats?.deliveredCount ?? (camp as any).deliveredCount ?? 0;
-                const readCount = camp.stats?.readCount ?? (camp as any).readCount ?? 0;
-                const respondedCount = camp.stats?.respondedCount ?? (camp as any).respondedCount ?? 0;
+                const sentCount = camp.stats.sentCount;
+                const deliveredCount = camp.stats.deliveredCount;
+                const readCount = camp.stats.readCount;
+                const respondedCount = camp.stats.respondedCount;
 
                 return (
                   <div key={camp.id} className="bg-slate-800/80 border border-slate-700/70 p-3.5 rounded-xl space-y-2 text-xs">
@@ -416,11 +534,22 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="text-slate-400 text-[11px] flex items-center space-x-2">
+                    <div className="text-slate-400 text-[11px] flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span>Target: <strong className="text-teal-300">{camp.targetGroup}</strong></span>
                       <span>•</span>
                       <span>{formatDateTime(camp.createdAt)}</span>
+                      {camp.templateName ? (
+                        <>
+                          <span>•</span>
+                          <span>Template: <strong>{camp.templateName}</strong> ({camp.templateLanguage})</span>
+                        </>
+                      ) : null}
                     </div>
+                    {camp.lastError ? (
+                      <p className="rounded-lg bg-rose-50 p-2 text-[10px] font-medium text-rose-700">
+                        {camp.lastError}
+                      </p>
+                    ) : null}
 
                     <div className="grid grid-cols-4 gap-1 text-[10px] text-center bg-slate-900/60 p-2 rounded-lg border border-slate-800">
                       <div>

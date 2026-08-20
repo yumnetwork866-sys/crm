@@ -20,22 +20,27 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
   );
 
   const totalBroadcastSent = campaigns.reduce((sum, c) => sum + c.stats.sentCount, 0);
+  const totalDelivered = campaigns.reduce((sum, c) => sum + c.stats.deliveredCount, 0);
+  const totalRead = campaigns.reduce((sum, c) => sum + c.stats.readCount, 0);
+  const totalResponded = campaigns.reduce((sum, c) => sum + c.stats.respondedCount, 0);
+  const totalFailed = campaigns.reduce((sum, c) => sum + (c.stats.failedCount || 0), 0);
+  const totalSent = totalAutomationSent + totalBroadcastSent;
 
-  const totalSent = totalAutomationSent + totalBroadcastSent + 280; // plus simulation base
-  const totalDelivered = Math.round(totalSent * 0.97);
-  const totalRead = Math.round(totalDelivered * 0.85);
-  const totalResponded = Math.round(totalRead * 0.38);
-  const totalBlocked = Math.round(totalSent * 0.012); // ~1.2% low block rate thanks to Opt-in
-
-  const readRate = ((totalRead / totalSent) * 100).toFixed(1);
-  const responseRate = ((totalResponded / totalSent) * 100).toFixed(1);
-  const blockRate = ((totalBlocked / totalSent) * 100).toFixed(1);
+  const readRate = totalBroadcastSent > 0
+    ? ((totalRead / totalBroadcastSent) * 100).toFixed(1)
+    : '0.0';
+  const responseRate = totalBroadcastSent > 0
+    ? ((totalResponded / totalBroadcastSent) * 100).toFixed(1)
+    : '0.0';
+  const failureRate = totalBroadcastSent + totalFailed > 0
+    ? ((totalFailed / (totalBroadcastSent + totalFailed)) * 100).toFixed(1)
+    : '0.0';
 
   const statusDistributionData = [
     { name: 'Đã Đọc (Read)', count: totalRead },
     { name: 'Đã Nhận (Delivered)', count: totalDelivered - totalRead },
     { name: 'Phản Hỏi (Responded)', count: totalResponded },
-    { name: 'Thất Bại / Chặn (Blocked)', count: totalBlocked },
+    { name: 'Gửi thất bại', count: totalFailed },
   ];
 
   return (
@@ -53,13 +58,13 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="text-[11px] text-slate-400">2. Tin Nhắn Đã Nhận</div>
           <div className="text-xl font-bold text-[#00793d] mt-1">{totalDelivered.toLocaleString()}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Giao nhận thành công 97%</div>
+          <div className="text-[10px] text-slate-400 mt-1">Theo webhook WhatsApp</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="text-[11px] text-slate-400">3. Tỷ Lệ Đọc (Open Rate)</div>
           <div className="text-xl font-bold text-emerald-400 mt-1">{readRate}%</div>
-          <div className="text-[10px] text-emerald-400 mt-1">Cao gấp 4x so với Email</div>
+          <div className="text-[10px] text-emerald-400 mt-1">Dữ liệu thực từ Meta</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
@@ -69,9 +74,9 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">5. Tỷ Lệ Chặn (Block)</div>
-          <div className="text-xl font-bold text-rose-400 mt-1">{blockRate}%</div>
-          <div className="text-[10px] text-emerald-400 mt-1">Rất thấp do Opt-In</div>
+          <div className="text-[11px] text-slate-400">5. Tỷ Lệ Gửi Thất Bại</div>
+          <div className="text-xl font-bold text-rose-400 mt-1">{failureRate}%</div>
+          <div className="text-[10px] text-slate-400 mt-1">Theo phản hồi WhatsApp API</div>
         </div>
 
       </div>

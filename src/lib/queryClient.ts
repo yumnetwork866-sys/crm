@@ -4,6 +4,7 @@ export const queryKeys = {
   customers: ['customers'] as const,
   products: ['products'] as const,
   campaigns: ['campaigns'] as const,
+  whatsappTemplates: ['whatsapp-templates'] as const,
   centralMessages: ['central-messages'] as const,
 };
 

@@ -20,8 +20,8 @@ import { AddOrderModal } from './components/CustomerManagement/AddOrderModal';
 import { CustomerChatModal } from './components/CustomerManagement/CustomerChatModal';
 
 import { SegmentationView } from './components/CustomerSegmentation/SegmentationView';
-import { AutomationView } from './components/Automation/AutomationView';
-import { BroadcastView } from './components/Broadcast/BroadcastView';
+import { AutomationHub } from './components/Automation/AutomationHub';
+import type { AutomationSection } from './components/Automation/AutomationHub';
 import { ReportsDashboard } from './components/Reports/ReportsDashboard';
 import { UserManagementView } from './components/UserManagement/UserManagementView';
 import { ProductManagementView } from './components/ProductManagement/ProductManagementView';
@@ -110,10 +110,17 @@ export default function App() {
   } = useProducts(currentUser);
   const {
     campaigns,
+    approvedTemplates,
+    isTemplatesLoading,
+    templatesError,
+    refetchTemplates,
     launchCampaign: handleLaunchCampaign,
     resetCampaigns,
     isFetching: isCampaignsFetching,
     isError: isCampaignsError,
+    isLaunchPending: isCampaignLaunchPending,
+    launchError: campaignLaunchError,
+    resetLaunchError: resetCampaignLaunchError,
   } = useCampaigns(currentUser);
   const {
     addOrder: handleAddOrder,
@@ -174,6 +181,7 @@ export default function App() {
   const [chatCustomer, setChatCustomer] = useState<Customer | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
+  const [automationSection, setAutomationSection] = useState<AutomationSection>('workflow');
   const [broadcastDefaultGroup, setBroadcastDefaultGroup] = useState<string>('Tất cả khách hàng');
 
   // Auth & User Management Modals
@@ -224,7 +232,8 @@ export default function App() {
 
   const handleNavigateToBroadcastGroup = (groupName: string) => {
     setBroadcastDefaultGroup(groupName);
-    setActiveTab('broadcast');
+    setAutomationSection('broadcast');
+    setActiveTab('automation');
   };
 
 
@@ -292,6 +301,7 @@ export default function App() {
           if (tab === 'users' && !isAdmin) {
             setActiveTab('crm');
           } else {
+            if (tab === 'automation') setAutomationSection('workflow');
             setActiveTab(tab);
           }
         }}
@@ -407,23 +417,25 @@ export default function App() {
         )}
 
         {activeTab === 'automation' && (
-          <AutomationView
+          <AutomationHub
+            activeSection={automationSection}
+            onChangeSection={setAutomationSection}
             customers={customers}
+            campaigns={campaigns}
+            approvedTemplates={approvedTemplates}
+            isTemplatesLoading={isTemplatesLoading}
+            templatesError={templatesError}
+            onRefetchTemplates={() => void refetchTemplates()}
+            defaultTargetGroup={broadcastDefaultGroup}
             onRunSimulation={handleRunAutomationSim}
             onSelectCustomer={(cust) => {
               setSelectedCustomer(cust);
               setIsDetailOpen(true);
             }}
-          />
-        )}
-
-        {activeTab === 'broadcast' && (
-          <BroadcastView
-            customers={customers}
-            campaigns={campaigns}
-            centralMessages={centralMessages}
             onLaunchCampaign={handleLaunchCampaign}
-            defaultTargetGroup={broadcastDefaultGroup}
+            isLaunchPending={isCampaignLaunchPending}
+            launchError={campaignLaunchError}
+            onResetLaunchError={resetCampaignLaunchError}
           />
         )}
 
@@ -495,7 +507,6 @@ export default function App() {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         customer={selectedCustomer}
-        centralMessages={centralMessages}
         onOpenAddOrder={(cust) => {
           setOrderCustomer(cust);
           setIsOrderOpen(true);

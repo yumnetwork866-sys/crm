@@ -12,6 +12,7 @@ import userRoutes from './routes/users';
 import campaignRoutes from './routes/campaigns';
 import metaRoutes from './routes/metaRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import { startCampaignWorker } from './services/campaignWorker';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -199,4 +200,5 @@ httpServer.listen(PORT, async () => {
   console.log(`🚀 YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
   console.log(`⚡ Vite HMR Hot Reload & API đã sẵn sàng.`);
   await ensureAdminUser();
+  startCampaignWorker();
 });

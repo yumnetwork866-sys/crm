@@ -3,7 +3,6 @@ import {
   Users,
   Layers,
   Zap,
-  Send,
   BarChart3,
   ShoppingBag,
   Package,
@@ -67,14 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
     {
       id: 'automation' as ActiveTab,
       label: 'Automation',
-      subtitle: 'Chăm sóc tự động',
+      subtitle: 'Tự động & Gửi hàng loạt',
       icon: Zap,
-    },
-    {
-      id: 'broadcast' as ActiveTab,
-      label: 'Gửi Hàng Loạt',
-      subtitle: 'WhatsApp Campaign',
-      icon: Send,
     },
     {
       id: 'reports' as ActiveTab,

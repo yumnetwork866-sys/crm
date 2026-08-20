@@ -132,16 +132,27 @@ export function exportWhatsAppReportCsv(campaigns: BroadcastCampaign[]) {
     'Tổng Số Đã Gửi',
     'Số Tin Đã Đọc',
     'Số Khách Phản Hỏi',
+    'Số Gửi Thất Bại',
     'Thời Gian Tạo',
   ];
 
+  const statusLabels: Record<BroadcastCampaign['status'], string> = {
+    Draft: 'Nháp',
+    Pending: 'Đang chờ',
+    Sending: 'Đang gửi',
+    Completed: 'Hoàn thành',
+    PartiallyFailed: 'Hoàn thành một phần',
+    Failed: 'Thất bại',
+    Cancelled: 'Đã hủy',
+  };
   const rows = campaigns.map((c) => [
     c.name,
-    c.status === 'Completed' ? 'Hoàn thành' : c.status === 'Sending' ? 'Đang gửi' : 'Nháp',
+    statusLabels[c.status],
     c.targetGroup,
     c.stats.sentCount,
     c.stats.readCount,
     c.stats.respondedCount,
+    c.stats.failedCount || 0,
     c.createdAt || 'Tức thì',
   ]);
 

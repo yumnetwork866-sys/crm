@@ -145,25 +145,64 @@ model OrderItem {
 }
 
 model BroadcastCampaign {
-  id              String   @id @default(uuid())
-  name            String
-  targetGroup     String
-  targetProduct   String?
-  targetCountry   String?
-  category        String   @default("Thông báo") // 'Khuyến mại' | 'Flash Sale' | 'Voucher' | 'Sản phẩm mới' | 'Thông báo'
-  messageTemplate String
-  status          String   @default("Draft") // 'Draft' | 'Sending' | 'Completed'
-  totalTargeted   Int      @default(0)
-  optedInCount    Int      @default(0)
-  sentCount       Int      @default(0)
-  deliveredCount  Int      @default(0)
-  readCount       Int      @default(0)
-  respondedCount  Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(uuid())
+  name             String
+  targetGroup      String
+  targetProduct    String?
+  targetGender     String?
+  targetCountry    String?
+  category         String   @default("Thông báo")
+  templateName     String?
+  templateLanguage String   @default("vi")
+  messageTemplate  String
+  status           String   @default("Draft") // Draft | Pending | Sending | Completed | PartiallyFailed | Failed | Cancelled
+  totalTargeted    Int      @default(0)
+  optedInCount     Int      @default(0)
+  sentCount        Int      @default(0)
+  deliveredCount   Int      @default(0)
+  readCount        Int      @default(0)
+  respondedCount   Int      @default(0)
+  failedCount      Int      @default(0)
+  launchedById     String?
+  launchedAt       DateTime?
+  completedAt      DateTime?
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  recipients BroadcastRecipient[]
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
+}
+
+model BroadcastRecipient {
+  id               String    @id @default(uuid())
+  campaignId       String
+  customerId       String?
+  customerName     String
+  customerPhone    String
+  normalizedPhone  String
+  templateParams   Json?
+  status           String    @default("Pending") // Pending | Processing | Retry | Sent | Delivered | Read | Failed | Cancelled
+  metaMessageId    String?   @unique
+  attemptCount     Int       @default(0)
+  nextAttemptAt    DateTime?
+  lockedAt         DateTime?
+  lastErrorCode    String?
+  lastErrorMessage String?
+  sentAt           DateTime?
+  deliveredAt      DateTime?
+  readAt           DateTime?
+  respondedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  campaign BroadcastCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, normalizedPhone])
+  @@index([campaignId, status])
+  @@index([status, nextAttemptAt])
 }
 
 model AutomationLog {

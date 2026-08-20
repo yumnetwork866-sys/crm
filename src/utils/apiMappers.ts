@@ -57,5 +57,6 @@ export const mapApiCampaignToFrontend = (apiCampaign: any): BroadcastCampaign =>
     deliveredCount: apiCampaign.deliveredCount ?? 0,
     readCount: apiCampaign.readCount ?? 0,
     respondedCount: apiCampaign.respondedCount ?? 0,
+    failedCount: apiCampaign.failedCount ?? 0,
   },
 });
