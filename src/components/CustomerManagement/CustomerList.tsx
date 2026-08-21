@@ -156,7 +156,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
   const displayedCustomers = useMemo(
     () => filteredCustomers.filter((customer) => matchesWorkQueue(customer, workQueueFilter)),
-    [filteredCustomers, workQueueFilter, centralMessages]
+    [filteredCustomers, workQueueFilter]
   );
 
   const queueCounts = useMemo(() => ({
@@ -165,7 +165,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     purchased_once: customers.filter((customer) => getCustomerGroup(customer) === 'group_3').length,
     vip: customers.filter((customer) => getCustomerGroup(customer) === 'group_4').length,
     unassigned: customers.filter((customer) => UNASSIGNED_OWNERS.includes(customer.owner || '')).length,
-  }), [customers, centralMessages]);
+  }), [customers]);
 
   const advancedFilterCount = [
     selectedSource !== 'ALL',

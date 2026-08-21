@@ -53,6 +53,13 @@ type EditableButton = {
 type WizardStep = 1 | 2 | 3;
 type TemplateType = 'DEFAULT' | 'CATALOGUE' | 'FLOWS' | 'CALLING_PERMISSION';
 
+const SETUP_PREVIEW_IMAGES: Record<TemplateType, string> = {
+  DEFAULT: '/images/template-types/default.webp',
+  CATALOGUE: '/images/template-types/catalogue.gif',
+  FLOWS: '/images/template-types/flows.gif',
+  CALLING_PERMISSION: '/images/template-types/calling.gif',
+};
+
 const STATUS_CLASSES: Record<string, string> = {
   APPROVED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   PENDING: 'border-amber-200 bg-amber-50 text-amber-700',
@@ -171,11 +178,11 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
   useEffect(() => {
     setBodyExamples((current) => syncExamples(current, bodyVariables, parameterFormat));
-  }, [bodyVariables.join('|'), parameterFormat]);
+  }, [bodyVariables, parameterFormat]);
 
   useEffect(() => {
     setHeaderExamples((current) => syncExamples(current, headerVariables, parameterFormat));
-  }, [headerVariables.join('|'), parameterFormat]);
+  }, [headerVariables, parameterFormat]);
 
   useEffect(() => () => {
     if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
@@ -318,7 +325,6 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   };
 
   const continueToEditor = () => {
-    if (!name.trim() || !language.trim()) return;
     if (templateType !== 'DEFAULT' && category !== 'AUTHENTICATION') return;
     setWizardStep(2);
   };
@@ -418,8 +424,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         ] as Array<[TemplateType, string, string]>).map(([value, title, description]) => {
                           const disabled = value !== 'DEFAULT';
                           return (
-                            <label key={value} className={`relative flex gap-3 rounded-xl border p-4 ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70' : 'cursor-pointer border-indigo-300 bg-indigo-50'}`}>
-                              <input type="radio" name="templateType" value={value} checked={templateType === value} disabled={disabled} onChange={() => setTemplateType(value)} className="mt-1" />
+                            <label key={value} className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition ${templateType === value ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                              <input type="radio" name="templateType" value={value} checked={templateType === value} onChange={() => setTemplateType(value)} className="mt-1" />
                               <span><span className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-900">{title}{disabled ? <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600">Chưa hỗ trợ</span> : null}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span></span>
                             </label>
                           );
@@ -428,8 +434,13 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                     </section>
                   ) : null}
 
+                </>
+              ) : null}
+
+              {wizardStep === 2 ? (
+                <>
                   <section className={sectionClass}>
-                    <div><h3 className="font-bold text-slate-900">Thông tin template</h3><p className="text-xs text-slate-500">Tên và ngôn ngữ không thể đổi sau khi gửi xét duyệt.</p></div>
+                    <div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><h3 className="mt-1 font-bold text-slate-900">Thông tin template</h3><p className="text-xs text-slate-500">Tên và ngôn ngữ không thể đổi sau khi gửi xét duyệt.</p></div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div><label className={labelClass}>Tên template</label><input required value={name} onChange={(event) => setName(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="order_delivery_update" className={inputClass} /></div>
                       <div><label className={labelClass}>Ngôn ngữ</label><input required value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="vi hoặc en_US" className={inputClass} /></div>
@@ -443,11 +454,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                       {category !== 'AUTHENTICATION' ? <label className="flex items-start gap-2 self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><input type="checkbox" checked={allowCategoryChange} onChange={(event) => setAllowCategoryChange(event.target.checked)} className="mt-0.5" />Cho phép Meta tự đổi category nếu nội dung được phân loại khác.</label> : null}
                     </div>
                   </section>
-                </>
-              ) : null}
-
-              {wizardStep === 2 ? (
-                category === 'AUTHENTICATION' ? (
+                  {category === 'AUTHENTICATION' ? (
                   <section className={sectionClass}>
                     <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-indigo-600" /><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><h3 className="font-bold text-slate-900">Authentication và OTP</h3><p className="text-xs text-slate-500">Meta tự tạo nội dung bảo mật theo ngôn ngữ đã chọn.</p></div></div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -487,7 +494,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                       {buttons.map((button, index) => <div key={button.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4"><div><label className={labelClass}>Loại nút #{index + 1}</label><select value={button.type} onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })} className={inputClass}><option value="QUICK_REPLY">Trả lời nhanh</option><option value="URL">Website</option><option value="PHONE_NUMBER">Điện thoại</option></select></div><div><label className={labelClass}>Nội dung nút</label><input required maxLength={25} value={button.text} onChange={(event) => updateButton(button.id, { text: event.target.value })} className={inputClass} /></div>{button.type === 'URL' ? <><div><label className={labelClass}>URL HTTPS</label><input required type="url" value={button.url} onChange={(event) => updateButton(button.id, { url: event.target.value })} placeholder="https://example.com/{{1}}" className={inputClass} /></div><div><label className={labelClass}>URL mẫu nếu có biến</label><input value={button.urlExample} onChange={(event) => updateButton(button.id, { urlExample: event.target.value })} placeholder="https://example.com/123" className={inputClass} /></div></> : null}{button.type === 'PHONE_NUMBER' ? <div className="md:col-span-2"><label className={labelClass}>Số E.164</label><input required value={button.phoneNumber} onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })} placeholder="+842812345678" className={inputClass} /></div> : null}<button type="button" onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))} className="justify-self-end text-rose-600 md:col-start-4" aria-label="Xóa nút"><Trash2 className="h-4 w-4" /></button></div>)}
                     </section>
                   </>
-                )
+                )}
+                </>
               ) : null}
 
               {wizardStep === 3 ? (
@@ -499,7 +507,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 <button type="button" onClick={() => setIsFormOpen(false)} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Hủy</button>
                 <div className="ml-auto flex items-center gap-2">
                   {wizardStep > 1 ? <button type="button" onClick={() => setWizardStep((wizardStep - 1) as WizardStep)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeft className="h-4 w-4" />Quay lại</button> : null}
-                  {wizardStep === 1 ? <button type="button" onClick={continueToEditor} disabled={!name.trim() || !language.trim() || (templateType !== 'DEFAULT' && category !== 'AUTHENTICATION')} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
+                  {wizardStep === 1 ? <button type="button" onClick={continueToEditor} disabled={templateType !== 'DEFAULT' && category !== 'AUTHENTICATION'} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
                   {wizardStep === 2 ? <button type="button" onClick={continueToReview} disabled={isUploadingMedia} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Xem lại</button> : null}
                   {wizardStep === 3 ? <button type="submit" disabled={isCreatePending || isUploadingMedia} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">{isCreatePending ? 'Đang gửi Meta...' : 'Gửi xét duyệt'}</button> : null}
                 </div>
@@ -507,7 +515,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
             </div>
 
             <div className="w-full lg:sticky lg:top-5 lg:w-90">
-              <TemplatePreview category={category} headerFormat={headerFormat} headerText={headerText} headerExamples={headerExamples} mediaFileName={mediaFileName} mediaPreviewUrl={mediaPreviewUrl} body={body} bodyExamples={bodyExamples} footer={footer} buttons={buttons} parameterFormat={parameterFormat} otpType={otpType} otpButtonText={otpButtonText} otpExpiration={otpExpiration} addSecurityRecommendation={addSecurityRecommendation} />
+              <TemplatePreview wizardStep={wizardStep} templateType={templateType} category={category} headerFormat={headerFormat} headerText={headerText} headerExamples={headerExamples} mediaFileName={mediaFileName} mediaPreviewUrl={mediaPreviewUrl} body={body} bodyExamples={bodyExamples} footer={footer} buttons={buttons} parameterFormat={parameterFormat} otpType={otpType} otpButtonText={otpButtonText} otpExpiration={otpExpiration} addSecurityRecommendation={addSecurityRecommendation} />
             </div>
           </div>
         </form>
@@ -543,6 +551,8 @@ const WizardProgress: React.FC<{ step: WizardStep }> = ({ step }) => {
 };
 
 const TemplatePreview: React.FC<{
+  wizardStep: WizardStep;
+  templateType: TemplateType;
   category: WhatsAppTemplateCategory;
   headerFormat: WhatsAppTemplateHeaderFormat;
   headerText: string;
@@ -558,13 +568,30 @@ const TemplatePreview: React.FC<{
   otpButtonText: string;
   otpExpiration: number;
   addSecurityRecommendation: boolean;
-}> = ({ category, headerFormat, headerText, headerExamples, mediaFileName, mediaPreviewUrl, body, bodyExamples, footer, buttons, parameterFormat, otpType, otpButtonText, otpExpiration, addSecurityRecommendation }) => {
+}> = ({ wizardStep, templateType, category, headerFormat, headerText, headerExamples, mediaFileName, mediaPreviewUrl, body, bodyExamples, footer, buttons, parameterFormat, otpType, otpButtonText, otpExpiration, addSecurityRecommendation }) => {
   const previewHeader = substituteExamples(headerText, headerExamples, parameterFormat);
   const previewBody = substituteExamples(body, bodyExamples, parameterFormat);
+  const showSetupIllustration = wizardStep === 1 && category !== 'AUTHENTICATION';
   return (
     <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-bold text-slate-900">Template preview</h3><p className="text-[11px] text-slate-500">Bản xem trước cập nhật theo thời gian thực</p></div>
-      <div className="min-h-107.5 bg-[#efeae2] p-4" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+      <div className={`min-h-107.5 bg-[#efeae2] ${showSetupIllustration ? 'p-0' : 'p-4'}`} style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)', backgroundSize: '16px 16px' }}> 
+        {showSetupIllustration ? (
+          <div className="relative flex min-h-107.5 w-full items-center justify-center overflow-hidden bg-[#f7f2e9]">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-500">
+              <Image className="h-8 w-8" />
+              <span>Thêm ảnh vào</span>
+              <code className="break-all rounded bg-white px-2 py-1 text-[10px]">{SETUP_PREVIEW_IMAGES[templateType]}</code>
+            </div>
+            <img
+              key={SETUP_PREVIEW_IMAGES[templateType]}
+              src={SETUP_PREVIEW_IMAGES[templateType]}
+              alt={`Minh họa ${templateType.toLowerCase()} template`}
+              className="relative z-10 block h-auto w-full bg-[#f7f2e9]"
+              onError={(event) => { event.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+        ) : (
         <div className="ml-auto max-w-[94%] overflow-hidden rounded-lg rounded-tr-none bg-white shadow-sm">
           {category === 'AUTHENTICATION' ? (
             <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-sky-600">{otpType === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</div></div></>
@@ -572,6 +599,7 @@ const TemplatePreview: React.FC<{
             <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody || 'Nhập nội dung template để xem trước tin nhắn.'}</p>{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-sky-600">{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5" /> : button.type === 'URL' ? <Link2 className="h-3.5 w-3.5" /> : null}{button.text || buttonLabel[button.type]}</div>)}</div> : null}</>
           )}
         </div>
+        )}
       </div>
       <div className="space-y-4 border-t border-slate-200 bg-white p-4">
         <div>
