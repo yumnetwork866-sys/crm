@@ -464,41 +464,183 @@ export async function fetchApprovedMessageTemplates(options: {
   return templates.filter((template) => template.status === 'APPROVED');
 }
 
-export async function createMessageTemplate(options: {
+export interface MessageTemplateExample {
+  name?: string;
+  value: string;
+}
+
+export interface MessageTemplateButton {
+  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+  text: string;
+  url?: string;
+  urlExample?: string;
+  phoneNumber?: string;
+}
+
+export interface AuthenticationTemplateConfig {
+  addSecurityRecommendation?: boolean;
+  codeExpirationMinutes?: number;
+  otpType: 'COPY_CODE' | 'ONE_TAP' | 'ZERO_TAP';
+  button: {
+    text?: string;
+    autofill?: string;
+    package?: string;
+    signature?: string;
+    zeroTapTermsAccepted?: boolean;
+  };
+}
+
+export interface CreateMessageTemplateOptions {
   wabaId: string;
   token: string;
   name: string;
   language: string;
   category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
-  body: string;
-  bodyExamples: string[];
+  parameterFormat?: 'POSITIONAL' | 'NAMED';
+  allowCategoryChange?: boolean;
+  header?: {
+    format: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+    text?: string;
+    examples: MessageTemplateExample[];
+    mediaHandle?: string;
+  };
+  body?: string;
+  bodyExamples: MessageTemplateExample[];
   footer?: string;
-}): Promise<any> {
-  const { wabaId, token, name, language, category, body, bodyExamples, footer } = options;
-  const components: any[] = [{
-    type: 'BODY',
-    text: body,
-    ...(bodyExamples.length > 0
-      ? { example: { body_text: [bodyExamples] } }
-      : {}),
-  }];
-  if (footer?.trim()) {
-    components.push({ type: 'FOOTER', text: footer.trim() });
+  buttons: MessageTemplateButton[];
+  authentication?: AuthenticationTemplateConfig;
+}
+
+function namedExamplePayload(examples: MessageTemplateExample[]) {
+  return examples.map((example) => ({
+    param_name: example.name,
+    example: example.value,
+  }));
+}
+
+export function buildMessageTemplatePayload(options: CreateMessageTemplateOptions) {
+  const {
+    name,
+    language,
+    category,
+    parameterFormat = 'POSITIONAL',
+    allowCategoryChange,
+    header,
+    body,
+    bodyExamples,
+    footer,
+    buttons,
+    authentication,
+  } = options;
+  const components: any[] = [];
+
+  if (category === 'AUTHENTICATION') {
+    if (!authentication) throw new Error('Thiếu cấu hình authentication.');
+    components.push({
+      type: 'BODY',
+      ...(authentication.addSecurityRecommendation !== undefined
+        ? { add_security_recommendation: authentication.addSecurityRecommendation }
+        : {}),
+    });
+    if (authentication.codeExpirationMinutes !== undefined) {
+      components.push({
+        type: 'FOOTER',
+        code_expiration_minutes: authentication.codeExpirationMinutes,
+      });
+    }
+    components.push({
+      type: 'BUTTONS',
+      buttons: [{
+        type: 'OTP',
+        otp_type: authentication.otpType,
+        ...(authentication.button.text ? { text: authentication.button.text } : {}),
+        ...(authentication.button.autofill ? { autofill_text: authentication.button.autofill } : {}),
+        ...(authentication.button.package ? { package_name: authentication.button.package } : {}),
+        ...(authentication.button.signature ? { signature_hash: authentication.button.signature } : {}),
+        ...(authentication.button.zeroTapTermsAccepted !== undefined
+          ? { zero_tap_terms_accepted: authentication.button.zeroTapTermsAccepted }
+          : {}),
+      }],
+    });
+  } else {
+    if (header && header.format !== 'NONE') {
+      if (header.format === 'TEXT') {
+        components.push({
+          type: 'HEADER',
+          format: 'TEXT',
+          text: header.text,
+          ...(header.examples.length > 0
+            ? {
+              example: parameterFormat === 'NAMED'
+                ? { header_text_named_params: namedExamplePayload(header.examples) }
+                : { header_text: header.examples.map((example) => example.value) },
+            }
+            : {}),
+        });
+      } else {
+        components.push({
+          type: 'HEADER',
+          format: header.format,
+          example: { header_handle: [header.mediaHandle] },
+        });
+      }
+    }
+
+    components.push({
+      type: 'BODY',
+      text: body,
+      ...(bodyExamples.length > 0
+        ? {
+          example: parameterFormat === 'NAMED'
+            ? { body_text_named_params: namedExamplePayload(bodyExamples) }
+            : { body_text: [bodyExamples.map((example) => example.value)] },
+        }
+        : {}),
+    });
+    if (footer) components.push({ type: 'FOOTER', text: footer });
+    if (buttons.length > 0) {
+      components.push({
+        type: 'BUTTONS',
+        buttons: buttons.map((button) => {
+          if (button.type === 'URL') {
+            return {
+              type: 'URL',
+              text: button.text,
+              url: button.url,
+              ...(button.urlExample ? { example: [button.urlExample] } : {}),
+            };
+          }
+          if (button.type === 'PHONE_NUMBER') {
+            return {
+              type: 'PHONE_NUMBER',
+              text: button.text,
+              phone_number: button.phoneNumber,
+            };
+          }
+          return { type: 'QUICK_REPLY', text: button.text };
+        }),
+      });
+    }
   }
 
-  const response = await fetch(`https://graph.facebook.com/v26.0/${wabaId}/message_templates`, {
+  return {
+    name,
+    language,
+    category,
+    ...(category !== 'AUTHENTICATION' ? { parameter_format: parameterFormat } : {}),
+    ...(allowCategoryChange !== undefined ? { allow_category_change: allowCategoryChange } : {}),
+    components,
+  };
+}
+
+export async function createMessageTemplate(options: CreateMessageTemplateOptions): Promise<any> {
+  const response = await fetch(`https://graph.facebook.com/v26.0/${options.wabaId}/message_templates`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${options.token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      name,
-      language,
-      category,
-      parameter_format: 'POSITIONAL',
-      components,
-    }),
+    body: JSON.stringify(buildMessageTemplatePayload(options)),
     signal: AbortSignal.timeout(20_000),
   });
   const result: any = await response.json().catch(() => ({}));
@@ -506,6 +648,59 @@ export async function createMessageTemplate(options: {
     throw new Error(result?.error?.error_user_msg || result?.error?.message || 'Meta từ chối yêu cầu tạo template.');
   }
   return result;
+}
+
+export async function uploadTemplateSampleMedia(options: {
+  appId: string;
+  token: string;
+  fileName: string;
+  mimeType: string;
+  buffer: Buffer;
+}): Promise<string> {
+  const sessionParams = new URLSearchParams({
+    file_name: options.fileName,
+    file_length: String(options.buffer.length),
+    file_type: options.mimeType,
+    access_token: options.token,
+  });
+  const sessionResponse = await fetch(
+    `https://graph.facebook.com/v26.0/${options.appId}/uploads?${sessionParams.toString()}`,
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  const sessionResult: any = await sessionResponse.json().catch(() => ({}));
+  if (!sessionResponse.ok || !sessionResult?.id) {
+    throw new Error(
+      sessionResult?.error?.error_user_msg
+      || sessionResult?.error?.message
+      || 'Meta không thể khởi tạo phiên tải file.',
+    );
+  }
+
+  const uploadResponse = await fetch(
+    `https://graph.facebook.com/v26.0/${encodeURIComponent(sessionResult.id)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `OAuth ${options.token}`,
+        file_offset: '0',
+        'Content-Type': 'application/octet-stream',
+      },
+      body: options.buffer,
+      signal: AbortSignal.timeout(30_000),
+    },
+  );
+  const uploadResult: any = await uploadResponse.json().catch(() => ({}));
+  if (!uploadResponse.ok || !uploadResult?.h) {
+    throw new Error(
+      uploadResult?.error?.error_user_msg
+      || uploadResult?.error?.message
+      || 'Meta không thể nhận file mẫu.',
+    );
+  }
+  return uploadResult.h;
 }
 
 export async function verifyApprovedMessageTemplate(options: {

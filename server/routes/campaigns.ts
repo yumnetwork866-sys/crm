@@ -9,6 +9,7 @@ import {
   createMessageTemplate,
   fetchMessageTemplates,
   getIntegrationSetting,
+  uploadTemplateSampleMedia,
   verifyApprovedMessageTemplate,
 } from '../services/metaApiClient';
 
@@ -42,30 +43,257 @@ const campaignInputSchema = z.object({
 
 type CampaignInput = z.infer<typeof campaignInputSchema>;
 
+const namedParameterRegex = /^[a-z][a-z0-9_]*$/;
+const variableRegex = /\{\{\s*([^{}]+?)\s*\}\}/g;
+const exampleSchema = z.object({
+  name: z.string().trim().regex(namedParameterRegex, 'Tên biến phải là định danh chữ thường.').optional(),
+  value: z.string().trim().min(1).max(1024),
+}).strict();
+
+const headerSchema = z.object({
+  format: z.enum(['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT']),
+  text: z.string().trim().max(60).optional(),
+  examples: z.array(exampleSchema).max(1).default([]),
+  mediaHandle: z.string().trim().min(1).max(2048).optional(),
+}).strict();
+
+const templateButtonSchema = z.object({
+  type: z.enum(['QUICK_REPLY', 'URL', 'PHONE_NUMBER']),
+  text: z.string().trim().min(1).max(25),
+  url: z.string().trim().max(2000).optional(),
+  urlExample: z.string().trim().max(2000).optional(),
+  phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Số điện thoại phải theo chuẩn E.164.').optional(),
+}).strict();
+
+const authenticationButtonSchema = z.object({
+  text: z.string().trim().min(1).max(25).optional(),
+  autofill: z.string().trim().min(1).max(25).optional(),
+  package: z.string().trim().min(1).max(255).optional(),
+  signature: z.string().trim().min(1).max(255).optional(),
+  zeroTapTermsAccepted: z.boolean().optional(),
+}).strict();
+
+const authenticationSchema = z.object({
+  addSecurityRecommendation: z.boolean().optional(),
+  codeExpirationMinutes: z.number().int().min(1).max(90).optional(),
+  otpType: z.enum(['COPY_CODE', 'ONE_TAP', 'ZERO_TAP']),
+  button: authenticationButtonSchema.default({}),
+}).strict();
+
+function getTemplateVariables(text: string): string[] {
+  return Array.from(text.matchAll(variableRegex), (match) => match[1].trim());
+}
+
+function validateExamplesForText(options: {
+  text: string;
+  examples: Array<{ name?: string; value: string }>;
+  parameterFormat: 'POSITIONAL' | 'NAMED';
+  textPath: (string | number)[];
+  examplesPath: (string | number)[];
+  context: z.RefinementCtx;
+  maxVariables?: number;
+}) {
+  const { text, examples, parameterFormat, textPath, examplesPath, context, maxVariables } = options;
+  const variables = getTemplateVariables(text);
+  const uniqueVariables = Array.from(new Set(variables));
+
+  if (maxVariables !== undefined && uniqueVariables.length > maxVariables) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: textPath,
+      message: `Chỉ được dùng tối đa ${maxVariables} biến.`,
+    });
+  }
+
+  if (parameterFormat === 'POSITIONAL') {
+    const positions = uniqueVariables.map(Number).sort((a, b) => a - b);
+    const valid = positions.every((position, index) => Number.isInteger(position) && position === index + 1);
+    if (!valid) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: textPath,
+        message: 'Biến positional phải liên tục từ {{1}}, {{2}}, ...',
+      });
+    }
+    if (examples.length !== uniqueVariables.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: examplesPath,
+        message: `Nội dung có ${uniqueVariables.length} biến nhưng nhận được ${examples.length} ví dụ.`,
+      });
+    }
+    return;
+  }
+
+  if (uniqueVariables.some((name) => !namedParameterRegex.test(name))) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: textPath,
+      message: 'Biến named phải là định danh chữ thường, ví dụ {{customer_name}}.',
+    });
+  }
+  const exampleNames = examples.map((example) => example.name).filter((name): name is string => Boolean(name));
+  const hasMatchingExamples = examples.length === uniqueVariables.length
+    && exampleNames.length === examples.length
+    && new Set(exampleNames).size === exampleNames.length
+    && uniqueVariables.every((name) => exampleNames.includes(name));
+  if (!hasMatchingExamples) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: examplesPath,
+      message: 'Mỗi biến named phải có đúng một ví dụ với name khớp tên biến.',
+    });
+  }
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 const templateCreateSchema = z.object({
   name: z.string().trim().regex(/^[a-z0-9_]+$/, 'Tên template chỉ gồm chữ thường, số và dấu gạch dưới.').max(512),
   language: z.string().trim().min(2).max(12),
-  category: z.enum(['MARKETING', 'UTILITY']),
-  body: z.string().trim().min(1).max(1024),
+  category: categorySchema,
+  parameterFormat: z.enum(['POSITIONAL', 'NAMED']).optional(),
+  allowCategoryChange: z.boolean().optional(),
+  header: headerSchema.optional(),
+  body: z.string().trim().max(1024).optional(),
+  bodyExamples: z.array(exampleSchema).max(20).default([]),
   footer: z.string().trim().max(60).optional(),
-  bodyExamples: z.array(z.string().trim().min(1).max(1024)).max(20).default([]),
-}).superRefine((data, context) => {
-  const positions = Array.from(data.body.matchAll(/\{\{(\d+)\}\}/g)).map((match) => Number(match[1]));
-  const uniquePositions = Array.from(new Set(positions)).sort((a, b) => a - b);
-  const expected = Array.from({ length: uniquePositions.length }, (_, index) => index + 1);
-  if (uniquePositions.some((position, index) => position !== expected[index])) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['body'],
-      message: 'Biến BODY phải liên tục từ {{1}}, {{2}}, ...',
+  buttons: z.array(templateButtonSchema).max(10).default([]),
+  authentication: authenticationSchema.optional(),
+}).strict().superRefine((data, context) => {
+  if (data.category === 'AUTHENTICATION') {
+    if (!data.authentication) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['authentication'], message: 'Thiếu cấu hình authentication.' });
+      return;
+    }
+    if (data.parameterFormat || data.header || data.body || data.bodyExamples.length || data.footer || data.buttons.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['category'],
+        message: 'Template AUTHENTICATION chỉ nhận cấu hình authentication.',
+      });
+    }
+    const { otpType, button } = data.authentication;
+    if (otpType === 'COPY_CODE') {
+      if (button.autofill || button.package || button.signature || button.zeroTapTermsAccepted !== undefined) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['authentication', 'button'], message: 'COPY_CODE không nhận cấu hình ứng dụng.' });
+      }
+    } else {
+      if (!button.autofill || !button.package || !button.signature) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['authentication', 'button'],
+          message: `${otpType} yêu cầu autofill, package và signature.`,
+        });
+      }
+      if (otpType === 'ONE_TAP' && button.zeroTapTermsAccepted !== undefined) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['authentication', 'button', 'zeroTapTermsAccepted'], message: 'ONE_TAP không nhận zeroTapTermsAccepted.' });
+      }
+      if (otpType === 'ZERO_TAP' && button.zeroTapTermsAccepted !== true) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['authentication', 'button', 'zeroTapTermsAccepted'], message: 'ZERO_TAP yêu cầu chấp nhận điều khoản zero tap.' });
+      }
+    }
+    return;
+  }
+
+  if (data.authentication) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['authentication'], message: 'authentication chỉ dùng cho category AUTHENTICATION.' });
+  }
+  if (!data.body) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['body'], message: 'BODY là bắt buộc.' });
+  }
+  const parameterFormat = data.parameterFormat || 'POSITIONAL';
+  if (data.body) {
+    validateExamplesForText({
+      text: data.body,
+      examples: data.bodyExamples,
+      parameterFormat,
+      textPath: ['body'],
+      examplesPath: ['bodyExamples'],
+      context,
     });
   }
-  if (data.bodyExamples.length !== uniquePositions.length) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['bodyExamples'],
-      message: `Template có ${uniquePositions.length} biến nhưng nhận được ${data.bodyExamples.length} giá trị ví dụ.`,
-    });
+  if (data.footer && getTemplateVariables(data.footer).length > 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['footer'], message: 'FOOTER không được chứa biến.' });
+  }
+
+  if (data.header) {
+    const { format, text, examples, mediaHandle } = data.header;
+    if (format === 'TEXT') {
+      if (!text) context.addIssue({ code: z.ZodIssueCode.custom, path: ['header', 'text'], message: 'HEADER TEXT yêu cầu text.' });
+      if (mediaHandle) context.addIssue({ code: z.ZodIssueCode.custom, path: ['header', 'mediaHandle'], message: 'HEADER TEXT không nhận mediaHandle.' });
+      if (text) {
+        validateExamplesForText({
+          text,
+          examples,
+          parameterFormat,
+          textPath: ['header', 'text'],
+          examplesPath: ['header', 'examples'],
+          context,
+          maxVariables: 1,
+        });
+      }
+    } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(format)) {
+      if (!mediaHandle) context.addIssue({ code: z.ZodIssueCode.custom, path: ['header', 'mediaHandle'], message: `HEADER ${format} yêu cầu mediaHandle.` });
+      if (text || examples.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ['header'], message: `HEADER ${format} không nhận text hoặc examples.` });
+    } else if (text || examples.length || mediaHandle) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['header'], message: 'HEADER NONE không nhận nội dung.' });
+    }
+  }
+
+  const urlButtons = data.buttons.filter((button) => button.type === 'URL');
+  const phoneButtons = data.buttons.filter((button) => button.type === 'PHONE_NUMBER');
+  if (urlButtons.length > 2) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 2 nút URL.' });
+  if (phoneButtons.length > 1) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 1 nút PHONE_NUMBER.' });
+
+  data.buttons.forEach((button, index) => {
+    if (button.type === 'URL') {
+      if (!button.url || !isHttpsUrl(button.url)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Nút URL yêu cầu URL https hợp lệ.' });
+      }
+      const variables = button.url ? getTemplateVariables(button.url) : [];
+      const uniqueVariables = Array.from(new Set(variables));
+      if (uniqueVariables.length > 1) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Nút URL chỉ được chứa tối đa 1 biến.' });
+      }
+      if (parameterFormat === 'POSITIONAL' && uniqueVariables.some((name) => name !== '1')) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Biến URL positional phải là {{1}}.' });
+      }
+      if (parameterFormat === 'NAMED' && uniqueVariables.some((name) => !namedParameterRegex.test(name))) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Biến URL named phải là định danh chữ thường.' });
+      }
+      if (uniqueVariables.length === 1 && (!button.urlExample || !isHttpsUrl(button.urlExample))) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'urlExample'], message: 'URL động yêu cầu urlExample https hợp lệ.' });
+      }
+      if (uniqueVariables.length === 0 && button.urlExample) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'urlExample'], message: 'URL tĩnh không nhận urlExample.' });
+      }
+      if (button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Nút URL không nhận phoneNumber.' });
+    } else if (button.type === 'PHONE_NUMBER') {
+      if (!button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Nút PHONE_NUMBER yêu cầu phoneNumber.' });
+      if (button.url || button.urlExample) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Nút PHONE_NUMBER không nhận URL.' });
+    } else if (button.url || button.urlExample || button.phoneNumber) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Nút QUICK_REPLY chỉ nhận type và text.' });
+    }
+  });
+});
+
+const templateMediaUploadSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'video/mp4', 'application/pdf']),
+  dataBase64: z.string().min(1).max(11_184_812).regex(
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+    'dataBase64 không hợp lệ.',
+  ),
+}).strict().superRefine((data, context) => {
+  if (Buffer.byteLength(data.dataBase64, 'base64') > 8 * 1024 * 1024) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['dataBase64'], message: 'File không được vượt quá 8MB.' });
   }
 });
 
@@ -230,7 +458,7 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-// POST /api/campaigns/templates - Submit a positional BODY template to Meta for review
+// POST /api/campaigns/templates - Submit a WhatsApp template to Meta for review
 router.post(
   '/templates',
   requireRole(['Admin', 'Marketing Lead']),
@@ -259,6 +487,42 @@ router.post(
     } catch (error: any) {
       return res.status(502).json({
         error: error?.message || 'Không thể gửi template sang Meta xét duyệt.',
+      });
+    }
+  },
+);
+
+// POST /api/campaigns/templates/media - Upload a template sample through Meta resumable uploads
+router.post(
+  '/templates/media',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = templateMediaUploadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Dữ liệu file không hợp lệ.',
+      });
+    }
+    try {
+      const setting = await getIntegrationSetting();
+      const appId = setting.whatsappAppId?.trim();
+      const token = setting.whatsappAccessToken?.trim();
+      if (!appId || !token) {
+        return res.status(409).json({
+          error: 'Chưa cấu hình WhatsApp App ID hoặc access token.',
+        });
+      }
+      const handle = await uploadTemplateSampleMedia({
+        appId,
+        token,
+        fileName: parsed.data.fileName,
+        mimeType: parsed.data.mimeType,
+        buffer: Buffer.from(parsed.data.dataBase64, 'base64'),
+      });
+      return res.status(201).json({ handle });
+    } catch (error: any) {
+      return res.status(502).json({
+        error: error?.message || 'Không thể tải file mẫu lên Meta.',
       });
     }
   },

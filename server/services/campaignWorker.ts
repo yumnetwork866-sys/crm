@@ -64,7 +64,14 @@ export async function aggregateCampaign(campaignId: string): Promise<void> {
 async function ensureQueueSchema() {
   if (isSchemaReady) return true;
   try {
-    await prisma.broadcastRecipient.count({ take: 1 });
+    if (!prisma.broadcastRecipient) {
+      if (Date.now() - lastSchemaWarningAt > 60_000) {
+        console.warn('[CAMPAIGN WORKER PAUSED] Prisma Client chưa có model BroadcastRecipient. Hãy chạy: npm run db:generate hoặc npm run db:push');
+        lastSchemaWarningAt = Date.now();
+      }
+      return false;
+    }
+    await prisma.broadcastRecipient.count();
     isSchemaReady = true;
     return true;
   } catch (error: any) {

@@ -173,13 +173,50 @@ export interface WhatsAppApprovedTemplate {
   }>;
 }
 
+export type WhatsAppTemplateParameterFormat = 'POSITIONAL' | 'NAMED';
+export type WhatsAppTemplateHeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+export type WhatsAppTemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+export type WhatsAppOtpType = 'COPY_CODE' | 'ONE_TAP' | 'ZERO_TAP';
+
+export interface WhatsAppTemplateExample {
+  name?: string;
+  value: string;
+}
+
 export interface CreateWhatsAppTemplateInput {
   name: string;
   language: string;
-  category: Exclude<WhatsAppTemplateCategory, 'AUTHENTICATION'>;
-  body: string;
+  category: WhatsAppTemplateCategory;
+  parameterFormat?: WhatsAppTemplateParameterFormat;
+  allowCategoryChange?: boolean;
+  header?: {
+    format: WhatsAppTemplateHeaderFormat;
+    text?: string;
+    examples?: WhatsAppTemplateExample[];
+    mediaHandle?: string;
+  };
+  body?: string;
+  bodyExamples?: WhatsAppTemplateExample[];
   footer?: string;
-  bodyExamples: string[];
+  buttons?: Array<{
+    type: WhatsAppTemplateButtonType;
+    text: string;
+    url?: string;
+    urlExample?: string;
+    phoneNumber?: string;
+  }>;
+  authentication?: {
+    addSecurityRecommendation?: boolean;
+    codeExpirationMinutes?: number;
+    otpType: WhatsAppOtpType;
+    button: {
+      text?: string;
+      autofill?: string;
+      package?: string;
+      signature?: string;
+      zeroTapTermsAccepted?: boolean;
+    };
+  };
 }
 
 export interface LaunchCampaignInput {
