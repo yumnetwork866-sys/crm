@@ -98,9 +98,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
             <span>WhatsApp Manager</span>
           </div>
           <h2 className="mt-1 text-xl font-bold text-slate-900">Quản lý Message Template</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Tạo template BODY positional và theo dõi kết quả xét duyệt trực tiếp từ WABA.
-          </p>
+
         </div>
         <div className="flex gap-2">
           <button
