@@ -53,11 +53,17 @@ type EditableButton = {
 type WizardStep = 1 | 2 | 3;
 type TemplateType = 'DEFAULT' | 'CATALOGUE' | 'FLOWS' | 'CALLING_PERMISSION';
 
-const SETUP_PREVIEW_IMAGES: Record<TemplateType, string> = {
+const MARKETING_SETUP_PREVIEW_IMAGES: Record<TemplateType, string> = {
   DEFAULT: '/images/template-types/default.webp',
   CATALOGUE: '/images/template-types/catalogue.gif',
   FLOWS: '/images/template-types/flows.gif',
   CALLING_PERMISSION: '/images/template-types/calling.gif',
+};
+
+const UTILITY_SETUP_PREVIEW_IMAGES: Record<Exclude<TemplateType, 'CATALOGUE'>, string> = {
+  DEFAULT: '/images/template-types/default_utility.webp',
+  FLOWS: '/images/template-types/flow_utility.gif',
+  CALLING_PERMISSION: '/images/template-types/calling_utility.gif',
 };
 
 const STATUS_CLASSES: Record<string, string> = {
@@ -187,6 +193,20 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   useEffect(() => () => {
     if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
   }, [mediaPreviewUrl]);
+
+  useEffect(() => {
+    if (!isFormOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFormOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isFormOpen]);
 
   const resetForm = () => {
     setWizardStep(1);
@@ -379,8 +399,22 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
       {successMessage ? <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{successMessage}</div> : null}
 
       {isFormOpen ? (
-        <form ref={formRef} onSubmit={handleWizardSubmit} className="space-y-5 rounded-3xl border border-slate-200/80 bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-3 shadow-sm sm:p-5">
-          <WizardProgress step={wizardStep} />
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
+          onMouseDown={() => setIsFormOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tạo WhatsApp message template"
+            className="relative my-auto max-h-[calc(100vh-1rem)] w-full max-w-370 overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100vh-2rem)]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button type="button" onClick={() => setIsFormOpen(false)} aria-label="Đóng cửa sổ tạo template" className="absolute right-4 top-4 z-40 rounded-full bg-white p-1 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:text-slate-700">
+              <XCircle className="h-5 w-5" />
+            </button>
+            <form ref={formRef} onSubmit={handleWizardSubmit} className="space-y-5 bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-3 sm:p-5">
+              <WizardProgress step={wizardStep} />
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
               {wizardStep === 1 ? (
@@ -389,7 +423,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Set up template</p>
                       <h3 className="mt-1 text-xl font-bold text-slate-900">Thiết lập template</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">Chọn category và loại template phù hợp nhất với mục đích của tin nhắn.</p>
+
                     </div>
                     <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 sm:grid-cols-3" role="tablist" aria-label="Template category">
                       {(['MARKETING', 'UTILITY', 'AUTHENTICATION'] as WhatsAppTemplateCategory[]).map((item) => (
@@ -399,29 +433,36 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           role="tab"
                           aria-selected={category === item}
                           onClick={() => { setCategory(item); setTemplateType('DEFAULT'); }}
-                          className={`rounded-lg px-3 py-3 text-left transition ${category === item ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/60'}`}
+                          className={`group relative rounded-lg px-3 py-3 text-left transition ${category === item ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/60'}`}
                         >
                           <span className="block text-sm font-bold">{item === 'MARKETING' ? 'Marketing' : item === 'UTILITY' ? 'Utility' : 'Authentication'}</span>
                           <span className="mt-0.5 block text-[11px] leading-4">{item === 'MARKETING' ? 'Ưu đãi và tương tác' : item === 'UTILITY' ? 'Cập nhật giao dịch' : 'Mã xác thực OTP'}</span>
+                          <span role="tooltip" className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                            {categoryDescription[item]}
+                            {item === 'AUTHENTICATION' ? ' Meta tự tạo nội dung OTP theo ngôn ngữ và cài đặt ở bước tiếp theo.' : ''}
+                          </span>
                         </button>
                       ))}
                     </div>
-                    <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
-                      {categoryDescription[category]}
-                      {category === 'AUTHENTICATION' ? <p className="mt-2 text-xs text-indigo-700">Meta tự tạo nội dung OTP theo ngôn ngữ và cài đặt bạn chọn ở bước tiếp theo.</p> : null}
-                    </div>
+
                   </section>
 
                   {category !== 'AUTHENTICATION' ? (
                     <section className={sectionClass}>
                       <div><h3 className="font-bold text-slate-900">Loại template</h3><p className="text-xs text-slate-500">Hiện tại bạn có thể tạo template mặc định.</p></div>
                       <div className="grid gap-3">
-                        {([
-                          ['DEFAULT', 'Default', 'Tạo tin nhắn với header, body, footer và buttons.'],
-                          ['CATALOGUE', 'Catalogue', 'Hiển thị sản phẩm từ catalogue của doanh nghiệp.'],
-                          ['FLOWS', 'Flows', 'Mở một WhatsApp Flow từ tin nhắn.'],
-                          ['CALLING_PERMISSION', 'Calling permissions request', 'Yêu cầu khách hàng cấp quyền gọi.'],
-                        ] as Array<[TemplateType, string, string]>).map(([value, title, description]) => {
+                        {((category === 'UTILITY'
+                          ? [
+                              ['DEFAULT', 'Default', 'Gửi tin nhắn về một đơn hàng hoặc tài khoản hiện có.'],
+                              ['FLOWS', 'Flows', 'Gửi biểu mẫu để thu thập phản hồi, gửi lời nhắc hoặc quản lý đơn hàng.'],
+                              ['CALLING_PERMISSION', 'Calling permissions request', 'Hỏi khách hàng xem bạn có thể gọi cho họ trên WhatsApp hay không.'],
+                            ]
+                          : [
+                              ['DEFAULT', 'Default', 'Tạo tin nhắn với header, body, footer và buttons.'],
+                              ['CATALOGUE', 'Catalogue', 'Hiển thị sản phẩm từ catalogue của doanh nghiệp.'],
+                              ['FLOWS', 'Flows', 'Mở một WhatsApp Flow từ tin nhắn.'],
+                              ['CALLING_PERMISSION', 'Calling permissions request', 'Yêu cầu khách hàng cấp quyền gọi.'],
+                            ]) as Array<[TemplateType, string, string]>).map(([value, title, description]) => {
                           const disabled = value !== 'DEFAULT';
                           return (
                             <label key={value} className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition ${templateType === value ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
@@ -432,7 +473,18 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         })}
                       </div>
                     </section>
-                  ) : null}
+                  ) : (
+                    <section className={sectionClass}>
+                      <div><h3 className="font-bold text-slate-900">Loại template</h3><p className="text-xs text-slate-500">Chọn cách gửi mã xác thực cho khách hàng.</p></div>
+                      <label className="relative flex cursor-pointer gap-3 rounded-xl border border-indigo-300 bg-indigo-50 p-4">
+                        <input type="radio" name="authenticationTemplateType" checked readOnly className="mt-1" />
+                        <span>
+                          <span className="block text-sm font-bold text-slate-900">One-time passcode</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-500">Gửi mã xác thực dùng một lần để đăng nhập hoặc xác minh tài khoản.</span>
+                        </span>
+                      </label>
+                    </section>
+                  )}
 
                 </>
               ) : null}
@@ -518,7 +570,9 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
               <TemplatePreview wizardStep={wizardStep} templateType={templateType} category={category} headerFormat={headerFormat} headerText={headerText} headerExamples={headerExamples} mediaFileName={mediaFileName} mediaPreviewUrl={mediaPreviewUrl} body={body} bodyExamples={bodyExamples} footer={footer} buttons={buttons} parameterFormat={parameterFormat} otpType={otpType} otpButtonText={otpButtonText} otpExpiration={otpExpiration} addSecurityRecommendation={addSecurityRecommendation} />
             </div>
           </div>
-        </form>
+            </form>
+          </div>
+        </div>
       ) : null}
 
       {error ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">{error.message}</div> : null}
@@ -571,7 +625,12 @@ const TemplatePreview: React.FC<{
 }> = ({ wizardStep, templateType, category, headerFormat, headerText, headerExamples, mediaFileName, mediaPreviewUrl, body, bodyExamples, footer, buttons, parameterFormat, otpType, otpButtonText, otpExpiration, addSecurityRecommendation }) => {
   const previewHeader = substituteExamples(headerText, headerExamples, parameterFormat);
   const previewBody = substituteExamples(body, bodyExamples, parameterFormat);
-  const showSetupIllustration = wizardStep === 1 && category !== 'AUTHENTICATION';
+  const showSetupIllustration = wizardStep === 1;
+  const setupPreviewImage = category === 'AUTHENTICATION'
+    ? '/images/template-types/otp.webp'
+    : category === 'UTILITY' && templateType !== 'CATALOGUE'
+      ? UTILITY_SETUP_PREVIEW_IMAGES[templateType]
+      : MARKETING_SETUP_PREVIEW_IMAGES[templateType];
   return (
     <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-bold text-slate-900">Template preview</h3><p className="text-[11px] text-slate-500">Bản xem trước cập nhật theo thời gian thực</p></div>
@@ -581,11 +640,11 @@ const TemplatePreview: React.FC<{
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-500">
               <Image className="h-8 w-8" />
               <span>Thêm ảnh vào</span>
-              <code className="break-all rounded bg-white px-2 py-1 text-[10px]">{SETUP_PREVIEW_IMAGES[templateType]}</code>
+              <code className="break-all rounded bg-white px-2 py-1 text-[10px]">{setupPreviewImage}</code>
             </div>
             <img
-              key={SETUP_PREVIEW_IMAGES[templateType]}
-              src={SETUP_PREVIEW_IMAGES[templateType]}
+              key={setupPreviewImage}
+              src={setupPreviewImage}
               alt={`Minh họa ${templateType.toLowerCase()} template`}
               className="relative z-10 block h-auto w-full bg-[#f7f2e9]"
               onError={(event) => { event.currentTarget.style.display = 'none'; }}
