@@ -3,14 +3,17 @@ import {
   ArrowLeft,
   Ban,
   Bell,
+  Bold,
   Check,
   CheckCircle2,
   ChevronDown,
   Clock3,
+  Code2,
   Copy,
   FileText,
   Image,
   Info,
+  Italic,
   KeyRound,
   Link2,
   Loader2,
@@ -21,6 +24,8 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
+  Smile,
+  Strikethrough,
   Trash2,
   Upload,
   Video,
@@ -85,6 +90,118 @@ const STATUS_CLASSES: Record<string, string> = {
 const inputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100';
 const labelClass = 'mb-1 block text-xs font-semibold text-slate-700';
 const sectionClass = 'space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
+const RECENT_EMOJIS_STORAGE_KEY = 'yumcrm_recent_emojis';
+
+const EMOJI_CATEGORIES = [
+  {
+    id: 'smileys',
+    label: 'Mặt cười & con người',
+    icon: '🙂',
+    emojis: '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 👍 👎 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 👐 🤲 🙏 ✍️ 💪'.split(' '),
+  },
+  {
+    id: 'animals',
+    label: 'Động vật & thiên nhiên',
+    icon: '🐾',
+    emojis: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐻‍❄️ 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐒 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🪱 🐛 🦋 🐌 🐞 🐜 🪰 🪲 🪳 🦟 🦗 🕷️ 🦂 🐢 🐍 🦎 🐙 🦑 🦐 🦞 🦀 🐠 🐟 🐡 🐬 🐳 🦈 🐊 🐅 🐆 🦓 🦍 🦧 🐘 🦛 🦏 🐪 🦒 🦘 🦬 🐃 🐂 🐄 🐎 🐖 🐏 🦙 🐐 🦌 🐕 🐈 🪶 🐇 🐿️ 🦔 🌵 🎄 🌲 🌳 🌴 🪴 🌱 🌿 ☘️ 🍀 🎍 🍃 🍂 🍁 🍄 🐚 🌾 💐 🌷 🌹 🥀 🌺 🌸 🌼 🌻'.split(' '),
+  },
+  {
+    id: 'food',
+    label: 'Đồ ăn & thức uống',
+    icon: '🍕',
+    emojis: '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🫑 🌽 🥕 🫒 🧄 🧅 🥔 🍠 🥐 🥯 🍞 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🫓 🥪 🥙 🧆 🌮 🌯 🥗 🥘 🫕 🥫 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🦪 🍤 🍙 🍚 🍘 🍥 🥠 🥮 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🌰 🥜 🍯 🥛 ☕ 🫖 🍵 🧃 🥤 🧋 🍺 🍻 🥂 🍷 🥃 🍸 🍹'.split(' '),
+  },
+  {
+    id: 'activities',
+    label: 'Hoạt động',
+    icon: '⚽',
+    emojis: '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🪃 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 🛷 ⛸️ 🥌 🎿 ⛷️ 🏂 🪂 🏋️ 🤼 🤸 ⛹️ 🤺 🤾 🏌️ 🏇 🧘 🏄 🏊 🤽 🚣 🧗 🚵 🚴 🏆 🥇 🥈 🥉 🏅 🎖️ 🏵️ 🎗️ 🎫 🎟️ 🎪 🤹 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🪗 🎸 🪕 🎻 🎲 ♟️ 🎯 🎳 🎮 🎰 🧩'.split(' '),
+  },
+  {
+    id: 'travel',
+    label: 'Du lịch & địa điểm',
+    icon: '🚗',
+    emojis: '🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🛵 🏍️ 🛺 🚲 🛴 🚨 🚔 🚍 🚘 🚖 🚡 🚠 🚟 🚃 🚋 🚞 🚝 🚄 🚅 🚈 🚂 🚆 🚇 🚊 🚉 ✈️ 🛫 🛬 🛩️ 💺 🛰️ 🚀 🛸 🚁 🛶 ⛵ 🚤 🛥️ 🛳️ ⛴️ 🚢 ⚓ ⛽ 🚧 🚦 🚥 🗺️ 🗿 🗽 🗼 🏰 🏯 🏟️ 🎡 🎢 🎠 ⛲ ⛱️ 🏖️ 🏝️ 🏜️ 🌋 ⛰️ 🏕️ ⛺ 🛖 🏠 🏡 🏢 🏥 🏦 🏨 🏪 🏫 🏭 ⛪ 🕌 🛕 🕍'.split(' '),
+  },
+  {
+    id: 'objects',
+    label: 'Đồ vật',
+    icon: '💡',
+    emojis: '⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 🕹️ 🗜️ 💽 💾 💿 📀 📼 📷 📸 📹 🎥 📽️ 🎞️ 📞 ☎️ 📟 📠 📺 📻 🎙️ 🎚️ 🎛️ 🧭 ⏱️ ⏲️ ⏰ 🕰️ ⌛ ⏳ 📡 🔋 🔌 💡 🔦 🕯️ 🪔 🧯 🛢️ 💸 💵 💴 💶 💷 🪙 💰 💳 💎 ⚖️ 🪜 🧰 🪛 🔧 🔨 ⚒️ 🛠️ ⛏️ 🪚 🔩 ⚙️ 🪤 🧱 ⛓️ 🧲 🔫 💣 🧨 🪓 🔪 🗡️ ⚔️ 🛡️ 🚬 ⚰️ 🪦 ⚱️ 🏺 🔮 📿 🧿 💈 ⚗️ 🔭 🔬 🕳️ 🩹 🩺 💊 💉 🩸 🧬 🦠 🧼 🪥 🧽 🧹 🧺 🧻 🚽 🚿 🛁 🪒 🧴'.split(' '),
+  },
+  {
+    id: 'symbols',
+    label: 'Biểu tượng',
+    icon: '@',
+    emojis: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ☮️ ✝️ ☪️ 🕉️ ☸️ ✡️ 🔯 🕎 ☯️ ☦️ 🛐 ⛎ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ 🆔 ⚛️ ☢️ ☣️ 📴 📳 🈶 🈚 🈸 🈺 🈷️ ✴️ 🆚 💮 🉐 ㊙️ ㊗️ 🈴 🈵 🈹 🈲 🅰️ 🅱️ 🆎 🆑 🅾️ 🆘 ❌ ⭕ 🛑 ⛔ 📛 🚫 💯 💢 ♨️ 🚷 🚯 🚳 🚱 🔞 📵 🚭 ❗ ❕ ❓ ❔ ‼️ ⁉️ 🔅 🔆 ⚠️ 🚸 🔱 ⚜️ 🔰 ♻️ ✅ 🈯 💹 ❇️ ✳️ ❎ 🌐 💠 Ⓜ️ 🌀 💤 🏧 🚾 ♿ 🅿️ 🛗 🛂 🛃 🛄 🛅'.split(' '),
+  },
+  {
+    id: 'flags',
+    label: 'Cờ',
+    icon: '🏳️',
+    emojis: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🇺🇳 🇻🇳 🇺🇸 🇬🇧 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇵🇹 🇳🇱 🇧🇪 🇨🇭 🇦🇹 🇩🇰 🇸🇪 🇳🇴 🇫🇮 🇵🇱 🇨🇿 🇺🇦 🇷🇺 🇨🇦 🇲🇽 🇧🇷 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇯🇵 🇰🇷 🇨🇳 🇭🇰 🇹🇼 🇸🇬 🇲🇾 🇹🇭 🇮🇩 🇵🇭 🇮🇳 🇵🇰 🇧🇩 🇦🇺 🇳🇿 🇿🇦 🇪🇬 🇸🇦 🇦🇪 🇮🇱 🇹🇷'.split(' '),
+  },
+] as const;
+
+type EmojiCategoryId = (typeof EMOJI_CATEGORIES)[number]['id'];
+
+const EmojiPicker: React.FC<{
+  recentEmojis: string[];
+  onSelect: (emoji: string) => void;
+}> = ({ recentEmojis, onSelect }) => {
+  const [activeCategory, setActiveCategory] = useState<EmojiCategoryId>('smileys');
+  const category = EMOJI_CATEGORIES.find((item) => item.id === activeCategory) || EMOJI_CATEGORIES[0];
+
+  const renderEmojiGrid = (emojis: readonly string[]) => (
+    <div className="grid grid-cols-8 gap-1">
+      {emojis.map((emoji, index) => (
+        <button
+          key={`${emoji}-${index}`}
+          type="button"
+          onClick={() => onSelect(emoji)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-xl transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
+          aria-label={`Chèn emoji ${emoji}`}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="absolute right-0 bottom-full z-50 mb-2 flex w-80 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+      <div className="max-h-72 overflow-y-auto p-2">
+        {recentEmojis.length > 0 ? (
+          <section className="mb-3">
+            <h5 className="mb-1.5 px-1 text-[11px] font-medium text-slate-500">Đã dùng gần đây</h5>
+            {renderEmojiGrid(recentEmojis)}
+          </section>
+        ) : null}
+        <section>
+          <h5 className="mb-1.5 px-1 text-[11px] font-medium text-slate-500">{category.label}</h5>
+          {renderEmojiGrid(category.emojis)}
+        </section>
+      </div>
+      <div className="grid grid-cols-8 border-t border-slate-200 bg-white px-1 py-1">
+        {EMOJI_CATEGORIES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveCategory(item.id)}
+            title={item.label}
+            aria-label={item.label}
+            aria-pressed={activeCategory === item.id}
+            className={`flex h-8 items-center justify-center rounded-md text-base transition ${
+              activeCategory === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            {item.icon}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 function extractVariables(text: string, format: WhatsAppTemplateParameterFormat): string[] {
   const matches = Array.from(text.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g), (match) => match[1].trim());
@@ -385,6 +502,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const formRef = useRef<HTMLFormElement>(null);
   const headerInputRef = useRef<HTMLInputElement>(null);
+  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPickerRef = useRef<HTMLSpanElement>(null);
   const [templateType, setTemplateType] = useState<TemplateType>('DEFAULT');
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('en');
@@ -401,6 +520,15 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const [mediaError, setMediaError] = useState('');
   const [body, setBody] = useState('');
   const [bodyExamples, setBodyExamples] = useState<WhatsAppTemplateExample[]>([]);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RECENT_EMOJIS_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved.filter((item): item is string => typeof item === 'string').slice(0, 8) : [];
+    } catch {
+      return [];
+    }
+  });
   const [footer, setFooter] = useState('');
   const [buttons, setButtons] = useState<EditableButton[]>([]);
   const [otpType, setOtpType] = useState<WhatsAppOtpType>('COPY_CODE');
@@ -428,6 +556,29 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   useEffect(() => () => {
     if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
   }, [mediaPreviewUrl]);
+
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setIsEmojiPickerOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setIsEmojiPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isEmojiPickerOpen]);
 
   useEffect(() => {
     if (!isFormOpen) return;
@@ -488,6 +639,59 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
       const cursorPosition = selectionStart + variable.length;
       input?.focus();
       input?.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  };
+
+  const insertBodyText = (text: string) => {
+    const input = bodyInputRef.current;
+    const selectionStart = input?.selectionStart ?? body.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const nextBody = `${body.slice(0, selectionStart)}${text}${body.slice(selectionEnd)}`;
+    if (nextBody.length > 1024) return;
+
+    setBody(nextBody);
+    window.requestAnimationFrame(() => {
+      const cursorPosition = selectionStart + text.length;
+      input?.focus();
+      input?.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  };
+
+  const replaceBodySelection = (prefix: string, suffix = '', fallback = '') => {
+    const input = bodyInputRef.current;
+    const selectionStart = input?.selectionStart ?? body.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const selectedText = body.slice(selectionStart, selectionEnd) || fallback;
+    const replacement = `${prefix}${selectedText}${suffix}`;
+    const nextBody = `${body.slice(0, selectionStart)}${replacement}${body.slice(selectionEnd)}`;
+    if (nextBody.length > 1024) return;
+
+    setBody(nextBody);
+    window.requestAnimationFrame(() => {
+      const contentStart = selectionStart + prefix.length;
+      const contentEnd = contentStart + selectedText.length;
+      input?.focus();
+      input?.setSelectionRange(contentStart, contentEnd);
+    });
+  };
+
+  const addBodyVariable = () => {
+    const variable = parameterFormat === 'NAMED'
+      ? `{{variable_${bodyVariables.length + 1}}}`
+      : `{{${bodyVariables.length + 1}}}`;
+    insertBodyText(variable);
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    insertBodyText(emoji);
+    setRecentEmojis((current) => {
+      const next = [emoji, ...current.filter((item) => item !== emoji)].slice(0, 8);
+      try {
+        localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Recent emojis are an optional convenience; insertion still works without storage.
+      }
+      return next;
     });
   };
 
@@ -964,7 +1168,64 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         ) : null}
                       </div>
 
-                      <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
+                      <div>
+                        <label className={labelClass}>Body</label>
+                        <textarea
+                          ref={bodyInputRef}
+                          required
+                          rows={6}
+                          maxLength={1024}
+                          value={body}
+                          onChange={(event) => setBody(event.target.value)}
+                          placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`}
+                          className={`${inputClass} p-3`}
+                        />
+                        <p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p>
+                        <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
+                          <span ref={emojiPickerRef} className="relative inline-flex">
+                            <button
+                              type="button"
+                              onClick={() => setIsEmojiPickerOpen((current) => !current)}
+                              aria-label="Mở bảng biểu tượng cảm xúc"
+                              aria-haspopup="dialog"
+                              aria-expanded={isEmojiPickerOpen}
+                              title="Biểu tượng cảm xúc"
+                              className={`rounded-lg p-1.5 transition focus-visible:outline-2 focus-visible:outline-indigo-500 ${
+                                isEmojiPickerOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              }`}
+                            >
+                              <Smile aria-hidden="true" className="h-4 w-4" />
+                            </button>
+                            {isEmojiPickerOpen ? (
+                              <EmojiPicker recentEmojis={recentEmojis} onSelect={handleEmojiSelect} />
+                            ) : null}
+                          </span>
+                          <button type="button" onClick={() => replaceBodySelection('*', '*', 'text')} aria-label="In đậm" title="In đậm" className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                            <Bold aria-hidden="true" className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => replaceBodySelection('_', '_', 'text')} aria-label="In nghiêng" title="In nghiêng" className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                            <Italic aria-hidden="true" className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => replaceBodySelection('~', '~', 'text')} aria-label="Gạch ngang" title="Gạch ngang" className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                            <Strikethrough aria-hidden="true" className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => replaceBodySelection('```', '```', 'text')} aria-label="Định dạng monospace" title="Định dạng monospace" className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                            <Code2 aria-hidden="true" className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={addBodyVariable} className="ml-1 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                            Thêm biến
+                          </button>
+                          <span className="group relative inline-flex">
+                            <button type="button" aria-label="Hướng dẫn thêm biến vào nội dung" aria-describedby="body-variable-tooltip" className="rounded-full p-1.5 text-slate-500 transition hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-indigo-500">
+                              <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                            </button>
+                            <span id="body-variable-tooltip" role="tooltip" style={{ backgroundColor: '#ffffff', color: '#0f172a' }} className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 p-3 text-xs leading-5 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                              Thêm biến bằng cách chọn các cột từ danh sách khách hàng của bạn. Khi tin nhắn được gửi, biến sẽ được thay thế bằng dữ liệu từ cột tương ứng.
+                            </span>
+                          </span>
+                        </div>
+                      </div>
                       {headerExamples.length > 0 || bodyExamples.length > 0 ? (
                         <VariableSamples
                           headerExamples={headerExamples}
