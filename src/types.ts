@@ -174,7 +174,7 @@ export interface WhatsAppApprovedTemplate {
 }
 
 export type WhatsAppTemplateParameterFormat = 'POSITIONAL' | 'NAMED';
-export type WhatsAppTemplateHeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+export type WhatsAppTemplateHeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
 export type WhatsAppTemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
 export type WhatsAppOtpType = 'COPY_CODE' | 'ONE_TAP' | 'ZERO_TAP';
 

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Ban,
   Bell,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Copy,
   FileText,
@@ -12,6 +14,7 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
+  MapPin,
   Megaphone,
   Phone,
   Plus,
@@ -19,6 +22,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  Video,
   XCircle,
 } from 'lucide-react';
 import type {
@@ -250,6 +254,107 @@ const categoryIcons = {
   AUTHENTICATION: KeyRound,
 } as const;
 
+const MEDIA_SAMPLE_OPTIONS = [
+  { value: 'NONE', label: 'None', icon: Ban },
+  { value: 'IMAGE', label: 'Image', icon: Image },
+  { value: 'VIDEO', label: 'Video', icon: Video },
+  { value: 'DOCUMENT', label: 'Document', icon: FileText },
+  { value: 'LOCATION', label: 'Location', icon: MapPin },
+] as const;
+
+const MediaSampleDropdown: React.FC<{
+  value: WhatsAppTemplateHeaderFormat;
+  onChange: (value: WhatsAppTemplateHeaderFormat) => void;
+  labelClass: string;
+}> = ({ value, onChange, labelClass }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedFormat = ['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(value) ? value : 'NONE';
+  const selectedOption = MEDIA_SAMPLE_OPTIONS.find((item) => item.value === selectedFormat) || MEDIA_SAMPLE_OPTIONS[0];
+  const SelectedIcon = selectedOption.icon;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative sm:max-w-56" ref={containerRef}>
+      <label className={labelClass}>
+        Media sample <span className="font-normal text-slate-400">· Optional</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className="mt-1 flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-xs transition hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SelectedIcon className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true" />
+          <span className="truncate">{selectedOption.label}</span>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen ? (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {MEDIA_SAMPLE_OPTIONS.map((item) => {
+            const Icon = item.icon;
+            const isSelected = item.value === selectedFormat;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  onChange(item.value);
+                  setIsOpen(false);
+                }}
+                className={`flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-sm transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 font-semibold text-indigo-700'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {isSelected ? <Check className="h-4 w-4 shrink-0 text-indigo-600" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const categoryPreviewGuidance: Record<WhatsAppTemplateCategory, { suitableFor: string; customizable: string }> = {
   MARKETING: {
     suitableFor: 'Ưu đãi, ra mắt sản phẩm, nhắc giỏ hàng và các chiến dịch tăng tương tác.',
@@ -283,7 +388,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const [language, setLanguage] = useState('en');
   const [category, setCategory] = useState<WhatsAppTemplateCategory>('MARKETING');
   const [parameterFormat, setParameterFormat] = useState<WhatsAppTemplateParameterFormat>('POSITIONAL');
-  const [allowCategoryChange, setAllowCategoryChange] = useState(true);
+  const allowCategoryChange = false;
   const [headerFormat, setHeaderFormat] = useState<WhatsAppTemplateHeaderFormat>('NONE');
   const [headerText, setHeaderText] = useState('');
   const [headerExamples, setHeaderExamples] = useState<WhatsAppTemplateExample[]>([]);
@@ -342,7 +447,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
     setLanguage('en');
     setCategory('MARKETING');
     setParameterFormat('POSITIONAL');
-    setAllowCategoryChange(true);
+
     setHeaderFormat('NONE');
     setHeaderText('');
     setHeaderExamples([]);
@@ -518,7 +623,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /> Tải lại
           </button>
           <button type="button" onClick={openForm} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500">
-            <Plus className="h-4 w-4" /> Tạo template
+            <Plus className="h-4 w-4 text-white" aria-hidden="true" style={{ color: '#ffffff', stroke: '#ffffff' }} /> Tạo template
           </button>
         </div>
       </div>
@@ -567,7 +672,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                             className={`template-category-tab group relative flex items-center gap-2.5 rounded-lg px-3 py-3 text-left transition ${isSelected ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/60'}`}
                           >
                             <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                              <CategoryIcon className="template-category-tab-icon h-4 w-4" aria-hidden="true" />
+                              <CategoryIcon className="template-category-tab-icon h-4 w-4" aria-hidden="true" style={{ color: isSelected ? '#ffffff' : '#334155', stroke: isSelected ? '#ffffff' : '#334155' }} />
                             </span>
                             <span className="block text-sm font-bold">{item === 'MARKETING' ? 'Marketing' : item === 'UTILITY' ? 'Utility' : 'Authentication'}</span>
                             <span role="tooltip" className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
@@ -625,15 +730,20 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
               {wizardStep === 2 ? (
                 <>
-                  {category !== 'AUTHENTICATION' ? (
-                    <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white"><Megaphone className="h-5 w-5" /></span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-900">{name || 'your_template_name'} · {getTemplateLanguageLabel(language)}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">{category === 'MARKETING' ? 'Marketing' : 'Utility'} · Default</p>
-                      </div>
-                    </section>
-                  ) : null}
+                  {category !== 'AUTHENTICATION' ? (() => {
+                    const CategoryBadgeIcon = categoryIcons[category];
+                    return (
+                      <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${category === 'MARKETING' ? 'bg-emerald-600' : 'bg-indigo-600'} text-white`}>
+                          <CategoryBadgeIcon className="h-5 w-5 text-white" aria-hidden="true" style={{ color: '#ffffff', stroke: '#ffffff' }} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900">{name || 'your_template_name'} · {getTemplateLanguageLabel(language)}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">{category === 'MARKETING' ? 'Marketing' : 'Utility'} · Default</p>
+                        </div>
+                      </section>
+                    );
+                  })() : null}
                   <section className={sectionClass}>
                     <div><h3 className="font-bold text-slate-900">Template name and language</h3></div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
@@ -662,14 +772,72 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 ) : (
                   <>
                     <section className={sectionClass}>
-                      <div><h3 className="font-bold text-slate-900">Content</h3><p className="mt-1 text-xs text-slate-500">Add a header, body and footer for your template. Meta will review the template variables and content.</p></div>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="sm:max-w-56"><label className={labelClass}>Type of variable</label><select value={parameterFormat} onChange={(event) => setParameterFormat(event.target.value as WhatsAppTemplateParameterFormat)} className={inputClass}><option value="POSITIONAL">Number</option><option value="NAMED">Name</option></select></div>
-                        <label className="flex items-start gap-2 self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><input type="checkbox" checked={allowCategoryChange} onChange={(event) => setAllowCategoryChange(event.target.checked)} className="mt-0.5" />Cho phép Meta tự đổi category nếu nội dung được phân loại khác.</label>
-                        <div className="sm:max-w-56"><label className={labelClass}>Media sample <span className="font-normal text-slate-400">· Optional</span></label><select value={['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? headerFormat : 'NONE'} onChange={(event) => { const format = event.target.value as WhatsAppTemplateHeaderFormat; setHeaderFormat(format === 'NONE' && headerText.trim() ? 'TEXT' : format); setMediaError(''); }} className={inputClass}><option value="NONE">None</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></div>
+                      <div>
+                        <h3 className="font-bold text-slate-900">Content</h3>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Thêm tiêu đề, nội dung và chân trang cho template. Cloud API do Meta lưu trữ sẽ kiểm duyệt các biến và nội dung trong mẫu để bảo vệ tính bảo mật và toàn vẹn của dịch vụ.{' '}
+                          <a
+                            href="https://developers.facebook.com/docs/whatsapp/message-templates/guidelines/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-700"
+                          >
+                            Tìm hiểu thêm
+                          </a>
+                        </p>
                       </div>
+                      <div className="sm:max-w-56">
+                        <label className={labelClass}>Type of variable</label>
+                        <select
+                          value={parameterFormat}
+                          onChange={(event) => setParameterFormat(event.target.value as WhatsAppTemplateParameterFormat)}
+                          className={inputClass}
+                        >
+                          <option value="POSITIONAL">Number</option>
+                          <option value="NAMED">Name</option>
+                        </select>
+                      </div>
+
+                      <MediaSampleDropdown
+                        value={headerFormat}
+                        onChange={(format) => {
+                          setHeaderFormat(format === 'NONE' && headerText.trim() ? 'TEXT' : format);
+                          setMediaError('');
+                        }}
+                        labelClass={labelClass}
+                      />
                       {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? <div><label className={labelClass}>Upload media sample</label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">{isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{isUploadingMedia ? 'Đang upload sang Meta...' : mediaFileName || 'Chọn file tối đa 8 MB'}<input disabled={isUploadingMedia} type="file" accept={mediaAccept} onChange={(event) => void uploadMedia(event.target.files?.[0])} className="hidden" /></label>{mediaHandle ? <p className="mt-1 text-[11px] font-medium text-emerald-600">Đã nhận media handle từ Meta.</p> : null}{mediaError ? <p className="mt-1 text-xs font-medium text-rose-600">{mediaError}</p> : null}</div> : null}
-                      <div><label className={labelClass}>Header <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input disabled={['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat)} maxLength={60} value={headerText} onChange={(event) => { const value = event.target.value; setHeaderText(value); setHeaderFormat(value.trim() ? 'TEXT' : 'NONE'); }} placeholder="Add a short line of text to the header of your message" className={`${inputClass} pr-14 disabled:bg-slate-100`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{headerText.length}/60</span></div></div>
+                      <div
+                        className="group relative"
+                        tabIndex={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? 0 : undefined}
+                        aria-describedby={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? 'media-header-tooltip' : undefined}
+                      >
+                        <label className={labelClass}>Header <span className="font-normal text-slate-400">· Optional</span></label>
+                        <div className="relative">
+                          <input
+                            disabled={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat)}
+                            maxLength={60}
+                            value={headerText}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setHeaderText(value);
+                              setHeaderFormat(value.trim() ? 'TEXT' : 'NONE');
+                            }}
+                            placeholder={headerFormat === 'LOCATION' ? 'Đã chọn header vị trí (Location)' : 'Add a short line of text to the header of your message'}
+                            className={`${inputClass} pr-14 disabled:cursor-not-allowed disabled:bg-slate-100`}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{headerText.length}/60</span>
+                        </div>
+                        {['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? (
+                          <span
+                            id="media-header-tooltip"
+                            role="tooltip"
+                            className="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-72 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-xl group-hover:block group-focus-visible:block"
+                          >
+                            Header đang ở định dạng {headerFormat}. Để nhập văn bản, hãy chuyển Media sample về None.
+                          </span>
+                        ) : null}
+                      </div>
                       {headerFormat === 'TEXT' && headerExamples.length > 0 ? <ExampleFields examples={headerExamples} onChange={(index, value) => updateExample(setHeaderExamples, index, value)} /> : null}
                       <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={parameterFormat === 'NAMED' ? 'Xin chào {{customer_name}}, đơn hàng {{order_id}} đã sẵn sàng.' : 'Xin chào {{1}}, đơn hàng {{2}} đã sẵn sàng.'} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
                       {bodyExamples.length > 0 ? <ExampleFields examples={bodyExamples} onChange={(index, value) => updateExample(setBodyExamples, index, value)} /> : null}
@@ -686,7 +854,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
               ) : null}
 
               {wizardStep === 3 ? (
-                <ReviewSections category={category} name={name} language={language} parameterFormat={parameterFormat} allowCategoryChange={allowCategoryChange} headerFormat={headerFormat} headerText={headerText} mediaFileName={mediaFileName} body={body} footer={footer} buttons={buttons} otpType={otpType} otpButtonText={otpButtonText} otpExpiration={otpExpiration} addSecurityRecommendation={addSecurityRecommendation} />
+                <ReviewSections category={category} name={name} language={language} parameterFormat={parameterFormat} headerFormat={headerFormat} headerText={headerText} mediaFileName={mediaFileName} body={body} footer={footer} buttons={buttons} otpType={otpType} otpButtonText={otpButtonText} otpExpiration={otpExpiration} addSecurityRecommendation={addSecurityRecommendation} />
               ) : null}
 
               {createError ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{createError.message}</div> : null}
@@ -729,7 +897,7 @@ const WizardProgress: React.FC<{ step: WizardStep }> = ({ step }) => {
           return (
             <li key={label} className="relative flex min-w-0 flex-col items-center text-center">
               {index > 0 ? <span className={`absolute right-1/2 top-4 h-0.5 w-full ${number <= step ? 'bg-indigo-500' : 'bg-slate-200'}`} /> : null}
-              <span className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold ${complete ? 'border-indigo-600 bg-indigo-600 text-white' : active ? 'border-indigo-600 bg-white text-indigo-700' : 'border-slate-300 bg-white text-slate-400'}`}>{complete ? <Check className="h-4 w-4" /> : number}</span>
+              <span className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold ${complete ? 'border-indigo-600 bg-indigo-600 text-white' : active ? 'border-indigo-600 bg-white text-indigo-700' : 'border-slate-300 bg-white text-slate-400'}`}>{complete ? <Check className="h-4 w-4 text-white" aria-hidden="true" style={{ color: '#ffffff', stroke: '#ffffff' }} /> : number}</span>
               <span className={`relative mt-2 text-[10px] font-bold leading-4 sm:text-xs ${active || complete ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
             </li>
           );
@@ -769,7 +937,7 @@ const TemplatePreview: React.FC<{
   return (
     <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-bold text-slate-900">Template preview</h3></div>
-      <div className={`min-h-107.5 bg-[#efeae2] ${showSetupIllustration ? 'p-0' : 'p-4'}`} style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)', backgroundSize: '16px 16px' }}> 
+      <div className={`min-h-107.5 bg-[#efeae2] ${showSetupIllustration ? 'p-0' : 'p-4'}`} style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
         {showSetupIllustration ? (
           <div className="relative flex min-h-107.5 w-full items-center justify-center overflow-hidden bg-[#f7f2e9]">
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-500">
@@ -790,7 +958,7 @@ const TemplatePreview: React.FC<{
           {category === 'AUTHENTICATION' ? (
             <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-sky-600">{otpType === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</div></div></>
           ) : (
-            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody || 'Nhập nội dung template để xem trước tin nhắn.'}</p>{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-sky-600">{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5" /> : button.type === 'URL' ? <Link2 className="h-3.5 w-3.5" /> : null}{button.text || buttonLabel[button.type]}</div>)}</div> : null}</>
+            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody || 'Nhập nội dung template để xem trước tin nhắn.'}</p>{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-sky-600">{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5" /> : button.type === 'URL' ? <Link2 className="h-3.5 w-3.5" /> : null}{button.text || buttonLabel[button.type]}</div>)}</div> : null}</>
           )}
         </div>
         )}
@@ -812,12 +980,12 @@ const TemplatePreview: React.FC<{
 const ReviewRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => <div className="grid gap-1 border-b border-slate-100 py-3 last:border-0 sm:grid-cols-[160px_1fr]"><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="whitespace-pre-wrap wrap-break-word text-sm text-slate-800">{value || '—'}</dd></div>;
 
 const ReviewSections: React.FC<{
-  category: WhatsAppTemplateCategory; name: string; language: string; parameterFormat: WhatsAppTemplateParameterFormat; allowCategoryChange: boolean; headerFormat: WhatsAppTemplateHeaderFormat; headerText: string; mediaFileName: string; body: string; footer: string; buttons: EditableButton[]; otpType: WhatsAppOtpType; otpButtonText: string; otpExpiration: number; addSecurityRecommendation: boolean;
-}> = ({ category, name, language, parameterFormat, allowCategoryChange, headerFormat, headerText, mediaFileName, body, footer, buttons, otpType, otpButtonText, otpExpiration, addSecurityRecommendation }) => (
+  category: WhatsAppTemplateCategory; name: string; language: string; parameterFormat: WhatsAppTemplateParameterFormat; headerFormat: WhatsAppTemplateHeaderFormat; headerText: string; mediaFileName: string; body: string; footer: string; buttons: EditableButton[]; otpType: WhatsAppOtpType; otpButtonText: string; otpExpiration: number; addSecurityRecommendation: boolean;
+}> = ({ category, name, language, parameterFormat, headerFormat, headerText, mediaFileName, body, footer, buttons, otpType, otpButtonText, otpExpiration, addSecurityRecommendation }) => (
   <div className="space-y-5">
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-900">Sẵn sàng gửi Meta xét duyệt</p><p className="mt-1 text-xs leading-5 text-amber-800">Meta sẽ kiểm tra nội dung, category và định dạng của template. Quá trình xét duyệt có thể mất đến 24 giờ và template chỉ sử dụng được sau khi được phê duyệt.</p></div></div></div>
-    <section className={sectionClass}><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Submit for Review</p><h3 className="mt-1 font-bold text-slate-900">Thiết lập template</h3></div><dl><ReviewRow label="Tên" value={<span className="font-mono">{name}</span>} /><ReviewRow label="Category" value={category} /><ReviewRow label="Ngôn ngữ" value={language} />{category !== 'AUTHENTICATION' ? <><ReviewRow label="Parameter format" value={parameterFormat} /><ReviewRow label="Meta đổi category" value={allowCategoryChange ? 'Cho phép' : 'Không cho phép'} /></> : null}</dl></section>
-    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung nút" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Nút ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${button.phoneNumber}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
+    <section className={sectionClass}><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Submit for Review</p><h3 className="mt-1 font-bold text-slate-900">Thiết lập template</h3></div><dl><ReviewRow label="Tên" value={<span className="font-mono">{name}</span>} /><ReviewRow label="Category" value={category} /><ReviewRow label="Ngôn ngữ" value={language} />{category !== 'AUTHENTICATION' ? <ReviewRow label="Parameter format" value={parameterFormat} /> : null}</dl></section>
+    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung nút" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : headerFormat === 'LOCATION' ? 'LOCATION · Vị trí' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Nút ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${button.phoneNumber}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
   </div>
 );
 

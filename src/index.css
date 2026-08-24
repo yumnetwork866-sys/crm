@@ -167,7 +167,6 @@ html, body {
 /* Action & Modal Close Buttons in Light Mode - Crisp Black Icons & High Contrast */
 .light-mode table td button,
 .light-mode table td button svg,
-.light-mode .text-slate-900 svg,
 .light-mode button .lucide-x,
 .light-mode button .lucide-trash-2,
 .light-mode button .lucide-trash,
@@ -269,7 +268,7 @@ body:not(.light-mode) button.bg-white .lucide {
   stroke: #334155 !important;
 }
 
-/* Explicitly preserve white text inside filled primary buttons & badges! */
+/* Explicitly preserve white text and icons inside filled primary buttons & badges! */
 .light-mode .bg-indigo-600,
 .light-mode .bg-indigo-600 *,
 .light-mode .bg-indigo-700,
@@ -293,6 +292,7 @@ body:not(.light-mode) button.bg-white .lucide {
 .light-mode .bg-sky-600,
 .light-mode .bg-sky-600 * {
   color: #ffffff !important;
+  stroke: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
 
@@ -630,6 +630,8 @@ table td {
   stroke: #000000 !important;
 }
 
+.template-category-tab[aria-selected="true"] svg,
+.template-category-tab[aria-selected="true"] svg *,
 .template-category-tab[aria-selected="true"] svg.template-category-tab-icon,
 .template-category-tab[aria-selected="true"] svg.template-category-tab-icon * {
   color: #ffffff !important;
@@ -640,4 +642,20 @@ table td {
 .template-category-tab[aria-selected="false"] svg.template-category-tab-icon * {
   color: #000000 !important;
   stroke: #000000 !important;
+}
+
+.bg-emerald-600 svg,
+.bg-emerald-600 svg *,
+.bg-emerald-700 svg,
+.bg-emerald-700 svg *,
+.bg-indigo-600 svg,
+.bg-indigo-600 svg *,
+.bg-indigo-700 svg,
+.bg-indigo-700 svg *,
+.bg-teal-600 svg,
+.bg-teal-600 svg *,
+.bg-sky-600 svg,
+.bg-sky-600 svg * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
 }

@@ -51,7 +51,7 @@ const exampleSchema = z.object({
 }).strict();
 
 const headerSchema = z.object({
-  format: z.enum(['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT']),
+  format: z.enum(['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION']),
   text: z.string().trim().max(60).optional(),
   examples: z.array(exampleSchema).max(1).default([]),
   mediaHandle: z.string().trim().min(1).max(2048).optional(),

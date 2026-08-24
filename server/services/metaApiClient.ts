@@ -499,7 +499,7 @@ export interface CreateMessageTemplateOptions {
   parameterFormat?: 'POSITIONAL' | 'NAMED';
   allowCategoryChange?: boolean;
   header?: {
-    format: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+    format: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
     text?: string;
     examples: MessageTemplateExample[];
     mediaHandle?: string;
@@ -576,6 +576,11 @@ export function buildMessageTemplatePayload(options: CreateMessageTemplateOption
                 : { header_text: header.examples.map((example) => example.value) },
             }
             : {}),
+        });
+      } else if (header.format === 'LOCATION') {
+        components.push({
+          type: 'HEADER',
+          format: 'LOCATION',
         });
       } else {
         components.push({
