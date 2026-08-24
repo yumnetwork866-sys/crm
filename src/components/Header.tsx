@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import {
   Users,
   Layers,
@@ -20,7 +21,6 @@ import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 
 interface HeaderProps {
-  activeTab: ActiveTab;
   onChangeTab: (tab: ActiveTab) => void;
   customers: Customer[];
   currentUser: AppUser | null;
@@ -36,7 +36,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activeTab,
   onChangeTab,
   currentUser,
   unreadMessagesCount = 0,
@@ -102,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'messages' as ActiveTab,
-      label: 'WhatsApp Inbox',
+      label: 'WhatsApp',
       subtitle: 'WhatsApp Cloud API',
       icon: MessageSquare,
       badge: unreadMessagesCount,
@@ -110,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md shrink-0">
+    <header className="app-topbar bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md shrink-0">
       <div className="w-full px-4 sm:px-6 py-2">
         <div className="flex items-center justify-between gap-3">
           
@@ -124,28 +123,38 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center space-x-1 sm:space-x-1.5">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
                 const badge = item.badge;
 
                 return (
-                  <button
+                  <NavLink
                     key={item.id}
-                    onClick={() => onChangeTab(item.id)}
+                    to={`/${item.id}`}
+                    end
+                    onClick={() => {
+                      if (item.id === 'automation') onChangeTab(item.id);
+                    }}
                     title={item.subtitle}
-                    className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl text-left whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-12 items-center gap-2.5 px-3.5 py-3 sm:px-4 rounded-xl text-left whitespace-nowrap transition-all duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                       isActive
                         ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-semibold'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
-                    <span className="text-xs font-bold tracking-tight">{item.label}</span>
-                    {badge && badge > 0 ? (
-                      <span className="inline-flex items-center justify-center min-w-4.5 h-4.5 px-1 text-[9px] font-black leading-none text-white bg-rose-500 rounded-full">
-                        {badge}
-                      </span>
-                    ) : null}
-                  </button>
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          aria-hidden="true"
+                          className={`topbar-nav-icon w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-900'}`}
+                        />
+                        <span className="text-sm font-bold tracking-tight">{item.label}</span>
+                        {badge && badge > 0 ? (
+                          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[10px] font-black leading-none text-white bg-rose-500 rounded-full">
+                            {badge}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </NavLink>
                 );
               })}
             </div>

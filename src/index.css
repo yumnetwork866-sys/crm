@@ -55,6 +55,23 @@
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
+/* NavLink renders an anchor, so keep inactive topbar icons visible in light mode. */
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]) .topbar-nav-icon {
+  color: #475569 !important;
+  stroke: #475569 !important;
+  opacity: 1 !important;
+}
+
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]):hover .topbar-nav-icon {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+
+.light-mode .app-topbar .topbar-nav-link[aria-current="page"] .topbar-nav-icon {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
 /* Primary cards & panels */
 .light-mode .bg-slate-950,
 .light-mode .bg-slate-900,

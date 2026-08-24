@@ -360,7 +360,6 @@ export default function App() {
                 }`}
               >
                 <Header
-                  activeTab={activeTab}
                   onChangeTab={handleTabChange}
                   customers={customers}
                   currentUser={currentUser}
