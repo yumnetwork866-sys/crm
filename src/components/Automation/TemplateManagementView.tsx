@@ -384,6 +384,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const formRef = useRef<HTMLFormElement>(null);
+  const headerInputRef = useRef<HTMLInputElement>(null);
   const [templateType, setTemplateType] = useState<TemplateType>('DEFAULT');
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('en');
@@ -469,6 +470,25 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
     setOtpExpiration(10);
     setAddSecurityRecommendation(true);
     setZeroTapTermsAccepted(false);
+  };
+
+  const addHeaderVariable = () => {
+    if (headerVariables.length > 0) return;
+
+    const variable = parameterFormat === 'NAMED' ? '{{variable_name}}' : '{{1}}';
+    const input = headerInputRef.current;
+    const selectionStart = input?.selectionStart ?? headerText.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const nextHeaderText = `${headerText.slice(0, selectionStart)}${variable}${headerText.slice(selectionEnd)}`;
+    if (nextHeaderText.length > 60) return;
+
+    setHeaderText(nextHeaderText);
+    setHeaderFormat('TEXT');
+    window.requestAnimationFrame(() => {
+      const cursorPosition = selectionStart + variable.length;
+      input?.focus();
+      input?.setSelectionRange(cursorPosition, cursorPosition);
+    });
   };
 
   const updateExample = (
@@ -880,9 +900,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         }}
                         onBlur={() => setHeaderTooltipPosition(null)}
                       >
-                        <label className={labelClass}>Header <span className="font-normal text-slate-400">· Optional</span></label>
+                        <label className={labelClass}>Tiêu đề <span className="font-normal text-slate-400">· Optional</span></label>
                         <div className="relative">
                           <input
+                            ref={headerInputRef}
                             disabled={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat)}
                             maxLength={60}
                             value={headerText}
@@ -896,6 +917,37 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{headerText.length}/60</span>
                         </div>
+                        {!['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? (
+                          <div className="mt-2 flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={addHeaderVariable}
+                              disabled={headerVariables.length > 0 || headerText.length + (parameterFormat === 'NAMED' ? 17 : 5) > 60}
+                              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                              Thêm biến
+                            </button>
+                            <span className="group relative inline-flex">
+                              <button
+                                type="button"
+                                aria-label="Hướng dẫn thêm biến vào tiêu đề"
+                                aria-describedby="header-variable-tooltip"
+                                className="rounded-full text-slate-400 transition hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                              >
+                                <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                              </button>
+                              <span
+                                id="header-variable-tooltip"
+                                role="tooltip"
+                                style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                                className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 p-3 text-xs leading-5 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                              >
+                                Thêm biến bằng cách chọn các cột từ danh sách khách hàng của bạn. Khi tin nhắn được gửi, biến sẽ được thay thế bằng dữ liệu từ cột tương ứng.
+                              </span>
+                            </span>
+                          </div>
+                        ) : null}
                         {['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? (
                           <span
                             id="media-header-tooltip"
@@ -911,9 +963,16 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           </span>
                         ) : null}
                       </div>
-                      {headerFormat === 'TEXT' && headerExamples.length > 0 ? <ExampleFields examples={headerExamples} onChange={(index, value) => updateExample(setHeaderExamples, index, value)} /> : null}
+
                       <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
-                      {bodyExamples.length > 0 ? <ExampleFields examples={bodyExamples} onChange={(index, value) => updateExample(setBodyExamples, index, value)} /> : null}
+                      {headerExamples.length > 0 || bodyExamples.length > 0 ? (
+                        <VariableSamples
+                          headerExamples={headerExamples}
+                          bodyExamples={bodyExamples}
+                          onHeaderChange={(index, value) => updateExample(setHeaderExamples, index, value)}
+                          onBodyChange={(index, value) => updateExample(setBodyExamples, index, value)}
+                        />
+                      ) : null}
                       <div><label className={labelClass}>Footer <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Add a short line of text to the bottom of your message" className={`${inputClass} pr-14`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{footer.length}/60</span></div></div>
                     </section>
                     <section className={sectionClass}>
@@ -1062,10 +1121,57 @@ const ReviewSections: React.FC<{
   </div>
 );
 
-const ExampleFields: React.FC<{ examples: WhatsAppTemplateExample[]; onChange: (index: number, value: string) => void; }> = ({ examples, onChange }) => (
-  <div className="grid grid-cols-1 gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 sm:grid-cols-2">
-    {examples.map((example, index) => <div key={example.name || index}><label className="mb-1 block text-xs font-semibold text-indigo-800">Giá trị mẫu cho {example.name ? `{{${example.name}}}` : `{{${index + 1}}}`}</label><input required value={example.value} onChange={(event) => onChange(index, event.target.value)} placeholder="Giá trị thực tế minh họa cho Meta" className={inputClass} /></div>)}
+const VariableSampleRows: React.FC<{
+  examples: WhatsAppTemplateExample[];
+  onChange: (index: number, value: string) => void;
+}> = ({ examples, onChange }) => (
+  <div className="space-y-2">
+    {examples.map((example, index) => (
+      <label
+        key={example.name || index}
+        className="grid min-w-0 grid-cols-[minmax(84px,35%)_minmax(0,1fr)] gap-2"
+      >
+        <span className="flex min-h-10 items-center rounded-lg border border-slate-300 bg-slate-100 px-3 text-sm font-semibold text-slate-500">
+          {example.name ? `{{${example.name}}}` : `{{${index + 1}}}`}
+        </span>
+        <input
+          required
+          value={example.value}
+          onChange={(event) => onChange(index, event.target.value)}
+          placeholder="Nhập giá trị"
+          className={`${inputClass} min-w-0`}
+        />
+      </label>
+    ))}
   </div>
+);
+
+const VariableSamples: React.FC<{
+  headerExamples: WhatsAppTemplateExample[];
+  bodyExamples: WhatsAppTemplateExample[];
+  onHeaderChange: (index: number, value: string) => void;
+  onBodyChange: (index: number, value: string) => void;
+}> = ({ headerExamples, bodyExamples, onHeaderChange, onBodyChange }) => (
+  <section className="space-y-4 rounded-xl bg-slate-50 p-4">
+    <div>
+      <h4 className="text-sm font-bold text-slate-900">Mẫu biến</h4>
+      <p className="mt-1 text-xs leading-5 text-slate-600">
+        Thêm một giá trị mẫu cho mỗi biến để Meta có thể xem xét mẫu của bạn. Các giá trị mẫu chỉ được dùng cho mục đích kiểm duyệt và sẽ không được gửi đến khách hàng. Hãy nhớ không sử dụng bất kỳ thông tin nào của khách hàng để bảo vệ quyền riêng tư của họ.
+      </p>
+    </div>
+    {headerExamples.length > 0 ? (
+      <div className="space-y-2">
+        <h5 className="text-xs font-bold text-slate-800">Tiêu đề</h5>
+        <VariableSampleRows examples={headerExamples} onChange={onHeaderChange} />
+      </div>
+    ) : null}
+    {bodyExamples.length > 0 ? (
+      <div className="space-y-2">
+        <h5 className="text-xs font-bold text-slate-800">Nội dung</h5>
+        <VariableSampleRows examples={bodyExamples} onChange={onBodyChange} />
+      </div>
+    ) : null}
+  </section>
 );
 
 const TemplateCard: React.FC<{ template: WhatsAppApprovedTemplate }> = ({ template }) => {
