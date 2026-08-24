@@ -613,14 +613,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     </td>
                     <td className="py-3 px-3 min-w-32">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <div className="font-bold text-indigo-700">{customer.source}</div>
+                        <div className="font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</div>
                         {isCustomerOptedIn(customer) ? (
                           <SignalBadge label="Opt-in" className="bg-emerald-50 text-emerald-700 border-emerald-200" />
                         ) : (
                           <SignalBadge label="No Opt-in" className="bg-rose-50 text-rose-700 border-rose-200" />
                         )}
                       </div>
-                      <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>{customer.campaign}</div>
+                      {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim()) && (
+                        <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>
+                          {customer.campaign}
+                        </div>
+                      )}
                       <div className="mt-1 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
                     </td>
                     <td className="py-3 px-3">

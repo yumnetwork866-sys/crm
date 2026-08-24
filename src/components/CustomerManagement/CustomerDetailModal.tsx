@@ -263,19 +263,27 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <span className="text-slate-500">Kênh Tiếp Cận:</span>
-                      <p className="font-medium text-indigo-600">{customer.source}</p>
+                      <p className="font-medium text-indigo-600">{customer.source || 'Trực tiếp'}</p>
                     </div>
                     <div>
                       <span className="text-slate-500">Chiến Dịch:</span>
-                      <p className="font-medium text-slate-900">{customer.campaign}</p>
+                      <p className="font-medium text-slate-900">
+                        {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim())
+                          ? customer.campaign
+                          : 'Không có chiến dịch'}
+                      </p>
                     </div>
                     <div>
                       <span className="text-slate-500">Tập QC (Ad Set):</span>
-                      <p className="font-medium text-slate-900">{customer.adSet || 'N/A'}</p>
+                      <p className="font-medium text-slate-900">
+                        {customer.adSet && !['N/A', 'n/a', 'NA', 'na'].includes(customer.adSet.trim()) ? customer.adSet : '—'}
+                      </p>
                     </div>
                     <div>
                       <span className="text-slate-500">Trang Đích:</span>
-                      <p className="font-medium text-slate-900">{customer.landingPage || 'N/A'}</p>
+                      <p className="font-medium text-slate-900">
+                        {customer.landingPage && !['N/A', 'n/a', 'NA', 'na'].includes(customer.landingPage.trim()) ? customer.landingPage : '—'}
+                      </p>
                     </div>
                     <div>
                       <span className="text-slate-500">Lần Đầu Liên Hệ:</span>

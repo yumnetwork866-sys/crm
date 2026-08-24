@@ -3,19 +3,23 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
 import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../types';
-import { formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
+import { compareVietnameseNames, formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
 
 const STORAGE_KEY_CUSTOMERS = 'yumcrm_customers_v2';
 
+export const sortCustomersByName = (list: Customer[]): Customer[] => {
+  return [...list].sort((a, b) => compareVietnameseNames(a.name, b.name));
+};
+
 const loadCustomers = (): Customer[] => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CUSTOMERS);
-    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+    return sortCustomersByName(saved ? JSON.parse(saved) : INITIAL_CUSTOMERS);
   } catch {
-    return INITIAL_CUSTOMERS;
+    return sortCustomersByName(INITIAL_CUSTOMERS);
   }
 };
 
@@ -70,7 +74,7 @@ export function useCustomers(currentUser: AppUser | null) {
           && 'data' in response && Array.isArray(response.data)
           ? response.data
           : [];
-      return customerList.map(mapApiCustomerToFrontend);
+      return sortCustomersByName(customerList.map(mapApiCustomerToFrontend));
     },
     enabled: Boolean(currentUser),
     initialData: loadCustomers,
@@ -78,9 +82,10 @@ export function useCustomers(currentUser: AppUser | null) {
   });
   const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
   const setCustomers: Dispatch<SetStateAction<Customer[]>> = useCallback((update) => {
-    queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
-      typeof update === 'function' ? update(current) : update
-    );
+    queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) => {
+      const updated = typeof update === 'function' ? update(current) : update;
+      return sortCustomersByName(updated);
+    });
   }, [queryClient]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -419,27 +424,29 @@ export function useCustomers(currentUser: AppUser | null) {
     };
 
     const normalizedQuery = searchQuery.toLowerCase().trim();
-    const filteredCustomers = customers.filter((customer) => {
-      if (normalizedQuery) {
-        const matches = customer.name.toLowerCase().includes(normalizedQuery)
-          || customer.phone.includes(normalizedQuery)
-          || Boolean(customer.email?.toLowerCase().includes(normalizedQuery))
-          || customer.campaign.toLowerCase().includes(normalizedQuery)
-          || Boolean(customer.address?.toLowerCase().includes(normalizedQuery))
-          || Boolean(customer.note?.toLowerCase().includes(normalizedQuery));
-        if (!matches) return false;
-      }
-      if (selectedStatus !== 'ALL' && customer.status !== selectedStatus) return false;
-      if (selectedSource !== 'ALL' && customer.source !== selectedSource) return false;
-      if (!matchesGender(customer.gender, selectedGender)) return false;
-      if (selectedOwner !== 'ALL' && customer.owner !== selectedOwner) return false;
-      if (selectedOptIn === 'optin' && !isCustomerOptedIn(customer)) return false;
-      if (selectedOptIn === 'no_optin' && isCustomerOptedIn(customer)) return false;
-      if (selectedGroup !== 'ALL' && getCustomerGroup(customer) !== selectedGroup) return false;
-      if (startDate && customer.firstContact && customer.firstContact < startDate) return false;
-      if (endDate && customer.firstContact && customer.firstContact > endDate) return false;
-      return true;
-    });
+    const filteredCustomers = sortCustomersByName(
+      customers.filter((customer) => {
+        if (normalizedQuery) {
+          const matches = customer.name.toLowerCase().includes(normalizedQuery)
+            || customer.phone.includes(normalizedQuery)
+            || Boolean(customer.email?.toLowerCase().includes(normalizedQuery))
+            || customer.campaign.toLowerCase().includes(normalizedQuery)
+            || Boolean(customer.address?.toLowerCase().includes(normalizedQuery))
+            || Boolean(customer.note?.toLowerCase().includes(normalizedQuery));
+          if (!matches) return false;
+        }
+        if (selectedStatus !== 'ALL' && customer.status !== selectedStatus) return false;
+        if (selectedSource !== 'ALL' && customer.source !== selectedSource) return false;
+        if (!matchesGender(customer.gender, selectedGender)) return false;
+        if (selectedOwner !== 'ALL' && customer.owner !== selectedOwner) return false;
+        if (selectedOptIn === 'optin' && !isCustomerOptedIn(customer)) return false;
+        if (selectedOptIn === 'no_optin' && isCustomerOptedIn(customer)) return false;
+        if (selectedGroup !== 'ALL' && getCustomerGroup(customer) !== selectedGroup) return false;
+        if (startDate && customer.firstContact && customer.firstContact < startDate) return false;
+        if (endDate && customer.firstContact && customer.firstContact > endDate) return false;
+        return true;
+      })
+    );
 
     return {
       searchQuery,

@@ -260,4 +260,30 @@ export function formatPhoneWithCountryCode(phone?: string | null, country?: stri
   return `+${digits}`;
 }
 
+/**
+ * Compare two Vietnamese names by given name (last word), then middle/first name, for standard A-Z alphabetical sorting.
+ */
+export function compareVietnameseNames(nameA: string = '', nameB: string = ''): number {
+  const partsA = nameA.trim().split(/\s+/).filter(Boolean);
+  const partsB = nameB.trim().split(/\s+/).filter(Boolean);
+
+  const firstNameA = partsA.length > 0 ? partsA[partsA.length - 1] : '';
+  const firstNameB = partsB.length > 0 ? partsB[partsB.length - 1] : '';
+
+  const firstNameComparison = firstNameA.localeCompare(firstNameB, 'vi', { sensitivity: 'base' });
+  if (firstNameComparison !== 0) {
+    return firstNameComparison;
+  }
+
+  const middleAndLastNameA = partsA.slice(0, -1).join(' ');
+  const middleAndLastNameB = partsB.slice(0, -1).join(' ');
+
+  const restComparison = middleAndLastNameA.localeCompare(middleAndLastNameB, 'vi', { sensitivity: 'base' });
+  if (restComparison !== 0) {
+    return restComparison;
+  }
+
+  return nameA.localeCompare(nameB, 'vi', { sensitivity: 'base' });
+}
+
 

@@ -7,6 +7,29 @@ import { z } from 'zod';
 
 const router = Router();
 
+function compareVietnameseNames(nameA: string = '', nameB: string = ''): number {
+  const partsA = nameA.trim().split(/\s+/).filter(Boolean);
+  const partsB = nameB.trim().split(/\s+/).filter(Boolean);
+
+  const firstNameA = partsA.length > 0 ? partsA[partsA.length - 1] : '';
+  const firstNameB = partsB.length > 0 ? partsB[partsB.length - 1] : '';
+
+  const firstNameComparison = firstNameA.localeCompare(firstNameB, 'vi', { sensitivity: 'base' });
+  if (firstNameComparison !== 0) {
+    return firstNameComparison;
+  }
+
+  const middleAndLastNameA = partsA.slice(0, -1).join(' ');
+  const middleAndLastNameB = partsB.slice(0, -1).join(' ');
+
+  const restComparison = middleAndLastNameA.localeCompare(middleAndLastNameB, 'vi', { sensitivity: 'base' });
+  if (restComparison !== 0) {
+    return restComparison;
+  }
+
+  return nameA.localeCompare(nameB, 'vi', { sensitivity: 'base' });
+}
+
 const customerSchema = z.object({
   name: z.string().min(1, 'Tên khách hàng không được để trống'),
   phone: z.string().min(8, 'Số điện thoại không hợp lệ'),
@@ -39,8 +62,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
       whatsappOptIn,
       page: pageQuery,
       limit: limitQuery,
-      sortBy = 'updatedAt',
-      sortOrder = 'desc',
+      sortBy = 'name',
+      sortOrder = 'asc',
       paginate
     } = req.query;
 
@@ -75,8 +98,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const allowedSortFields = ['updatedAt', 'createdAt', 'name', 'totalSpent', 'totalOrders'];
-    const validSortBy = allowedSortFields.includes(String(sortBy)) ? String(sortBy) : 'updatedAt';
-    const validSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
+    const validSortBy = allowedSortFields.includes(String(sortBy)) ? String(sortBy) : 'name';
+    const validSortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
     const orderBy = { [validSortBy]: validSortOrder };
 
     const queryInclude = {
@@ -108,6 +131,13 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
         orderBy
       });
       total = customers.length;
+    }
+
+    if (validSortBy === 'name') {
+      customers.sort((a, b) => {
+        const cmp = compareVietnameseNames(a.name, b.name);
+        return validSortOrder === 'desc' ? -cmp : cmp;
+      });
     }
 
     if (isPaginationRequested) {
