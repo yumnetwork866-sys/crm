@@ -287,13 +287,16 @@ const templateCreateSchema = z.object({
 const templateMediaUploadSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.enum(['image/jpeg', 'image/png', 'video/mp4', 'application/pdf']),
-  dataBase64: z.string().min(1).max(11_184_812).regex(
+  dataBase64: z.string().min(1).max(25_000_000).regex(
     /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
     'dataBase64 không hợp lệ.',
   ),
 }).strict().superRefine((data, context) => {
-  if (Buffer.byteLength(data.dataBase64, 'base64') > 8 * 1024 * 1024) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['dataBase64'], message: 'File không được vượt quá 8MB.' });
+  const byteLength = Buffer.byteLength(data.dataBase64, 'base64');
+  if (data.mimeType.startsWith('image/') && byteLength > 5 * 1024 * 1024) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['dataBase64'], message: 'Ảnh mẫu (JPEG/PNG) không được vượt quá 5 MB theo chuẩn Meta.' });
+  } else if (byteLength > 16 * 1024 * 1024) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['dataBase64'], message: 'File mẫu không được vượt quá 16 MB.' });
   }
 });
 

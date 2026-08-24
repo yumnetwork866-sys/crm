@@ -42,7 +42,7 @@ app.use((req, res, next) => {
 
 // 1. Body Parser & Security Middleware (Supports JSON, text/plain, and raw Meta payloads)
 app.use(express.json({
-  limit: '10mb',
+  limit: '25mb',
   type: ['application/json', 'text/plain', '*/*'],
   verify: (req, res, buffer) => {
     // Meta signs the exact request bytes. Retain them only for signed requests so
@@ -52,7 +52,7 @@ app.use(express.json({
     }
   }
 }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 app.use(helmet({
   contentSecurityPolicy: false // Allow inline scripts for dev Vite proxy if served together

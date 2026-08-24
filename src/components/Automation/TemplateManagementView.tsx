@@ -10,6 +10,7 @@ import {
   Copy,
   FileText,
   Image,
+  Info,
   KeyRound,
   Link2,
   Loader2,
@@ -410,6 +411,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const [addSecurityRecommendation, setAddSecurityRecommendation] = useState(true);
   const [zeroTapTermsAccepted, setZeroTapTermsAccepted] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [headerTooltipPosition, setHeaderTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   const bodyVariables = useMemo(() => extractVariables(body, parameterFormat), [body, parameterFormat]);
   const headerVariables = useMemo(() => extractVariables(headerText, parameterFormat), [headerText, parameterFormat]);
@@ -489,8 +491,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const uploadMedia = async (file?: File) => {
     if (!file) return;
     setMediaError('');
-    if (file.size > 8 * 1024 * 1024) {
-      setMediaError('File mẫu không được vượt quá 8 MB.');
+    const maxSizeBytes = headerFormat === 'IMAGE' ? 5 * 1024 * 1024 : 16 * 1024 * 1024;
+    const maxSizeLabel = headerFormat === 'IMAGE' ? '5 MB' : '16 MB';
+    if (file.size > maxSizeBytes) {
+      setMediaError(`File mẫu ${headerFormat === 'IMAGE' ? 'ảnh' : headerFormat === 'VIDEO' ? 'video' : 'tài liệu'} không được vượt quá ${maxSizeLabel}.`);
       return;
     }
     setMediaHandle('');
@@ -787,14 +791,37 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         </p>
                       </div>
                       <div className="sm:max-w-56">
-                        <label className={labelClass}>Type of variable</label>
+                        <div className="mb-1 flex items-center gap-1.5">
+                          <label className="block text-xs font-semibold text-slate-700">Loại biến</label>
+                          <span className="group relative inline-flex">
+                            <button
+                              type="button"
+                              aria-label="Giải thích về biến trong template"
+                              aria-describedby="variable-type-tooltip"
+                              className="rounded-full text-slate-400 transition hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                            >
+                              <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                            </button>
+                            <span
+                              id="variable-type-tooltip"
+                              role="tooltip"
+                              style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                              className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-72 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 p-3 text-xs leading-5 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                            >
+                              <span className="block">Biến là các phần giữ chỗ được dùng để chèn động thông tin hoặc dữ liệu cụ thể vào mẫu của bạn. Bạn có thể sử dụng tên hoặc số làm biến.</span>
+                              <span className="mt-2 block font-semibold">Ví dụ:</span>
+                              <span className="block">Tên: <code>{'{{order_id}}'}</code></span>
+                              <span className="block">Số: <code>{'{{1}}'}</code></span>
+                            </span>
+                          </span>
+                        </div>
                         <select
                           value={parameterFormat}
                           onChange={(event) => setParameterFormat(event.target.value as WhatsAppTemplateParameterFormat)}
                           className={inputClass}
                         >
-                          <option value="POSITIONAL">Number</option>
-                          <option value="NAMED">Name</option>
+                          <option value="POSITIONAL">Số</option>
+                          <option value="NAMED">Tên</option>
                         </select>
                       </div>
 
@@ -806,11 +833,52 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                         }}
                         labelClass={labelClass}
                       />
-                      {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? <div><label className={labelClass}>Upload media sample</label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">{isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{isUploadingMedia ? 'Đang upload sang Meta...' : mediaFileName || 'Chọn file tối đa 8 MB'}<input disabled={isUploadingMedia} type="file" accept={mediaAccept} onChange={(event) => void uploadMedia(event.target.files?.[0])} className="hidden" /></label>{mediaHandle ? <p className="mt-1 text-[11px] font-medium text-emerald-600">Đã nhận media handle từ Meta.</p> : null}{mediaError ? <p className="mt-1 text-xs font-medium text-rose-600">{mediaError}</p> : null}</div> : null}
+                      {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? (
+                        <div>
+                          <label className={labelClass}>Upload media sample</label>
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">
+                            {isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            {isUploadingMedia
+                              ? 'Đang upload sang Meta...'
+                              : mediaFileName
+                                || (headerFormat === 'IMAGE'
+                                  ? 'Chọn file ảnh (JPEG, PNG) tối đa 5 MB'
+                                  : headerFormat === 'VIDEO'
+                                    ? 'Chọn video (MP4) tối đa 16 MB'
+                                    : 'Chọn tài liệu (PDF) tối đa 16 MB')}
+                            <input
+                              disabled={isUploadingMedia}
+                              type="file"
+                              accept={mediaAccept}
+                              onChange={(event) => void uploadMedia(event.target.files?.[0])}
+                              className="hidden"
+                            />
+                          </label>
+                          {mediaHandle ? <p className="mt-1 text-[11px] font-medium text-emerald-600">Đã nhận media handle từ Meta.</p> : null}
+                          {mediaError ? <p className="mt-1 text-xs font-medium text-rose-600">{mediaError}</p> : null}
+                        </div>
+                      ) : null}
                       <div
-                        className="group relative"
+                        className="relative"
                         tabIndex={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? 0 : undefined}
                         aria-describedby={['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat) ? 'media-header-tooltip' : undefined}
+                        onMouseMove={(event) => {
+                          if (!['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat)) return;
+                          setHeaderTooltipPosition({
+                            x: Math.max(8, Math.min(event.clientX + 14, window.innerWidth - 300)),
+                            y: Math.max(8, Math.min(event.clientY + 16, window.innerHeight - 72)),
+                          });
+                        }}
+                        onMouseLeave={() => setHeaderTooltipPosition(null)}
+                        onFocus={(event) => {
+                          if (!['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(headerFormat)) return;
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setHeaderTooltipPosition({
+                            x: Math.max(8, Math.min(bounds.left, window.innerWidth - 300)),
+                            y: Math.max(8, Math.min(bounds.bottom + 8, window.innerHeight - 72)),
+                          });
+                        }}
+                        onBlur={() => setHeaderTooltipPosition(null)}
                       >
                         <label className={labelClass}>Header <span className="font-normal text-slate-400">· Optional</span></label>
                         <div className="relative">
@@ -832,14 +900,19 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           <span
                             id="media-header-tooltip"
                             role="tooltip"
-                            className="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-72 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-xl group-hover:block group-focus-visible:block"
+                            style={{
+                              left: headerTooltipPosition?.x ?? -9999,
+                              top: headerTooltipPosition?.y ?? -9999,
+                              opacity: headerTooltipPosition ? 1 : 0,
+                            }}
+                            className="pointer-events-none fixed z-50 w-72 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-xl transition-opacity"
                           >
-                            Header đang ở định dạng {headerFormat}. Để nhập văn bản, hãy chuyển Media sample về None.
+                            Xóa media để thêm tiêu đề
                           </span>
                         ) : null}
                       </div>
                       {headerFormat === 'TEXT' && headerExamples.length > 0 ? <ExampleFields examples={headerExamples} onChange={(index, value) => updateExample(setHeaderExamples, index, value)} /> : null}
-                      <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={parameterFormat === 'NAMED' ? 'Xin chào {{customer_name}}, đơn hàng {{order_id}} đã sẵn sàng.' : 'Xin chào {{1}}, đơn hàng {{2}} đã sẵn sàng.'} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
+                      <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
                       {bodyExamples.length > 0 ? <ExampleFields examples={bodyExamples} onChange={(index, value) => updateExample(setBodyExamples, index, value)} /> : null}
                       <div><label className={labelClass}>Footer <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Add a short line of text to the bottom of your message" className={`${inputClass} pr-14`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{footer.length}/60</span></div></div>
                     </section>
