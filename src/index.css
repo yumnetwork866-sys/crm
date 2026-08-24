@@ -72,6 +72,12 @@
   stroke: #ffffff !important;
 }
 
+/* Keep the selected Automation section icon white on its indigo background. */
+.light-mode .automation-section-tab[aria-selected="true"] .automation-section-tab-icon {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
 /* Primary cards & panels */
 .light-mode .bg-slate-950,
 .light-mode .bg-slate-900,

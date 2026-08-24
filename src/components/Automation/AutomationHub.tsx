@@ -40,19 +40,16 @@ const sections = [
   {
     id: 'workflow' as const,
     label: 'Chăm sóc tự động',
-    description: 'Quy trình WhatsApp sau mua',
     icon: Zap,
   },
   {
     id: 'broadcast' as const,
     label: 'Gửi hàng loạt',
-    description: 'Chiến dịch WhatsApp theo nhóm',
     icon: Send,
   },
   {
     id: 'templates' as const,
     label: 'Quản lý Template',
-    description: 'Tạo và theo dõi xét duyệt WABA',
     icon: FileText,
   },
 ];
@@ -98,7 +95,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => onChangeSection(section.id)}
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                className={`automation-section-tab flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   isActive
                     ? 'border-indigo-200 bg-indigo-50 text-indigo-900 shadow-sm'
                     : 'border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900'
@@ -109,14 +106,9 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
                     isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon aria-hidden="true" className="automation-section-tab-icon h-4 w-4" />
                 </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold">{section.label}</span>
-                  <span className="block truncate text-xs text-slate-500">
-                    {section.description}
-                  </span>
-                </span>
+                <span className="min-w-0 text-sm font-bold">{section.label}</span>
               </button>
             );
           })}
