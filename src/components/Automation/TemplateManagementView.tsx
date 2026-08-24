@@ -10,6 +10,7 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
+  Megaphone,
   Phone,
   Plus,
   RefreshCw,
@@ -117,6 +118,124 @@ const buttonLabel: Record<WhatsAppTemplateButtonType, string> = {
   PHONE_NUMBER: 'Gọi điện thoại',
 };
 
+const WHATSAPP_TEMPLATE_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'af', label: 'Afrikaans' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'ar_EG', label: 'Arabic (EGY)' },
+  { code: 'ar_AE', label: 'Arabic (UAE)' },
+  { code: 'ar_LB', label: 'Arabic (LBN)' },
+  { code: 'ar_MA', label: 'Arabic (MAR)' },
+  { code: 'ar_QA', label: 'Arabic (QAT)' },
+  { code: 'az', label: 'Azerbaijani' },
+  { code: 'be_BY', label: 'Belarusian' },
+  { code: 'bn', label: 'Bengali' },
+  { code: 'bn_IN', label: 'Bengali (IND)' },
+  { code: 'bg', label: 'Bulgarian' },
+  { code: 'ca', label: 'Catalan' },
+  { code: 'cs', label: 'Czech' },
+  { code: 'da', label: 'Danish' },
+  { code: 'de_AT', label: 'German (AUT)' },
+  { code: 'de_CH', label: 'German (CHE)' },
+  { code: 'hr', label: 'Croatian' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'en', label: 'English' },
+  { code: 'en_AE', label: 'English (UAE)' },
+  { code: 'en_AU', label: 'English (AUS)' },
+  { code: 'en_CA', label: 'English (CAN)' },
+  { code: 'en_GB', label: 'English (UK)' },
+  { code: 'en_GH', label: 'English (GHA)' },
+  { code: 'en_IE', label: 'English (IRL)' },
+  { code: 'en_IN', label: 'English (IND)' },
+  { code: 'en_JM', label: 'English (JAM)' },
+  { code: 'en_MY', label: 'English (MYS)' },
+  { code: 'en_NZ', label: 'English (NZL)' },
+  { code: 'en_QA', label: 'English (QAT)' },
+  { code: 'en_SG', label: 'English (SGP)' },
+  { code: 'en_US', label: 'English (US)' },
+  { code: 'en_UG', label: 'English (UGA)' },
+  { code: 'en_ZA', label: 'English (ZAF)' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'es_AR', label: 'Spanish (ARG)' },
+  { code: 'es_CL', label: 'Spanish (CHL)' },
+  { code: 'es_CO', label: 'Spanish (COL)' },
+  { code: 'es_CR', label: 'Spanish (CRI)' },
+  { code: 'es_DO', label: 'Spanish (DOM)' },
+  { code: 'es_EC', label: 'Spanish (ECU)' },
+  { code: 'es_ES', label: 'Spanish (SPA)' },
+  { code: 'es_HN', label: 'Spanish (HND)' },
+  { code: 'es_MX', label: 'Spanish (MEX)' },
+  { code: 'es_PA', label: 'Spanish (PAN)' },
+  { code: 'es_PE', label: 'Spanish (PER)' },
+  { code: 'es_UY', label: 'Spanish (URY)' },
+  { code: 'et', label: 'Estonian' },
+  { code: 'fil', label: 'Filipino' },
+  { code: 'fi', label: 'Finnish' },
+  { code: 'fr', label: 'French' },
+  { code: 'fr_BE', label: 'French (BEL)' },
+  { code: 'fr_CA', label: 'French (CAN)' },
+  { code: 'fr_CH', label: 'French (CHE)' },
+  { code: 'fr_CI', label: 'French (CIV)' },
+  { code: 'fr_MA', label: 'French (MAR)' },
+  { code: 'ka', label: 'Georgian' },
+  { code: 'de', label: 'German' },
+  { code: 'el', label: 'Greek' },
+  { code: 'gu', label: 'Gujarati' },
+  { code: 'ha', label: 'Hausa' },
+  { code: 'he', label: 'Hebrew' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'hu', label: 'Hungarian' },
+  { code: 'id', label: 'Indonesian' },
+  { code: 'ga', label: 'Irish' },
+  { code: 'it', label: 'Italian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'kn', label: 'Kannada' },
+  { code: 'kk', label: 'Kazakh' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'ky_KG', label: 'Kyrgyz (Kyrgyzstan)' },
+  { code: 'lo', label: 'Lao' },
+  { code: 'lv', label: 'Latvian' },
+  { code: 'lt', label: 'Lithuanian' },
+  { code: 'mk', label: 'Macedonian' },
+  { code: 'ml', label: 'Malayalam' },
+  { code: 'ms', label: 'Malay' },
+  { code: 'mr', label: 'Marathi' },
+  { code: 'nb', label: 'Norwegian' },
+  { code: 'nl_BE', label: 'Dutch (BEL)' },
+  { code: 'fa', label: 'Persian' },
+  { code: 'pl', label: 'Polish' },
+  { code: 'prs_AF', label: 'Dari' },
+  { code: 'ps_AF', label: 'Pashto' },
+  { code: 'pt_BR', label: 'Portuguese (BR)' },
+  { code: 'pt_PT', label: 'Portuguese (POR)' },
+  { code: 'pa', label: 'Punjabi' },
+  { code: 'ro', label: 'Romanian' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'rw_RW', label: 'Kinyarwanda' },
+  { code: 'si_LK', label: 'Sinhala' },
+  { code: 'sr', label: 'Serbian' },
+  { code: 'sk', label: 'Slovak' },
+  { code: 'sl', label: 'Slovenian' },
+  { code: 'sq', label: 'Albanian' },
+  { code: 'sv', label: 'Swedish' },
+  { code: 'sw', label: 'Swahili' },
+  { code: 'ta', label: 'Tamil' },
+  { code: 'te', label: 'Telugu' },
+  { code: 'th', label: 'Thai' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'uk', label: 'Ukrainian' },
+  { code: 'ur', label: 'Urdu' },
+  { code: 'uz', label: 'Uzbek' },
+  { code: 'vi', label: 'Vietnamese' },
+  { code: 'zu', label: 'Zulu' },
+  { code: 'zh_CN', label: 'Chinese (CHN)' },
+  { code: 'zh_HK', label: 'Chinese (HKG)' },
+  { code: 'zh_TW', label: 'Chinese (TAI)' },
+];
+
+function getTemplateLanguageLabel(code: string) {
+  return WHATSAPP_TEMPLATE_LANGUAGES.find((language) => language.code === code)?.label || code;
+}
+
 const categoryDescription: Record<WhatsAppTemplateCategory, string> = {
   MARKETING: 'Gửi ưu đãi, thông báo sản phẩm và nội dung giúp tăng nhận diện hoặc tương tác.',
   UTILITY: 'Theo dõi giao dịch, tài khoản, đơn hàng hoặc một yêu cầu cụ thể của khách hàng.',
@@ -153,7 +272,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const formRef = useRef<HTMLFormElement>(null);
   const [templateType, setTemplateType] = useState<TemplateType>('DEFAULT');
   const [name, setName] = useState('');
-  const [language, setLanguage] = useState('vi');
+  const [language, setLanguage] = useState('en');
   const [category, setCategory] = useState<WhatsAppTemplateCategory>('MARKETING');
   const [parameterFormat, setParameterFormat] = useState<WhatsAppTemplateParameterFormat>('POSITIONAL');
   const [allowCategoryChange, setAllowCategoryChange] = useState(true);
@@ -212,7 +331,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
     setWizardStep(1);
     setTemplateType('DEFAULT');
     setName('');
-    setLanguage('vi');
+    setLanguage('en');
     setCategory('MARKETING');
     setParameterFormat('POSITIONAL');
     setAllowCategoryChange(true);
@@ -491,19 +610,20 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
               {wizardStep === 2 ? (
                 <>
-                  <section className={sectionClass}>
-                    <div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><h3 className="mt-1 font-bold text-slate-900">Thông tin template</h3><p className="text-xs text-slate-500">Tên và ngôn ngữ không thể đổi sau khi gửi xét duyệt.</p></div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div><label className={labelClass}>Tên template</label><input required value={name} onChange={(event) => setName(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="order_delivery_update" className={inputClass} /></div>
-                      <div><label className={labelClass}>Ngôn ngữ</label><input required value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="vi hoặc en_US" className={inputClass} /></div>
-                      <div>
-                        <label className={labelClass}>Parameter format</label>
-                        <select value={parameterFormat} disabled={category === 'AUTHENTICATION'} onChange={(event) => setParameterFormat(event.target.value as WhatsAppTemplateParameterFormat)} className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}>
-                          <option value="POSITIONAL">POSITIONAL · {'{{1}}'}</option><option value="NAMED">NAMED · {'{{customer_name}}'}</option>
-                        </select>
-                        {category === 'AUTHENTICATION' ? <p className="mt-1 text-[11px] text-slate-500">Authentication dùng định dạng OTP cố định của Meta.</p> : null}
+                  {category !== 'AUTHENTICATION' ? (
+                    <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white"><Megaphone className="h-5 w-5" /></span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{name || 'your_template_name'} · {getTemplateLanguageLabel(language)}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{category === 'MARKETING' ? 'Marketing' : 'Utility'} · Default</p>
                       </div>
-                      {category !== 'AUTHENTICATION' ? <label className="flex items-start gap-2 self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><input type="checkbox" checked={allowCategoryChange} onChange={(event) => setAllowCategoryChange(event.target.checked)} className="mt-0.5" />Cho phép Meta tự đổi category nếu nội dung được phân loại khác.</label> : null}
+                    </section>
+                  ) : null}
+                  <section className={sectionClass}>
+                    <div><h3 className="font-bold text-slate-900">Template name and language</h3></div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                      <div><label className={labelClass}>Name your template</label><div className="relative"><input required maxLength={512} value={name} onChange={(event) => setName(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="Enter a template name" className={`${inputClass} pr-16`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{name.length}/512</span></div></div>
+                      <div><label className={labelClass}>Select language</label><select required value={language} onChange={(event) => setLanguage(event.target.value)} className={inputClass}>{WHATSAPP_TEMPLATE_LANGUAGES.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}</select></div>
                     </div>
                   </section>
                   {category === 'AUTHENTICATION' ? (
@@ -527,22 +647,22 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 ) : (
                   <>
                     <section className={sectionClass}>
-                      <div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><div className="mt-1 flex items-center gap-2"><Image className="h-5 w-5 text-indigo-600" /><h3 className="font-bold text-slate-900">Header</h3></div></div>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        <div><label className={labelClass}>Loại header</label><select value={headerFormat} onChange={(event) => { setHeaderFormat(event.target.value as WhatsAppTemplateHeaderFormat); setMediaError(''); }} className={inputClass}><option value="NONE">Không có</option><option value="TEXT">Văn bản</option><option value="IMAGE">Hình ảnh</option><option value="VIDEO">Video</option><option value="DOCUMENT">Tài liệu PDF</option></select></div>
-                        {headerFormat === 'TEXT' ? <div className="md:col-span-2"><label className={labelClass}>Nội dung header</label><input required maxLength={60} value={headerText} onChange={(event) => setHeaderText(event.target.value)} placeholder={parameterFormat === 'NAMED' ? 'Đơn hàng {{order_id}}' : 'Đơn hàng {{1}}'} className={inputClass} /><p className="mt-1 text-[11px] text-slate-500">Tối đa 60 ký tự và một biến.</p></div> : null}
-                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? <div className="md:col-span-2"><label className={labelClass}>File mẫu để Meta xét duyệt</label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">{isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{isUploadingMedia ? 'Đang upload sang Meta...' : mediaFileName || 'Chọn file tối đa 8 MB'}<input disabled={isUploadingMedia} type="file" accept={mediaAccept} onChange={(event) => void uploadMedia(event.target.files?.[0])} className="hidden" /></label>{mediaHandle ? <p className="mt-1 text-[11px] font-medium text-emerald-600">Đã nhận media handle từ Meta.</p> : null}{mediaError ? <p className="mt-1 text-xs font-medium text-rose-600">{mediaError}</p> : null}</div> : null}
+                      <div><h3 className="font-bold text-slate-900">Content</h3><p className="mt-1 text-xs text-slate-500">Add a header, body and footer for your template. Meta will review the template variables and content.</p></div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="sm:max-w-56"><label className={labelClass}>Type of variable</label><select value={parameterFormat} onChange={(event) => setParameterFormat(event.target.value as WhatsAppTemplateParameterFormat)} className={inputClass}><option value="POSITIONAL">Number</option><option value="NAMED">Name</option></select></div>
+                        <label className="flex items-start gap-2 self-end rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><input type="checkbox" checked={allowCategoryChange} onChange={(event) => setAllowCategoryChange(event.target.checked)} className="mt-0.5" />Cho phép Meta tự đổi category nếu nội dung được phân loại khác.</label>
+                        <div className="sm:max-w-56"><label className={labelClass}>Media sample <span className="font-normal text-slate-400">· Optional</span></label><select value={['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? headerFormat : 'NONE'} onChange={(event) => { const format = event.target.value as WhatsAppTemplateHeaderFormat; setHeaderFormat(format === 'NONE' && headerText.trim() ? 'TEXT' : format); setMediaError(''); }} className={inputClass}><option value="NONE">None</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></div>
                       </div>
+                      {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) ? <div><label className={labelClass}>Upload media sample</label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">{isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{isUploadingMedia ? 'Đang upload sang Meta...' : mediaFileName || 'Chọn file tối đa 8 MB'}<input disabled={isUploadingMedia} type="file" accept={mediaAccept} onChange={(event) => void uploadMedia(event.target.files?.[0])} className="hidden" /></label>{mediaHandle ? <p className="mt-1 text-[11px] font-medium text-emerald-600">Đã nhận media handle từ Meta.</p> : null}{mediaError ? <p className="mt-1 text-xs font-medium text-rose-600">{mediaError}</p> : null}</div> : null}
+                      <div><label className={labelClass}>Header <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input disabled={['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat)} maxLength={60} value={headerText} onChange={(event) => { const value = event.target.value; setHeaderText(value); setHeaderFormat(value.trim() ? 'TEXT' : 'NONE'); }} placeholder="Add a short line of text to the header of your message" className={`${inputClass} pr-14 disabled:bg-slate-100`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{headerText.length}/60</span></div></div>
                       {headerFormat === 'TEXT' && headerExamples.length > 0 ? <ExampleFields examples={headerExamples} onChange={(index, value) => updateExample(setHeaderExamples, index, value)} /> : null}
-                    </section>
-                    <section className={sectionClass}>
-                      <div><h3 className="font-bold text-slate-900">Nội dung</h3><p className="text-xs text-slate-500">Body bắt buộc; footer là phần ghi chú ngắn phía dưới.</p></div>
-                      <div><label className={labelClass}>BODY</label><textarea required rows={5} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={parameterFormat === 'NAMED' ? 'Xin chào {{customer_name}}, đơn hàng {{order_id}} đã sẵn sàng.' : 'Xin chào {{1}}, đơn hàng {{2}} đã sẵn sàng.'} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
+                      <div><label className={labelClass}>Body</label><textarea required rows={6} maxLength={1024} value={body} onChange={(event) => setBody(event.target.value)} placeholder={parameterFormat === 'NAMED' ? 'Xin chào {{customer_name}}, đơn hàng {{order_id}} đã sẵn sàng.' : 'Xin chào {{1}}, đơn hàng {{2}} đã sẵn sàng.'} className={`${inputClass} p-3`} /><p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p></div>
                       {bodyExamples.length > 0 ? <ExampleFields examples={bodyExamples} onChange={(index, value) => updateExample(setBodyExamples, index, value)} /> : null}
-                      <div><label className={labelClass}>Footer tùy chọn</label><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Cảm ơn bạn đã sử dụng dịch vụ." className={inputClass} /></div>
+                      <div><label className={labelClass}>Footer <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Add a short line of text to the bottom of your message" className={`${inputClass} pr-14`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{footer.length}/60</span></div></div>
                     </section>
                     <section className={sectionClass}>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-bold text-slate-900">Buttons</h3><p className="text-xs text-slate-500">Tối đa 10 nút; tối đa 2 URL và 1 số điện thoại.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => addButton('QUICK_REPLY')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold"><Plus className="mr-1 inline h-3 w-3" />Trả lời nhanh</button><button type="button" onClick={() => addButton('URL')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold"><Link2 className="mr-1 inline h-3 w-3" />Website</button><button type="button" onClick={() => addButton('PHONE_NUMBER')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold"><Phone className="mr-1 inline h-3 w-3" />Điện thoại</button></div></div>
+                      <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Create buttons that let customers respond to your message or take action. You can add up to ten buttons.</p></div>
+                      <select aria-label="Add button" value="" onChange={(event) => { if (event.target.value) addButton(event.target.value as WhatsAppTemplateButtonType); }} className="w-fit rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="">＋ Add button</option><option value="QUICK_REPLY">Quick reply</option><option value="URL">Visit website</option><option value="PHONE_NUMBER">Call phone number</option></select>
                       {buttons.map((button, index) => <div key={button.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4"><div><label className={labelClass}>Loại nút #{index + 1}</label><select value={button.type} onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })} className={inputClass}><option value="QUICK_REPLY">Trả lời nhanh</option><option value="URL">Website</option><option value="PHONE_NUMBER">Điện thoại</option></select></div><div><label className={labelClass}>Nội dung nút</label><input required maxLength={25} value={button.text} onChange={(event) => updateButton(button.id, { text: event.target.value })} className={inputClass} /></div>{button.type === 'URL' ? <><div><label className={labelClass}>URL HTTPS</label><input required type="url" value={button.url} onChange={(event) => updateButton(button.id, { url: event.target.value })} placeholder="https://example.com/{{1}}" className={inputClass} /></div><div><label className={labelClass}>URL mẫu nếu có biến</label><input value={button.urlExample} onChange={(event) => updateButton(button.id, { urlExample: event.target.value })} placeholder="https://example.com/123" className={inputClass} /></div></> : null}{button.type === 'PHONE_NUMBER' ? <div className="md:col-span-2"><label className={labelClass}>Số E.164</label><input required value={button.phoneNumber} onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })} placeholder="+842812345678" className={inputClass} /></div> : null}<button type="button" onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))} className="justify-self-end text-rose-600 md:col-start-4" aria-label="Xóa nút"><Trash2 className="h-4 w-4" /></button></div>)}
                     </section>
                   </>

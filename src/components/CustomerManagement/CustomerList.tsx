@@ -548,7 +548,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   <input type="checkbox" checked={displayedCustomers.length > 0 && displayedCustomers.every((customer) => selectedCustomerIds.includes(customer.id))} onChange={handleToggleSelectAll} aria-label="Chọn tất cả khách đang hiển thị" className="w-4 h-4 accent-indigo-600" />
                 </th>
                 <th className="py-3 px-4">Khách hàng</th>
-                <th className="py-3 px-3">Giới tính</th>
+                <th className="py-3 px-3">Số điện thoại</th>
                 <th className="py-3 px-3">Nguồn khách</th>
                 <th className="py-3 px-3">Trạng thái</th>
                 <th className="py-3 px-3">Sales phụ trách</th>
@@ -579,8 +579,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       <div className="flex items-center gap-3">
                         <img src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
                         <div className="min-w-0">
-                          <button type="button" onClick={() => onSelectCustomer(customer)} className="font-bold text-slate-900 hover:text-indigo-600 text-sm text-left truncate block max-w-[190px]">{customer.name}</button>
-                          <div className="text-[11px] text-slate-500 mt-0.5">{customer.phone}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button type="button" onClick={() => onSelectCustomer(customer)} className="font-bold text-slate-900 hover:text-indigo-600 text-sm text-left truncate block max-w-[170px]">{customer.name}</button>
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold shrink-0 ${
+                              customer.gender === 'Nam'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : customer.gender === 'Nữ'
+                                  ? 'bg-pink-50 text-pink-700 border-pink-200'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                            }`}>
+                              {customer.gender === 'Khác' || !customer.gender ? 'Chưa rõ' : customer.gender}
+                            </span>
+                          </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                             <select
                               value={group}
@@ -598,16 +608,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                        customer.gender === 'Nam'
-                          ? 'bg-sky-50 text-sky-700 border-sky-200'
-                          : customer.gender === 'Nữ'
-                            ? 'bg-pink-50 text-pink-700 border-pink-200'
-                            : 'bg-slate-50 text-slate-700 border-slate-200'
-                      }`}>
-                        {customer.gender === 'Khác' || !customer.gender ? 'Chưa rõ' : customer.gender}
-                      </span>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span className="font-medium text-slate-800 text-xs">{customer.phone || '—'}</span>
                     </td>
                     <td className="py-3 px-3 min-w-32">
                       <div className="flex flex-wrap items-center gap-1.5">
