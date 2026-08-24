@@ -187,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <>
                         <Icon
                           aria-hidden="true"
-                          className={`topbar-nav-icon h-[18px] w-[18px] shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-300'}`}
+                          className={`topbar-nav-icon h-4.5 w-4.5 shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-300'}`}
                         />
                         <span className="text-sm font-bold tracking-tight">{item.label}</span>
                         {badge && badge > 0 ? (

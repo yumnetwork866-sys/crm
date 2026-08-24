@@ -429,7 +429,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#008069" fill="#008069" strokeWidth={2.2} />
                           )}
                           {hasUnread && (
-                            <span className="min-w-[18px] h-[18px] px-1 bg-[#25d366] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
+                            <span className="min-w-4.5 h-4.5 px-1 bg-[#25d366] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
                               {thread.unreadCount}
                             </span>
                           )}

@@ -198,7 +198,7 @@ export const ChangeAvatarModal: React.FC<ChangeAvatarModalProps> = ({ isOpen, on
             </div>
             {uploadedFileName ? (
               <div className="flex items-center gap-1.5 mt-2 bg-slate-800/80 px-2.5 py-1 rounded-full border border-slate-700 text-[11px] text-indigo-300">
-                <span className="truncate max-w-[200px]">{uploadedFileName}</span>
+                <span className="truncate max-w-50">{uploadedFileName}</span>
                 <button
                   type="button"
                   onClick={() => {

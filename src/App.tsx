@@ -62,7 +62,7 @@ const DataDeletionView = React.lazy(() =>
 const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 
 const RouteLoading: React.FC = () => (
-  <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] py-12">
+  <div className="flex-1 flex flex-col items-center justify-center min-h-100 py-12">
     <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
     <span className="text-xs font-semibold text-slate-500">Đang tải trang...</span>
   </div>

@@ -82,7 +82,7 @@ export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({
                 isActive ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:text-slate-700'
               }`}>
                 <Icon
-                  className="commerce-section-tab-icon h-[18px] w-[18px]"
+                  className="commerce-section-tab-icon h-4.5 w-4.5"
                   aria-hidden="true"
                   style={{ color: isActive ? '#ffffff' : '#000000', stroke: isActive ? '#ffffff' : '#000000' }}
                 />
