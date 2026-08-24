@@ -45,6 +45,8 @@ interface AuthContextValue {
   toggleUserStatus: (userId: string) => void;
   switchUser: (user: AppUser) => void;
   resetAuth: () => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+  changeAvatar: (avatarUrl: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -245,6 +247,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(INITIAL_USERS[0]);
   }, []);
 
+  const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+    await api.post('/auth/change-password', { oldPassword, newPassword });
+  }, []);
+
+  const changeAvatar = useCallback(async (avatarUrl: string) => {
+    const res = await api.post<{ message: string; user: AppUser }>('/auth/change-avatar', { avatar: avatarUrl });
+    if (res && res.user) {
+      setCurrentUser(res.user);
+      setUsers((prev) => prev.map((u) => u.id === res.user.id ? { ...u, avatar: avatarUrl } : u));
+    } else {
+      setCurrentUser((prev) => prev ? { ...prev, avatar: avatarUrl } : null);
+      setUsers((prev) => prev.map((u) => u.id === currentUser?.id ? { ...u, avatar: avatarUrl } : u));
+    }
+  }, [currentUser?.id]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       users,
@@ -259,6 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toggleUserStatus,
       switchUser,
       resetAuth,
+      changePassword,
+      changeAvatar,
     }),
     [
       users,
@@ -272,6 +291,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toggleUserStatus,
       switchUser,
       resetAuth,
+      changePassword,
+      changeAvatar,
     ]
   );
 

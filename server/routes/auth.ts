@@ -246,4 +246,71 @@ router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
+// POST /api/auth/change-password
+router.post('/change-password', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Chưa xác thực đăng nhập.' });
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.trim().length < 6) {
+      return res.status(400).json({ error: 'Mật khẩu mới phải từ 6 ký tự trở lên.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng trong hệ thống.' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ error: 'Mật khẩu mới không được trùng với mật khẩu hiện tại.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
+
+    return res.json({ message: 'Đổi mật khẩu thành công!' });
+  } catch (error) {
+    console.error('Lỗi khi đổi mật khẩu:', error);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi đổi mật khẩu.' });
+  }
+});
+
+// POST /api/auth/change-avatar
+router.post('/change-avatar', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Chưa xác thực đăng nhập.' });
+
+    const { avatar } = req.body;
+    if (!avatar || typeof avatar !== 'string' || !avatar.trim()) {
+      return res.status(400).json({ error: 'Đường dẫn ảnh đại diện không hợp lệ.' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { avatar: avatar.trim() }
+    });
+
+    const { password: _, ...userWithoutPassword } = updatedUser;
+    return res.json({
+      message: 'Cập nhật ảnh đại diện thành công!',
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    console.error('Lỗi khi đổi ảnh đại diện:', error);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi đổi ảnh đại diện.' });
+  }
+});
+
 export default router;

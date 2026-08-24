@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Users,
   Layers,
@@ -7,11 +7,17 @@ import {
   ShoppingBag,
   Package,
   ShieldCheck,
-  MessageSquare
+  MessageSquare,
+  LogOut,
+  Camera,
+  KeyRound,
 } from 'lucide-react';
 import type { Customer, AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
 import type { ActiveTab } from './Navigation';
+import { useAuth } from '../contexts/AuthContext';
+import { ChangePasswordModal } from './Auth/ChangePasswordModal';
+import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -36,7 +42,26 @@ export const Header: React.FC<HeaderProps> = ({
   unreadMessagesCount = 0,
   onOpenLoginModal,
 }) => {
+  const { logout } = useAuth();
   const isAdmin = currentUser?.role === 'Admin';
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   const navItems = [
     {
@@ -75,16 +100,6 @@ export const Header: React.FC<HeaderProps> = ({
       subtitle: 'Analytics & Sales',
       icon: BarChart3,
     },
-    ...(isAdmin
-      ? [
-          {
-            id: 'users' as ActiveTab,
-            label: 'Quản Trị',
-            subtitle: 'User & Phân quyền',
-            icon: ShieldCheck,
-          },
-        ]
-      : []),
     {
       id: 'messages' as ActiveTab,
       label: 'WhatsApp Inbox',
@@ -136,38 +151,131 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </nav>
 
-          {/* 3. Right: User Profile / Login Button */}
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              onClick={onOpenLoginModal}
-              className="flex items-center space-x-2 pl-1.5 pr-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-left transition cursor-pointer shadow-xs"
-              title="Đăng nhập / Thay đổi tài khoản"
-            >
-              {currentUser ? (
-                <>
-                  <img
-                    src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                    alt={currentUser.name}
-                    className="w-7 h-7 rounded-lg object-cover border border-slate-600"
-                  />
-                  <div className="hidden sm:block leading-tight">
-                    <div className="text-xs font-bold text-white max-w-[110px] truncate">{currentUser.name}</div>
-                    <div className="text-[9px] text-[#be00f6] font-bold">{currentUser.role}</div>
+          {/* 3. Right: Circular User Avatar with Dropdown */}
+          <div className="relative shrink-0" ref={dropdownRef}>
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen((prev) => !prev)}
+                aria-expanded={isDropdownOpen}
+                aria-haspopup="true"
+                className="relative flex items-center justify-center p-0.5 rounded-full ring-2 ring-slate-700 hover:ring-indigo-500 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                title={`${currentUser.name} (${currentUser.role})`}
+              >
+                <img
+                  src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                  alt={currentUser.name}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenLoginModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                title="Đăng nhập tài khoản"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Đăng Nhập</span>
+              </button>
+            )}
+
+            {/* Dropdown Menu */}
+            {isDropdownOpen && currentUser && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-white">
+                {/* User Info Header */}
+                <div className="p-4 border-b border-slate-800 bg-slate-800/40">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
+                      <div className="text-[11px] text-slate-400 truncate">{currentUser.email || currentUser.phone || currentUser.department || 'Nhân viên'}</div>
+                      <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        isAdmin
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      }`}>
+                        {currentUser.role}
+                      </span>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-300 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-200">Đăng Nhập</span>
-                </>
-              )}
-            </button>
+                </div>
+
+                {/* Menu Actions */}
+                <div className="p-1.5 space-y-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAvatarModalOpen(true);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 text-emerald-400" />
+                    <span>Đổi ảnh đại diện</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPasswordModalOpen(true);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-400" />
+                    <span>Đổi mật khẩu</span>
+                  </button>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangeTab('users');
+                        setIsDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-purple-400" />
+                      <span>Quản lý User & Phân quyền</span>
+                    </button>
+                  )}
+
+                  <div className="my-1 border-t border-slate-800" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left cursor-pointer font-medium"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>
       </div>
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
+
+      <ChangeAvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+      />
     </header>
   );
 };
