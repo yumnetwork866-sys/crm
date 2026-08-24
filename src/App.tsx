@@ -25,11 +25,8 @@ import type { AutomationSection } from './components/Automation/AutomationHub';
 const CustomerList = React.lazy(() =>
   import('./components/CustomerManagement/CustomerList').then((m) => ({ default: m.CustomerList }))
 );
-const OrderManagementView = React.lazy(() =>
-  import('./components/OrderManagement/OrderManagementView').then((m) => ({ default: m.OrderManagementView }))
-);
-const ProductManagementView = React.lazy(() =>
-  import('./components/ProductManagement/ProductManagementView').then((m) => ({ default: m.ProductManagementView }))
+const CommerceManagementView = React.lazy(() =>
+  import('./components/CommerceManagement/CommerceManagementView').then((m) => ({ default: m.CommerceManagementView }))
 );
 const SegmentationView = React.lazy(() =>
   import('./components/CustomerSegmentation/SegmentationView').then((m) => ({ default: m.SegmentationView }))
@@ -520,21 +517,13 @@ export default function App() {
             <Route
               path="/orders"
               element={
-                <OrderManagementView
+                <CommerceManagementView
                   customers={customers}
                   products={products}
                   onCreateOrder={handleCreateOrderCentral}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onDeleteOrder={handleDeleteOrder}
                   onImportOrders={handleImportOrders}
-                />
-              }
-            />
-            <Route
-              path="/products"
-              element={
-                <ProductManagementView
-                  products={products}
                   onAddProduct={handleAddProduct}
                   onEditProduct={handleEditProduct}
                   onDeleteProduct={handleDeleteProduct}
@@ -542,6 +531,7 @@ export default function App() {
                 />
               }
             />
+            <Route path="/products" element={<Navigate to="/orders?tab=products" replace />} />
             <Route
               path="/segmentation"
               element={

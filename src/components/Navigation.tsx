@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Layers, Zap, BarChart3, ShoppingBag, Package, ShieldCheck, MessageSquare } from 'lucide-react';
+import { Users, Layers, Zap, BarChart3, ShoppingBag, ShieldCheck, MessageSquare } from 'lucide-react';
 import type { AppUser } from '../types';
 
 export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'reports' | 'users' | 'messages' | 'meta-verification';
@@ -42,15 +42,9 @@ export const Navigation: React.FC<NavigationProps> = ({
     },
     {
       id: 'orders' as ActiveTab,
-      label: 'Đơn Hàng',
-      subtitle: 'Quản lý đơn & In HĐ',
+      label: 'Bán Hàng',
+      subtitle: 'Đơn hàng & Sản phẩm',
       icon: ShoppingBag,
-    },
-    {
-      id: 'products' as ActiveTab,
-      label: 'Sản Phẩm',
-      subtitle: 'Kho hàng & Giá bán',
-      icon: Package,
     },
     {
       id: 'segmentation' as ActiveTab,
@@ -142,5 +136,3 @@ export const Navigation: React.FC<NavigationProps> = ({
     </nav>
   );
 };
-
-

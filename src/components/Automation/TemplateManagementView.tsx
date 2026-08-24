@@ -753,7 +753,7 @@ const TemplatePreview: React.FC<{
       : MARKETING_SETUP_PREVIEW_IMAGES[templateType];
   return (
     <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-bold text-slate-900">Template preview</h3><p className="text-[11px] text-slate-500">Bản xem trước cập nhật theo thời gian thực</p></div>
+      <div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-bold text-slate-900">Template preview</h3></div>
       <div className={`min-h-107.5 bg-[#efeae2] ${showSetupIllustration ? 'p-0' : 'p-4'}`} style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)', backgroundSize: '16px 16px' }}> 
         {showSetupIllustration ? (
           <div className="relative flex min-h-107.5 w-full items-center justify-center overflow-hidden bg-[#f7f2e9]">

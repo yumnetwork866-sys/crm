@@ -6,7 +6,6 @@ import {
   Zap,
   BarChart3,
   ShoppingBag,
-  Package,
   ShieldCheck,
   MessageSquare,
   LogOut,
@@ -47,6 +46,53 @@ export const Header: React.FC<HeaderProps> = ({
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+
+    let targetScrollLeft = nav.scrollLeft;
+    let animationFrame: number | null = null;
+
+    const animateScroll = () => {
+      const distance = targetScrollLeft - nav.scrollLeft;
+      if (Math.abs(distance) < 0.5) {
+        nav.scrollLeft = targetScrollLeft;
+        animationFrame = null;
+        return;
+      }
+
+      nav.scrollLeft += distance * 0.18;
+      animationFrame = requestAnimationFrame(animateScroll);
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (nav.scrollWidth <= nav.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+      const maxScrollLeft = nav.scrollWidth - nav.clientWidth;
+      const deltaMultiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? nav.clientWidth
+          : 1;
+      const nextScrollLeft = Math.max(
+        0,
+        Math.min(maxScrollLeft, targetScrollLeft + event.deltaY * deltaMultiplier),
+      );
+      if (nextScrollLeft === targetScrollLeft) return;
+
+      event.preventDefault();
+      targetScrollLeft = nextScrollLeft;
+      if (animationFrame === null) animationFrame = requestAnimationFrame(animateScroll);
+    };
+
+    nav.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      nav.removeEventListener('wheel', handleWheel);
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,15 +117,9 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'orders' as ActiveTab,
-      label: 'Đơn Hàng',
-      subtitle: 'Quản lý đơn & In HĐ',
+      label: 'Bán Hàng',
+      subtitle: 'Đơn hàng & Sản phẩm',
       icon: ShoppingBag,
-    },
-    {
-      id: 'products' as ActiveTab,
-      label: 'Sản Phẩm',
-      subtitle: 'Kho hàng & Giá bán',
-      icon: Package,
     },
     {
       id: 'segmentation' as ActiveTab,
@@ -109,9 +149,9 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="app-topbar bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md shrink-0">
-      <div className="w-full px-4 sm:px-6 py-2">
-        <div className="flex items-center justify-between gap-3">
+    <header className="app-topbar sticky top-0 z-30 shrink-0 border-b border-slate-800/80 bg-slate-950/95 text-white shadow-[0_8px_24px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+      <div className="w-full px-3 py-2 sm:px-4">
+        <div className="flex items-center justify-between gap-2.5">
           
           {/* 1. Left: Logo & Brand */}
           <div className="flex items-center space-x-2 shrink-0">
@@ -119,8 +159,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* 2. Center: Navigation Tabs (Direct Seamless Row without Card Wrapper) */}
-          <nav className="flex-1 min-w-0 flex items-center justify-center overflow-x-auto no-scrollbar py-0.5">
-            <div className="flex items-center space-x-1 sm:space-x-1.5">
+          <nav
+            ref={navRef}
+            className="topbar-nav-shell min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain rounded-2xl border border-white/5 bg-slate-900/70 p-1 no-scrollbar"
+          >
+            <div className="flex w-max min-w-full items-center justify-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const badge = item.badge;
@@ -134,21 +177,21 @@ export const Header: React.FC<HeaderProps> = ({
                       if (item.id === 'automation') onChangeTab(item.id);
                     }}
                     title={item.subtitle}
-                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-12 items-center gap-2.5 px-3.5 py-3 sm:px-4 rounded-xl text-left whitespace-nowrap transition-all duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 rounded-xl text-left whitespace-nowrap transition-[background-color,background-image,color,box-shadow,transform] duration-200 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                       isActive
-                        ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-semibold'
+                        ? 'bg-indigo-600 text-white shadow-[0_6px_16px_rgba(79,70,229,0.3)] ring-1 ring-white/15 font-extrabold'
+                        : 'text-slate-300 hover:-translate-y-px hover:bg-white/[0.07] hover:text-white font-semibold'
                     }`}
                   >
                     {({ isActive }) => (
                       <>
                         <Icon
                           aria-hidden="true"
-                          className={`topbar-nav-icon w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-900'}`}
+                          className={`topbar-nav-icon h-[18px] w-[18px] shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-300'}`}
                         />
                         <span className="text-sm font-bold tracking-tight">{item.label}</span>
                         {badge && badge > 0 ? (
-                          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-[10px] font-black leading-none text-white bg-rose-500 rounded-full">
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-black leading-none text-white shadow-sm ring-2 ring-slate-900/60">
                             {badge}
                           </span>
                         ) : null}
@@ -288,6 +331,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-
-
-

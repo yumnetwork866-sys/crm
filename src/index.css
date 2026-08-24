@@ -72,6 +72,16 @@
   stroke: #ffffff !important;
 }
 
+.light-mode .app-topbar .topbar-nav-shell {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.light-mode .app-topbar .topbar-nav-link[aria-current="page"] {
+  box-shadow: 0 6px 16px rgb(79 70 229 / 0.2);
+}
+
 /* Keep the selected Automation section icon white on its indigo background. */
 .light-mode .automation-section-tab[aria-selected="true"] .automation-section-tab-icon {
   color: #ffffff !important;
@@ -599,5 +609,15 @@ table td {
   background: rgba(11, 20, 26, 0.35);
 }
 
+/* Commerce tabs: keep Lucide strokes deterministic despite global light-mode overrides. */
+.commerce-section-tab[data-state="active"] svg.commerce-section-tab-icon,
+.commerce-section-tab[data-state="active"] svg.commerce-section-tab-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
 
-
+.commerce-section-tab[data-state="inactive"] svg.commerce-section-tab-icon,
+.commerce-section-tab[data-state="inactive"] svg.commerce-section-tab-icon * {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
