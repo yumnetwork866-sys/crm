@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Bell,
   Check,
   CheckCircle2,
   Clock3,
   Copy,
   FileText,
   Image,
+  KeyRound,
   Link2,
   Loader2,
   LockKeyhole,
@@ -241,6 +243,12 @@ const categoryDescription: Record<WhatsAppTemplateCategory, string> = {
   UTILITY: 'Theo dõi giao dịch, tài khoản, đơn hàng hoặc một yêu cầu cụ thể của khách hàng.',
   AUTHENTICATION: 'Gửi mã xác thực một lần (OTP) để đăng nhập hoặc xác minh tài khoản.',
 };
+
+const categoryIcons = {
+  MARKETING: Megaphone,
+  UTILITY: Bell,
+  AUTHENTICATION: KeyRound,
+} as const;
 
 const categoryPreviewGuidance: Record<WhatsAppTemplateCategory, { suitableFor: string; customizable: string }> = {
   MARKETING: {
@@ -545,30 +553,37 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
                     </div>
                     <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 sm:grid-cols-3" role="tablist" aria-label="Template category">
-                      {(['MARKETING', 'UTILITY', 'AUTHENTICATION'] as WhatsAppTemplateCategory[]).map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          role="tab"
-                          aria-selected={category === item}
-                          onClick={() => { setCategory(item); setTemplateType('DEFAULT'); }}
-                          className={`group relative rounded-lg px-3 py-3 text-left transition ${category === item ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/60'}`}
-                        >
-                          <span className="block text-sm font-bold">{item === 'MARKETING' ? 'Marketing' : item === 'UTILITY' ? 'Utility' : 'Authentication'}</span>
-                          <span className="mt-0.5 block text-[11px] leading-4">{item === 'MARKETING' ? 'Ưu đãi và tương tác' : item === 'UTILITY' ? 'Cập nhật giao dịch' : 'Mã xác thực OTP'}</span>
-                          <span role="tooltip" className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                            {categoryDescription[item]}
-                            {item === 'AUTHENTICATION' ? ' Meta tự tạo nội dung OTP theo ngôn ngữ và cài đặt ở bước tiếp theo.' : ''}
-                          </span>
-                        </button>
-                      ))}
+                      {(['MARKETING', 'UTILITY', 'AUTHENTICATION'] as WhatsAppTemplateCategory[]).map((item) => {
+                        const CategoryIcon = categoryIcons[item];
+                        const isSelected = category === item;
+
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            role="tab"
+                            aria-selected={isSelected}
+                            onClick={() => { setCategory(item); setTemplateType('DEFAULT'); }}
+                            className={`template-category-tab group relative flex items-center gap-2.5 rounded-lg px-3 py-3 text-left transition ${isSelected ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/60'}`}
+                          >
+                            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                              <CategoryIcon className="template-category-tab-icon h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="block text-sm font-bold">{item === 'MARKETING' ? 'Marketing' : item === 'UTILITY' ? 'Utility' : 'Authentication'}</span>
+                            <span role="tooltip" className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                              {categoryDescription[item]}
+                              {item === 'AUTHENTICATION' ? ' Meta tự tạo nội dung OTP theo ngôn ngữ và cài đặt ở bước tiếp theo.' : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
 
                   </section>
 
                   {category !== 'AUTHENTICATION' ? (
                     <section className={sectionClass}>
-                      <div><h3 className="font-bold text-slate-900">Loại template</h3><p className="text-xs text-slate-500">Hiện tại bạn có thể tạo template mặc định.</p></div>
+                      <div><h3 className="font-bold text-slate-900">Loại template</h3></div>
                       <div className="grid gap-3">
                         {((category === 'UTILITY'
                           ? [

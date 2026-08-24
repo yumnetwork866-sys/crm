@@ -621,3 +621,15 @@ table td {
   color: #000000 !important;
   stroke: #000000 !important;
 }
+
+.template-category-tab[aria-selected="true"] svg.template-category-tab-icon,
+.template-category-tab[aria-selected="true"] svg.template-category-tab-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.template-category-tab[aria-selected="false"] svg.template-category-tab-icon,
+.template-category-tab[aria-selected="false"] svg.template-category-tab-icon * {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
