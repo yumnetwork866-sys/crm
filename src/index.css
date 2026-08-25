@@ -664,3 +664,21 @@ table td {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
+
+/* Ensure template preview button icons remain vibrant green */
+.template-preview-button-icon,
+.template-preview-button-icon svg,
+.template-preview-button-icon.lucide,
+.template-preview-button-icon * {
+  color: #059669 !important;
+  stroke: #059669 !important;
+}
+
+body:not(.light-mode) .bg-white svg.text-emerald-600,
+body:not(.light-mode) .bg-white .lucide.text-emerald-600,
+body.light-mode .bg-white svg.text-emerald-600,
+body.light-mode .bg-white .lucide.text-emerald-600 {
+  color: #059669 !important;
+  stroke: #059669 !important;
+}
+
