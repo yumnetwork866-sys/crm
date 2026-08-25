@@ -58,7 +58,7 @@ const headerSchema = z.object({
 }).strict();
 
 const templateButtonSchema = z.object({
-  type: z.enum(['QUICK_REPLY', 'URL', 'PHONE_NUMBER']),
+  type: z.enum(['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL', 'FLOW', 'COPY_CODE', 'CONTACT']),
   text: z.string().trim().min(1).max(25),
   url: z.string().trim().max(2000).optional(),
   urlExample: z.string().trim().max(2000).optional(),

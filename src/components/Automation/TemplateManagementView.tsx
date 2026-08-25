@@ -9,8 +9,10 @@ import {
   ChevronDown,
   Clock3,
   Code2,
+  Contact,
   Copy,
   FileText,
+  Globe,
   Image,
   Info,
   Italic,
@@ -20,7 +22,9 @@ import {
   LockKeyhole,
   MapPin,
   Megaphone,
+  MessageSquare,
   Phone,
+  PhoneCall,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -29,6 +33,7 @@ import {
   Trash2,
   Upload,
   Video,
+  Workflow,
   XCircle,
 } from 'lucide-react';
 import type {
@@ -209,6 +214,34 @@ function extractVariables(text: string, format: WhatsAppTemplateParameterFormat)
   return format === 'POSITIONAL' ? unique.sort((a, b) => Number(a) - Number(b)) : unique;
 }
 
+function getMetaTemplateBodyErrors(text: string, format: WhatsAppTemplateParameterFormat): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const variables = extractVariables(trimmed, format);
+  if (variables.length === 0) return [];
+
+  const errors: string[] = [];
+
+  // Rule 1: Text length / Variable ratio (Meta requires at least 15 non-variable characters per variable)
+  const nonVarText = trimmed.replace(/\{\{\s*[^{}]+\s*\}\}/g, '').trim();
+  const minRequiredLength = Math.max(15, variables.length * 15);
+  if (nonVarText.length < minRequiredLength) {
+    errors.push('Mẫu tin nhắn này có quá nhiều biến so với độ dài nội dung. Hãy giảm số lượng biến hoặc tăng độ dài tin nhắn.');
+  }
+
+  // Rule 2: Variable at the start, end, or directly adjacent
+  if (
+    /^\{\{\s*[^{}]+\s*\}\}/.test(trimmed) ||
+    /\{\{\s*[^{}]+\s*\}\}$/.test(trimmed) ||
+    /\{\{\s*[^{}]+\s*\}\}\s*\{\{\s*[^{}]+\s*\}\}/.test(trimmed)
+  ) {
+    errors.push('Biến không được đặt ở đầu hoặc cuối mẫu tin nhắn.');
+  }
+
+  return errors;
+}
+
 function syncExamples(current: WhatsAppTemplateExample[], variables: string[], format: WhatsAppTemplateParameterFormat) {
   return variables.map((variable, index) => ({
     ...(format === 'NAMED' ? { name: variable } : {}),
@@ -237,9 +270,13 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 const buttonLabel: Record<WhatsAppTemplateButtonType, string> = {
-  QUICK_REPLY: 'Trả lời nhanh',
-  URL: 'Truy cập website',
-  PHONE_NUMBER: 'Gọi điện thoại',
+  QUICK_REPLY: 'Custom',
+  URL: 'Visit website',
+  VOICE_CALL: 'Call on WhatsApp',
+  PHONE_NUMBER: 'Call Phone Number',
+  FLOW: 'Complete flow',
+  COPY_CODE: 'Copy offer code',
+  CONTACT: 'Share contact info',
 };
 
 const WHATSAPP_TEMPLATE_LANGUAGES: Array<{ code: string; label: string }> = [
@@ -473,6 +510,99 @@ const MediaSampleDropdown: React.FC<{
   );
 };
 
+const WhatsAppFaIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <i className={`fa fa-whatsapp ${className || ''}`} aria-hidden="true" />
+);
+
+const AddButtonDropdown: React.FC<{
+  onAdd: (type: WhatsAppTemplateButtonType) => void;
+  disabled?: boolean;
+}> = ({ onAdd, disabled }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const options: Array<{
+    type: WhatsAppTemplateButtonType;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    { type: 'QUICK_REPLY', label: 'Custom', icon: MessageSquare },
+    { type: 'URL', label: 'Visit website', icon: Globe },
+    { type: 'VOICE_CALL', label: 'Call on WhatsApp', icon: WhatsAppFaIcon },
+    { type: 'PHONE_NUMBER', label: 'Call Phone Number', icon: Phone },
+    { type: 'FLOW', label: 'Complete flow', icon: Workflow },
+    { type: 'COPY_CODE', label: 'Copy offer code', icon: Copy },
+    { type: 'CONTACT', label: 'Share contact info', icon: Contact },
+  ];
+
+  return (
+    <div className="relative inline-block" ref={containerRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+      >
+        <span>＋ Add button</span>
+        <svg
+          aria-hidden="true"
+          className={`h-2 w-2 fill-slate-600 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+          viewBox="0 0 10 6"
+        >
+          <path d="M0 0l5 6 5-6z" />
+        </svg>
+      </button>
+
+      {isOpen ? (
+        <div
+          role="listbox"
+          className="absolute bottom-full left-0 z-30 mb-1.5 min-w-[190px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {options.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.type}
+                type="button"
+                role="option"
+                onClick={() => {
+                  onAdd(item.type);
+                  setIsOpen(false);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer"
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const categoryPreviewGuidance: Record<WhatsAppTemplateCategory, { suitableFor: string; customizable: string }> = {
   MARKETING: {
     suitableFor: 'Ưu đãi, ra mắt sản phẩm, nhắc giỏ hàng và các chiến dịch tăng tương tác.',
@@ -544,6 +674,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
   const bodyVariables = useMemo(() => extractVariables(body, parameterFormat), [body, parameterFormat]);
   const headerVariables = useMemo(() => extractVariables(headerText, parameterFormat), [headerText, parameterFormat]);
+  const bodyValidationErrors = useMemo(
+    () => (category !== 'AUTHENTICATION' ? getMetaTemplateBodyErrors(body, parameterFormat) : []),
+    [body, category, parameterFormat],
+  );
 
   useEffect(() => {
     setBodyExamples((current) => syncExamples(current, bodyVariables, parameterFormat));
@@ -810,8 +944,9 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   };
 
   const continueToReview = () => {
+    if (category !== 'AUTHENTICATION' && bodyValidationErrors.length > 0) return;
     if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) && !mediaHandle) {
-      setMediaError('Vui lòng upload file mẫu trước khi xem lại.');
+      setMediaError('Vui lòng upload file mẫu trước khi tiếp tục.');
       return;
     }
     if (!formRef.current?.reportValidity()) return;
@@ -1174,17 +1309,30 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
 
                       <div>
                         <label className={labelClass}>Body</label>
-                        <textarea
-                          ref={bodyInputRef}
-                          required
-                          rows={6}
-                          maxLength={1024}
-                          value={body}
-                          onChange={(event) => setBody(event.target.value)}
-                          placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`}
-                          className={`${inputClass} p-3`}
-                        />
-                        <p className="mt-1 text-right text-[11px] text-slate-500">{body.length}/1024</p>
+                        <div className="relative">
+                          <textarea
+                            ref={bodyInputRef}
+                            required
+                            rows={6}
+                            maxLength={1024}
+                            value={body}
+                            onChange={(event) => setBody(event.target.value)}
+                            placeholder={`Nhập text bằng tiếng ${getTemplateLanguageLabel(language)}`}
+                            className={`${inputClass} p-3 pb-7 ${bodyValidationErrors.length > 0 ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-100' : ''}`}
+                          />
+                          <span className="pointer-events-none absolute right-3 bottom-2 text-[10px] text-slate-400">
+                            {body.length}/1024
+                          </span>
+                        </div>
+                        {bodyValidationErrors.length > 0 ? (
+                          <div className="mt-1.5 space-y-1">
+                            {bodyValidationErrors.map((errMsg) => (
+                              <p key={errMsg} className="text-xs leading-5 text-rose-600">
+                                {errMsg}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
                           <span ref={emojiPickerRef} className="relative inline-flex">
                             <button
@@ -1241,9 +1389,9 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                       <div><label className={labelClass}>Footer <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Add a short line of text to the bottom of your message" className={`${inputClass} pr-14`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{footer.length}/60</span></div></div>
                     </section>
                     <section className={sectionClass}>
-                      <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Create buttons that let customers respond to your message or take action. You can add up to ten buttons.</p></div>
-                      <select aria-label="Add button" value="" onChange={(event) => { if (event.target.value) addButton(event.target.value as WhatsAppTemplateButtonType); }} className="w-fit rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"><option value="">＋ Add button</option><option value="QUICK_REPLY">Quick reply</option><option value="URL">Visit website</option><option value="PHONE_NUMBER">Call phone number</option></select>
-                      {buttons.map((button, index) => <div key={button.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4"><div><label className={labelClass}>Loại nút #{index + 1}</label><select value={button.type} onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })} className={inputClass}><option value="QUICK_REPLY">Trả lời nhanh</option><option value="URL">Website</option><option value="PHONE_NUMBER">Điện thoại</option></select></div><div><label className={labelClass}>Nội dung nút</label><input required maxLength={25} value={button.text} onChange={(event) => updateButton(button.id, { text: event.target.value })} className={inputClass} /></div>{button.type === 'URL' ? <><div><label className={labelClass}>URL HTTPS</label><input required type="url" value={button.url} onChange={(event) => updateButton(button.id, { url: event.target.value })} placeholder="https://example.com/{{1}}" className={inputClass} /></div><div><label className={labelClass}>URL mẫu nếu có biến</label><input value={button.urlExample} onChange={(event) => updateButton(button.id, { urlExample: event.target.value })} placeholder="https://example.com/123" className={inputClass} /></div></> : null}{button.type === 'PHONE_NUMBER' ? <div className="md:col-span-2"><label className={labelClass}>Số E.164</label><input required value={button.phoneNumber} onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })} placeholder="+842812345678" className={inputClass} /></div> : null}<button type="button" onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))} className="justify-self-end text-rose-600 md:col-start-4" aria-label="Xóa nút"><Trash2 className="h-4 w-4" /></button></div>)}
+                      <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Tạo các nút để khách hàng có thể phản hồi tin nhắn của bạn hoặc thực hiện một hành động. Bạn có thể thêm tối đa 10 nút. Nếu thêm nhiều hơn 3 nút, các nút sẽ được hiển thị dưới dạng danh sách.</p></div>
+                      <AddButtonDropdown onAdd={(type) => addButton(type)} disabled={buttons.length >= 10} />
+                      {buttons.map((button, index) => <div key={button.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4"><div><label className={labelClass}>Loại nút #{index + 1}</label><select value={button.type} onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })} className={inputClass}><option value="QUICK_REPLY">Custom</option><option value="URL">Visit website</option><option value="VOICE_CALL">Call on WhatsApp</option><option value="PHONE_NUMBER">Call Phone Number</option><option value="FLOW">Complete flow</option><option value="COPY_CODE">Copy offer code</option><option value="CONTACT">Share contact info</option></select></div><div><label className={labelClass}>Nội dung nút</label><input required maxLength={25} value={button.text} onChange={(event) => updateButton(button.id, { text: event.target.value })} className={inputClass} /></div>{button.type === 'URL' ? <><div><label className={labelClass}>URL HTTPS</label><input required type="url" value={button.url} onChange={(event) => updateButton(button.id, { url: event.target.value })} placeholder="https://example.com/{{1}}" className={inputClass} /></div><div><label className={labelClass}>URL mẫu nếu có biến</label><input value={button.urlExample} onChange={(event) => updateButton(button.id, { urlExample: event.target.value })} placeholder="https://example.com/123" className={inputClass} /></div></> : null}{button.type === 'PHONE_NUMBER' ? <div className="md:col-span-2"><label className={labelClass}>Số E.164</label><input required value={button.phoneNumber} onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })} placeholder="+842812345678" className={inputClass} /></div> : null}<button type="button" onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))} className="justify-self-end text-rose-600 md:col-start-4" aria-label="Xóa nút"><Trash2 className="h-4 w-4" /></button></div>)}
                     </section>
                   </>
                 )}
@@ -1260,7 +1408,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 <div className="ml-auto flex items-center gap-2">
                   {wizardStep > 1 ? <button type="button" onClick={() => setWizardStep((wizardStep - 1) as WizardStep)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeft className="h-4 w-4" />Quay lại</button> : null}
                   {wizardStep === 1 ? <button type="button" onClick={continueToEditor} disabled={templateType !== 'DEFAULT' && category !== 'AUTHENTICATION'} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
-                  {wizardStep === 2 ? <button type="button" onClick={continueToReview} disabled={isUploadingMedia} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Xem lại</button> : null}
+                  {wizardStep === 2 ? <button type="button" onClick={continueToReview} disabled={isUploadingMedia || (category !== 'AUTHENTICATION' && bodyValidationErrors.length > 0)} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
                   {wizardStep === 3 ? <button type="submit" disabled={isCreatePending || isUploadingMedia} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">{isCreatePending ? 'Đang gửi Meta...' : 'Gửi xét duyệt'}</button> : null}
                 </div>
               </div>
@@ -1355,7 +1503,7 @@ const TemplatePreview: React.FC<{
           {category === 'AUTHENTICATION' ? (
             <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-sky-600">{otpType === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</div></div></>
           ) : (
-            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody || 'Nhập nội dung template để xem trước tin nhắn.'}</p>{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-sky-600">{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5" /> : button.type === 'URL' ? <Link2 className="h-3.5 w-3.5" /> : null}{button.text || buttonLabel[button.type]}</div>)}</div> : null}</>
+            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3"><p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody || 'Nhập nội dung template để xem trước tin nhắn.'}</p>{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-sky-600">{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5" /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600" aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5" /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5" /> : button.type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5" /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}{button.text || buttonLabel[button.type]}</div>)}</div> : null}</>
           )}
         </div>
         )}

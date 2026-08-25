@@ -470,7 +470,7 @@ export interface MessageTemplateExample {
 }
 
 export interface MessageTemplateButton {
-  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'VOICE_CALL' | 'FLOW' | 'COPY_CODE' | 'CONTACT';
   text: string;
   url?: string;
   urlExample?: string;
@@ -620,6 +620,30 @@ export function buildMessageTemplatePayload(options: CreateMessageTemplateOption
               type: 'PHONE_NUMBER',
               text: button.text,
               phone_number: button.phoneNumber,
+            };
+          }
+          if (button.type === 'VOICE_CALL') {
+            return {
+              type: 'VOICE_CALL',
+              text: button.text,
+            };
+          }
+          if (button.type === 'FLOW') {
+            return {
+              type: 'FLOW',
+              text: button.text,
+            };
+          }
+          if (button.type === 'COPY_CODE') {
+            return {
+              type: 'COPY_CODE',
+              text: button.text,
+            };
+          }
+          if (button.type === 'CONTACT') {
+            return {
+              type: 'CONTACT',
+              text: button.text,
             };
           }
           return { type: 'QUICK_REPLY', text: button.text };
