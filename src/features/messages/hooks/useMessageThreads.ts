@@ -53,7 +53,7 @@ export function useMessageThreads({
 
       existing.messages.push(message);
       existing.lastMessage = message;
-      if (customer && !existing.customer) existing.customer = customer;
+      if (customer) existing.customer = customer;
       if (!existing.customerPhone && (message.customerPhone || customer?.phone)) {
         existing.customerPhone = message.customerPhone || customer?.phone || '';
       }

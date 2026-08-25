@@ -150,7 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="app-topbar sticky top-0 z-30 shrink-0 border-b border-slate-800/80 bg-slate-950/95 text-white shadow-[0_8px_24px_rgba(15,23,42,0.16)] backdrop-blur-xl">
-      <div className="w-full px-3 py-2 sm:px-4">
+      <div className="mx-auto w-full max-w-[1440px] px-3 py-2 sm:px-4">
         <div className="flex items-center justify-between gap-2.5">
           
           {/* 1. Left: Logo & Brand */}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, CheckCheck, ShieldAlert } from 'lucide-react';
 import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
-import { INITIAL_USERS } from '../../data/mockData';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
@@ -21,6 +21,8 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
   centralMessages = [],
   onSendMessage,
 }) => {
+  const { currentUser: authCurrentUser, users } = useAuth();
+  const effectiveCurrentUser = authCurrentUser || currentUser;
   const [inputText, setInputText] = useState('');
 
   if (!isOpen || !customer) return null;
@@ -110,9 +112,26 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
             </div>
           ) : (
             displayMessages.map((msg, index) => {
-              const agentAvatar = (currentUser?.name === msg.senderName && currentUser?.avatar)
-                ? currentUser.avatar
-                : (INITIAL_USERS.find((u) => u.name.toLowerCase() === msg.senderName.toLowerCase())?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`);
+              const isCurrentAgent = Boolean(
+                msg.isAgent &&
+                effectiveCurrentUser &&
+                (
+                  !msg.senderName ||
+                  msg.senderName.trim().toLowerCase() === effectiveCurrentUser.name.trim().toLowerCase() ||
+                  msg.senderName.trim().toLowerCase() === effectiveCurrentUser.email.trim().toLowerCase()
+                )
+              );
+              const matchedUser = isCurrentAgent
+                ? effectiveCurrentUser
+                : (users.find(
+                    (u) =>
+                      u.name.trim().toLowerCase() === msg.senderName.trim().toLowerCase() ||
+                      u.email.trim().toLowerCase() === msg.senderName.trim().toLowerCase()
+                  ) || (effectiveCurrentUser && effectiveCurrentUser.name.trim().toLowerCase() === msg.senderName.trim().toLowerCase() ? effectiveCurrentUser : null));
+
+              const agentAvatar = (isCurrentAgent && effectiveCurrentUser?.avatar)
+                ? effectiveCurrentUser.avatar
+                : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`);
               const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`;
 
               return (
@@ -142,7 +161,14 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                   </div>
                   {msg.isAgent && (
                     <div className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shrink-0 shadow-2xs mb-0.5" title={msg.senderName}>
-                      <img src={agentAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
+                      <img
+                        src={agentAvatar}
+                        alt={msg.senderName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`;
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -156,14 +182,17 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
         <div className="px-4 py-1.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0 select-none">
           <div className="flex items-center space-x-2 truncate">
             <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-              alt={currentUser?.name || 'User'}
+              src={effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`}
+              alt={effectiveCurrentUser?.name || 'User'}
               className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
+              onError={(e) => {
+                e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`;
+              }}
             />
             <span className="text-[11px] truncate">
-              Đang nhắn với tư cách: <strong className="text-slate-900 font-bold">{currentUser?.name || 'Nguyễn Văn Ánh'}</strong>
+              Đang nhắn với tư cách: <strong className="text-slate-900 font-bold">{effectiveCurrentUser?.name || 'Nguyễn Văn Ánh'}</strong>
               <span className="ml-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-purple-100 text-purple-700">
-                {currentUser?.role || 'Admin'}
+                {effectiveCurrentUser?.role || 'Admin'}
               </span>
             </span>
           </div>

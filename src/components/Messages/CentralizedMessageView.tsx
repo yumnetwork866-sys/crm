@@ -50,7 +50,7 @@ import {
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
-import { INITIAL_USERS } from '../../data/mockData';
+import { useAuth } from '../../contexts/AuthContext';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
 import { extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
@@ -106,6 +106,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   isLoadingOlderMessages = false,
   onLoadOlderMessages,
 }) => {
+  const { currentUser: authCurrentUser, users } = useAuth();
+  const effectiveCurrentUser = authCurrentUser || currentUser;
+
   const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -129,13 +132,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const [newNoteText, setNewNoteText] = useState('');
 
-  const isAdmin = currentUser?.role === 'Admin';
+  const isAdmin = effectiveCurrentUser?.role === 'Admin';
 
   const handleAddInternalNote = (customerId: string) => {
     if (!newNoteText.trim()) return;
     const note: InternalNote = {
       id: `note_${Date.now()}`,
-      author: currentUser?.name || 'Nguyễn Văn Ánh',
+      author: effectiveCurrentUser?.name || 'Nguyễn Văn Ánh',
       content: newNoteText.trim(),
       timestamp: new Date().toISOString(),
     };
@@ -674,7 +677,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     {group.msgs.map((msg, msgIdx) => {
                       const isAgent = msg.sender === 'agent';
-                      const senderName = isAgent ? (msg.agentName || currentUser?.name || 'Nguyễn Văn Ánh') : msg.customerName;
+                      const senderName = isAgent ? (msg.agentName || effectiveCurrentUser?.name || 'Nguyễn Văn Ánh') : (msg.customerName || 'Khách Hàng');
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
 
@@ -692,9 +695,29 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                       // Dynamic avatar sources with robust fallbacks
                       const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer')}`;
-                      const matchedUser = INITIAL_USERS.find((u) => u.name.toLowerCase() === senderName.toLowerCase())
-                        || (currentUser && currentUser.name.toLowerCase() === senderName.toLowerCase() ? currentUser : null);
-                      const agentAvatarSrc = matchedUser?.avatar || (currentUser?.avatar && isAgent ? currentUser.avatar : `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
+
+                      const isCurrentAgent = Boolean(
+                        isAgent &&
+                        effectiveCurrentUser &&
+                        (
+                          !msg.agentName ||
+                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.name.trim().toLowerCase() ||
+                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.email.trim().toLowerCase() ||
+                          (msg.senderId && msg.senderId === effectiveCurrentUser.id)
+                        )
+                      );
+
+                      const matchedUser = isCurrentAgent
+                        ? effectiveCurrentUser
+                        : (users.find(
+                            (u) =>
+                              u.name.trim().toLowerCase() === senderName.trim().toLowerCase() ||
+                              u.email.trim().toLowerCase() === senderName.trim().toLowerCase()
+                          ) || (effectiveCurrentUser && effectiveCurrentUser.name.trim().toLowerCase() === senderName.trim().toLowerCase() ? effectiveCurrentUser : null));
+
+                      const agentAvatarSrc = (isCurrentAgent && effectiveCurrentUser?.avatar)
+                        ? effectiveCurrentUser.avatar
+                        : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
 
                       return (
                         <div
@@ -867,7 +890,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-[#bbf7d0]/80 text-[10.5px] select-none">
                                 <span className="font-bold text-[#00793d] flex items-center gap-1 truncate">
                                   <span className="truncate">{senderName}</span>
-                                  {senderName === (currentUser?.name || 'Nguyễn Văn Ánh') && (
+                                  {(isCurrentAgent || senderName.trim().toLowerCase() === (effectiveCurrentUser?.name || '').trim().toLowerCase()) && (
                                     <span className="text-[9px] font-semibold bg-[#bbf7d0] text-[#006e57] px-1 py-0.2 rounded-xs ml-0.5">
                                       Bạn
                                     </span>
@@ -1322,17 +1345,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 <div className="flex items-center space-x-2 min-w-0">
                   <div className="relative shrink-0">
                     <img
-                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
-                      alt={currentUser?.name || 'User'}
+                      src={effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`}
+                      alt={effectiveCurrentUser?.name || 'User'}
                       className="w-5 h-5 rounded-full object-cover border border-slate-300 shadow-2xs"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`;
+                      }}
                     />
                     <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
                   </div>
                   <div className="text-[11.5px] text-slate-700 truncate flex items-center gap-1.5">
                     <span>Đang nhắn tin với tư cách:</span>
-                    <strong className="text-slate-900 font-bold truncate">{currentUser?.name || 'Nguyễn Văn Ánh'}</strong>
+                    <strong className="text-slate-900 font-bold truncate">{effectiveCurrentUser?.name || 'Nguyễn Văn Ánh'}</strong>
                     <span className="px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                      {currentUser?.role || 'Admin'}
+                      {effectiveCurrentUser?.role || 'Admin'}
                     </span>
                   </div>
                 </div>
@@ -1341,11 +1367,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div className="text-[10.5px] text-slate-500 hidden sm:flex items-center gap-1 shrink-0">
                     <span>Phụ trách khách:</span>
                     <span className={`font-semibold px-1.5 py-0.2 rounded text-[10px] ${
-                      activeCustomer.owner === currentUser?.name
+                      activeCustomer.owner === effectiveCurrentUser?.name
                         ? 'bg-emerald-100 text-[#00793d] font-bold'
                         : 'bg-slate-200 text-slate-700'
                     }`}>
-                      {activeCustomer.owner === currentUser?.name ? `${activeCustomer.owner} (Chính bạn)` : activeCustomer.owner}
+                      {activeCustomer.owner === effectiveCurrentUser?.name ? `${activeCustomer.owner} (Chính bạn)` : activeCustomer.owner}
                     </span>
                   </div>
                 )}
