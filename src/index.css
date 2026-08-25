@@ -491,6 +491,11 @@ body:not(.light-mode) button.bg-white .lucide {
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
+.light-mode [role="tooltip"] {
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05) !important;
+}
+
 /* -------------------------------------------------------------
  * GLOBAL FONT SIZE OPTIMIZATION & READABILITY ENHANCEMENT
  * ------------------------------------------------------------- */

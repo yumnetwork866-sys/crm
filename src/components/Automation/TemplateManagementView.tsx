@@ -881,9 +881,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 <>
                   <section className={sectionClass}>
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Set up template</p>
-                      <h3 className="mt-1 text-xl font-bold text-slate-900">Thiết lập template</h3>
-
+                      <h3 className="text-xl font-bold text-slate-900">Thiết lập template</h3>
                     </div>
                     <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 sm:grid-cols-3" role="tablist" aria-label="Template category">
                       {(['MARKETING', 'UTILITY', 'AUTHENTICATION'] as WhatsAppTemplateCategory[]).map((item) => {
@@ -903,7 +901,11 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                               <CategoryIcon className="template-category-tab-icon h-4 w-4" aria-hidden="true" style={{ color: isSelected ? '#ffffff' : '#334155', stroke: isSelected ? '#ffffff' : '#334155' }} />
                             </span>
                             <span className="block text-sm font-bold">{item === 'MARKETING' ? 'Marketing' : item === 'UTILITY' ? 'Utility' : 'Authentication'}</span>
-                            <span role="tooltip" className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-5 text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                            <span
+                              role="tooltip"
+                              style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+                              className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-30 w-64 -translate-x-1/2 rounded-xl border border-slate-200 p-3 text-left text-xs font-normal leading-5 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                            >
                               {categoryDescription[item]}
                               {item === 'AUTHENTICATION' ? ' Meta tự tạo nội dung OTP theo ngôn ngữ và cài đặt ở bước tiếp theo.' : ''}
                             </span>
@@ -1160,8 +1162,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                               left: headerTooltipPosition?.x ?? -9999,
                               top: headerTooltipPosition?.y ?? -9999,
                               opacity: headerTooltipPosition ? 1 : 0,
+                              backgroundColor: '#ffffff',
+                              color: '#0f172a',
                             }}
-                            className="pointer-events-none fixed z-50 w-72 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-relaxed text-white shadow-xl transition-opacity"
+                            className="pointer-events-none fixed z-50 w-72 rounded-xl border border-slate-200 p-3 text-xs font-medium leading-relaxed shadow-xl transition-opacity"
                           >
                             Xóa media để thêm tiêu đề
                           </span>
