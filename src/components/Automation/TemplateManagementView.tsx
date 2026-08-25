@@ -13,6 +13,7 @@ import {
   Copy,
   FileText,
   Globe,
+  GripVertical,
   Image,
   Info,
   Italic,
@@ -522,20 +523,29 @@ const AddButtonDropdown: React.FC<{
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: Event) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setIsOpen(false);
+      }
     };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
     return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
@@ -661,6 +671,21 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   });
   const [footer, setFooter] = useState('');
   const [buttons, setButtons] = useState<EditableButton[]>([]);
+  const [draggedButtonIndex, setDraggedButtonIndex] = useState<number | null>(null);
+  const [dragOverButtonIndex, setDragOverButtonIndex] = useState<number | null>(null);
+
+  const moveButton = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    setButtons((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      if (moved) {
+        updated.splice(toIndex, 0, moved);
+      }
+      return updated;
+    });
+  };
+
   const [otpType, setOtpType] = useState<WhatsAppOtpType>('COPY_CODE');
   const [otpButtonText, setOtpButtonText] = useState('Sao chép mã');
   const [otpAutofillText, setOtpAutofillText] = useState('Tự động điền');
@@ -1121,7 +1146,13 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                     <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-indigo-600" /><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><h3 className="font-bold text-slate-900">Authentication và OTP</h3><p className="text-xs text-slate-500">Meta tự tạo nội dung bảo mật theo ngôn ngữ đã chọn.</p></div></div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                       <div><label className={labelClass}>Loại nút OTP</label><select value={otpType} onChange={(event) => setOtpType(event.target.value as WhatsAppOtpType)} className={inputClass}><option value="COPY_CODE">COPY_CODE</option><option value="ONE_TAP">ONE_TAP</option><option value="ZERO_TAP">ZERO_TAP</option></select></div>
-                      <div><label className={labelClass}>Nội dung nút</label><input value={otpButtonText} maxLength={25} onChange={(event) => setOtpButtonText(event.target.value)} className={inputClass} /></div>
+                      <div>
+                        <label className={labelClass}>Nội dung nút</label>
+                        <div className="relative">
+                          <input value={otpButtonText} maxLength={25} onChange={(event) => setOtpButtonText(event.target.value)} placeholder="Tùy chỉnh text nút" className={`${inputClass} pr-12`} />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{otpButtonText.length}/25</span>
+                        </div>
+                      </div>
                       <div><label className={labelClass}>Mã hết hạn sau (phút)</label><input type="number" min={1} max={90} value={otpExpiration} onChange={(event) => setOtpExpiration(Number(event.target.value))} className={inputClass} /></div>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={addSecurityRecommendation} onChange={(event) => setAddSecurityRecommendation(event.target.checked)} /> Thêm khuyến nghị không chia sẻ mã bảo mật.</label>
@@ -1391,7 +1422,151 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                     <section className={sectionClass}>
                       <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Tạo các nút để khách hàng có thể phản hồi tin nhắn của bạn hoặc thực hiện một hành động. Bạn có thể thêm tối đa 10 nút. Nếu thêm nhiều hơn 3 nút, các nút sẽ được hiển thị dưới dạng danh sách.</p></div>
                       <AddButtonDropdown onAdd={(type) => addButton(type)} disabled={buttons.length >= 10} />
-                      {buttons.map((button, index) => <div key={button.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4"><div><label className={labelClass}>Loại nút #{index + 1}</label><select value={button.type} onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })} className={inputClass}><option value="QUICK_REPLY">Custom</option><option value="URL">Visit website</option><option value="VOICE_CALL">Call on WhatsApp</option><option value="PHONE_NUMBER">Call Phone Number</option><option value="FLOW">Complete flow</option><option value="COPY_CODE">Copy offer code</option><option value="CONTACT">Share contact info</option></select></div><div><label className={labelClass}>Nội dung nút</label><input required maxLength={25} value={button.text} onChange={(event) => updateButton(button.id, { text: event.target.value })} className={inputClass} /></div>{button.type === 'URL' ? <><div><label className={labelClass}>URL HTTPS</label><input required type="url" value={button.url} onChange={(event) => updateButton(button.id, { url: event.target.value })} placeholder="https://example.com/{{1}}" className={inputClass} /></div><div><label className={labelClass}>URL mẫu nếu có biến</label><input value={button.urlExample} onChange={(event) => updateButton(button.id, { urlExample: event.target.value })} placeholder="https://example.com/123" className={inputClass} /></div></> : null}{button.type === 'PHONE_NUMBER' ? <div className="md:col-span-2"><label className={labelClass}>Số E.164</label><input required value={button.phoneNumber} onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })} placeholder="+842812345678" className={inputClass} /></div> : null}<button type="button" onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))} className="justify-self-end text-rose-600 md:col-start-4" aria-label="Xóa nút"><Trash2 className="h-4 w-4" /></button></div>)}
+                      {buttons.length > 0 ? (
+                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-200">
+                          {buttons.map((button, index) => {
+                            const isDragging = draggedButtonIndex === index;
+                            const isDragOver = dragOverButtonIndex === index;
+
+                            return (
+                              <div
+                                key={button.id}
+                                draggable={buttons.length > 1}
+                                onDragStart={(event) => {
+                                  setDraggedButtonIndex(index);
+                                  event.dataTransfer.effectAllowed = 'move';
+                                  event.dataTransfer.setData('text/plain', String(index));
+                                }}
+                                onDragOver={(event) => {
+                                  if (buttons.length <= 1) return;
+                                  event.preventDefault();
+                                  event.dataTransfer.dropEffect = 'move';
+                                  if (dragOverButtonIndex !== index) {
+                                    setDragOverButtonIndex(index);
+                                  }
+                                }}
+                                onDragLeave={() => {
+                                  if (dragOverButtonIndex === index) {
+                                    setDragOverButtonIndex(null);
+                                  }
+                                }}
+                                onDrop={(event) => {
+                                  event.preventDefault();
+                                  if (draggedButtonIndex !== null && draggedButtonIndex !== index) {
+                                    moveButton(draggedButtonIndex, index);
+                                  }
+                                  setDraggedButtonIndex(null);
+                                  setDragOverButtonIndex(null);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedButtonIndex(null);
+                                  setDragOverButtonIndex(null);
+                                }}
+                                className={`space-y-3 p-3.5 transition-all ${
+                                  isDragging
+                                    ? 'opacity-40 bg-indigo-50/40'
+                                    : isDragOver
+                                      ? 'bg-indigo-50/70 ring-2 ring-inset ring-indigo-400'
+                                      : 'hover:bg-slate-100/50'
+                                }`}
+                              >
+                                <div className="flex items-end gap-2.5">
+                                  {buttons.length > 1 ? (
+                                    <div
+                                      title="Kéo thả để sắp xếp thứ tự"
+                                      className="flex h-9 w-6 shrink-0 items-center justify-center cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-700 transition"
+                                    >
+                                      <GripVertical className="h-4 w-4" />
+                                    </div>
+                                  ) : null}
+
+                                  <div className="w-36 shrink-0 sm:w-48">
+                                    <label className={labelClass}>Loại nút</label>
+                                    <select
+                                      value={button.type}
+                                      onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })}
+                                      className={inputClass}
+                                    >
+                                      <option value="QUICK_REPLY">Custom</option>
+                                      <option value="URL">Visit website</option>
+                                      <option value="VOICE_CALL">Call on WhatsApp</option>
+                                      <option value="PHONE_NUMBER">Call Phone Number</option>
+                                      <option value="FLOW">Complete flow</option>
+                                      <option value="COPY_CODE">Copy offer code</option>
+                                      <option value="CONTACT">Share contact info</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <label className={labelClass}>Nội dung nút</label>
+                                    <div className="relative">
+                                      <input
+                                        required
+                                        maxLength={25}
+                                        value={button.text}
+                                        onChange={(event) => updateButton(button.id, { text: event.target.value })}
+                                        placeholder="Nhập nội dung nút..."
+                                        className={`${inputClass} pr-12`}
+                                      />
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                                        {button.text.length}/25
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))}
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                                    aria-label="Xóa nút"
+                                    title="Xóa nút"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+
+                                {button.type === 'URL' ? (
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                      <label className={labelClass}>URL HTTPS</label>
+                                      <input
+                                        required
+                                        type="url"
+                                        value={button.url}
+                                        onChange={(event) => updateButton(button.id, { url: event.target.value })}
+                                        placeholder="https://example.com/{{1}}"
+                                        className={inputClass}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className={labelClass}>URL mẫu nếu có biến</label>
+                                      <input
+                                        value={button.urlExample}
+                                        onChange={(event) => updateButton(button.id, { urlExample: event.target.value })}
+                                        placeholder="https://example.com/123"
+                                        className={inputClass}
+                                      />
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {button.type === 'PHONE_NUMBER' ? (
+                                  <div>
+                                    <label className={labelClass}>Số điện thoại (định dạng E.164)</label>
+                                    <input
+                                      required
+                                      value={button.phoneNumber}
+                                      onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })}
+                                      placeholder="+842812345678"
+                                      className={inputClass}
+                                    />
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </section>
                   </>
                 )}
