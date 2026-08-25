@@ -34,8 +34,7 @@ import {
   Layers,
   ChevronDown,
   Menu,
-  Volume2,
-  VolumeX,
+
   Eye,
   Download,
   Image as ImageIcon,
@@ -61,7 +60,7 @@ import { useMessagePreferences } from '../../features/messages/hooks/useMessageP
 import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
 import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
-import { playPopSound } from '../../features/messages/utils/playPopSound';
+
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
@@ -117,7 +116,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
   const {
     soundEnabled,
-    setSoundEnabled,
     internalNotes,
     threadStatuses,
     pinnedThreadIds,
@@ -580,25 +578,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                 {/* Right Action Icons in Header */}
                 <div className="flex items-center space-x-2 text-slate-600 shrink-0">
-                  {/* Sound Mute/Unmute Toggle */}
-                  <button
-                    onClick={() => {
-                      const updated = !soundEnabled;
-                      setSoundEnabled(updated);
-                      if (updated) playPopSound();
-                    }}
-                    className={`p-2 rounded-lg border transition cursor-pointer ${
-                      soundEnabled
-                        ? 'bg-white text-[#008069] border-slate-300 hover:bg-slate-50 shadow-2xs'
-                        : 'bg-slate-100 text-slate-400 border-slate-200'
-                    }`}
-                    title={soundEnabled ? 'Âm thanh thông báo: Bật' : 'Âm thanh thông báo: Tắt'}
-                  >
-                    {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                  </button>
 
                   <button
                     onClick={() => setIsChatSearchOpen(!isChatSearchOpen)}
+                    aria-pressed={isChatSearchOpen}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
                       isChatSearchOpen
                         ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
@@ -606,11 +589,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     }`}
                     title="Tìm kiếm trong đoạn chat"
                   >
-                    <Search className="w-4 h-4" />
+                    <Search
+                      className="chat-header-action-icon w-4 h-4"
+                    />
                   </button>
 
                   <button
                     onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+                    aria-pressed={isDrawerOpen}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
                       isDrawerOpen
                         ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
@@ -618,7 +604,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     }`}
                     title="Bật/Tắt Hồ sơ CRM"
                   >
-                    <Menu className="w-4 h-4" />
+                    <Menu
+                      className="chat-header-action-icon w-4 h-4"
+                    />
                   </button>
                 </div>
               </div>
@@ -702,8 +690,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         (
                           !msg.agentName ||
                           msg.agentName.trim().toLowerCase() === effectiveCurrentUser.name.trim().toLowerCase() ||
-                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.email.trim().toLowerCase() ||
-                          (msg.senderId && msg.senderId === effectiveCurrentUser.id)
+                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.email.trim().toLowerCase()
                         )
                       );
 
@@ -782,8 +769,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             data-msg-id={msg.id}
                             className={`relative max-w-[80%] sm:max-w-[62%] px-3 pt-1.5 pb-1.5 text-xs select-text transition-all duration-300 ${
                               isAgent
-                                ? `whatsapp-bubble-out ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tr-none' : 'rounded-[7.5px]'}`
-                                : `whatsapp-bubble-in ${isFirstOfTurn ? 'rounded-[7.5px] rounded-tl-none' : 'rounded-[7.5px]'}`
+                                ? 'whatsapp-bubble-out rounded-[7.5px]'
+                                : 'whatsapp-bubble-in rounded-[7.5px]'
                             } ${
                               isHighlighted
                                 ? 'scale-[1.04] shadow-md z-20 origin-center'
@@ -871,18 +858,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   })}
                                 </div>
                               </div>
-                            )}
-                            {/* SVG Tail for First Message in Cluster */}
-                            {isFirstOfTurn && (
-                              isAgent ? (
-                                <svg viewBox="0 0 8 13" height="13" width="8" className="absolute top-0 -right-2 text-[#d9fdd3] fill-current pointer-events-none drop-shadow-xs">
-                                  <path d="M2.812 0H8v11.193l-6.467-8.625C0.474 1.156 1.042 0 2.812 0z" />
-                                </svg>
-                              ) : (
-                                <svg viewBox="0 0 8 13" height="13" width="8" className="absolute top-0 -left-2 text-white fill-current pointer-events-none drop-shadow-xs">
-                                  <path d="M5.188 0H0v11.193l6.467-8.625C7.526 1.156 6.958 0 5.188 0z" />
-                                </svg>
-                              )
                             )}
 
                             {/* Sender Info for Outgoing Agent Message */}
@@ -1537,7 +1512,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           onClick={() => onOpenAddOrder(activeCustomer)}
                           className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
                         >
-                          <ShoppingBag className="w-4 h-4" />
+                          <ShoppingBag className="chat-primary-action-icon w-4 h-4" />
                           <span>+ Lên Đơn Hàng Mới</span>
                         </button>
 

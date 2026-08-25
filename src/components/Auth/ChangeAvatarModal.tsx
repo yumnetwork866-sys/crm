@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Dices, Loader2, ShieldCheck, Upload, X, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -68,6 +68,13 @@ export const ChangeAvatarModal: React.FC<ChangeAvatarModalProps> = ({ isOpen, on
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && currentUser?.avatar) {
+      setSelectedAvatar(currentUser.avatar);
+      setUploadedFileName(null);
+    }
+  }, [isOpen, currentUser?.avatar]);
 
   if (!isOpen || !currentUser) return null;
 

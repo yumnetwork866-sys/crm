@@ -682,3 +682,16 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   stroke: #059669 !important;
 }
 
+/* Active chat header actions must stay white on the WhatsApp green background. */
+.light-mode button[aria-pressed="true"] .chat-header-action-icon,
+.light-mode button[aria-pressed="true"] .chat-header-action-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.light-mode .chat-primary-action-icon,
+.light-mode .chat-primary-action-icon * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
