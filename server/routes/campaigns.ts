@@ -59,15 +59,15 @@ const headerSchema = z.object({
 
 const templateButtonSchema = z.object({
   type: z.enum(['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL', 'FLOW', 'COPY_CODE', 'CONTACT']),
-  text: z.string().trim().min(1).max(25),
+  text: z.string().trim().min(1).max(40),
   url: z.string().trim().max(2000).optional(),
   urlExample: z.string().trim().max(2000).optional(),
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Số điện thoại phải theo chuẩn E.164.').optional(),
 }).strict();
 
 const authenticationButtonSchema = z.object({
-  text: z.string().trim().min(1).max(25).optional(),
-  autofill: z.string().trim().min(1).max(25).optional(),
+  text: z.string().trim().min(1).max(40).optional(),
+  autofill: z.string().trim().min(1).max(40).optional(),
   package: z.string().trim().min(1).max(255).optional(),
   signature: z.string().trim().min(1).max(255).optional(),
   zeroTapTermsAccepted: z.boolean().optional(),
@@ -247,20 +247,32 @@ const templateCreateSchema = z.object({
     }
   }
 
+  const normalizedButtonTexts = data.buttons.map((button) => button.text.trim().replace(/\s+/g, ' ').toLocaleLowerCase());
+  const duplicateButtonText = normalizedButtonTexts.find(
+    (text, index) => text && normalizedButtonTexts.indexOf(text) !== index,
+  );
+  if (duplicateButtonText) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['buttons'],
+      message: 'Không thể dùng cùng nội dung cho nhiều button.',
+    });
+  }
+
   const urlButtons = data.buttons.filter((button) => button.type === 'URL');
   const phoneButtons = data.buttons.filter((button) => button.type === 'PHONE_NUMBER');
-  if (urlButtons.length > 2) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 2 nút URL.' });
-  if (phoneButtons.length > 1) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 1 nút PHONE_NUMBER.' });
+  if (urlButtons.length > 2) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 2 button URL.' });
+  if (phoneButtons.length > 1) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons'], message: 'Chỉ được có tối đa 1 button PHONE_NUMBER.' });
 
   data.buttons.forEach((button, index) => {
     if (button.type === 'URL') {
       if (!button.url || !isHttpsUrl(button.url)) {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Nút URL yêu cầu URL https hợp lệ.' });
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Button URL yêu cầu URL https hợp lệ.' });
       }
       const variables = button.url ? getTemplateVariables(button.url) : [];
       const uniqueVariables = Array.from(new Set(variables));
       if (uniqueVariables.length > 1) {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Nút URL chỉ được chứa tối đa 1 biến.' });
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Button URL chỉ được chứa tối đa 1 biến.' });
       }
       if (parameterFormat === 'POSITIONAL' && uniqueVariables.some((name) => name !== '1')) {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'url'], message: 'Biến URL positional phải là {{1}}.' });
@@ -274,12 +286,12 @@ const templateCreateSchema = z.object({
       if (uniqueVariables.length === 0 && button.urlExample) {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'urlExample'], message: 'URL tĩnh không nhận urlExample.' });
       }
-      if (button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Nút URL không nhận phoneNumber.' });
+      if (button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Button URL không nhận phoneNumber.' });
     } else if (button.type === 'PHONE_NUMBER') {
-      if (!button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Nút PHONE_NUMBER yêu cầu phoneNumber.' });
-      if (button.url || button.urlExample) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Nút PHONE_NUMBER không nhận URL.' });
+      if (!button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Button PHONE_NUMBER yêu cầu phoneNumber.' });
+      if (button.url || button.urlExample) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button PHONE_NUMBER không nhận URL.' });
     } else if (button.url || button.urlExample || button.phoneNumber) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Nút QUICK_REPLY chỉ nhận type và text.' });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button QUICK_REPLY chỉ nhận type và text.' });
     }
   });
 });

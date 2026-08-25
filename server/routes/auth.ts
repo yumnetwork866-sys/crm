@@ -31,7 +31,7 @@ import dotenv from 'dotenv';
  * Đọc cấu hình ADMIN và ADMIN_PASSWORD mới nhất từ .env
  */
 function getAdminCredentials() {
-  dotenv.config({ override: true });
+  dotenv.config({ override: true, quiet: true });
   return {
     admin: (process.env.ADMIN || '').trim(),
     adminPassword: (process.env.ADMIN_PASSWORD || '').trim()

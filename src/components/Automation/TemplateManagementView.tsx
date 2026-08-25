@@ -23,8 +23,8 @@ import {
   LockKeyhole,
   MapPin,
   Megaphone,
-  MessageSquare,
   Phone,
+  Reply,
   PhoneCall,
   Plus,
   RefreshCw,
@@ -63,6 +63,7 @@ interface TemplateManagementViewProps {
 type EditableButton = {
   id: string;
   type: WhatsAppTemplateButtonType;
+  quickReplyMode?: 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
   text: string;
   url: string;
   urlExample: string;
@@ -555,7 +556,7 @@ const AddButtonDropdown: React.FC<{
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [
-    { type: 'QUICK_REPLY', label: 'Custom', icon: MessageSquare },
+    { type: 'QUICK_REPLY', label: 'Custom', icon: Reply },
     { type: 'URL', label: 'Visit website', icon: Globe },
     { type: 'VOICE_CALL', label: 'Call on WhatsApp', icon: WhatsAppFaIcon },
     { type: 'PHONE_NUMBER', label: 'Call Phone Number', icon: Phone },
@@ -616,11 +617,11 @@ const AddButtonDropdown: React.FC<{
 const categoryPreviewGuidance: Record<WhatsAppTemplateCategory, { suitableFor: string; customizable: string }> = {
   MARKETING: {
     suitableFor: 'Ưu đãi, ra mắt sản phẩm, nhắc giỏ hàng và các chiến dịch tăng tương tác.',
-    customizable: 'Header, nội dung, footer, biến cá nhân hóa, media và các nút hành động.',
+    customizable: 'Header, nội dung, footer, biến cá nhân hóa, media và các button hành động.',
   },
   UTILITY: {
     suitableFor: 'Cập nhật đơn hàng, giao dịch, tài khoản hoặc yêu cầu mà khách hàng đã thực hiện.',
-    customizable: 'Header, nội dung giao dịch, footer, biến dữ liệu và nút hỗ trợ hoặc tra cứu.',
+    customizable: 'Header, nội dung giao dịch, footer, biến dữ liệu và button hỗ trợ hoặc tra cứu.',
   },
   AUTHENTICATION: {
     suitableFor: 'Đăng nhập, xác minh danh tính và các luồng cần mã OTP dùng một lần.',
@@ -644,6 +645,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   const headerInputRef = useRef<HTMLInputElement>(null);
   const bodyInputRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLSpanElement>(null);
+  const buttonCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const pendingScrollButtonId = useRef<string | null>(null);
   const [templateType, setTemplateType] = useState<TemplateType>('DEFAULT');
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('en');
@@ -703,6 +706,18 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
     () => (category !== 'AUTHENTICATION' ? getMetaTemplateBodyErrors(body, parameterFormat) : []),
     [body, category, parameterFormat],
   );
+  const duplicateButtonTextKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    buttons.forEach((button) => {
+      const key = button.text.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
+  }, [buttons]);
+  const hasDuplicateButtonText = duplicateButtonTextKeys.size > 0;
+  const isDuplicateButtonText = (text: string) => duplicateButtonTextKeys.has(
+    text.trim().replace(/\s+/g, ' ').toLocaleLowerCase(),
+  );
 
   useEffect(() => {
     setBodyExamples((current) => syncExamples(current, bodyVariables, parameterFormat));
@@ -711,6 +726,17 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   useEffect(() => {
     setHeaderExamples((current) => syncExamples(current, headerVariables, parameterFormat));
   }, [headerVariables, parameterFormat]);
+
+  useEffect(() => {
+    const buttonId = pendingScrollButtonId.current;
+    if (!buttonId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      buttonCardRefs.current.get(buttonId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pendingScrollButtonId.current = null;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [buttons]);
 
   useEffect(() => () => {
     if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
@@ -861,9 +887,19 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   ) => setter((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value } : item));
 
   const addButton = (type: WhatsAppTemplateButtonType) => {
+    const id = crypto.randomUUID();
+    pendingScrollButtonId.current = id;
     setButtons((current) => [
       ...current,
-      { id: crypto.randomUUID(), type, text: '', url: '', urlExample: '', phoneNumber: '' },
+      {
+        id,
+        type,
+        ...(type === 'QUICK_REPLY' ? { quickReplyMode: 'CUSTOM' as const } : {}),
+        text: type === 'QUICK_REPLY' ? 'Quick Reply' : '',
+        url: '',
+        urlExample: '',
+        phoneNumber: '',
+      },
     ]);
   };
 
@@ -900,6 +936,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   };
 
   const submitTemplate = async () => {
+    if (category !== 'AUTHENTICATION' && hasDuplicateButtonText) return;
     onResetCreateError();
     setSuccessMessage('');
     try {
@@ -942,7 +979,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
           body: body.trim(),
           bodyExamples: bodyExamples.map((example) => ({ ...example, value: example.value.trim() })),
           footer: footer.trim() || undefined,
-          buttons: buttons.map(({ id: _id, url, urlExample, phoneNumber, ...button }) => ({
+          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, url, urlExample, phoneNumber, ...button }) => ({
             ...button,
             ...(button.type === 'URL' ? { url: url.trim(), urlExample: urlExample.trim() || undefined } : {}),
             ...(button.type === 'PHONE_NUMBER' ? { phoneNumber: phoneNumber.trim() } : {}),
@@ -969,7 +1006,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
   };
 
   const continueToReview = () => {
-    if (category !== 'AUTHENTICATION' && bodyValidationErrors.length > 0) return;
+    if (category !== 'AUTHENTICATION' && (bodyValidationErrors.length > 0 || hasDuplicateButtonText)) return;
     if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat) && !mediaHandle) {
       setMediaError('Vui lòng upload file mẫu trước khi tiếp tục.');
       return;
@@ -1145,12 +1182,12 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                   <section className={sectionClass}>
                     <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-indigo-600" /><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Edit template</p><h3 className="font-bold text-slate-900">Authentication và OTP</h3><p className="text-xs text-slate-500">Meta tự tạo nội dung bảo mật theo ngôn ngữ đã chọn.</p></div></div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                      <div><label className={labelClass}>Loại nút OTP</label><select value={otpType} onChange={(event) => setOtpType(event.target.value as WhatsAppOtpType)} className={inputClass}><option value="COPY_CODE">COPY_CODE</option><option value="ONE_TAP">ONE_TAP</option><option value="ZERO_TAP">ZERO_TAP</option></select></div>
+                      <div><label className={labelClass}>Loại button OTP</label><select value={otpType} onChange={(event) => setOtpType(event.target.value as WhatsAppOtpType)} className={inputClass}><option value="COPY_CODE">COPY_CODE</option><option value="ONE_TAP">ONE_TAP</option><option value="ZERO_TAP">ZERO_TAP</option></select></div>
                       <div>
-                        <label className={labelClass}>Nội dung nút</label>
+                        <label className={labelClass}>Nội dung button</label>
                         <div className="relative">
-                          <input value={otpButtonText} maxLength={25} onChange={(event) => setOtpButtonText(event.target.value)} placeholder="Tùy chỉnh text nút" className={`${inputClass} pr-12`} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{otpButtonText.length}/25</span>
+                          <input value={otpButtonText} maxLength={40} onChange={(event) => setOtpButtonText(event.target.value)} placeholder="Tùy chỉnh text button" className={`${inputClass} pr-12`} />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{otpButtonText.length}/40</span>
                         </div>
                       </div>
                       <div><label className={labelClass}>Mã hết hạn sau (phút)</label><input type="number" min={1} max={90} value={otpExpiration} onChange={(event) => setOtpExpiration(Number(event.target.value))} className={inputClass} /></div>
@@ -1158,7 +1195,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                     <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={addSecurityRecommendation} onChange={(event) => setAddSecurityRecommendation(event.target.checked)} /> Thêm khuyến nghị không chia sẻ mã bảo mật.</label>
                     {otpType !== 'COPY_CODE' ? (
                       <div className="grid grid-cols-1 gap-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4 md:grid-cols-3">
-                        <div><label className={labelClass}>Nội dung tự động điền</label><input required value={otpAutofillText} maxLength={25} onChange={(event) => setOtpAutofillText(event.target.value)} className={inputClass} /></div>
+                        <div><label className={labelClass}>Nội dung tự động điền</label><input required value={otpAutofillText} maxLength={40} onChange={(event) => setOtpAutofillText(event.target.value)} className={inputClass} /></div>
                         <div><label className={labelClass}>Android package name</label><input required value={otpPackage} onChange={(event) => setOtpPackage(event.target.value)} placeholder="com.example.app" className={inputClass} /></div>
                         <div><label className={labelClass}>App signature hash</label><input required value={otpSignature} onChange={(event) => setOtpSignature(event.target.value)} className={inputClass} /></div>
                         {otpType === 'ZERO_TAP' ? <label className="flex items-center gap-2 text-xs font-medium text-indigo-900 md:col-span-3"><input required type="checkbox" checked={zeroTapTermsAccepted} onChange={(event) => setZeroTapTermsAccepted(event.target.checked)} /> Tôi chấp nhận điều khoản Zero Tap của Meta.</label> : null}
@@ -1356,7 +1393,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           </span>
                         </div>
                         {bodyValidationErrors.length > 0 ? (
-                          <div className="mt-1.5 space-y-1">
+                          <div className="mt-1.5 space-y-1 text-right">
                             {bodyValidationErrors.map((errMsg) => (
                               <p key={errMsg} className="text-xs leading-5 text-rose-600">
                                 {errMsg}
@@ -1420,7 +1457,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                       <div><label className={labelClass}>Footer <span className="font-normal text-slate-400">· Optional</span></label><div className="relative"><input value={footer} onChange={(event) => setFooter(event.target.value)} maxLength={60} placeholder="Add a short line of text to the bottom of your message" className={`${inputClass} pr-14`} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{footer.length}/60</span></div></div>
                     </section>
                     <section className={sectionClass}>
-                      <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Tạo các nút để khách hàng có thể phản hồi tin nhắn của bạn hoặc thực hiện một hành động. Bạn có thể thêm tối đa 10 nút. Nếu thêm nhiều hơn 3 nút, các nút sẽ được hiển thị dưới dạng danh sách.</p></div>
+                      <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Tạo các button để khách hàng có thể phản hồi tin nhắn của bạn hoặc thực hiện một hành động. Bạn có thể thêm tối đa 10 button. Nếu thêm nhiều hơn 3 button, các button sẽ được hiển thị dưới dạng danh sách.</p></div>
                       <AddButtonDropdown onAdd={(type) => addButton(type)} disabled={buttons.length >= 10} />
                       {buttons.length > 0 ? (
                         <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-200">
@@ -1431,6 +1468,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                             return (
                               <div
                                 key={button.id}
+                                ref={(element) => {
+                                  if (element) buttonCardRefs.current.set(button.id, element);
+                                  else buttonCardRefs.current.delete(button.id);
+                                }}
                                 draggable={buttons.length > 1}
                                 onDragStart={(event) => {
                                   setDraggedButtonIndex(index);
@@ -1481,35 +1522,53 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   ) : null}
 
                                   <div className="w-36 shrink-0 sm:w-48">
-                                    <label className={labelClass}>Loại nút</label>
-                                    <select
-                                      value={button.type}
-                                      onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })}
-                                      className={inputClass}
-                                    >
-                                      <option value="QUICK_REPLY">Custom</option>
-                                      <option value="URL">Visit website</option>
-                                      <option value="VOICE_CALL">Call on WhatsApp</option>
-                                      <option value="PHONE_NUMBER">Call Phone Number</option>
-                                      <option value="FLOW">Complete flow</option>
-                                      <option value="COPY_CODE">Copy offer code</option>
-                                      <option value="CONTACT">Share contact info</option>
-                                    </select>
+                                    <label className={labelClass}>Loại button</label>
+                                    {button.type === 'QUICK_REPLY' ? (
+                                      <select
+                                        value={button.quickReplyMode || 'CUSTOM'}
+                                        onChange={(event) => {
+                                          const quickReplyMode = event.target.value as 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
+                                          updateButton(button.id, {
+                                            quickReplyMode,
+                                            text: quickReplyMode === 'PRE_CONFIGURED_RESPONSE'
+                                              ? 'Preconfigured Response'
+                                              : 'Quick Reply',
+                                          });
+                                        }}
+                                        className={inputClass}
+                                      >
+                                        <option value="CUSTOM">Custom</option>
+                                        <option value="PRE_CONFIGURED_RESPONSE">Pre-configured response</option>
+                                      </select>
+                                    ) : (
+                                      <select
+                                        value={button.type}
+                                        onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })}
+                                        className={inputClass}
+                                      >
+                                        <option value="URL">Visit website</option>
+                                        <option value="VOICE_CALL">Call on WhatsApp</option>
+                                        <option value="PHONE_NUMBER">Call Phone Number</option>
+                                        <option value="FLOW">Complete flow</option>
+                                        <option value="COPY_CODE">Copy offer code</option>
+                                        <option value="CONTACT">Share contact info</option>
+                                      </select>
+                                    )}
                                   </div>
 
                                   <div className="min-w-0 flex-1">
-                                    <label className={labelClass}>Nội dung nút</label>
+                                    <label className={labelClass}>Nội dung button</label>
                                     <div className="relative">
                                       <input
                                         required
-                                        maxLength={25}
+                                        maxLength={40}
                                         value={button.text}
                                         onChange={(event) => updateButton(button.id, { text: event.target.value })}
-                                        placeholder="Nhập nội dung nút..."
-                                        className={`${inputClass} pr-12`}
+                                        placeholder="Nhập nội dung button..."
+                                        className={`${inputClass} pr-12 ${isDuplicateButtonText(button.text) ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100' : ''}`}
                                       />
                                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                                        {button.text.length}/25
+                                        {button.text.length}/40
                                       </span>
                                     </div>
                                   </div>
@@ -1518,8 +1577,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                     type="button"
                                     onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))}
                                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
-                                    aria-label="Xóa nút"
-                                    title="Xóa nút"
+                                    aria-label="Xóa button"
+                                    title="Xóa button"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
@@ -1567,6 +1626,11 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                           })}
                         </div>
                       ) : null}
+                      {hasDuplicateButtonText ? (
+                        <p role="alert" className="text-right text-xs leading-5 text-rose-600">
+                          Không thể dùng cùng nội dung cho nhiều button. Vui lòng đặt nội dung khác nhau cho từng button.
+                        </p>
+                      ) : null}
                     </section>
                   </>
                 )}
@@ -1583,7 +1647,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                 <div className="ml-auto flex items-center gap-2">
                   {wizardStep > 1 ? <button type="button" onClick={() => setWizardStep((wizardStep - 1) as WizardStep)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ArrowLeft className="h-4 w-4" />Quay lại</button> : null}
                   {wizardStep === 1 ? <button type="button" onClick={continueToEditor} disabled={templateType !== 'DEFAULT' && category !== 'AUTHENTICATION'} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
-                  {wizardStep === 2 ? <button type="button" onClick={continueToReview} disabled={isUploadingMedia || (category !== 'AUTHENTICATION' && bodyValidationErrors.length > 0)} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
+                  {wizardStep === 2 ? <button type="button" onClick={continueToReview} disabled={isUploadingMedia || (category !== 'AUTHENTICATION' && (bodyValidationErrors.length > 0 || hasDuplicateButtonText))} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">Tiếp tục</button> : null}
                   {wizardStep === 3 ? <button type="submit" disabled={isCreatePending || isUploadingMedia} className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50">{isCreatePending ? 'Đang gửi Meta...' : 'Gửi xét duyệt'}</button> : null}
                 </div>
               </div>
@@ -1678,7 +1742,7 @@ const TemplatePreview: React.FC<{
           {category === 'AUTHENTICATION' ? (
             <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{otpType === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600" style={{ color: '#059669' }}>{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</span></div></div></>
           ) : (
-            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3">{previewBody ? <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody}</p> : null}{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <MessageSquare className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.text || buttonLabel[button.type]}</span></div>)}</div> : null}</>
+            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3">{previewBody ? <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody}</p> : null}{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <Reply className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.text || buttonLabel[button.type]}</span></div>)}</div> : null}</>
           )}
         </div>
         )}
@@ -1707,7 +1771,7 @@ const ReviewSections: React.FC<{
   <div className="space-y-5">
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-900">Sẵn sàng gửi Meta xét duyệt</p><p className="mt-1 text-xs leading-5 text-amber-800">Meta sẽ kiểm tra nội dung, category và định dạng của template. Quá trình xét duyệt có thể mất đến 24 giờ và template chỉ sử dụng được sau khi được phê duyệt.</p></div></div></div>
     <section className={sectionClass}><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Submit for Review</p><h3 className="mt-1 font-bold text-slate-900">Thiết lập template</h3></div><dl><ReviewRow label="Tên" value={<span className="font-mono">{name}</span>} /><ReviewRow label="Category" value={category} /><ReviewRow label="Ngôn ngữ" value={language} />{category !== 'AUTHENTICATION' ? <ReviewRow label="Parameter format" value={parameterFormat} /> : null}</dl></section>
-    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung nút" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : headerFormat === 'LOCATION' ? 'LOCATION · Vị trí' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Nút ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${button.phoneNumber}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
+    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung button" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : headerFormat === 'LOCATION' ? 'LOCATION · Vị trí' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Button ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${button.phoneNumber}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
   </div>
 );
 
@@ -1779,7 +1843,7 @@ const TemplateCard: React.FC<{ template: WhatsAppApprovedTemplate }> = ({ templa
   return (
     <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate font-mono text-sm font-bold text-slate-900">{template.name}</h3>{isMetaSample ? <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700">Mẫu của Meta</span> : null}</div><p className="mt-1 text-xs text-slate-500">{template.language} · {template.category} · {template.parameter_format || 'POSITIONAL'}</p></div><span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}><StatusIcon className="h-3.5 w-3.5" />{template.status}</span></div>
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{header ? <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">{header.format && header.format !== 'TEXT' ? `[${header.format}]` : header.text}</div> : null}{body?.text ? <p className="whitespace-pre-wrap px-3 py-3 text-xs leading-relaxed text-slate-700">{body.text}</p> : template.category === 'AUTHENTICATION' ? <p className="px-3 py-3 text-xs text-slate-700">Nội dung mã xác thực do Meta tạo tự động.</p> : null}{footer?.text ? <p className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500">{footer.text}</p> : null}{buttons.length > 0 ? <div className="grid gap-1 border-t border-slate-200 p-2">{buttons.map((button, index) => <div key={index} className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' || button.otp_type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <MessageSquare className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600 font-semibold" style={{ color: '#059669' }}>{button.text || button.otp_type || buttonLabel[button.type as WhatsAppTemplateButtonType] || button.type}</span></div>)}</div> : null}</div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{header ? <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">{header.format && header.format !== 'TEXT' ? `[${header.format}]` : header.text}</div> : null}{body?.text ? <p className="whitespace-pre-wrap px-3 py-3 text-xs leading-relaxed text-slate-700">{body.text}</p> : template.category === 'AUTHENTICATION' ? <p className="px-3 py-3 text-xs text-slate-700">Nội dung mã xác thực do Meta tạo tự động.</p> : null}{footer?.text ? <p className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500">{footer.text}</p> : null}{buttons.length > 0 ? <div className="grid gap-1 border-t border-slate-200 p-2">{buttons.map((button, index) => <div key={index} className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' || button.otp_type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <Reply className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600 font-semibold" style={{ color: '#059669' }}>{button.text || button.otp_type || buttonLabel[button.type as WhatsAppTemplateButtonType] || button.type}</span></div>)}</div> : null}</div>
       {rejectionReason ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><strong>Lý do từ chối:</strong> {rejectionReason}</div> : null}
       {qualityScore ? <p className="text-[11px] font-medium text-slate-500">Quality score: {qualityScore}</p> : null}
     </article>

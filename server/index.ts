@@ -17,7 +17,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 5002;

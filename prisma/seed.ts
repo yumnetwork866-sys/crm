@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ quiet: true });
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { INITIAL_CUSTOMERS, INITIAL_CAMPAIGNS, INITIAL_USERS, INITIAL_PRODUCT_LIST, INITIAL_MESSAGES } from '../src/data/mockData';
