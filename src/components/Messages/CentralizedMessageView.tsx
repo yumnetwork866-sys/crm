@@ -243,12 +243,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     <div className="flex-1 flex flex-col min-h-0 h-full w-full overflow-hidden">
       {/* Main WhatsApp 3-Column Studio */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 h-full w-full bg-white overflow-hidden">
-        
+
         {/* ========================================================
             COLUMN 1: THREAD LIST & SEARCH (Fixed width flex panel)
            ======================================================== */}
         <div className={`${isDrawerOpen ? 'w-full lg:w-[320px] xl:w-[360px]' : 'w-full lg:w-[380px] xl:w-[420px]'} bg-[#f0f2f5] border-r border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
-          
+
           {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
           <div className="p-2.5 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
             <BusinessPhoneSelector
@@ -292,7 +292,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* WhatsApp Filter Pills */}
-          <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <div
+            className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0"
+            onWheel={(event) => {
+              if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+              const container = event.currentTarget;
+              const maxScrollLeft = container.scrollWidth - container.clientWidth;
+              const canScroll = event.deltaY < 0
+                ? container.scrollLeft > 0
+                : container.scrollLeft < maxScrollLeft;
+
+              if (!canScroll) return;
+              event.preventDefault();
+              container.scrollLeft += event.deltaY;
+            }}
+          >
             {([
               { id: 'all', label: `Tất cả (${threads.length})` },
               { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, t) => sum + t.unreadCount, 0)})` },
@@ -374,7 +389,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <span className="text-[10px] text-slate-500 truncate font-mono">
                           {formatPhoneWithCountryCode(thread.customerPhone, thread.customer?.country) || thread.customerPhone || 'WhatsApp'}
                         </span>
-                        
+
                         {/* Pipeline Status Tag */}
                         <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}>
                           {currentStatus.label}
@@ -509,7 +524,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <h2 className="text-sm font-extrabold text-slate-900 leading-tight truncate">
                         {activeThread.customerName}
                       </h2>
-                      
+
                       {/* 24h Countdown Chip */}
                       {session24hInfo && (
                         <div
@@ -566,7 +581,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">
                       <span className="font-mono">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</span>
-                      {activeCustomer?.owner && (
+                      {activeCustomer?.owner && !['chưa phân công', 'unassigned'].includes(activeCustomer.owner.trim().toLowerCase()) && (
                         <span className="text-[11px] text-slate-500 flex items-center gap-1">
                           <span>• Phụ trách:</span>
                           <span className="font-semibold text-slate-700">{activeCustomer.owner}</span>
@@ -655,7 +670,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                 {groupedMessagesByDate.map((group, groupIndex) => (
                   <div key={groupIndex} className="space-y-2">
-                    
+
                     {/* Date Divider Pill */}
                     <div className="flex justify-center my-3 sticky top-1 z-10">
                       <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm border border-slate-200/80">
@@ -1438,12 +1453,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
            ======================================================== */}
         {isDrawerOpen && activeThread && (
           <div className="w-full lg:w-[320px] xl:w-[360px] bg-white border-l border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0">
-            
+
             {/* Drawer Header */}
             <div className="p-3.5 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <User className="w-4 h-4 text-[#008069]" />
-                <span>Hồ Sơ CRM Khách Hàng</span>
+                <span>Hồ Sơ Khách Hàng</span>
               </h3>
               <button
                 onClick={() => setIsDrawerOpen(false)}
@@ -1481,7 +1496,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
             {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs whatsapp-scrollbar">
-              
+
               {drawerTab === 'overview' ? (
                 <>
                   {/* Profile Card */}
@@ -1495,7 +1510,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     </div>
                     <h4 className="text-sm font-extrabold text-slate-900">{activeThread.customerName}</h4>
                     <p className="text-xs text-slate-500 font-mono mt-0.5">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</p>
-                    
+
                     {/* Group Badge */}
                     <div className="mt-2 inline-block">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${groupInfo.badgeColor}`}>
@@ -1557,7 +1572,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
                     <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-[#008069]" />
-                      <span>Hành Trình Khách Hàng (Timeline)</span>
+                      <span>Timeline</span>
                     </span>
 
                     <div className="space-y-2 pl-2 border-l-2 border-slate-300 ml-1.5 pt-1">
@@ -1589,7 +1604,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
                           <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          Tiến Trình Chăm Sóc (+3, +5, +7, +15)
+                          Tiến Trình Chăm Sóc
                         </span>
                         <span className="text-[10px] font-bold text-emerald-700">
                           Bước {activeCustomer.automationSequence.currentStep}/4
@@ -1624,7 +1639,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between font-bold text-slate-800 text-[11px]">
-                        <span>Đơn hàng gần đây ({activeCustomer.orders.length})</span>
+                        <span>Đơn hàng ({activeCustomer.orders.length})</span>
                       </div>
 
                       <div className="space-y-1.5">
