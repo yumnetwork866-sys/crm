@@ -60,7 +60,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
               <img
-                src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`}
+                src={customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`}
                 alt="avatar"
                 className="w-full h-full object-cover"
               />
@@ -132,7 +132,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
               const agentAvatar = (isCurrentAgent && effectiveCurrentUser?.avatar)
                 ? effectiveCurrentUser.avatar
                 : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`);
-              const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`;
+              const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`;
 
               return (
                 <div key={index} className={`flex items-end gap-2 ${msg.isAgent ? 'justify-end' : 'justify-start'}`}>

@@ -577,7 +577,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     </td>
                     <td className="py-3 px-4 min-w-[240px]">
                       <div className="flex items-center gap-3">
-                        <img src={customer.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
+                        <img src={customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <button type="button" onClick={() => onSelectCustomer(customer)} className="font-bold text-slate-900 hover:text-indigo-600 text-sm text-left truncate block max-w-[170px]">{customer.name}</button>

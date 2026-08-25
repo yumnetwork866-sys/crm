@@ -16,10 +16,10 @@ const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
   'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150',
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-  'https://api.dicebear.com/10.x/adventurer/svg?seed=Felix',
-  'https://api.dicebear.com/10.x/adventurer/svg?seed=Aneka',
-  'https://api.dicebear.com/10.x/adventurer/svg?seed=Oliver',
-  'https://api.dicebear.com/10.x/adventurer/svg?seed=Zoe',
+  'https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=Felix',
+  'https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=Aneka',
+  'https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=Oliver',
+  'https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=Zoe',
 ];
 
 const processImageFile = (file: File): Promise<string> => {
@@ -107,7 +107,7 @@ export const ChangeAvatarModal: React.FC<ChangeAvatarModalProps> = ({ isOpen, on
 
   const handleRandomAvatar = () => {
     const randomSeed = Math.random().toString(36).substring(2, 8);
-    const generated = `https://api.dicebear.com/10.x/adventurer/svg?seed=${randomSeed}`;
+    const generated = `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${randomSeed}`;
     setSelectedAvatar(generated);
     setUploadedFileName(null);
   };

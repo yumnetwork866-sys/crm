@@ -364,7 +364,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <div className="relative shrink-0 mt-0.5">
                       <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center shadow-sm overflow-hidden">
                         <img
-                          src={thread.customer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(thread.customerPhone || thread.customerName || thread.threadId)}`}
+                          src={thread.customer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId)}`}
                           alt="avatar"
                           className="w-full h-full object-cover"
                           loading="lazy"
@@ -511,7 +511,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
                       <img
-                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
+                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
                         alt="avatar"
                         className="w-full h-full object-cover"
                       />
@@ -697,7 +697,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const isHighlighted = highlightedMessageId === msg.id;
 
                       // Dynamic avatar sources with robust fallbacks
-                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer')}`;
+                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(activeCustomer?.phone || msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer')}`;
 
                       const isCurrentAgent = Boolean(
                         isAgent &&
@@ -739,7 +739,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     className="w-full h-full object-cover"
                                     loading="lazy"
                                     onError={(e) => {
-                                      e.currentTarget.src = `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(msg.customerName || 'C')}`;
+                                      e.currentTarget.src = `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(activeCustomer?.phone || msg.customerPhone || msg.customerName || 'C')}`;
                                     }}
                                   />
                                 </div>
@@ -1503,7 +1503,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div className="text-center pb-3 border-b border-slate-200">
                     <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
                       <img
-                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/adventurer/svg?seed=${encodeURIComponent(activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
+                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
                         alt="avatar"
                         className="w-full h-full object-cover"
                       />
