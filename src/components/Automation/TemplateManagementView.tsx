@@ -59,6 +59,7 @@ type EditableButton = {
   type: WhatsAppTemplateButtonType;
   quickReplyMode?: 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
   text: string;
+  urlType: 'STATIC' | 'DYNAMIC';
   url: string;
   urlExample: string;
   phoneNumber: string;
@@ -902,7 +903,8 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
         id,
         type,
         ...(type === 'QUICK_REPLY' ? { quickReplyMode: 'CUSTOM' as const } : {}),
-        text: type === 'QUICK_REPLY' ? 'Quick Reply' : '',
+        text: type === 'QUICK_REPLY' ? 'Quick Reply' : type === 'URL' ? 'Visit website' : '',
+        urlType: 'STATIC',
         url: '',
         urlExample: '',
         phoneNumber: '',
@@ -986,7 +988,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
           body: body.trim(),
           bodyExamples: bodyExamples.map((example) => ({ ...example, value: example.value.trim() })),
           footer: footer.trim() || undefined,
-          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, url, urlExample, phoneNumber, ...button }) => ({
+          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, urlType: _urlType, url, urlExample, phoneNumber, ...button }) => ({
             ...button,
             ...(button.type === 'URL' ? { url: url.trim(), urlExample: urlExample.trim() || undefined } : {}),
             ...(button.type === 'PHONE_NUMBER' ? { phoneNumber: phoneNumber.trim() } : {}),
@@ -1528,7 +1530,12 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                     </div>
                                   ) : null}
 
-                                  <div className="w-36 shrink-0 sm:w-48">
+                                  <div className={`grid min-w-0 flex-1 grid-cols-1 items-end gap-2.5 ${
+                                    button.type === 'URL'
+                                      ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1.25fr)]'
+                                      : 'md:grid-cols-[12rem_minmax(0,1fr)]'
+                                  }`}>
+                                  <div className="min-w-0">
                                     <label className={labelClass}>Loại button</label>
                                     {button.type === 'QUICK_REPLY' ? (
                                       <select
@@ -1550,7 +1557,13 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                     ) : (
                                       <select
                                         value={button.type}
-                                        onChange={(event) => updateButton(button.id, { type: event.target.value as WhatsAppTemplateButtonType })}
+                                        onChange={(event) => {
+                                          const nextType = event.target.value as WhatsAppTemplateButtonType;
+                                          updateButton(button.id, {
+                                            type: nextType,
+                                            text: (!button.text.trim()) && nextType === 'URL' ? 'Visit website' : button.text,
+                                          });
+                                        }}
                                         className={inputClass}
                                       >
                                         <option value="URL">Visit website</option>
@@ -1563,7 +1576,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                     )}
                                   </div>
 
-                                  <div className="min-w-0 flex-1">
+                                  <div className="min-w-0">
                                     <label className={labelClass}>Nội dung button</label>
                                     <div className="relative">
                                       <input
@@ -1580,6 +1593,40 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                     </div>
                                   </div>
 
+                                  {button.type === 'URL' ? (
+                                    <>
+                                      <div className="min-w-0">
+                                        <label className={labelClass}>Kiểu URL</label>
+                                        <select
+                                          value={button.urlType}
+                                          onChange={(event) => {
+                                            const urlType = event.target.value as EditableButton['urlType'];
+                                            updateButton(button.id, {
+                                              urlType,
+                                              ...(urlType === 'STATIC' ? { urlExample: '' } : {}),
+                                            });
+                                          }}
+                                          className={inputClass}
+                                        >
+                                          <option value="STATIC">Static</option>
+                                          <option value="DYNAMIC">Dynamic</option>
+                                        </select>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <label className={labelClass}>URL HTTPS</label>
+                                        <input
+                                          required
+                                          type="url"
+                                          value={button.url}
+                                          onChange={(event) => updateButton(button.id, { url: event.target.value })}
+                                          placeholder={button.urlType === 'DYNAMIC' ? 'https://example.com/{{1}}' : 'https://example.com'}
+                                          className={inputClass}
+                                        />
+                                      </div>
+                                    </>
+                                  ) : null}
+                                  </div>
+
                                   <button
                                     type="button"
                                     onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))}
@@ -1591,28 +1638,18 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   </button>
                                 </div>
 
-                                {button.type === 'URL' ? (
-                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <div>
-                                      <label className={labelClass}>URL HTTPS</label>
-                                      <input
-                                        required
-                                        type="url"
-                                        value={button.url}
-                                        onChange={(event) => updateButton(button.id, { url: event.target.value })}
-                                        placeholder="https://example.com/{{1}}"
-                                        className={inputClass}
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className={labelClass}>URL mẫu nếu có biến</label>
-                                      <input
-                                        value={button.urlExample}
-                                        onChange={(event) => updateButton(button.id, { urlExample: event.target.value })}
-                                        placeholder="https://example.com/123"
-                                        className={inputClass}
-                                      />
-                                    </div>
+                                {button.type === 'URL' && button.urlType === 'DYNAMIC' ? (
+                                  <div>
+                                    <label className={labelClass}>URL mẫu</label>
+                                    <input
+                                      required
+                                      type="url"
+                                      value={button.urlExample}
+                                      onChange={(event) => updateButton(button.id, { urlExample: event.target.value })}
+                                      placeholder="https://example.com/123"
+                                      className={inputClass}
+                                    />
+                                    <p className="mt-1 text-[11px] text-slate-500">URL động phải chứa một biến; URL mẫu cần thay biến bằng giá trị thực tế.</p>
                                   </div>
                                 ) : null}
 
