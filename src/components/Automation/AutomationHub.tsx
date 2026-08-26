@@ -9,7 +9,7 @@ import type {
 } from '../../types';
 import { BroadcastView } from '../Broadcast/BroadcastView';
 import { AutomationView } from './AutomationView';
-import { TemplateManagementView } from './TemplateManagementView';
+import { TemplateManagementView } from './Template/TemplateManagementView';
 
 export type AutomationSection = 'workflow' | 'broadcast' | 'templates';
 
