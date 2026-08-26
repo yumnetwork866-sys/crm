@@ -9,10 +9,7 @@ import {
   ChevronDown,
   Clock3,
   Code2,
-  Contact,
-  Copy,
   FileText,
-  Globe,
   GripVertical,
   Image,
   Info,
@@ -23,8 +20,6 @@ import {
   LockKeyhole,
   MapPin,
   Megaphone,
-  Phone,
-  Reply,
   PhoneCall,
   Plus,
   RefreshCw,
@@ -34,7 +29,6 @@ import {
   Trash2,
   Upload,
   Video,
-  Workflow,
   XCircle,
 } from 'lucide-react';
 import type {
@@ -512,8 +506,20 @@ const MediaSampleDropdown: React.FC<{
   );
 };
 
-const WhatsAppFaIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <i className={`fa fa-whatsapp ${className || ''}`} aria-hidden="true" />
+const templateButtonIconClass: Record<WhatsAppTemplateButtonType, string> = {
+  QUICK_REPLY: 'fa-solid fa-reply',
+  URL: 'fa-solid fa-arrow-up-right-from-square',
+  VOICE_CALL: 'fa-brands fa-whatsapp',
+  PHONE_NUMBER: 'fa-solid fa-phone',
+  FLOW: 'fa-solid fa-diagram-project',
+  COPY_CODE: 'fa-solid fa-copy',
+  CONTACT: 'fa-solid fa-user',
+};
+
+const TemplateButtonIcon: React.FC<{ type: WhatsAppTemplateButtonType }> = ({ type }) => (
+  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-emerald-600 template-preview-button-icon" aria-hidden="true">
+    <i className={`${templateButtonIconClass[type]} block text-[15px] leading-none`} />
+  </span>
 );
 
 const AddButtonDropdown: React.FC<{
@@ -554,15 +560,15 @@ const AddButtonDropdown: React.FC<{
   const options: Array<{
     type: WhatsAppTemplateButtonType;
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
+    iconClass: string;
   }> = [
-    { type: 'QUICK_REPLY', label: 'Custom', icon: Reply },
-    { type: 'URL', label: 'Visit website', icon: Globe },
-    { type: 'VOICE_CALL', label: 'Call on WhatsApp', icon: WhatsAppFaIcon },
-    { type: 'PHONE_NUMBER', label: 'Call Phone Number', icon: Phone },
-    { type: 'FLOW', label: 'Complete flow', icon: Workflow },
-    { type: 'COPY_CODE', label: 'Copy offer code', icon: Copy },
-    { type: 'CONTACT', label: 'Share contact info', icon: Contact },
+    { type: 'QUICK_REPLY', label: 'Custom', iconClass: templateButtonIconClass.QUICK_REPLY },
+    { type: 'URL', label: 'Visit website', iconClass: templateButtonIconClass.URL },
+    { type: 'VOICE_CALL', label: 'Call on WhatsApp', iconClass: templateButtonIconClass.VOICE_CALL },
+    { type: 'PHONE_NUMBER', label: 'Call Phone Number', iconClass: templateButtonIconClass.PHONE_NUMBER },
+    { type: 'FLOW', label: 'Complete flow', iconClass: templateButtonIconClass.FLOW },
+    { type: 'COPY_CODE', label: 'Copy offer code', iconClass: templateButtonIconClass.COPY_CODE },
+    { type: 'CONTACT', label: 'Share contact info', iconClass: templateButtonIconClass.CONTACT },
   ];
 
   return (
@@ -591,7 +597,6 @@ const AddButtonDropdown: React.FC<{
           className="absolute bottom-full left-0 z-30 mb-1.5 min-w-47.5 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
           {options.map((item) => {
-            const Icon = item.icon;
             return (
               <button
                 key={item.type}
@@ -603,7 +608,9 @@ const AddButtonDropdown: React.FC<{
                 }}
                 className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
               >
-                <Icon className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-slate-500" aria-hidden="true">
+                  <i className={`${item.iconClass} block text-[15px] leading-none`} />
+                </span>
                 <span>{item.label}</span>
               </button>
             );
@@ -1740,9 +1747,9 @@ const TemplatePreview: React.FC<{
         ) : (
         <div className="ml-auto max-w-[94%] overflow-hidden rounded-lg rounded-tr-none bg-white shadow-sm">
           {category === 'AUTHENTICATION' ? (
-            <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{otpType === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600" style={{ color: '#059669' }}>{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</span></div></div></>
+            <><div className="space-y-3 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-emerald-600" /> Mã xác thực của bạn</div><p className="text-sm leading-5 text-slate-700">Mã xác thực của bạn là <strong>123456</strong>.</p>{addSecurityRecommendation ? <p className="text-xs text-slate-600">Để bảo mật, đừng chia sẻ mã này.</p> : null}<p className="text-[11px] text-slate-500">Mã này sẽ hết hạn sau {otpExpiration} phút.</p><div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div><div className="border-t border-slate-100 p-2"><div className="flex items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{otpType === 'COPY_CODE' ? <TemplateButtonIcon type="COPY_CODE" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600" style={{ color: '#059669' }}>{otpButtonText || (otpType === 'COPY_CODE' ? 'Sao chép mã' : 'Tự động điền')}</span></div></div></>
           ) : (
-            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3">{previewBody ? <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody}</p> : null}{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <Reply className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.text || buttonLabel[button.type]}</span></div>)}</div> : null}</>
+            <>{headerFormat !== 'NONE' ? <div>{headerFormat === 'TEXT' ? <div className="px-3 pt-3 text-sm font-bold text-slate-900">{previewHeader || 'Nội dung header'}</div> : headerFormat === 'LOCATION' ? <div className="flex h-32 flex-col items-center justify-center gap-1.5 bg-slate-100 px-3 text-center text-xs text-slate-600"><div className="flex items-center gap-1.5 font-bold text-slate-800"><MapPin className="h-4.5 w-4.5 text-rose-600" /><span>Vị trí (Location)</span></div><span className="text-[11px] text-slate-400">Vị trí địa lý sẽ được đính kèm khi gửi</span></div> : <div className="flex h-36 flex-col items-center justify-center gap-2 bg-slate-100 px-3 text-center text-xs text-slate-500">{headerFormat === 'IMAGE' && mediaPreviewUrl ? <img src={mediaPreviewUrl} alt={mediaFileName || 'Ảnh mẫu template'} className="h-full w-full object-cover" /> : headerFormat === 'VIDEO' ? <><span><Video className="h-8 w-8" /></span><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></> : <><span>{headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}</span><span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span></>}</div>}</div> : null}<div className="space-y-2 px-3 pb-2 pt-3">{previewBody ? <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">{previewBody}</p> : null}{footer ? <p className="text-[11px] text-slate-500">{footer}</p> : null}<div className="text-right text-[10px] text-slate-400">{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div></div>{buttons.length > 0 ? <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">{buttons.map((button) => <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}><TemplateButtonIcon type={button.type} /><span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.text || buttonLabel[button.type]}</span></div>)}</div> : null}</>
           )}
         </div>
         )}
@@ -1843,7 +1850,7 @@ const TemplateCard: React.FC<{ template: WhatsAppApprovedTemplate }> = ({ templa
   return (
     <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate font-mono text-sm font-bold text-slate-900">{template.name}</h3>{isMetaSample ? <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700">Mẫu của Meta</span> : null}</div><p className="mt-1 text-xs text-slate-500">{template.language} · {template.category} · {template.parameter_format || 'POSITIONAL'}</p></div><span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}><StatusIcon className="h-3.5 w-3.5" />{template.status}</span></div>
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{header ? <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">{header.format && header.format !== 'TEXT' ? `[${header.format}]` : header.text}</div> : null}{body?.text ? <p className="whitespace-pre-wrap px-3 py-3 text-xs leading-relaxed text-slate-700">{body.text}</p> : template.category === 'AUTHENTICATION' ? <p className="px-3 py-3 text-xs text-slate-700">Nội dung mã xác thực do Meta tạo tự động.</p> : null}{footer?.text ? <p className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500">{footer.text}</p> : null}{buttons.length > 0 ? <div className="grid gap-1 border-t border-slate-200 p-2">{buttons.map((button, index) => <div key={index} className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>{button.type === 'PHONE_NUMBER' ? <Phone className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'VOICE_CALL' ? <i className="fa fa-whatsapp text-sm text-emerald-600 template-preview-button-icon" style={{ color: '#059669' }} aria-hidden="true" /> : button.type === 'URL' ? <Globe className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'FLOW' ? <Workflow className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'COPY_CODE' || button.otp_type === 'COPY_CODE' ? <Copy className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : button.type === 'CONTACT' ? <Contact className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} /> : <Reply className="h-3.5 w-3.5 text-emerald-600 template-preview-button-icon" style={{ color: '#059669', stroke: '#059669' }} />}<span className="text-emerald-600 font-semibold" style={{ color: '#059669' }}>{button.text || button.otp_type || buttonLabel[button.type as WhatsAppTemplateButtonType] || button.type}</span></div>)}</div> : null}</div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">{header ? <div className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">{header.format && header.format !== 'TEXT' ? `[${header.format}]` : header.text}</div> : null}{body?.text ? <p className="whitespace-pre-wrap px-3 py-3 text-xs leading-relaxed text-slate-700">{body.text}</p> : template.category === 'AUTHENTICATION' ? <p className="px-3 py-3 text-xs text-slate-700">Nội dung mã xác thực do Meta tạo tự động.</p> : null}{footer?.text ? <p className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500">{footer.text}</p> : null}{buttons.length > 0 ? <div className="grid gap-1 border-t border-slate-200 p-2">{buttons.map((button, index) => <div key={index} className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}><TemplateButtonIcon type={(button.type === 'COPY_CODE' || button.otp_type === 'COPY_CODE' ? 'COPY_CODE' : button.type || 'QUICK_REPLY') as WhatsAppTemplateButtonType} /><span className="text-emerald-600 font-semibold" style={{ color: '#059669' }}>{button.text || button.otp_type || buttonLabel[button.type as WhatsAppTemplateButtonType] || button.type}</span></div>)}</div> : null}</div>
       {rejectionReason ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><strong>Lý do từ chối:</strong> {rejectionReason}</div> : null}
       {qualityScore ? <p className="text-[11px] font-medium text-slate-500">Quality score: {qualityScore}</p> : null}
     </article>

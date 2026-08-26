@@ -665,13 +665,29 @@ table td {
   stroke: #ffffff !important;
 }
 
-/* Ensure template preview button icons remain vibrant green */
+/* Keep template action icons consistently sized, bold and vibrant green. */
 .template-preview-button-icon,
 .template-preview-button-icon svg,
 .template-preview-button-icon.lucide,
 .template-preview-button-icon * {
   color: #059669 !important;
   stroke: #059669 !important;
+}
+
+.template-preview-button-icon {
+  width: 1rem !important;
+  height: 1rem !important;
+  flex-shrink: 0;
+  font-size: 1rem !important;
+  line-height: 1;
+}
+
+.template-preview-button-icon.lucide {
+  stroke-width: 2.5 !important;
+}
+
+.template-preview-button-icon.fa-solid {
+  font-weight: 900;
 }
 
 body:not(.light-mode) .bg-white svg.text-emerald-600,

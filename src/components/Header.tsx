@@ -19,7 +19,7 @@ import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 
 const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
-  <i className={`fa fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
+  <i className={`fa-brands fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
 );
 
 interface HeaderProps {
