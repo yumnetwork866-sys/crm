@@ -405,10 +405,6 @@ export default function App() {
                     setOrderCustomer(cust);
                     setIsOrderOpen(true);
                   }}
-                  onOpenChat={(cust) => {
-                    setChatCustomer(cust);
-                    setIsChatOpen(true);
-                  }}
                   onAddNote={handleAddNote}
                   onUpdateStatus={handleUpdateStatus}
                   onToggleOptIn={handleToggleOptIn}
