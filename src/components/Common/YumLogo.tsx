@@ -11,9 +11,9 @@ export const YumLogo: React.FC<YumLogoProps> = ({ className = '', showText = fal
 
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
-      {/* Official Uploaded JPG Logo */}
+      {/* Official Uploaded PNG Logo */}
       <img
-        src="/yumnetwork-logo.jpg"
+        src="/logo.png"
         alt="YumNetwork CRM"
         className={`${heightClass} w-auto object-contain shrink-0`}
       />
