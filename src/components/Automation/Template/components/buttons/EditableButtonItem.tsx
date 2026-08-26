@@ -269,18 +269,14 @@ export const EditableButtonItem = memo(function EditableButtonItem({
           <div className="min-w-0">
             <p>
               Bật tính năng gọi trong{' '}
-              {WHATSAPP_MANAGER_URL ? (
-                <a
-                  href={WHATSAPP_MANAGER_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900"
-                >
-                  cổng WhatsApp Manager
-                </a>
-              ) : (
-                <span className="font-semibold text-slate-800">cổng WhatsApp Manager</span>
-              )}
+              <a
+                href={WHATSAPP_MANAGER_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900"
+              >
+                cổng WhatsApp Manager
+              </a>
               . Ngoài ra, bạn có thể sử dụng Phone Number Settings API.
             </p>
             <a

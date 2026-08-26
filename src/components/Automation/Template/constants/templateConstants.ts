@@ -98,7 +98,7 @@ const whatsappWabaId = import.meta.env.VITE_WHATSAPP_WABA_ID?.trim();
 export const WHATSAPP_MANAGER_URL =
   metaBusinessId && whatsappWabaId
     ? `https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?business_id=${encodeURIComponent(metaBusinessId)}&tab=phone-numbers&nav_ref=whatsapp_manager&asset_id=${encodeURIComponent(whatsappWabaId)}`
-    : null;
+    : 'https://business.facebook.com/latest/whatsapp_manager/phone_numbers/';
 
 export const WHATSAPP_CALLING_DOCS_URL =
   'https://developers.facebook.com/docs/whatsapp/cloud-api/calling';
