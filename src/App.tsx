@@ -132,7 +132,6 @@ export default function App() {
     runAutomationSimulation,
     resetCustomers,
     buildFilterModel,
-    isFetching: isCustomersFetching,
     isError: isCustomersError,
   } = useCustomers(currentUser);
   const {
@@ -142,7 +141,6 @@ export default function App() {
     deleteProduct: handleDeleteProduct,
     importProducts: handleImportProducts,
     resetProducts,
-    isFetching: isProductsFetching,
     isError: isProductsError,
   } = useProducts(currentUser);
   const {
@@ -158,7 +156,6 @@ export default function App() {
     resetCreateTemplateError,
     launchCampaign: handleLaunchCampaign,
     resetCampaigns,
-    isFetching: isCampaignsFetching,
     isError: isCampaignsError,
     isLaunchPending: isCampaignLaunchPending,
     launchError: campaignLaunchError,
@@ -170,7 +167,6 @@ export default function App() {
     updateOrderStatus: handleUpdateOrderStatus,
     deleteOrder: handleDeleteOrder,
     importOrders: handleImportOrders,
-    isMutating: isOrdersMutating,
     isError: isOrdersError,
   } = useOrders();
   const {
@@ -186,15 +182,12 @@ export default function App() {
     hasOlderMessages,
     isLoadingOlderMessages,
     loadOlderMessages,
-    isFetching: isMessagesFetching,
     isError: isMessagesError,
   } = useCentralMessages({ customers, setCustomers, currentUser });
   const customerFilterModel = useMemo(
     () => buildFilterModel(centralMessages),
     [buildFilterModel, centralMessages]
   );
-  const isBackgroundFetching = isCustomersFetching || isProductsFetching
-    || isCampaignsFetching || isMessagesFetching || isOrdersMutating;
   const hasDataError = isCustomersError || isProductsError || isCampaignsError
     || isMessagesError || isOrdersError;
 
@@ -374,18 +367,12 @@ export default function App() {
                   onCurrencyChange={() => setCurrencyTick((t) => t + 1)}
                 />
 
-                {(isBackgroundFetching || hasDataError) && (
+                {hasDataError && (
                   <div
-                    role={hasDataError ? 'alert' : 'status'}
-                    className={`px-4 py-2 text-center text-xs font-bold ${
-                      hasDataError
-                        ? 'bg-amber-50 text-amber-800 border-b border-amber-200'
-                        : 'bg-sky-50 text-sky-700 border-b border-sky-200'
-                    }`}
+                    role="alert"
+                    className="px-4 py-2 text-center text-xs font-bold bg-amber-50 text-amber-800 border-b border-amber-200"
                   >
-                    {hasDataError
-                      ? 'Một số dữ liệu chưa đồng bộ được. Hệ thống đang hiển thị cache gần nhất và sẽ tự thử lại.'
-                      : 'Đang đồng bộ dữ liệu mới nhất…'}
+                    Một số dữ liệu chưa đồng bộ được. Hệ thống đang hiển thị cache gần nhất và sẽ tự thử lại.
                   </div>
                 )}
 

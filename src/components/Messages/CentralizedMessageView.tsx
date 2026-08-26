@@ -48,7 +48,7 @@ import {
   Reply
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode } from '../../utils/crmUtils';
+import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
@@ -247,7 +247,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         {/* ========================================================
             COLUMN 1: THREAD LIST & SEARCH (Fixed width flex panel)
            ======================================================== */}
-        <div className={`${isDrawerOpen ? 'w-full lg:w-[320px] xl:w-[360px]' : 'w-full lg:w-[380px] xl:w-[420px]'} bg-[#f0f2f5] border-r border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
+        <div className={`${isDrawerOpen ? 'w-full lg:w-[320px] xl:w-90' : 'w-full lg:w-95 xl:w-105'} bg-[#f0f2f5] border-r border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
 
           {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
           <div className="p-2.5 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
@@ -582,8 +582,16 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">
                       <span className="font-mono">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</span>
                       {activeCustomer?.owner && !['chưa phân công', 'unassigned'].includes(activeCustomer.owner.trim().toLowerCase()) && (
-                        <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
                           <span>• Phụ trách:</span>
+                          <img
+                            src={getOwnerAvatar(activeCustomer.owner)}
+                            alt={activeCustomer.owner}
+                            className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100 inline-block"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
+                            }}
+                          />
                           <span className="font-semibold text-slate-700">{activeCustomer.owner}</span>
                         </span>
                       )}
@@ -815,7 +823,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   );
                                 })}
 
-                                <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
+                                <div className="w-px h-4 bg-slate-200 mx-0.5" />
 
                                 {/* WhatsApp '+' Button to open extended emoji palette */}
                                 <button
@@ -927,7 +935,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     {renderQuoteHeader()}
                                     <div
                                       onClick={() => setPreviewLightboxImg(imgInfo.imgUrl)}
-                                      className="relative rounded-lg overflow-hidden cursor-pointer group border border-slate-200 shadow-2xs max-w-sm max-h-72 bg-slate-900/5 min-h-[120px] flex items-center justify-center"
+                                      className="relative rounded-lg overflow-hidden cursor-pointer group border border-slate-200 shadow-2xs max-w-sm max-h-72 bg-slate-900/5 min-h-30 flex items-center justify-center"
                                     >
                                       <img
                                         src={imgInfo.imgUrl}
@@ -941,7 +949,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       </div>
                                     </div>
                                     {imgInfo.caption && (
-                                      <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal pt-1">
+                                      <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] wrap-break-word font-normal pt-1">
                                         <span>{imgInfo.caption}</span>
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
@@ -974,7 +982,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               ) {
                                 const caption = content.replace(/^\[(image message|image|hình ảnh|photo)\]?:?\s*/i, '').replace(/\[|\]/g, '').trim();
                                 return (
-                                  <div className="space-y-1.5 min-w-[220px]">
+                                  <div className="space-y-1.5 min-w-55">
                                     {renderQuoteHeader()}
                                     <div className="p-3 bg-slate-100/90 rounded-lg border border-slate-200 flex items-center gap-2.5">
                                       <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
@@ -1057,7 +1065,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               return (
                                 <div className="space-y-1">
                                   {renderQuoteHeader()}
-                                  <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] break-words font-normal">
+                                  <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] wrap-break-word font-normal">
                                     <span>{content}</span>
                                     <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                       <span>{timeFormatted}</span>
@@ -1452,7 +1460,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             COLUMN 3: COLLAPSIBLE CRM CUSTOMER PROFILE & QUICK ORDER DRAWER
            ======================================================== */}
         {isDrawerOpen && activeThread && (
-          <div className="w-full lg:w-[320px] xl:w-[360px] bg-white border-l border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0">
+          <div className="w-full lg:w-[320px] xl:w-90 bg-white border-l border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0">
 
             {/* Drawer Header */}
             <div className="p-3.5 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0">
@@ -1563,7 +1571,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </div>
                       <div className="flex items-center justify-between text-slate-600">
                         <span>Sale phụ trách:</span>
-                        <span className="font-semibold text-slate-800">{activeCustomer.owner || 'Chưa phân công'}</span>
+                        <div className="flex items-center gap-1.5">
+                          {activeCustomer.owner && !['chưa phân công', 'unassigned', ''].includes(activeCustomer.owner.trim().toLowerCase()) ? (
+                            <>
+                              <img
+                                src={getOwnerAvatar(activeCustomer.owner)}
+                                alt={activeCustomer.owner}
+                                className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
+                                onError={(e) => {
+                                  e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
+                                }}
+                              />
+                              <span className="font-semibold text-slate-800">{activeCustomer.owner}</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400">Chưa phân công</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1577,21 +1601,21 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     <div className="space-y-2 pl-2 border-l-2 border-slate-300 ml-1.5 pt-1">
                       <div className="relative pl-3 text-[11px]">
-                        <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+                        <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
                         <p className="font-bold text-slate-900">Đang trò chuyện trực tiếp</p>
                         <p className="text-[10px] text-slate-500">Phiên chat WhatsApp Webhook</p>
                       </div>
 
                       {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
                         <div className="relative pl-3 text-[11px]">
-                          <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white"></span>
+                          <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white"></span>
                           <p className="font-bold text-slate-900">Đã mua {activeCustomer.orders.length} đơn hàng</p>
                           <p className="text-[10px] text-slate-500">Đơn gần nhất: {activeCustomer.orders[0].orderCode}</p>
                         </div>
                       )}
 
                       <div className="relative pl-3 text-[11px]">
-                        <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white"></span>
+                        <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white"></span>
                         <p className="font-bold text-slate-900">Đăng ký & Đồng thuận Opt-In</p>
                         <p className="text-[10px] text-slate-500">Yum Network WABA Channel</p>
                       </div>

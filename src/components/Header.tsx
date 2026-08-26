@@ -7,7 +7,6 @@ import {
   BarChart3,
   ShoppingBag,
   ShieldCheck,
-  MessageSquare,
   LogOut,
   Camera,
   KeyRound,
@@ -18,6 +17,10 @@ import type { ActiveTab } from './Navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
+
+const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
+  <i className={`fa fa-whatsapp ${className || ''}`} {...props} />
+);
 
 interface HeaderProps {
   onChangeTab: (tab: ActiveTab) => void;
@@ -143,18 +146,18 @@ export const Header: React.FC<HeaderProps> = ({
       id: 'messages' as ActiveTab,
       label: 'WhatsApp',
       subtitle: 'WhatsApp Cloud API',
-      icon: MessageSquare,
+      icon: WhatsAppIcon,
       badge: unreadMessagesCount,
     },
   ];
 
   return (
     <header className="app-topbar sticky top-0 z-30 shrink-0 border-b border-slate-800/80 bg-slate-950/95 text-white shadow-[0_8px_24px_rgba(15,23,42,0.16)] backdrop-blur-xl">
-      <div className="mx-auto w-full max-w-[1440px] px-3 py-2 sm:px-4">
-        <div className="flex items-center justify-between gap-2.5">
+      <div className="mx-auto w-full max-w-400 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5">
           
           {/* 1. Left: Logo & Brand */}
-          <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex w-10 shrink-0 items-center justify-start">
             <YumLogo size="md" showText={false} />
           </div>
 
@@ -204,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* 3. Right: Circular User Avatar with Dropdown */}
-          <div className="relative shrink-0" ref={dropdownRef}>
+          <div className="relative flex w-10 shrink-0 items-center justify-end justify-self-end" ref={dropdownRef}>
             {currentUser ? (
               <button
                 type="button"

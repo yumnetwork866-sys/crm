@@ -23,7 +23,7 @@ import {
   formatDate,
   formatVND,
   getCustomerGroup,
-  getOwnerBadgeClass,
+  getOwnerAvatar,
   getStatusColorClass,
   isSamePhoneNumber,
 } from '../../utils/crmUtils';
@@ -637,11 +637,26 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       </select>
                     </td>
 
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3 min-w-[200px]">
                       {unassigned ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200"><UserRoundX className="w-3 h-3" /> Chưa phân công</span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                            <UserRoundX className="w-4 h-4" />
+                          </div>
+                          <span className="text-sm font-medium text-slate-400">Chưa phân công</span>
+                        </div>
                       ) : (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${getOwnerBadgeClass(customer.owner)}`}><User className="w-3 h-3" />{customer.owner}</span>
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getOwnerAvatar(customer.owner)}
+                            alt={customer.owner}
+                            className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(customer.owner)}`;
+                            }}
+                          />
+                          <span className="font-bold text-slate-900 text-sm whitespace-nowrap">{customer.owner}</span>
+                        </div>
                       )}
                     </td>
                     <td className="py-3 px-4 text-right min-w-[130px]">

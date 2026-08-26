@@ -5,7 +5,7 @@ import {
   Clock, ShieldCheck, ShieldAlert, MessageSquare, Briefcase
 } from 'lucide-react';
 import type { Customer, CustomerStatus } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getStatusColorClass, getOwnerBadgeClass } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -182,12 +182,23 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                       <option value="Lost" className="bg-white text-rose-800 font-bold">Lost</option>
                     </select>
                   </div>
-                  <div className="flex items-center space-x-1 text-xs mt-2">
+                  <div className="flex items-center space-x-1.5 text-xs mt-2">
                     <span className="text-slate-500 font-medium">Sales:</span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border ${getOwnerBadgeClass(customer.owner)}`}>
-                      <User className="w-3 h-3 shrink-0" />
-                      <span>{customer.owner}</span>
-                    </span>
+                    {customer.owner && !['chưa phân công', 'unassigned', ''].includes(customer.owner.trim().toLowerCase()) ? (
+                      <div className="inline-flex items-center gap-1.5">
+                        <img
+                          src={getOwnerAvatar(customer.owner)}
+                          alt={customer.owner}
+                          className="w-5 h-5 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
+                          onError={(e) => {
+                            e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(customer.owner)}`;
+                          }}
+                        />
+                        <span className="font-semibold text-slate-800">{customer.owner}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">Chưa phân công</span>
+                    )}
                   </div>
                 </div>
               </div>

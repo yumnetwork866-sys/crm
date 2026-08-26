@@ -588,7 +588,7 @@ const AddButtonDropdown: React.FC<{
       {isOpen ? (
         <div
           role="listbox"
-          className="absolute bottom-full left-0 z-30 mb-1.5 min-w-[190px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute bottom-full left-0 z-30 mb-1.5 min-w-47.5 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
           {options.map((item) => {
             const Icon = item.icon;
