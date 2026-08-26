@@ -475,6 +475,7 @@ export interface MessageTemplateButton {
   url?: string;
   urlExample?: string;
   phoneNumber?: string;
+  activeForDays?: number;
 }
 
 export interface AuthenticationTemplateConfig {
@@ -626,6 +627,7 @@ export function buildMessageTemplatePayload(options: CreateMessageTemplateOption
             return {
               type: 'VOICE_CALL',
               text: button.text,
+              active_for: button.activeForDays,
             };
           }
           if (button.type === 'FLOW') {

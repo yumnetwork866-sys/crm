@@ -32,6 +32,7 @@ describe('buildMessageTemplatePayload', () => {
       buttons: [
         { type: 'URL', text: 'Xem đơn', url: 'https://example.com/orders/{{order_id}}', urlExample: 'https://example.com/orders/A-123' },
         { type: 'PHONE_NUMBER', text: 'Gọi hỗ trợ', phoneNumber: '+84901234567' },
+        { type: 'VOICE_CALL', text: 'Gọi WhatsApp', activeForDays: 7 },
         { type: 'QUICK_REPLY', text: 'Đã hiểu' },
       ],
     });
@@ -69,6 +70,7 @@ describe('buildMessageTemplatePayload', () => {
               example: ['https://example.com/orders/A-123'],
             },
             { type: 'PHONE_NUMBER', text: 'Gọi hỗ trợ', phone_number: '+84901234567' },
+            { type: 'VOICE_CALL', text: 'Gọi WhatsApp', active_for: 7 },
             { type: 'QUICK_REPLY', text: 'Đã hiểu' },
           ],
         },

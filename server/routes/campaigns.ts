@@ -63,6 +63,7 @@ const templateButtonSchema = z.object({
   url: z.string().trim().max(2000).optional(),
   urlExample: z.string().trim().max(2000).optional(),
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Số điện thoại phải theo chuẩn E.164.').optional(),
+  activeForDays: z.number().int().min(1).max(30).optional(),
 }).strict();
 
 const authenticationButtonSchema = z.object({
@@ -287,11 +288,15 @@ const templateCreateSchema = z.object({
         context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'urlExample'], message: 'URL tĩnh không nhận urlExample.' });
       }
       if (button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Button URL không nhận phoneNumber.' });
+      if (button.activeForDays !== undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'activeForDays'], message: 'Button URL không nhận activeForDays.' });
     } else if (button.type === 'PHONE_NUMBER') {
       if (!button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'phoneNumber'], message: 'Button PHONE_NUMBER yêu cầu phoneNumber.' });
-      if (button.url || button.urlExample) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button PHONE_NUMBER không nhận URL.' });
-    } else if (button.url || button.urlExample || button.phoneNumber) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button QUICK_REPLY chỉ nhận type và text.' });
+      if (button.url || button.urlExample || button.activeForDays !== undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button PHONE_NUMBER không nhận URL hoặc activeForDays.' });
+    } else if (button.type === 'VOICE_CALL') {
+      if (button.activeForDays === undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'activeForDays'], message: 'Button VOICE_CALL yêu cầu hiệu lực từ 1 đến 30 ngày.' });
+      if (button.url || button.urlExample || button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button VOICE_CALL chỉ nhận type, text và activeForDays.' });
+    } else if (button.url || button.urlExample || button.phoneNumber || button.activeForDays !== undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button này chỉ nhận type và text.' });
     }
   });
 });

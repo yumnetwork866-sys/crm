@@ -63,6 +63,7 @@ type EditableButton = {
   url: string;
   urlExample: string;
   phoneNumber: string;
+  activeForDays: number;
 };
 
 type WizardStep = 1 | 2 | 3;
@@ -93,6 +94,12 @@ const inputClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2
 const labelClass = 'mb-1 block text-xs font-semibold text-slate-700';
 const sectionClass = 'space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 const RECENT_EMOJIS_STORAGE_KEY = 'yumcrm_recent_emojis';
+const metaBusinessId = import.meta.env.VITE_META_BUSINESS_ID?.trim();
+const whatsappWabaId = import.meta.env.VITE_WHATSAPP_WABA_ID?.trim();
+const whatsappManagerUrl = metaBusinessId && whatsappWabaId
+  ? `https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?business_id=${encodeURIComponent(metaBusinessId)}&tab=phone-numbers&nav_ref=whatsapp_manager&asset_id=${encodeURIComponent(whatsappWabaId)}`
+  : null;
+const whatsappCallingDocsUrl = 'https://developers.facebook.com/docs/whatsapp/cloud-api/calling';
 
 const EMOJI_CATEGORIES = [
   {
@@ -265,6 +272,16 @@ function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+const defaultButtonText: Record<WhatsAppTemplateButtonType, string> = {
+  QUICK_REPLY: 'Quick Reply',
+  URL: 'Visit website',
+  VOICE_CALL: 'Call on WhatsApp',
+  PHONE_NUMBER: 'Call Phone Number',
+  FLOW: 'Complete flow',
+  COPY_CODE: 'Copy offer code',
+  CONTACT: 'Share contact info',
+};
 
 const buttonLabel: Record<WhatsAppTemplateButtonType, string> = {
   QUICK_REPLY: 'Custom',
@@ -903,11 +920,12 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
         id,
         type,
         ...(type === 'QUICK_REPLY' ? { quickReplyMode: 'CUSTOM' as const } : {}),
-        text: type === 'QUICK_REPLY' ? 'Quick Reply' : type === 'URL' ? 'Visit website' : '',
+        text: defaultButtonText[type] || '',
         urlType: 'STATIC',
         url: '',
         urlExample: '',
         phoneNumber: '',
+        activeForDays: 7,
       },
     ]);
   };
@@ -988,10 +1006,11 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
           body: body.trim(),
           bodyExamples: bodyExamples.map((example) => ({ ...example, value: example.value.trim() })),
           footer: footer.trim() || undefined,
-          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, urlType: _urlType, url, urlExample, phoneNumber, ...button }) => ({
+          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, urlType: _urlType, url, urlExample, phoneNumber, activeForDays, ...button }) => ({
             ...button,
             ...(button.type === 'URL' ? { url: url.trim(), urlExample: urlExample.trim() || undefined } : {}),
             ...(button.type === 'PHONE_NUMBER' ? { phoneNumber: phoneNumber.trim() } : {}),
+            ...(button.type === 'VOICE_CALL' ? { activeForDays } : {}),
           })),
         };
       }
@@ -1533,7 +1552,9 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   <div className={`grid min-w-0 flex-1 grid-cols-1 items-end gap-2.5 ${
                                     button.type === 'URL'
                                       ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1.25fr)]'
-                                      : 'md:grid-cols-[12rem_minmax(0,1fr)]'
+                                      : button.type === 'VOICE_CALL'
+                                        ? 'md:grid-cols-[12rem_minmax(0,1fr)_8rem]'
+                                        : 'md:grid-cols-[12rem_minmax(0,1fr)]'
                                   }`}>
                                   <div className="min-w-0">
                                     <label className={labelClass}>Loại button</label>
@@ -1549,7 +1570,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                               : 'Quick Reply',
                                           });
                                         }}
-                                        className={inputClass}
+                                        className={`${inputClass} h-10`}
                                       >
                                         <option value="CUSTOM">Custom</option>
                                         <option value="PRE_CONFIGURED_RESPONSE">Pre-configured response</option>
@@ -1559,12 +1580,19 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                         value={button.type}
                                         onChange={(event) => {
                                           const nextType = event.target.value as WhatsAppTemplateButtonType;
+                                          const isPreviousDefault =
+                                            !button.text.trim() ||
+                                            button.text === defaultButtonText[button.type] ||
+                                            button.text === buttonLabel[button.type] ||
+                                            Object.values(defaultButtonText).includes(button.text) ||
+                                            Object.values(buttonLabel).includes(button.text);
+
                                           updateButton(button.id, {
                                             type: nextType,
-                                            text: (!button.text.trim()) && nextType === 'URL' ? 'Visit website' : button.text,
+                                            text: isPreviousDefault ? (defaultButtonText[nextType] || '') : button.text,
                                           });
                                         }}
-                                        className={inputClass}
+                                        className={`${inputClass} h-10`}
                                       >
                                         <option value="URL">Visit website</option>
                                         <option value="VOICE_CALL">Call on WhatsApp</option>
@@ -1585,13 +1613,47 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                         value={button.text}
                                         onChange={(event) => updateButton(button.id, { text: event.target.value })}
                                         placeholder="Nhập nội dung button..."
-                                        className={`${inputClass} pr-12 ${isDuplicateButtonText(button.text) ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100' : ''}`}
+                                        className={`${inputClass} h-10 pr-12 ${isDuplicateButtonText(button.text) ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100' : ''}`}
                                       />
                                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
                                         {button.text.length}/40
                                       </span>
                                     </div>
                                   </div>
+
+                                  {button.type === 'VOICE_CALL' ? (
+                                    <div className="min-w-0">
+                                      <div className="mb-1 flex items-center gap-1.5">
+                                        <label className="text-xs font-semibold text-slate-700">Hiệu lực</label>
+                                        <span className="group relative inline-flex">
+                                          <button
+                                            type="button"
+                                            aria-label="Giải thích thời gian hiệu lực"
+                                            aria-describedby={`voice-call-validity-tooltip-${button.id}`}
+                                            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition hover:text-sky-700 focus-visible:outline-2 focus-visible:outline-sky-500"
+                                          >
+                                            <Info className="h-3.5 w-3.5" />
+                                          </button>
+                                          <span
+                                            id={`voice-call-validity-tooltip-${button.id}`}
+                                            role="tooltip"
+                                            className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-64 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-normal leading-5 text-slate-700 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                                          >
+                                            Nút này sẽ duy trì trạng thái hoạt động trong khoảng thời gian đã chọn.
+                                          </span>
+                                        </span>
+                                      </div>
+                                      <select
+                                        value={button.activeForDays}
+                                        onChange={(event) => updateButton(button.id, { activeForDays: Number(event.target.value) })}
+                                        className={`${inputClass} h-10`}
+                                      >
+                                        {Array.from({ length: 30 }, (_, dayIndex) => dayIndex + 1).map((days) => (
+                                          <option key={days} value={days}>{days} ngày</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ) : null}
 
                                   {button.type === 'URL' ? (
                                     <>
@@ -1606,7 +1668,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                               ...(urlType === 'STATIC' ? { urlExample: '' } : {}),
                                             });
                                           }}
-                                          className={inputClass}
+                                          className={`${inputClass} h-10`}
                                         >
                                           <option value="STATIC">Static</option>
                                           <option value="DYNAMIC">Dynamic</option>
@@ -1620,7 +1682,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                           value={button.url}
                                           onChange={(event) => updateButton(button.id, { url: event.target.value })}
                                           placeholder={button.urlType === 'DYNAMIC' ? 'https://example.com/{{1}}' : 'https://example.com'}
-                                          className={inputClass}
+                                          className={`${inputClass} h-10`}
                                         />
                                       </div>
                                     </>
@@ -1630,13 +1692,47 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setButtons((current) => current.filter((item) => item.id !== button.id))}
-                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
                                     aria-label="Xóa button"
                                     title="Xóa button"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
                                 </div>
+
+                                {button.type === 'VOICE_CALL' ? (
+                                  <div className="flex items-start gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-xs leading-5 text-slate-700">
+                                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700" aria-hidden="true">
+                                      <Info className="h-3.5 w-3.5 stroke-[2.5]" />
+                                    </span>
+                                    <div className="min-w-0">
+                                    <p>
+                                      Bật tính năng gọi trong{' '}
+                                      {whatsappManagerUrl ? (
+                                        <a
+                                          href={whatsappManagerUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900"
+                                        >
+                                          cổng WhatsApp Manager
+                                        </a>
+                                      ) : (
+                                        <span className="font-semibold text-slate-800">cổng WhatsApp Manager</span>
+                                      )}.
+                                      {' '}Ngoài ra, bạn có thể sử dụng Phone Number Settings API.
+                                    </p>
+                                    <a
+                                      href={whatsappCallingDocsUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-1 inline-flex font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-900"
+                                    >
+                                      Tìm hiểu về tính năng gọi trên WhatsApp
+                                    </a>
+                                    </div>
+                                  </div>
+                                ) : null}
 
                                 {button.type === 'URL' && button.urlType === 'DYNAMIC' ? (
                                   <div>

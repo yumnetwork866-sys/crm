@@ -211,6 +211,7 @@ export interface CreateWhatsAppTemplateInput {
     url?: string;
     urlExample?: string;
     phoneNumber?: string;
+    activeForDays?: number;
   }>;
   authentication?: {
     addSecurityRecommendation?: boolean;
