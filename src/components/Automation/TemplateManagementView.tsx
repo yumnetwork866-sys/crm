@@ -560,6 +560,76 @@ const TemplateButtonIcon: React.FC<{ type: WhatsAppTemplateButtonType }> = ({ ty
   );
 };
 
+const CircleOptionDropdown: React.FC<{
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}> = ({ value, options, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find((option) => option.value === value) || options[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`${inputClass} flex h-10 items-center justify-between gap-2 py-0 text-left cursor-pointer`}
+      >
+        <span className="truncate">{selectedOption?.label}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen ? (
+        <div role="listbox" className="absolute left-0 top-full z-50 mt-1 max-h-56 min-w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition cursor-pointer ${
+                  isSelected ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                  isSelected ? 'border-indigo-600' : 'border-slate-300'
+                }`} aria-hidden="true">
+                  {isSelected ? <span className="h-2 w-2 rounded-full bg-indigo-600" /> : null}
+                </span>
+                <span className="whitespace-nowrap">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const AddButtonDropdown: React.FC<{
   onAdd: (type: WhatsAppTemplateButtonType) => void;
   disabled?: boolean;
@@ -737,12 +807,17 @@ const PhoneCountryDropdown: React.FC<{
                   onChange(iso);
                   setIsOpen(false);
                 }}
-                className={`flex h-7 w-full items-center justify-between px-3 text-xs transition cursor-pointer ${
+                className={`flex h-8 w-full items-center gap-2 px-3 text-xs transition cursor-pointer ${
                   iso === value ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
+                <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                  iso === value ? 'border-indigo-600' : 'border-slate-300'
+                }`} aria-hidden="true">
+                  {iso === value ? <span className="h-2 w-2 rounded-full bg-indigo-600" /> : null}
+                </span>
                 <span>{iso}</span>
-                <span className="font-mono text-slate-500">{dialCode}</span>
+                <span className="ml-auto font-mono text-slate-500">{dialCode}</span>
               </button>
             )) : (
               <p className="px-3 py-4 text-center text-xs text-slate-500">Không tìm thấy mã phù hợp.</p>
@@ -1604,7 +1679,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                       <div><h3 className="font-bold text-slate-900">Buttons <span className="text-xs font-normal text-slate-400">· Optional</span></h3><p className="mt-1 text-xs text-slate-500">Tạo các button để khách hàng có thể phản hồi tin nhắn của bạn hoặc thực hiện một hành động. Bạn có thể thêm tối đa 10 button. Nếu thêm nhiều hơn 3 button, các button sẽ được hiển thị dưới dạng danh sách.</p></div>
                       <AddButtonDropdown onAdd={(type) => addButton(type)} disabled={buttons.length >= 10} />
                       {buttons.length > 0 ? (
-                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-200">
+                        <div className="overflow-visible rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-200">
                           {buttons.map((button, index) => {
                             const isDragging = draggedButtonIndex === index;
                             const isDragOver = dragOverButtonIndex === index;
@@ -1647,7 +1722,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   setDraggedButtonIndex(null);
                                   setDragOverButtonIndex(null);
                                 }}
-                                className={`space-y-3 p-3.5 transition-all ${
+                                className={`relative space-y-3 p-3.5 transition-all focus-within:z-40 ${
                                   isDragging
                                     ? 'opacity-40 bg-indigo-50/40'
                                     : isDragOver
@@ -1677,10 +1752,14 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   <div className="min-w-0">
                                     <label className={labelClass}>Loại button</label>
                                     {button.type === 'QUICK_REPLY' ? (
-                                      <select
+                                      <CircleOptionDropdown
                                         value={button.quickReplyMode || 'CUSTOM'}
-                                        onChange={(event) => {
-                                          const quickReplyMode = event.target.value as 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
+                                        options={[
+                                          { value: 'CUSTOM', label: 'Custom' },
+                                          { value: 'PRE_CONFIGURED_RESPONSE', label: 'Pre-configured response' },
+                                        ]}
+                                        onChange={(value) => {
+                                          const quickReplyMode = value as 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
                                           updateButton(button.id, {
                                             quickReplyMode,
                                             text: quickReplyMode === 'PRE_CONFIGURED_RESPONSE'
@@ -1688,16 +1767,20 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                               : 'Quick Reply',
                                           });
                                         }}
-                                        className={`${inputClass} h-10`}
-                                      >
-                                        <option value="CUSTOM">Custom</option>
-                                        <option value="PRE_CONFIGURED_RESPONSE">Pre-configured response</option>
-                                      </select>
+                                      />
                                     ) : (
-                                      <select
+                                      <CircleOptionDropdown
                                         value={button.type}
-                                        onChange={(event) => {
-                                          const nextType = event.target.value as WhatsAppTemplateButtonType;
+                                        options={[
+                                          { value: 'URL', label: 'Visit website' },
+                                          { value: 'VOICE_CALL', label: 'Call on WhatsApp' },
+                                          { value: 'PHONE_NUMBER', label: 'Call Phone Number' },
+                                          { value: 'FLOW', label: 'Complete flow' },
+                                          { value: 'COPY_CODE', label: 'Copy offer code' },
+                                          { value: 'CONTACT', label: 'Share contact info' },
+                                        ]}
+                                        onChange={(value) => {
+                                          const nextType = value as WhatsAppTemplateButtonType;
                                           const isPreviousDefault =
                                             !button.text.trim() ||
                                             button.text === defaultButtonText[button.type] ||
@@ -1710,15 +1793,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                             text: isPreviousDefault ? (defaultButtonText[nextType] || '') : button.text,
                                           });
                                         }}
-                                        className={`${inputClass} h-10`}
-                                      >
-                                        <option value="URL">Visit website</option>
-                                        <option value="VOICE_CALL">Call on WhatsApp</option>
-                                        <option value="PHONE_NUMBER">Call Phone Number</option>
-                                        <option value="FLOW">Complete flow</option>
-                                        <option value="COPY_CODE">Copy offer code</option>
-                                        <option value="CONTACT">Share contact info</option>
-                                      </select>
+                                      />
                                     )}
                                   </div>
 
@@ -1783,15 +1858,14 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                           </span>
                                         </span>
                                       </div>
-                                      <select
-                                        value={button.activeForDays}
-                                        onChange={(event) => updateButton(button.id, { activeForDays: Number(event.target.value) })}
-                                        className={`${inputClass} h-10`}
-                                      >
-                                        {Array.from({ length: 30 }, (_, dayIndex) => dayIndex + 1).map((days) => (
-                                          <option key={days} value={days}>{days} ngày</option>
-                                        ))}
-                                      </select>
+                                      <CircleOptionDropdown
+                                        value={String(button.activeForDays)}
+                                        options={Array.from({ length: 30 }, (_, dayIndex) => {
+                                          const days = dayIndex + 1;
+                                          return { value: String(days), label: `${days} ngày` };
+                                        })}
+                                        onChange={(value) => updateButton(button.id, { activeForDays: Number(value) })}
+                                      />
                                     </div>
                                   ) : null}
 
