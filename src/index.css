@@ -690,6 +690,14 @@ table td {
   font-weight: 900;
 }
 
+.template-preview-button-icon.is-whatsapp,
+.template-preview-button-icon.is-whatsapp i,
+.template-preview-button-icon .fa-whatsapp {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  font-size: 1.1875rem !important;
+}
+
 body:not(.light-mode) .bg-white svg.text-emerald-600,
 body:not(.light-mode) .bg-white .lucide.text-emerald-600,
 body.light-mode .bg-white svg.text-emerald-600,

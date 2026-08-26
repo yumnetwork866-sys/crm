@@ -41,6 +41,7 @@ import type {
   WhatsAppTemplateHeaderFormat,
   WhatsAppTemplateParameterFormat,
 } from '../../types';
+import { PHONE_COUNTRIES, getPhoneCountryDialCode } from '../../data/phoneCountries';
 import { api } from '../../utils/apiClient';
 
 interface TemplateManagementViewProps {
@@ -62,6 +63,7 @@ type EditableButton = {
   urlType: 'STATIC' | 'DYNAMIC';
   url: string;
   urlExample: string;
+  phoneCountryIso: string;
   phoneNumber: string;
   activeForDays: number;
 };
@@ -100,6 +102,16 @@ const whatsappManagerUrl = metaBusinessId && whatsappWabaId
   ? `https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?business_id=${encodeURIComponent(metaBusinessId)}&tab=phone-numbers&nav_ref=whatsapp_manager&asset_id=${encodeURIComponent(whatsappWabaId)}`
   : null;
 const whatsappCallingDocsUrl = 'https://developers.facebook.com/docs/whatsapp/cloud-api/calling';
+
+function toE164Phone(countryIso: string, phoneNumber: string): string {
+  const countryDigits = getPhoneCountryDialCode(countryIso).replace(/\D/g, '');
+  const trimmedPhone = phoneNumber.trim();
+  let localDigits = trimmedPhone.replace(/\D/g, '');
+  if (trimmedPhone.startsWith('+') && localDigits.startsWith(countryDigits)) {
+    localDigits = localDigits.slice(countryDigits.length);
+  }
+  return `+${countryDigits}${localDigits.replace(/^0+/, '')}`;
+}
 
 const EMOJI_CATEGORIES = [
   {
@@ -534,11 +546,19 @@ const templateButtonIconClass: Record<WhatsAppTemplateButtonType, string> = {
   CONTACT: 'fa-solid fa-user',
 };
 
-const TemplateButtonIcon: React.FC<{ type: WhatsAppTemplateButtonType }> = ({ type }) => (
-  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-emerald-600 template-preview-button-icon" aria-hidden="true">
-    <i className={`${templateButtonIconClass[type]} block text-[15px] leading-none`} />
-  </span>
-);
+const TemplateButtonIcon: React.FC<{ type: WhatsAppTemplateButtonType }> = ({ type }) => {
+  const isWhatsApp = type === 'VOICE_CALL';
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center text-emerald-600 template-preview-button-icon ${
+        isWhatsApp ? 'is-whatsapp' : ''
+      }`}
+      aria-hidden="true"
+    >
+      <i className={`${templateButtonIconClass[type]} block leading-none`} />
+    </span>
+  );
+};
 
 const AddButtonDropdown: React.FC<{
   onAdd: (type: WhatsAppTemplateButtonType) => void;
@@ -599,7 +619,7 @@ const AddButtonDropdown: React.FC<{
         aria-expanded={isOpen}
         className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
       >
-        <span>＋ Add button</span>
+        <span>＋ Thêm button</span>
         <svg
           aria-hidden="true"
           className={`h-2 w-2 fill-slate-600 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
@@ -614,25 +634,120 @@ const AddButtonDropdown: React.FC<{
           role="listbox"
           className="absolute bottom-full left-0 z-30 mb-1.5 min-w-47.5 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
         >
-          {options.map((item) => {
-            return (
+              {options.map((item) => {
+                const isWhatsApp = item.type === 'VOICE_CALL';
+                return (
+                  <button
+                    key={item.type}
+                    type="button"
+                    role="option"
+                    onClick={() => {
+                      onAdd(item.type);
+                      setIsOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+                  >
+                    <span
+                      className={`inline-flex ${
+                        isWhatsApp ? 'h-5 w-5' : 'h-4 w-4'
+                      } shrink-0 items-center justify-center text-slate-500`}
+                      aria-hidden="true"
+                    >
+                      <i
+                        className={`${item.iconClass} block ${
+                          isWhatsApp ? 'text-[18px]' : 'text-[15px]'
+                        } leading-none`}
+                      />
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const PhoneCountryDropdown: React.FC<{
+  value: string;
+  onChange: (countryIso: string) => void;
+}> = ({ value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const selectedCountry = PHONE_COUNTRIES.find(([iso]) => iso === value) || PHONE_COUNTRIES.find(([iso]) => iso === 'VN');
+  const normalizedSearch = search.trim().toUpperCase();
+  const filteredCountries = normalizedSearch
+    ? PHONE_COUNTRIES.filter(([iso, dialCode]) => `${iso} ${dialCode}`.includes(normalizedSearch))
+    : PHONE_COUNTRIES;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    searchInputRef.current?.focus();
+    const handleClickOutside = (event: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setSearch('');
+          setIsOpen((current) => !current);
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`${inputClass} flex h-10 items-center justify-between gap-2 py-0 text-left cursor-pointer`}
+      >
+        <span>{selectedCountry ? `${selectedCountry[0]} ${selectedCountry[1]}` : 'Chọn mã'}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen ? (
+        <div className="absolute left-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-200 p-2">
+            <input
+              ref={searchInputRef}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Tìm mã..."
+              className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+          <div role="listbox" className="max-h-44 overflow-y-auto py-1">
+            {filteredCountries.length ? filteredCountries.map(([iso, dialCode]) => (
               <button
-                key={item.type}
+                key={iso}
                 type="button"
                 role="option"
+                aria-selected={iso === value}
                 onClick={() => {
-                  onAdd(item.type);
+                  onChange(iso);
                   setIsOpen(false);
                 }}
-                className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+                className={`flex h-7 w-full items-center justify-between px-3 text-xs transition cursor-pointer ${
+                  iso === value ? 'bg-indigo-50 font-bold text-indigo-700' : 'text-slate-700 hover:bg-slate-100'
+                }`}
               >
-                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-slate-500" aria-hidden="true">
-                  <i className={`${item.iconClass} block text-[15px] leading-none`} />
-                </span>
-                <span>{item.label}</span>
+                <span>{iso}</span>
+                <span className="font-mono text-slate-500">{dialCode}</span>
               </button>
-            );
-          })}
+            )) : (
+              <p className="px-3 py-4 text-center text-xs text-slate-500">Không tìm thấy mã phù hợp.</p>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -924,6 +1039,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
         urlType: 'STATIC',
         url: '',
         urlExample: '',
+        phoneCountryIso: 'VN',
         phoneNumber: '',
         activeForDays: 7,
       },
@@ -1006,10 +1122,10 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
           body: body.trim(),
           bodyExamples: bodyExamples.map((example) => ({ ...example, value: example.value.trim() })),
           footer: footer.trim() || undefined,
-          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, urlType: _urlType, url, urlExample, phoneNumber, activeForDays, ...button }) => ({
+          buttons: buttons.map(({ id: _id, quickReplyMode: _quickReplyMode, urlType: _urlType, url, urlExample, phoneCountryIso, phoneNumber, activeForDays, ...button }) => ({
             ...button,
             ...(button.type === 'URL' ? { url: url.trim(), urlExample: urlExample.trim() || undefined } : {}),
-            ...(button.type === 'PHONE_NUMBER' ? { phoneNumber: phoneNumber.trim() } : {}),
+            ...(button.type === 'PHONE_NUMBER' ? { phoneNumber: toE164Phone(phoneCountryIso, phoneNumber) } : {}),
             ...(button.type === 'VOICE_CALL' ? { activeForDays } : {}),
           })),
         };
@@ -1552,9 +1668,11 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   <div className={`grid min-w-0 flex-1 grid-cols-1 items-end gap-2.5 ${
                                     button.type === 'URL'
                                       ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1.25fr)]'
-                                      : button.type === 'VOICE_CALL'
-                                        ? 'md:grid-cols-[12rem_minmax(0,1fr)_8rem]'
-                                        : 'md:grid-cols-[12rem_minmax(0,1fr)]'
+                                      : button.type === 'PHONE_NUMBER'
+                                        ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1fr)]'
+                                        : button.type === 'VOICE_CALL'
+                                          ? 'md:grid-cols-[12rem_minmax(0,1fr)_8rem]'
+                                          : 'md:grid-cols-[12rem_minmax(0,1fr)]'
                                   }`}>
                                   <div className="min-w-0">
                                     <label className={labelClass}>Loại button</label>
@@ -1620,6 +1738,28 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                       </span>
                                     </div>
                                   </div>
+
+                                  {button.type === 'PHONE_NUMBER' ? (
+                                    <>
+                                      <div className="min-w-0">
+                                        <label className={labelClass}>Quốc gia</label>
+                                        <PhoneCountryDropdown
+                                          value={button.phoneCountryIso}
+                                          onChange={(phoneCountryIso) => updateButton(button.id, { phoneCountryIso })}
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <label className={labelClass}>Số điện thoại</label>
+                                        <input
+                                          required
+                                          type="tel"
+                                          value={button.phoneNumber}
+                                          onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })}
+                                          className={`${inputClass} h-10`}
+                                        />
+                                      </div>
+                                    </>
+                                  ) : null}
 
                                   {button.type === 'VOICE_CALL' ? (
                                     <div className="min-w-0">
@@ -1749,18 +1889,7 @@ export const TemplateManagementView: React.FC<TemplateManagementViewProps> = ({
                                   </div>
                                 ) : null}
 
-                                {button.type === 'PHONE_NUMBER' ? (
-                                  <div>
-                                    <label className={labelClass}>Số điện thoại (định dạng E.164)</label>
-                                    <input
-                                      required
-                                      value={button.phoneNumber}
-                                      onChange={(event) => updateButton(button.id, { phoneNumber: event.target.value })}
-                                      placeholder="+842812345678"
-                                      className={inputClass}
-                                    />
-                                  </div>
-                                ) : null}
+
                               </div>
                             );
                           })}
@@ -1911,7 +2040,7 @@ const ReviewSections: React.FC<{
   <div className="space-y-5">
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><div><p className="text-sm font-bold text-amber-900">Sẵn sàng gửi Meta xét duyệt</p><p className="mt-1 text-xs leading-5 text-amber-800">Meta sẽ kiểm tra nội dung, category và định dạng của template. Quá trình xét duyệt có thể mất đến 24 giờ và template chỉ sử dụng được sau khi được phê duyệt.</p></div></div></div>
     <section className={sectionClass}><div><p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Submit for Review</p><h3 className="mt-1 font-bold text-slate-900">Thiết lập template</h3></div><dl><ReviewRow label="Tên" value={<span className="font-mono">{name}</span>} /><ReviewRow label="Category" value={category} /><ReviewRow label="Ngôn ngữ" value={language} />{category !== 'AUTHENTICATION' ? <ReviewRow label="Parameter format" value={parameterFormat} /> : null}</dl></section>
-    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung button" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : headerFormat === 'LOCATION' ? 'LOCATION · Vị trí' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Button ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${button.phoneNumber}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
+    {category === 'AUTHENTICATION' ? <section className={sectionClass}><h3 className="font-bold text-slate-900">Authentication và OTP</h3><dl><ReviewRow label="Loại OTP" value={otpType} /><ReviewRow label="Nội dung button" value={otpButtonText} /><ReviewRow label="Thời gian hết hạn" value={`${otpExpiration} phút`} /><ReviewRow label="Khuyến nghị bảo mật" value={addSecurityRecommendation ? 'Có' : 'Không'} /></dl></section> : <><section className={sectionClass}><h3 className="font-bold text-slate-900">Nội dung</h3><dl><ReviewRow label="Header" value={headerFormat === 'NONE' ? 'Không có' : headerFormat === 'LOCATION' ? 'LOCATION · Vị trí' : `${headerFormat}${headerFormat === 'TEXT' ? ` · ${headerText}` : ` · ${mediaFileName}`}`} /><ReviewRow label="Body" value={body} /><ReviewRow label="Footer" value={footer} /></dl></section><section className={sectionClass}><h3 className="font-bold text-slate-900">Buttons ({buttons.length})</h3>{buttons.length ? <dl>{buttons.map((button, index) => <ReviewRow key={button.id} label={`Button ${index + 1} · ${button.type}`} value={`${button.text}${button.type === 'URL' ? ` · ${button.url}` : button.type === 'PHONE_NUMBER' ? ` · ${toE164Phone(button.phoneCountryIso, button.phoneNumber)}` : ''}`} />)}</dl> : <p className="text-sm text-slate-500">Không có button.</p>}</section></>}
   </div>
 );
 
