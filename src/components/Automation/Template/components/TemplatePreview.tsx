@@ -1,5 +1,5 @@
-import { FileText, Image, LockKeyhole, MapPin, ShieldCheck, Video } from 'lucide-react';
-import { memo } from 'react';
+import { FileText, Image as ImageIcon, Loader2, LockKeyhole, MapPin, ShieldCheck, Video } from 'lucide-react';
+import { memo, useState } from 'react';
 import type {
   WhatsAppOtpType,
   WhatsAppTemplateCategory,
@@ -56,6 +56,7 @@ export const TemplatePreview = memo(function TemplatePreview({
   otpExpiration,
   addSecurityRecommendation,
 }: TemplatePreviewProps) {
+  const [loadedSrc, setLoadedSrc] = useState<string>('');
   const previewHeader = substituteExamples(headerText, headerExamples, parameterFormat);
   const previewBody = substituteExamples(body, bodyExamples, parameterFormat);
   const showSetupIllustration = wizardStep === 1;
@@ -64,6 +65,7 @@ export const TemplatePreview = memo(function TemplatePreview({
     : category === 'UTILITY' && templateType !== 'CATALOGUE'
       ? UTILITY_SETUP_PREVIEW_IMAGES[templateType]
       : MARKETING_SETUP_PREVIEW_IMAGES[templateType];
+  const isImageReady = loadedSrc === setupPreviewImage;
   const previewTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -80,17 +82,23 @@ export const TemplatePreview = memo(function TemplatePreview({
       >
         {showSetupIllustration ? (
           <div className="relative flex min-h-107.5 w-full items-center justify-center overflow-hidden bg-[#f7f2e9]">
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-500">
-              <Image className="h-8 w-8" />
-              <span>Thêm ảnh vào</span>
-              <code className="break-all rounded bg-white px-2 py-1 text-[10px]">{setupPreviewImage}</code>
-            </div>
+            {!isImageReady ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-400">
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+                <span>Đang tải minh họa...</span>
+              </div>
+            ) : null}
             <img
               key={setupPreviewImage}
               src={setupPreviewImage}
               alt={`Minh họa ${templateType.toLowerCase()} template`}
-              className="relative z-10 block h-auto w-full bg-[#f7f2e9]"
-              onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              className={`relative z-10 block h-auto w-full bg-[#f7f2e9] transition-opacity duration-150 ${
+                isImageReady ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={() => setLoadedSrc(setupPreviewImage)}
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
             />
           </div>
         ) : (

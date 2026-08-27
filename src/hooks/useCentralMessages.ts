@@ -169,7 +169,7 @@ export function useCentralMessages({
     try {
       eventSource = new EventSource('/api/meta/messages/stream');
       eventSource.addEventListener('connected', (event: MessageEvent) => {
-        console.log('⚡ [REALTIME SSE] Connected to server event stream:', event.data);
+        console.log('[REALTIME SSE] Connected to server event stream:', event.data);
       });
       eventSource.addEventListener('message:new', (event: MessageEvent) => {
         try {

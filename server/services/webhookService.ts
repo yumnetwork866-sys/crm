@@ -24,11 +24,11 @@ export async function verifyWebhookChallenge(query: any): Promise<{ isValid: boo
   console.log(`[META WEBHOOK VERIFY REQUEST] Received mode: "${mode}", token: "${token}"`);
 
   if (mode === 'subscribe' && token && validTokens.includes(String(token).trim())) {
-    console.log('✅ Meta Webhook Verified Successfully! Returning challenge:', challenge);
+    console.log('Meta Webhook Verified Successfully! Returning challenge:', challenge);
     return { isValid: true, challenge: String(challenge) };
   }
 
-  console.warn(`❌ Meta Webhook Verification Failed. Expected Token: "${validTokens.join(' | ')}", Received Token: "${token}"`);
+  console.warn(`Meta Webhook Verification Failed. Expected Token: "${validTokens.join(' | ')}", Received Token: "${token}"`);
   return { isValid: false };
 }
 

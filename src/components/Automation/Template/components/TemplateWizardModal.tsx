@@ -33,6 +33,7 @@ import type {
 } from '../../../../types';
 import { WHATSAPP_TEMPLATE_LANGUAGES, getTemplateLanguageLabel } from '../constants/languages';
 import {
+  ALL_SETUP_PREVIEW_IMAGES,
   CATEGORY_DESCRIPTIONS,
   inputClass,
   labelClass,
@@ -146,6 +147,14 @@ export function TemplateWizardModal({
     enabled: isEmojiPickerOpen,
     onEscape: closeEmojiPicker,
   });
+
+  useEffect(() => {
+    // Preload all template setup preview images in memory cache for instant switching
+    ALL_SETUP_PREVIEW_IMAGES.forEach((src) => {
+      const img = new window.Image();
+      img.src = src;
+    });
+  }, []);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;

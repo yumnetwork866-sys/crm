@@ -406,7 +406,7 @@ export async function sendReaction(req: Request, res: Response) {
         isRealSent = dispatchRes.isRealSent;
         metaResult = dispatchRes.metaResult;
       } catch (metaErr) {
-        console.error('❌ [META REACTION DISPATCH ERROR]', metaErr);
+        console.error('[META REACTION DISPATCH ERROR]', metaErr);
       }
     }
 
@@ -426,7 +426,7 @@ export async function sendReaction(req: Request, res: Response) {
       metaResult
     });
   } catch (err: any) {
-    console.error('❌ [REACTION ENDPOINT ERROR]', err);
+    console.error('[REACTION ENDPOINT ERROR]', err);
     return res.status(500).json({ error: err.message || 'Lỗi gửi reaction' });
   }
 }
@@ -516,7 +516,7 @@ export async function getMediaProxy(req: Request, res: Response) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(media.buffer);
   } catch (err: any) {
-    console.error('❌ [META MEDIA PROXY ERROR]', err);
+    console.error('[META MEDIA PROXY ERROR]', err);
     return res.status(500).json({ error: err.message || 'Media proxy failed' });
   }
 }

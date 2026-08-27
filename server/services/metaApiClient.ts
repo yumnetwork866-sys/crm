@@ -125,7 +125,7 @@ export async function resolvePhoneNumberId(setting: IntegrationSettingData): Pro
       if (Array.isArray(data?.data) && data.data.length > 0) {
         const autoPhoneId = data.data[0].id;
         const autoPhoneDisplay = data.data[0].display_phone_number || autoPhoneId;
-        console.log(`✨ [META AUTO-RESOLVE] Tự động lấy Phone Number ID: ${autoPhoneId} (${autoPhoneDisplay}) từ WABA ID ${wabaId}`);
+        console.log(`[META AUTO-RESOLVE] Tự động lấy Phone Number ID: ${autoPhoneId} (${autoPhoneDisplay}) từ WABA ID ${wabaId}`);
         setting.whatsappPhoneNumberId = autoPhoneId;
         inMemorySetting.whatsappPhoneNumberId = autoPhoneId;
         return autoPhoneId;
@@ -151,14 +151,14 @@ export async function ensureWabaSubscribed(wabaId: string, token: string): Promi
       }
     });
     if (res.ok) {
-      console.log(`✅ [META WABA SUBSCRIPTION] App successfully subscribed to WABA ${wabaId} for incoming Webhooks!`);
+      console.log(`[META WABA SUBSCRIPTION] App successfully subscribed to WABA ${wabaId} for incoming Webhooks!`);
       return true;
     } else {
       const txt = await res.text();
-      console.warn(`⚠️ [META WABA SUBSCRIPTION WARN]`, txt);
+      console.warn(`[META WABA SUBSCRIPTION WARN]`, txt);
     }
   } catch (e: any) {
-    console.error(`❌ [META WABA SUBSCRIPTION ERROR]`, e.message || e);
+    console.error(`[META WABA SUBSCRIPTION ERROR]`, e.message || e);
   }
   return false;
 }
@@ -219,14 +219,14 @@ export async function uploadMediaToMeta(
 
     const data: any = await res.json().catch(() => ({}));
     if (res.ok && data?.id) {
-      console.log(`✅ [META DIRECT MEDIA UPLOAD] Uploaded image to Meta Cloud CDN, Media ID: ${data.id}`);
+      console.log(`[META DIRECT MEDIA UPLOAD] Uploaded image to Meta Cloud CDN, Media ID: ${data.id}`);
       return data.id;
     } else {
-      console.warn('❌ [META DIRECT MEDIA UPLOAD FAILED]', data);
+      console.warn('[META DIRECT MEDIA UPLOAD FAILED]', data);
       return null;
     }
   } catch (err) {
-    console.error('❌ [META DIRECT MEDIA UPLOAD ERROR]', err);
+    console.error('[META DIRECT MEDIA UPLOAD ERROR]', err);
     return null;
   }
 }
@@ -897,7 +897,7 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
 
   if (!metaMediaRes.ok) {
     const errText = await metaMediaRes.text().catch(() => '');
-    console.warn(`❌ [META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
+    console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
     return null;
   }
 

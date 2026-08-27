@@ -71,7 +71,7 @@ export async function ensureAdminUser(): Promise<void> {
           status: 'active'
         }
       });
-      console.log(`👑 [Auth] Đã tự động tạo tài khoản Admin từ .env (${adminEmail})`);
+      console.log(`[Auth] Đã tự động tạo tài khoản Admin từ .env (${adminEmail})`);
     } else {
       const isMatch = await bcrypt.compare(adminPassword, existing.password);
       if (!isMatch || existing.role !== 'Admin' || existing.status !== 'active' || existing.email !== adminEmail) {
@@ -84,11 +84,11 @@ export async function ensureAdminUser(): Promise<void> {
             status: 'active'
           }
         });
-        console.log(`👑 [Auth] Đã đồng bộ tài khoản Admin từ .env (${adminEmail})`);
+        console.log(`[Auth] Đã đồng bộ tài khoản Admin từ .env (${adminEmail})`);
       }
     }
   } catch (err) {
-    console.warn('⚠️ [Auth] Không thể đồng bộ tài khoản Admin từ .env:', err);
+    console.warn('[Auth] Không thể đồng bộ tài khoản Admin từ .env:', err);
   }
 }
 

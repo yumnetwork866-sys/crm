@@ -33,7 +33,7 @@ class RealtimeHub {
     res.write(`event: connected\ndata: ${JSON.stringify({ clientId: id, timestamp: new Date().toISOString() })}\n\n`);
 
     this.clients.set(id, { id, res, connectedAt: new Date() });
-    console.log(`📡 [REALTIME SSE] Client connected: ${id}. Active clients: ${this.clients.size}`);
+    console.log(`[REALTIME SSE] Client connected: ${id}. Active clients: ${this.clients.size}`);
   }
 
   /**
@@ -42,7 +42,7 @@ class RealtimeHub {
   public removeClient(id: string): void {
     if (this.clients.has(id)) {
       this.clients.delete(id);
-      console.log(`🔌 [REALTIME SSE] Client disconnected: ${id}. Active clients: ${this.clients.size}`);
+      console.log(`[REALTIME SSE] Client disconnected: ${id}. Active clients: ${this.clients.size}`);
     }
   }
 
@@ -65,7 +65,7 @@ class RealtimeHub {
       }
     }
 
-    console.log(`⚡ [REALTIME SSE BROADCAST] Event "${event}" sent to ${successCount}/${this.clients.size} client(s).`);
+    console.log(`[REALTIME SSE BROADCAST] Event "${event}" sent to ${successCount}/${this.clients.size} client(s).`);
   }
 
   /**

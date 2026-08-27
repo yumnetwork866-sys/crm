@@ -14,6 +14,17 @@ export const UTILITY_SETUP_PREVIEW_IMAGES: Record<Exclude<TemplateType, 'CATALOG
   CALLING_PERMISSION: '/images/template-types/calling_utility.gif',
 };
 
+export const ALL_SETUP_PREVIEW_IMAGES = [
+  '/images/template-types/default.webp',
+  '/images/template-types/catalogue.gif',
+  '/images/template-types/flows.gif',
+  '/images/template-types/calling.gif',
+  '/images/template-types/default_utility.webp',
+  '/images/template-types/flow_utility.gif',
+  '/images/template-types/calling_utility.gif',
+  '/images/template-types/otp.webp',
+];
+
 export const STATUS_CLASSES: Record<string, string> = {
   APPROVED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   PENDING: 'border-amber-200 bg-amber-50 text-amber-700',

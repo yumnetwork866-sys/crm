@@ -57,7 +57,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     const publicUrl = `/uploads/${cleanSubdirName}/${filename}`;
 
-    console.log(`✅ [STORAGE STAGE 2] Saved image to disk: ${filePath} (${buffer.length} bytes) -> URL: ${publicUrl}`);
+    console.log(`[STORAGE STAGE 2] Saved image to disk: ${filePath} (${buffer.length} bytes) -> URL: ${publicUrl}`);
 
     return res.json({
       success: true,
@@ -67,7 +67,7 @@ router.post('/', async (req: Request, res: Response) => {
       mimeType
     });
   } catch (err: any) {
-    console.error('❌ [STORAGE STAGE 2 ERROR] Failed to save image to disk:', err);
+    console.error('[STORAGE STAGE 2 ERROR] Failed to save image to disk:', err);
     return res.status(500).json({ success: false, error: err.message || 'Lỗi khi lưu ảnh vào máy chủ' });
   }
 });

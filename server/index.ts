@@ -188,7 +188,7 @@ app.use((req, res) => {
 });
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('🔥 Unhandled Express Error:', err);
+  console.error('Unhandled Express Error:', err);
   res.status(500).json({
     error: 'Lỗi máy chủ nội bộ',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -197,8 +197,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // 8. Start Server with HMR support
 httpServer.listen(PORT, async () => {
-  console.log(`🚀 YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`⚡ Vite HMR Hot Reload & API đã sẵn sàng.`);
+  console.log(`YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
+  console.log(`Vite HMR Hot Reload & API đã sẵn sàng.`);
   await ensureAdminUser();
   startCampaignWorker();
 });
