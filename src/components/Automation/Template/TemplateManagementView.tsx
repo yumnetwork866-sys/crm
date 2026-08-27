@@ -1,10 +1,10 @@
 import { FileText, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { TemplateManagementViewProps } from './types';
 import { TemplateCard } from './components/TemplateCard';
 import { TemplateWizardModal } from './components/TemplateWizardModal';
 import { WHATSAPP_MANAGER_URL } from './constants/templateConstants';
-import { TEMPLATE_DRAFT_STORAGE_KEY } from './hooks/useTemplateForm';
 
 export function TemplateManagementView({
   templates,
@@ -16,26 +16,38 @@ export function TemplateManagementView({
   createError,
   onResetCreateError,
 }: TemplateManagementViewProps) {
-  const [isFormOpen, setIsFormOpen] = useState(() => {
-    try {
-      return Boolean(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY));
-    } catch {
-      return false;
-    }
-  });
+  const location = useLocation();
+  const navigate = useNavigate();
   const [successMessage, setSuccessMessage] = useState('');
+  const isCreatePage = location.pathname.replace(/\/$/, '') === '/automation/templates/create';
 
   const openForm = useCallback(() => {
     onResetCreateError();
     setSuccessMessage('');
-    setIsFormOpen(true);
-  }, [onResetCreateError]);
+    void navigate('/automation/templates/create');
+  }, [navigate, onResetCreateError]);
 
-  const closeForm = useCallback(() => setIsFormOpen(false), []);
+  const closeForm = useCallback(() => {
+    onResetCreateError();
+    void navigate('/automation/templates');
+  }, [navigate, onResetCreateError]);
+
   const handleSuccess = useCallback((message: string) => {
     setSuccessMessage(message);
-    setIsFormOpen(false);
   }, []);
+
+  if (isCreatePage) {
+    return (
+      <TemplateWizardModal
+        onClose={closeForm}
+        onCreateTemplate={onCreateTemplate}
+        isCreatePending={isCreatePending}
+        createError={createError}
+        onResetCreateError={onResetCreateError}
+        onSuccess={handleSuccess}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -76,17 +88,6 @@ export function TemplateManagementView({
         <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
           {successMessage}
         </div>
-      ) : null}
-
-      {isFormOpen ? (
-        <TemplateWizardModal
-          onClose={closeForm}
-          onCreateTemplate={onCreateTemplate}
-          isCreatePending={isCreatePending}
-          createError={createError}
-          onResetCreateError={onResetCreateError}
-          onSuccess={handleSuccess}
-        />
       ) : null}
 
       {error ? (

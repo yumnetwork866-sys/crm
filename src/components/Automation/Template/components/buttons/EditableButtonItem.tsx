@@ -1,5 +1,5 @@
-import { Check, Files, GripVertical, Info, LoaderCircle, Plus, Trash2 } from 'lucide-react';
-import { memo, useRef, useState, type KeyboardEvent } from 'react';
+import { Check, Files, GripVertical, Info, LoaderCircle, Plus, Telescope, Trash2, X } from 'lucide-react';
+import { memo, useEffect, useState, type KeyboardEvent } from 'react';
 import type { WhatsAppTemplateButtonType } from '../../../../../types';
 import { api } from '../../../../../utils/apiClient';
 import {
@@ -62,8 +62,8 @@ export const EditableButtonItem = memo(function EditableButtonItem({
   onMove,
   isDuplicate,
 }: EditableButtonItemProps) {
-  const flowIdInputRef = useRef<HTMLInputElement>(null);
   const [isFlowPickerOpen, setIsFlowPickerOpen] = useState(false);
+  const [selectedFlowId, setSelectedFlowId] = useState('');
   const [availableFlows, setAvailableFlows] = useState<WhatsAppFlowOption[] | null>(null);
   const [isFlowsLoading, setIsFlowsLoading] = useState(false);
   const [flowsError, setFlowsError] = useState('');
@@ -81,11 +81,34 @@ export const EditableButtonItem = memo(function EditableButtonItem({
     }
   };
 
-  const handleFlowPickerToggle = () => {
-    const shouldOpen = !isFlowPickerOpen;
-    setIsFlowPickerOpen(shouldOpen);
-    if (shouldOpen && availableFlows === null && !isFlowsLoading) void loadFlows();
+  const openFlowPicker = () => {
+    setSelectedFlowId(button.flowId);
+    setIsFlowPickerOpen(true);
+    if (availableFlows === null && !isFlowsLoading) void loadFlows();
   };
+
+  const closeFlowPicker = () => setIsFlowPickerOpen(false);
+
+  const confirmFlowSelection = () => {
+    const selectedFlow = availableFlows?.find((flow) => flow.id === selectedFlowId);
+    if (!selectedFlow) return;
+    onUpdate(button.id, { flowId: selectedFlow.id });
+    closeFlowPicker();
+  };
+
+  useEffect(() => {
+    if (!isFlowPickerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') closeFlowPicker();
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isFlowPickerOpen]);
 
   const handleReorderKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowUp' && index > 0) {
@@ -300,15 +323,6 @@ export const EditableButtonItem = memo(function EditableButtonItem({
           {button.type === 'FLOW' ? (
             <div className="min-w-0 md:col-span-2">
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleFlowPickerToggle}
-                  aria-expanded={isFlowPickerOpen}
-                  aria-controls={`template-button-flow-picker-${button.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
-                >
-                  <Files className="h-3.5 w-3.5" /> Sử dụng có sẵn
-                </button>
                 <a
                   href={WHATSAPP_FLOWS_URL}
                   target="_blank"
@@ -317,78 +331,138 @@ export const EditableButtonItem = memo(function EditableButtonItem({
                 >
                   <Plus className="h-3.5 w-3.5" /> Tạo mới
                 </a>
+                <button
+                  type="button"
+                  onClick={openFlowPicker}
+                  aria-expanded={isFlowPickerOpen}
+                  aria-controls={`template-button-flow-picker-${button.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  <Files className="h-3.5 w-3.5" /> Sử dụng có sẵn
+                </button>
               </div>
 
               {isFlowPickerOpen ? (
                 <div
-                  id={`template-button-flow-picker-${button.id}`}
-                  className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                  className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]"
+                  onMouseDown={closeFlowPicker}
                 >
-                  <div className="border-b border-slate-200 px-3 py-2">
-                    <p className="text-xs font-bold text-slate-800">Chọn Flow có sẵn</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Danh sách được tải trực tiếp từ Meta.</p>
-                  </div>
-
-                  {isFlowsLoading ? (
-                    <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-500">
-                      <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
-                      Đang tải danh sách Flow...
-                    </div>
-                  ) : flowsError ? (
-                    <div className="px-3 py-3">
-                      <p role="alert" className="text-xs text-rose-600">{flowsError}</p>
+                  <div
+                    id={`template-button-flow-picker-${button.id}`}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby={`template-button-flow-picker-title-${button.id}`}
+                    className="flex max-h-[calc(100vh-2rem)] w-full max-w-150 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl"
+                    onMouseDown={(event) => event.stopPropagation()}
+                  >
+                    <header className="flex items-center justify-between px-4 py-3">
+                      <h3
+                        id={`template-button-flow-picker-title-${button.id}`}
+                        className="text-base font-bold text-slate-800"
+                      >
+                        Chọn Flow có sẵn
+                      </h3>
                       <button
                         type="button"
-                        onClick={() => void loadFlows()}
-                        className="mt-2 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                        onClick={closeFlowPicker}
+                        aria-label="Đóng hộp chọn Flow"
+                        className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                       >
-                        Thử lại
+                        <X aria-hidden="true" className="h-5 w-5" />
                       </button>
-                    </div>
-                  ) : availableFlows?.length ? (
-                    <div
-                      role="listbox"
-                      aria-label="Danh sách Flow có sẵn"
-                      className="max-h-56 overflow-y-auto py-1"
-                    >
-                      {availableFlows.map((flow) => {
-                        const isSelected = flow.id === button.flowId;
-                        return (
+                    </header>
+
+                    <div className="min-h-72 flex-1 overflow-y-auto border-y border-slate-200">
+                      {isFlowsLoading ? (
+                        <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-slate-500">
+                          <LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />
+                          Đang tải danh sách Flow...
+                        </div>
+                      ) : flowsError ? (
+                        <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
+                          <p role="alert" className="text-sm text-rose-600">{flowsError}</p>
                           <button
-                            key={flow.id}
                             type="button"
-                            role="option"
-                            aria-selected={isSelected}
-                            onClick={() => {
-                              onUpdate(button.id, { flowId: flow.id });
-                              setIsFlowPickerOpen(false);
-                            }}
-                            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition ${
-                              isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
-                            }`}
+                            onClick={() => void loadFlows()}
+                            className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                           >
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                              {isSelected ? <Check aria-hidden="true" className="h-4 w-4 text-indigo-600" /> : null}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs font-semibold text-slate-800">{flow.name}</span>
-                              <span className="block truncate text-[11px] text-slate-500">ID: {flow.id}</span>
-                            </span>
-                            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                              {flow.status}
-                            </span>
+                            Thử lại
                           </button>
-                        );
-                      })}
+                        </div>
+                      ) : availableFlows?.length ? (
+                        <div
+                          role="listbox"
+                          aria-label="Danh sách Flow có sẵn"
+                          className="space-y-2 p-4"
+                        >
+                          {availableFlows.map((flow) => {
+                            const isSelected = flow.id === selectedFlowId;
+                            return (
+                              <button
+                                key={flow.id}
+                                type="button"
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => setSelectedFlowId(flow.id)}
+                                className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${
+                                  isSelected
+                                    ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
+                                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                                  isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white'
+                                }`}>
+                                  {isSelected ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-white" /> : null}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-semibold text-slate-800">{flow.name}</span>
+                                  <span className="mt-0.5 block truncate text-xs text-slate-500">ID: {flow.id}</span>
+                                </span>
+                                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                                  {flow.status}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
+                          <span className="mb-4 flex h-32 w-32 items-center justify-center rounded-full bg-slate-100">
+                            <Telescope aria-hidden="true" className="h-20 w-20 text-slate-400" strokeWidth={1.4} />
+                          </span>
+                          <p className="text-base font-bold text-slate-800">Không tìm thấy Flow nào.</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Hãy tạo một Flow mới để liên kết với tin nhắn mẫu.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <p className="px-3 py-4 text-xs text-slate-500">Chưa có Flow nào trong tài khoản Meta này.</p>
-                  )}
+
+                    <footer className="flex justify-end gap-2 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={closeFlowPicker}
+                        className="rounded-md border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmFlowSelection}
+                        disabled={
+                          isFlowsLoading || !availableFlows?.some((flow) => flow.id === selectedFlowId)
+                        }
+                        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-200"
+                      >
+                        Xác nhận
+                      </button>
+                    </footer>
+                  </div>
                 </div>
               ) : null}
 
               <input
-                ref={flowIdInputRef}
                 required
                 id={`template-button-flow-id-${button.id}`}
                 value={button.flowId}

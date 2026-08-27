@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, Send, Zap } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import type {
   BroadcastCampaign,
   CreateWhatsAppTemplateInput,
@@ -76,14 +77,30 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   createTemplateError,
   onResetCreateTemplateError,
 }) => {
+  const location = useLocation();
+  const isCreatingTemplate = location.pathname.replace(/\/$/, '') === '/automation/templates/create';
+  const templateManagement = (
+    <TemplateManagementView
+      templates={templates}
+      isLoading={isTemplatesLoading}
+      error={templatesError}
+      onRefetch={onRefetchTemplates}
+      onCreateTemplate={onCreateTemplate}
+      isCreatePending={isCreateTemplatePending}
+      createError={createTemplateError}
+      onResetCreateError={onResetCreateTemplateError}
+    />
+  );
+
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        <div
-          className="grid grid-cols-1 gap-2 sm:grid-cols-3"
-          role="tablist"
-          aria-label="Chức năng Automation"
-        >
+      {!isCreatingTemplate ? (
+        <div key="automation-tabs" className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div
+            className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+            role="tablist"
+            aria-label="Chức năng Automation"
+          >
           {sections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection === section.id;
@@ -111,11 +128,12 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
                 <span className="min-w-0 text-sm font-bold">{section.label}</span>
               </button>
             );
-          })}
+            })}
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div role="tabpanel">
+      <div key="automation-content" role="tabpanel">
         {activeSection === 'workflow' ? (
           <AutomationView
             customers={customers}
@@ -137,16 +155,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
             defaultTargetGroup={defaultTargetGroup}
           />
         ) : (
-          <TemplateManagementView
-            templates={templates}
-            isLoading={isTemplatesLoading}
-            error={templatesError}
-            onRefetch={onRefetchTemplates}
-            onCreateTemplate={onCreateTemplate}
-            isCreatePending={isCreateTemplatePending}
-            createError={createTemplateError}
-            onResetCreateError={onResetCreateTemplateError}
-          />
+          templateManagement
         )}
       </div>
     </div>

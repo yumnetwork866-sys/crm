@@ -13,7 +13,6 @@ import {
   Smile,
   Strikethrough,
   Upload,
-  XCircle,
 } from 'lucide-react';
 import {
   useCallback,
@@ -179,18 +178,6 @@ export function TemplateWizardModal({
     }
   }, [wizardStep]);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [onClose]);
 
   const addHeaderVariable = useCallback(() => {
     if (headerVariables.length > 0) return;
@@ -384,25 +371,9 @@ export function TemplateWizardModal({
   const templateTypes = form.category === 'UTILITY' ? UTILITY_TEMPLATE_TYPES : MARKETING_TEMPLATE_TYPES;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
-      onMouseDown={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Tạo WhatsApp message template"
-        className="relative my-auto max-h-[calc(100vh-1rem)] w-full max-w-370 overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100vh-2rem)]"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Đóng cửa sổ tạo template"
-          className="absolute right-4 top-4 z-40 rounded-full bg-white p-1 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:text-slate-700"
-        >
-          <XCircle className="h-5 w-5" />
-        </button>
+    <div className="w-full space-y-4">
+
+      <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <form
           ref={formRef}
           onSubmit={handleSubmit}
