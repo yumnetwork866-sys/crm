@@ -7,7 +7,6 @@ import {
   BUTTON_ICON_OPTIONS,
   DEFAULT_BUTTON_TEXT,
   WHATSAPP_CALLING_DOCS_URL,
-  WHATSAPP_FLOWS_URL,
   WHATSAPP_MANAGER_URL,
   TEMPLATE_BUTTON_ICON_CLASSES,
   inputClass,
@@ -15,6 +14,7 @@ import {
 } from '../../constants/templateConstants';
 import type { EditableButton, QuickReplyMode } from '../../types';
 import { CircleOptionDropdown } from '../common/CircleOptionDropdown';
+import { CreateFlowModal } from './CreateFlowModal';
 import { PhoneCountryDropdown } from '../common/PhoneCountryDropdown';
 
 const QUICK_REPLY_OPTIONS = [
@@ -63,6 +63,7 @@ export const EditableButtonItem = memo(function EditableButtonItem({
   isDuplicate,
 }: EditableButtonItemProps) {
   const [isFlowPickerOpen, setIsFlowPickerOpen] = useState(false);
+  const [isCreateFlowModalOpen, setIsCreateFlowModalOpen] = useState(false);
   const [selectedFlowId, setSelectedFlowId] = useState('');
   const [availableFlows, setAvailableFlows] = useState<WhatsAppFlowOption[] | null>(null);
   const [isFlowsLoading, setIsFlowsLoading] = useState(false);
@@ -323,14 +324,14 @@ export const EditableButtonItem = memo(function EditableButtonItem({
           {button.type === 'FLOW' ? (
             <div className="min-w-0 md:col-span-2">
               <div className="flex flex-wrap gap-2">
-                <a
-                  href={WHATSAPP_FLOWS_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setIsCreateFlowModalOpen(true)}
+                  aria-expanded={isCreateFlowModalOpen}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" /> Tạo mới
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={openFlowPicker}
@@ -341,6 +342,11 @@ export const EditableButtonItem = memo(function EditableButtonItem({
                   <Files className="h-3.5 w-3.5" /> Sử dụng có sẵn
                 </button>
               </div>
+
+              <CreateFlowModal
+                isOpen={isCreateFlowModalOpen}
+                onClose={() => setIsCreateFlowModalOpen(false)}
+              />
 
               {isFlowPickerOpen ? (
                 <div
