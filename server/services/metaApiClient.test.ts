@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildMessageTemplatePayload,
+  fetchWhatsAppFlows,
   uploadTemplateSampleMedia,
 } from './metaApiClient';
 
@@ -132,6 +133,34 @@ describe('buildMessageTemplatePayload', () => {
           }],
         },
       ],
+    });
+  });
+});
+
+describe('fetchWhatsAppFlows', () => {
+  it('loads all pages from Meta and sorts flows by name', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [{ id: '2', name: 'Flow B', status: 'PUBLISHED' }],
+        paging: { next: 'https://graph.facebook.com/v26.0/next-page' },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [{ id: '1', name: 'Flow A', status: 'DRAFT' }],
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchWhatsAppFlows({
+      wabaId: 'waba-id',
+      token: 'access-token',
+    })).resolves.toEqual([
+      { id: '1', name: 'Flow A', status: 'DRAFT' },
+      { id: '2', name: 'Flow B', status: 'PUBLISHED' },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain('/waba-id/flows?');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { Authorization: 'Bearer access-token' },
     });
   });
 });

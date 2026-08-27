@@ -8,6 +8,7 @@ import { kickCampaignWorker } from '../services/campaignWorker';
 import {
   createMessageTemplate,
   fetchMessageTemplates,
+  fetchWhatsAppFlows,
   getIntegrationSetting,
   uploadTemplateSampleMedia,
   verifyApprovedMessageTemplate,
@@ -62,6 +63,8 @@ const templateButtonSchema = z.object({
   text: z.string().trim().min(1).max(40),
   url: z.string().trim().max(2000).optional(),
   urlExample: z.string().trim().max(2000).optional(),
+  flowId: z.string().trim().max(255).optional(),
+  navigateScreen: z.string().trim().max(255).optional(),
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Số điện thoại phải theo chuẩn E.164.').optional(),
   activeForDays: z.number().int().min(1).max(30).optional(),
 }).strict();
@@ -295,7 +298,10 @@ const templateCreateSchema = z.object({
     } else if (button.type === 'VOICE_CALL') {
       if (button.activeForDays === undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'activeForDays'], message: 'Button VOICE_CALL yêu cầu hiệu lực từ 1 đến 30 ngày.' });
       if (button.url || button.urlExample || button.phoneNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button VOICE_CALL chỉ nhận type, text và activeForDays.' });
-    } else if (button.url || button.urlExample || button.phoneNumber || button.activeForDays !== undefined) {
+    } else if (button.type === 'FLOW') {
+      if (!button.flowId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index, 'flowId'], message: 'Button FLOW yêu cầu Flow ID.' });
+      if (button.url || button.urlExample || button.phoneNumber || button.activeForDays !== undefined) context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button FLOW chỉ nhận Flow ID và tên màn hình.' });
+    } else if (button.url || button.urlExample || button.phoneNumber || button.activeForDays !== undefined || button.flowId || button.navigateScreen) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['buttons', index], message: 'Button này chỉ nhận type và text.' });
     }
   });
@@ -463,7 +469,7 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const setting = await getIntegrationSetting();
     const wabaId = setting.whatsappWabaId?.trim();
-    const token = setting.whatsappAccessToken?.trim();
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
     if (!wabaId || !token) {
       return res.status(409).json({
         error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
@@ -474,6 +480,26 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
   } catch (error: any) {
     return res.status(502).json({
       error: error?.message || 'Không thể tải template từ WABA.',
+    });
+  }
+});
+
+// GET /api/campaigns/templates/flows - Flows loaded directly from WABA
+router.get('/templates/flows', async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const setting = await getIntegrationSetting();
+    const wabaId = setting.whatsappWabaId?.trim();
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    if (!wabaId || !token) {
+      return res.status(409).json({
+        error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
+      });
+    }
+    const flows = await fetchWhatsAppFlows({ wabaId, token });
+    return res.json(flows);
+  } catch (error: any) {
+    return res.status(502).json({
+      error: error?.message || 'Không thể tải danh sách Flow từ WABA.',
     });
   }
 });
@@ -492,7 +518,7 @@ router.post(
     try {
       const setting = await getIntegrationSetting();
       const wabaId = setting.whatsappWabaId?.trim();
-      const token = setting.whatsappAccessToken?.trim();
+      const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
       if (!wabaId || !token) {
         return res.status(409).json({
           error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
@@ -526,7 +552,7 @@ router.post(
     try {
       const setting = await getIntegrationSetting();
       const appId = setting.whatsappAppId?.trim();
-      const token = setting.whatsappAccessToken?.trim();
+      const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
       if (!appId || !token) {
         return res.status(409).json({
           error: 'Chưa cấu hình WhatsApp App ID hoặc access token.',
@@ -581,7 +607,7 @@ router.post(
       const input = parsed.data;
       const setting = await getIntegrationSetting();
       const wabaId = setting.whatsappWabaId?.trim();
-      const token = setting.whatsappAccessToken?.trim();
+      const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
       if (!wabaId || !token) {
         return res.status(409).json({ error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.' });
       }

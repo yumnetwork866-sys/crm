@@ -25,11 +25,14 @@ export type QuickReplyMode = 'CUSTOM' | 'PRE_CONFIGURED_RESPONSE';
 export interface EditableButton {
   id: string;
   type: WhatsAppTemplateButtonType;
+  buttonIcon: string;
   quickReplyMode?: QuickReplyMode;
   text: string;
   urlType: 'STATIC' | 'DYNAMIC';
   url: string;
   urlExample: string;
+  flowId: string;
+  navigateScreen: string;
   phoneCountryIso: string;
   phoneNumber: string;
   activeForDays: number;

@@ -20,8 +20,9 @@ export async function getConfig(req: Request, res: Response) {
     const setting = await getIntegrationSetting();
     const effectivePhoneId = await resolvePhoneNumberId(setting);
 
-    const maskedToken = setting.whatsappAccessToken
-      ? `${setting.whatsappAccessToken.substring(0, 8)}...${setting.whatsappAccessToken.substring(setting.whatsappAccessToken.length - 6)}`
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const maskedToken = accessToken
+      ? `${accessToken.substring(0, 8)}...${accessToken.substring(accessToken.length - 6)}`
       : '';
 
     return res.json({
@@ -30,10 +31,9 @@ export async function getConfig(req: Request, res: Response) {
       whatsappWabaId: setting.whatsappWabaId || '',
       whatsappVerifyToken: setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: setting.whatsappAppId || '',
-      whatsappAppSecret: setting.whatsappAppSecret || '',
       status: setting.status,
       lastConnectedAt: setting.lastConnectedAt,
-      hasAccessToken: Boolean(setting.whatsappAccessToken && setting.whatsappAccessToken.trim().length > 0),
+      hasAccessToken: Boolean(accessToken),
       maskedAccessToken: maskedToken,
       appUrl: process.env.APP_URL || '',
       webhookUrl: `${(process.env.APP_URL || '').replace(/\/$/, '')}/webhook`,
@@ -53,38 +53,32 @@ export async function saveConfig(req: Request, res: Response) {
     const {
       whatsappPhoneNumberId,
       whatsappWabaId,
-      whatsappAccessToken,
       whatsappVerifyToken,
-      whatsappAppId,
-      whatsappAppSecret
+      whatsappAppId
     } = req.body;
 
     const existing = await getIntegrationSetting();
 
-    const newToken = (whatsappAccessToken && whatsappAccessToken.trim().length > 0)
-      ? whatsappAccessToken.trim()
-      : existing.whatsappAccessToken;
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
     const finalPhoneId = whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId;
-    const isFullyConfigured = Boolean(newToken && finalPhoneId);
+    const isFullyConfigured = Boolean(accessToken && finalPhoneId);
     const newStatus = isFullyConfigured ? 'connected' : (existing.status || 'disconnected');
     const newLastConnected = isFullyConfigured ? (existing.lastConnectedAt || new Date()) : existing.lastConnectedAt;
 
     const updateData = {
       whatsappPhoneNumberId: finalPhoneId,
       whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
-      whatsappAccessToken: newToken,
       whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
       whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
-      whatsappAppSecret: whatsappAppSecret !== undefined ? whatsappAppSecret.trim() : existing.whatsappAppSecret,
       status: newStatus,
       lastConnectedAt: newLastConnected
     };
 
     const updated = await updateIntegrationSetting(updateData);
 
-    if (updated.whatsappWabaId && updated.whatsappAccessToken) {
-      ensureWabaSubscribed(updated.whatsappWabaId, updated.whatsappAccessToken).catch(() => {});
+    if (updated.whatsappWabaId && accessToken) {
+      ensureWabaSubscribed(updated.whatsappWabaId, accessToken).catch(() => {});
     }
 
     return res.json({
@@ -93,7 +87,7 @@ export async function saveConfig(req: Request, res: Response) {
       whatsappPhoneNumberId: updated.whatsappPhoneNumberId,
       whatsappWabaId: updated.whatsappWabaId,
       whatsappVerifyToken: updated.whatsappVerifyToken,
-      hasAccessToken: Boolean(updated.whatsappAccessToken && updated.whatsappAccessToken.trim().length > 0),
+      hasAccessToken: Boolean(accessToken),
       lastConnectedAt: updated.lastConnectedAt
     });
   } catch (error) {
@@ -107,11 +101,11 @@ export async function saveConfig(req: Request, res: Response) {
  */
 export async function fetchPhoneNumbers(req: Request, res: Response) {
   try {
-    const { wabaId: inputWabaId, accessToken: inputToken } = req.body;
+    const { wabaId: inputWabaId } = req.body;
 
     const setting = await getIntegrationSetting();
     const wabaId = (inputWabaId && inputWabaId.trim().length > 0) ? inputWabaId.trim() : setting.whatsappWabaId;
-    const token = (inputToken && inputToken.trim().length > 0) ? inputToken.trim() : setting.whatsappAccessToken;
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
     if (!wabaId) {
       return res.status(400).json({ error: 'Vui lòng nhập WhatsApp Business Account ID (WABA ID).' });
@@ -143,11 +137,11 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
  */
 export async function testConnection(req: Request, res: Response) {
   try {
-    const { recipientPhone, messageText, phoneNumberId: overridePhoneId, accessToken: overrideToken } = req.body;
+    const { recipientPhone, messageText, phoneNumberId: overridePhoneId } = req.body;
 
     const setting = await getIntegrationSetting();
     const phoneId = overridePhoneId || (await resolvePhoneNumberId(setting));
-    const token = overrideToken || setting.whatsappAccessToken;
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
     if (!phoneId) {
       return res.status(400).json({ error: 'Chưa cấu hình Phone Number ID. Vui lòng nhập Phone Number ID trước khi test.' });

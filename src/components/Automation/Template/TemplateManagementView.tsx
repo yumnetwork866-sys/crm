@@ -4,6 +4,7 @@ import type { TemplateManagementViewProps } from './types';
 import { TemplateCard } from './components/TemplateCard';
 import { TemplateWizardModal } from './components/TemplateWizardModal';
 import { WHATSAPP_MANAGER_URL } from './constants/templateConstants';
+import { TEMPLATE_DRAFT_STORAGE_KEY } from './hooks/useTemplateForm';
 
 export function TemplateManagementView({
   templates,
@@ -15,7 +16,13 @@ export function TemplateManagementView({
   createError,
   onResetCreateError,
 }: TemplateManagementViewProps) {
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY));
+    } catch {
+      return false;
+    }
+  });
   const [successMessage, setSuccessMessage] = useState('');
 
   const openForm = useCallback(() => {

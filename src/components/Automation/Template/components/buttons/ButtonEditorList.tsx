@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { WhatsAppTemplateButtonType } from '../../../../../types';
-import { DEFAULT_BUTTON_TEXT } from '../../constants/templateConstants';
+import { DEFAULT_BUTTON_TEXT, TEMPLATE_BUTTON_ICON_CLASSES } from '../../constants/templateConstants';
 import type { EditableButton } from '../../types';
 import { AddButtonDropdown } from './AddButtonDropdown';
 import { EditableButtonItem } from './EditableButtonItem';
@@ -72,11 +72,14 @@ export const ButtonEditorList = memo(function ButtonEditorList({
           {
             id,
             type,
+            buttonIcon: TEMPLATE_BUTTON_ICON_CLASSES[type],
             ...(type === 'QUICK_REPLY' ? { quickReplyMode: 'CUSTOM' as const } : {}),
             text: DEFAULT_BUTTON_TEXT[type] || '',
             urlType: 'STATIC',
             url: '',
             urlExample: '',
+            flowId: '',
+            navigateScreen: '',
             phoneCountryIso: 'VN',
             phoneNumber: '',
             activeForDays: 7,

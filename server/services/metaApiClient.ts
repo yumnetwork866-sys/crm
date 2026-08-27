@@ -7,9 +7,7 @@ export interface IntegrationSettingData {
   whatsappVerifyToken: string;
   whatsappPhoneNumberId?: string | null;
   whatsappWabaId?: string | null;
-  whatsappAccessToken?: string | null;
   whatsappAppId?: string | null;
-  whatsappAppSecret?: string | null;
   status: string;
   lastConnectedAt?: Date | null;
   createdAt?: Date;
@@ -22,9 +20,7 @@ let inMemorySetting: IntegrationSettingData = {
   whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
   whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
   whatsappAppId: process.env.WHATSAPP_APP_ID || '',
-  whatsappAppSecret: process.env.WHATSAPP_APP_SECRET || '',
   status: process.env.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'disconnected',
   lastConnectedAt: null,
   createdAt: new Date(),
@@ -44,7 +40,6 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
           whatsappVerifyToken: inMemorySetting.whatsappVerifyToken,
           whatsappPhoneNumberId: inMemorySetting.whatsappPhoneNumberId,
           whatsappWabaId: inMemorySetting.whatsappWabaId,
-          whatsappAccessToken: inMemorySetting.whatsappAccessToken,
         }
       });
     }
@@ -54,17 +49,14 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
     const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
     const envVerifyToken = process.env.META_VERIFY_TOKEN?.trim();
     const envAppId = process.env.WHATSAPP_APP_ID?.trim();
-    const envAppSecret = process.env.WHATSAPP_APP_SECRET?.trim();
 
     const mergedSetting: IntegrationSettingData = {
       ...setting,
       whatsappWabaId: envWabaId || setting.whatsappWabaId || '',
-      whatsappAccessToken: envToken || setting.whatsappAccessToken || '',
       whatsappPhoneNumberId: envPhoneId || setting.whatsappPhoneNumberId || '',
       whatsappVerifyToken: envVerifyToken || setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: envAppId || setting.whatsappAppId || '',
-      whatsappAppSecret: envAppSecret || setting.whatsappAppSecret || '',
-      status: (envToken || setting.whatsappAccessToken) ? 'connected' : (setting.status || 'disconnected')
+      status: envToken ? 'connected' : (setting.status || 'disconnected')
     };
     // Sync in-memory store with DB & env
     inMemorySetting = { ...mergedSetting };
@@ -105,7 +97,7 @@ export async function resolvePhoneNumberId(setting: IntegrationSettingData): Pro
     return setting.whatsappPhoneNumberId.trim();
   }
   const wabaId = setting.whatsappWabaId?.trim();
-  const token = setting.whatsappAccessToken?.trim();
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
   if (!wabaId || !token) {
     return '';
   }
@@ -464,6 +456,45 @@ export async function fetchApprovedMessageTemplates(options: {
   return templates.filter((template) => template.status === 'APPROVED');
 }
 
+export interface WhatsAppFlow {
+  id: string;
+  name: string;
+  status: string;
+  categories?: string[];
+}
+
+export async function fetchWhatsAppFlows(options: {
+  wabaId: string;
+  token: string;
+}): Promise<WhatsAppFlow[]> {
+  const { wabaId, token } = options;
+  const query = new URLSearchParams({
+    fields: 'id,name,status,categories',
+    limit: '100',
+  });
+  let nextUrl: string | null = `https://graph.facebook.com/v26.0/${wabaId}/flows?${query.toString()}`;
+  const flows: WhatsAppFlow[] = [];
+  let pageCount = 0;
+
+  while (nextUrl && pageCount < 10) {
+    const response = await fetch(nextUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const result: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error?.message || 'Không thể tải danh sách Flow từ Meta.');
+    }
+    if (Array.isArray(result?.data)) {
+      flows.push(...result.data);
+    }
+    nextUrl = typeof result?.paging?.next === 'string' ? result.paging.next : null;
+    pageCount += 1;
+  }
+
+  return flows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export interface MessageTemplateExample {
   name?: string;
   value: string;
@@ -474,6 +505,8 @@ export interface MessageTemplateButton {
   text: string;
   url?: string;
   urlExample?: string;
+  flowId?: string;
+  navigateScreen?: string;
   phoneNumber?: string;
   activeForDays?: number;
 }
@@ -634,6 +667,9 @@ export function buildMessageTemplatePayload(options: CreateMessageTemplateOption
             return {
               type: 'FLOW',
               text: button.text,
+              ...(button.flowId ? { flow_id: button.flowId } : {}),
+              flow_action: 'navigate',
+              ...(button.navigateScreen ? { navigate_screen: button.navigateScreen } : {}),
             };
           }
           if (button.type === 'COPY_CODE') {
@@ -885,7 +921,7 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
 
   // 2. Query Meta API
   const setting = await getIntegrationSetting();
-  const token = setting.whatsappAccessToken?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim() || process.env.META_ACCESS_TOKEN?.trim() || '';
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
   if (!token) {
     throw new Error('Meta Access Token not configured');

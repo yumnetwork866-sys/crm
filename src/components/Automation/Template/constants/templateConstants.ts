@@ -45,7 +45,7 @@ export const DEFAULT_BUTTON_TEXT: Record<WhatsAppTemplateButtonType, string> = {
   URL: 'Visit website',
   VOICE_CALL: 'Call on WhatsApp',
   PHONE_NUMBER: 'Call Phone Number',
-  FLOW: 'Complete flow',
+  FLOW: 'View Flow',
   COPY_CODE: 'Copy offer code',
   CONTACT: 'Share contact info',
 };
@@ -55,7 +55,7 @@ export const BUTTON_LABELS: Record<WhatsAppTemplateButtonType, string> = {
   URL: 'Visit website',
   VOICE_CALL: 'Call on WhatsApp',
   PHONE_NUMBER: 'Call Phone Number',
-  FLOW: 'Complete flow',
+  FLOW: 'View Flow',
   COPY_CODE: 'Copy offer code',
   CONTACT: 'Share contact info',
 };
@@ -98,10 +98,17 @@ export const TEMPLATE_BUTTON_ICON_CLASSES: Record<WhatsAppTemplateButtonType, st
   URL: 'fa-solid fa-arrow-up-right-from-square',
   VOICE_CALL: 'fa-brands fa-whatsapp',
   PHONE_NUMBER: 'fa-solid fa-phone',
-  FLOW: 'fa-solid fa-diagram-project',
+  FLOW: 'fa-regular fa-clipboard',
   COPY_CODE: 'fa-solid fa-copy',
   CONTACT: 'fa-solid fa-user',
 };
+
+export const BUTTON_ICON_OPTIONS = [
+  { value: 'fa-regular fa-clipboard', label: 'Default', iconClass: 'fa-regular fa-clipboard' },
+  { value: 'fa-regular fa-file-lines', label: 'Document', iconClass: 'fa-regular fa-file-lines' },
+  { value: 'fa-solid fa-tag', label: 'Promotion', iconClass: 'fa-solid fa-tag' },
+  { value: 'fa-regular fa-thumbs-up', label: 'Review', iconClass: 'fa-regular fa-thumbs-up' },
+] as const;
 
 const metaBusinessId = import.meta.env.VITE_META_BUSINESS_ID?.trim();
 const whatsappWabaId = import.meta.env.VITE_WHATSAPP_WABA_ID?.trim();
@@ -113,3 +120,6 @@ export const WHATSAPP_MANAGER_URL =
 
 export const WHATSAPP_CALLING_DOCS_URL =
   'https://developers.facebook.com/docs/whatsapp/cloud-api/calling';
+
+export const WHATSAPP_FLOWS_URL =
+  'https://business.facebook.com/latest/whatsapp_manager/flows/';

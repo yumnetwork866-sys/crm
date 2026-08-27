@@ -5,7 +5,7 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 
 type CircleOptionDropdownProps = {
   value: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; iconClass?: string }>; 
   onChange: (value: string) => void;
   ariaLabel?: string;
 };
@@ -186,6 +186,12 @@ export const CircleOptionDropdown = memo(function CircleOptionDropdown({
                 >
                   {isSelected ? <span className="h-2 w-2 rounded-full bg-indigo-600" /> : null}
                 </span>
+                {option.iconClass ? (
+                  <i
+                    aria-hidden="true"
+                    className={`${option.iconClass} w-4 shrink-0 text-center text-sm text-slate-700`}
+                  />
+                ) : null}
                 <span className="whitespace-nowrap">{option.label}</span>
               </button>
             );

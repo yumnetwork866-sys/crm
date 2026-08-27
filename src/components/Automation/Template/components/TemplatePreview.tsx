@@ -147,7 +147,7 @@ export const TemplatePreview = memo(function TemplatePreview({
                           <><Video className="h-8 w-8" /><span className="max-w-full truncate">{mediaFileName || 'video mẫu'}</span></>
                         ) : (
                           <>
-                            {headerFormat === 'IMAGE' ? <Image className="h-8 w-8" /> : <FileText className="h-8 w-8" />}
+                            {headerFormat === 'IMAGE' ? <ImageIcon className="h-8 w-8" /> : <FileText className="h-8 w-8" />}
                             <span className="max-w-full truncate">{mediaFileName || `${headerFormat.toLowerCase()} mẫu`}</span>
                           </>
                         )}
@@ -164,7 +164,7 @@ export const TemplatePreview = memo(function TemplatePreview({
                   <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">
                     {buttons.map((button) => (
                       <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>
-                        <TemplateButtonIcon type={button.type} />
+                        <TemplateButtonIcon type={button.type} iconClass={button.buttonIcon} />
                         <span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>
                           {button.text || BUTTON_LABELS[button.type]}
                         </span>

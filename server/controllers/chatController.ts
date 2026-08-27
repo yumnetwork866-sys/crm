@@ -279,7 +279,7 @@ export async function sendMessage(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = setting.whatsappAccessToken;
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
     let metaResult: any = null;
     let isRealSent = false;
@@ -389,7 +389,7 @@ export async function sendReaction(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = setting.whatsappAccessToken?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 
     let isRealSent = false;
     let metaResult: any = null;

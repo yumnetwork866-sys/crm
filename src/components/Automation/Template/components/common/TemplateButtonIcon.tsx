@@ -4,9 +4,10 @@ import { TEMPLATE_BUTTON_ICON_CLASSES } from '../../constants/templateConstants'
 
 interface TemplateButtonIconProps {
   type: WhatsAppTemplateButtonType;
+  iconClass?: string;
 }
 
-export const TemplateButtonIcon = memo(function TemplateButtonIcon({ type }: TemplateButtonIconProps) {
+export const TemplateButtonIcon = memo(function TemplateButtonIcon({ type, iconClass }: TemplateButtonIconProps) {
   const isWhatsApp = type === 'VOICE_CALL';
 
   return (
@@ -16,7 +17,7 @@ export const TemplateButtonIcon = memo(function TemplateButtonIcon({ type }: Tem
       }`}
       aria-hidden="true"
     >
-      <i className={`${TEMPLATE_BUTTON_ICON_CLASSES[type]} block leading-none`} />
+      <i className={`${iconClass || TEMPLATE_BUTTON_ICON_CLASSES[type]} block leading-none`} />
     </span>
   );
 });

@@ -210,6 +210,8 @@ export interface CreateWhatsAppTemplateInput {
     text: string;
     url?: string;
     urlExample?: string;
+    flowId?: string;
+    navigateScreen?: string;
     phoneNumber?: string;
     activeForDays?: number;
   }>;
@@ -299,4 +301,3 @@ export interface AppUser {
   assignedLeadsCount?: number;
   totalRevenue?: number;
 }
-

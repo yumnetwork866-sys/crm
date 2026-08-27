@@ -1,11 +1,15 @@
-import { GripVertical, Info, Trash2 } from 'lucide-react';
-import { memo, type KeyboardEvent } from 'react';
+import { Check, Files, GripVertical, Info, LoaderCircle, Plus, Trash2 } from 'lucide-react';
+import { memo, useRef, useState, type KeyboardEvent } from 'react';
 import type { WhatsAppTemplateButtonType } from '../../../../../types';
+import { api } from '../../../../../utils/apiClient';
 import {
   BUTTON_LABELS,
+  BUTTON_ICON_OPTIONS,
   DEFAULT_BUTTON_TEXT,
   WHATSAPP_CALLING_DOCS_URL,
+  WHATSAPP_FLOWS_URL,
   WHATSAPP_MANAGER_URL,
+  TEMPLATE_BUTTON_ICON_CLASSES,
   inputClass,
   labelClass,
 } from '../../constants/templateConstants';
@@ -32,6 +36,13 @@ const VOICE_CALL_VALIDITY_OPTIONS = Array.from({ length: 30 }, (_, dayIndex) => 
   return { value: String(days), label: `${days} ngày` };
 });
 
+type WhatsAppFlowOption = {
+  id: string;
+  name: string;
+  status: string;
+  categories?: string[];
+};
+
 export interface EditableButtonItemProps {
   button: EditableButton;
   index: number;
@@ -51,6 +62,31 @@ export const EditableButtonItem = memo(function EditableButtonItem({
   onMove,
   isDuplicate,
 }: EditableButtonItemProps) {
+  const flowIdInputRef = useRef<HTMLInputElement>(null);
+  const [isFlowPickerOpen, setIsFlowPickerOpen] = useState(false);
+  const [availableFlows, setAvailableFlows] = useState<WhatsAppFlowOption[] | null>(null);
+  const [isFlowsLoading, setIsFlowsLoading] = useState(false);
+  const [flowsError, setFlowsError] = useState('');
+
+  const loadFlows = async () => {
+    setIsFlowsLoading(true);
+    setFlowsError('');
+    try {
+      const flows = await api.get<WhatsAppFlowOption[]>('/campaigns/templates/flows');
+      setAvailableFlows(flows);
+    } catch (error) {
+      setFlowsError(error instanceof Error ? error.message : 'Không thể tải danh sách Flow.');
+    } finally {
+      setIsFlowsLoading(false);
+    }
+  };
+
+  const handleFlowPickerToggle = () => {
+    const shouldOpen = !isFlowPickerOpen;
+    setIsFlowPickerOpen(shouldOpen);
+    if (shouldOpen && availableFlows === null && !isFlowsLoading) void loadFlows();
+  };
+
   const handleReorderKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowUp' && index > 0) {
       event.preventDefault();
@@ -73,6 +109,9 @@ export const EditableButtonItem = memo(function EditableButtonItem({
     onUpdate(button.id, {
       type: nextType,
       text: isPreviousDefault ? DEFAULT_BUTTON_TEXT[nextType] || '' : button.text,
+      buttonIcon: !button.buttonIcon || button.buttonIcon === TEMPLATE_BUTTON_ICON_CLASSES[button.type]
+        ? TEMPLATE_BUTTON_ICON_CLASSES[nextType]
+        : button.buttonIcon,
     });
   };
 
@@ -95,10 +134,10 @@ export const EditableButtonItem = memo(function EditableButtonItem({
         <div
           className={`grid min-w-0 flex-1 grid-cols-1 items-end gap-2.5 ${
             button.type === 'URL'
-              ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1.25fr)]'
-              : button.type === 'PHONE_NUMBER'
-                ? 'md:grid-cols-[10rem_minmax(10rem,1fr)_7rem_minmax(14rem,1fr)]'
-                : button.type === 'VOICE_CALL'
+              ? 'md:grid-cols-[12rem_minmax(10rem,1fr)_7rem_minmax(14rem,1.25fr)]'
+            : button.type === 'PHONE_NUMBER'
+                ? 'md:grid-cols-[12rem_minmax(10rem,1fr)_7rem_minmax(14rem,1fr)]'
+                : button.type === 'VOICE_CALL' || button.type === 'FLOW'
                   ? 'md:grid-cols-[12rem_minmax(0,1fr)_8rem]'
                   : 'md:grid-cols-[12rem_minmax(0,1fr)]'
           }`}
@@ -152,6 +191,18 @@ export const EditableButtonItem = memo(function EditableButtonItem({
               </span>
             </div>
           </div>
+
+          {button.type === 'FLOW' ? (
+            <div className="min-w-0">
+              <span className={labelClass}>Button icon</span>
+              <CircleOptionDropdown
+                value={button.buttonIcon || TEMPLATE_BUTTON_ICON_CLASSES[button.type]}
+                options={[...BUTTON_ICON_OPTIONS]}
+                ariaLabel="Icon của button"
+                onChange={(buttonIcon) => onUpdate(button.id, { buttonIcon })}
+              />
+            </div>
+          ) : null}
 
           {button.type === 'PHONE_NUMBER' ? (
             <>
@@ -244,6 +295,109 @@ export const EditableButtonItem = memo(function EditableButtonItem({
                 />
               </div>
             </>
+          ) : null}
+
+          {button.type === 'FLOW' ? (
+            <div className="min-w-0 md:col-span-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleFlowPickerToggle}
+                  aria-expanded={isFlowPickerOpen}
+                  aria-controls={`template-button-flow-picker-${button.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                >
+                  <Files className="h-3.5 w-3.5" /> Sử dụng có sẵn
+                </button>
+                <a
+                  href={WHATSAPP_FLOWS_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Tạo mới
+                </a>
+              </div>
+
+              {isFlowPickerOpen ? (
+                <div
+                  id={`template-button-flow-picker-${button.id}`}
+                  className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                >
+                  <div className="border-b border-slate-200 px-3 py-2">
+                    <p className="text-xs font-bold text-slate-800">Chọn Flow có sẵn</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Danh sách được tải trực tiếp từ Meta.</p>
+                  </div>
+
+                  {isFlowsLoading ? (
+                    <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-500">
+                      <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      Đang tải danh sách Flow...
+                    </div>
+                  ) : flowsError ? (
+                    <div className="px-3 py-3">
+                      <p role="alert" className="text-xs text-rose-600">{flowsError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadFlows()}
+                        className="mt-2 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  ) : availableFlows?.length ? (
+                    <div
+                      role="listbox"
+                      aria-label="Danh sách Flow có sẵn"
+                      className="max-h-56 overflow-y-auto py-1"
+                    >
+                      {availableFlows.map((flow) => {
+                        const isSelected = flow.id === button.flowId;
+                        return (
+                          <button
+                            key={flow.id}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              onUpdate(button.id, { flowId: flow.id });
+                              setIsFlowPickerOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition ${
+                              isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                              {isSelected ? <Check aria-hidden="true" className="h-4 w-4 text-indigo-600" /> : null}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-semibold text-slate-800">{flow.name}</span>
+                              <span className="block truncate text-[11px] text-slate-500">ID: {flow.id}</span>
+                            </span>
+                            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                              {flow.status}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="px-3 py-4 text-xs text-slate-500">Chưa có Flow nào trong tài khoản Meta này.</p>
+                  )}
+                </div>
+              ) : null}
+
+              <input
+                ref={flowIdInputRef}
+                required
+                id={`template-button-flow-id-${button.id}`}
+                value={button.flowId}
+                onChange={(event) => onUpdate(button.id, { flowId: event.target.value })}
+                placeholder="Nhập Flow ID đã tạo"
+                className={`${inputClass} mt-2 h-10`}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">Button mặc định sử dụng icon Flow và nội dung “View Flow”.</p>
+            </div>
           ) : null}
         </div>
 

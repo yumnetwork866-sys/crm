@@ -84,6 +84,11 @@ const getActiveTabFromPath = (pathname: string): ActiveTab => {
   return validTabs.includes(segment as ActiveTab) ? (segment as ActiveTab) : 'crm';
 };
 
+const getAutomationSectionFromPath = (pathname: string): AutomationSection => {
+  const section = pathname.split('/')[2];
+  return section === 'broadcast' || section === 'templates' ? section : 'workflow';
+};
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -216,8 +221,11 @@ export default function App() {
   const [chatCustomer, setChatCustomer] = useState<Customer | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const [automationSection, setAutomationSection] = useState<AutomationSection>('workflow');
   const [broadcastDefaultGroup, setBroadcastDefaultGroup] = useState<string>('Tất cả khách hàng');
+  const automationSection = useMemo(
+    () => getAutomationSectionFromPath(location.pathname),
+    [location.pathname]
+  );
 
   // Auth & User Management Modals
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -267,16 +275,14 @@ export default function App() {
 
   const handleNavigateToBroadcastGroup = (groupName: string) => {
     setBroadcastDefaultGroup(groupName);
-    setAutomationSection('broadcast');
-    void navigate('/automation');
+    void navigate('/automation/broadcast');
   };
 
   const handleTabChange = (tab: ActiveTab) => {
     if (tab === 'users' && !isAdmin) {
       void navigate('/crm');
     } else {
-      if (tab === 'automation') setAutomationSection('workflow');
-      void navigate(`/${tab}`);
+      void navigate(tab === 'automation' ? '/automation/workflow' : `/${tab}`);
     }
   };
 
@@ -528,12 +534,13 @@ export default function App() {
                 />
               }
             />
+            <Route path="/automation" element={<Navigate to="/automation/workflow" replace />} />
             <Route
-              path="/automation"
+              path="/automation/*"
               element={
                 <AutomationHub
                   activeSection={automationSection}
-                  onChangeSection={setAutomationSection}
+                  onChangeSection={(section) => { void navigate(`/automation/${section}`); }}
                   customers={customers}
                   campaigns={campaigns}
                   templates={whatsappTemplates}

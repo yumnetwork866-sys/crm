@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { syncExamples } from '../utils/templateFormatters';
 import { extractVariables, getMetaTemplateBodyErrors } from '../utils/templateValidation';
 import type { TemplateFormData } from '../types';
@@ -33,13 +33,26 @@ export function createInitialTemplateState(): TemplateFormData {
 }
 
 export const INITIAL_TEMPLATE_STATE: TemplateFormData = createInitialTemplateState();
+export const TEMPLATE_DRAFT_STORAGE_KEY = 'yumcrm_template_draft_v1';
+
+function loadTemplateDraft(): TemplateFormData {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return createInitialTemplateState();
+    const draft = 'form' in saved && saved.form && typeof saved.form === 'object' ? saved.form : saved;
+    return { ...createInitialTemplateState(), ...draft } as TemplateFormData;
+  } catch {
+    return createInitialTemplateState();
+  }
+}
 
 function normalizeButtonText(text: string): string {
   return text.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 }
 
 export function useTemplateForm() {
-  const [form, setForm] = useState<TemplateFormData>(() => createInitialTemplateState());
+  const [form, setForm] = useState<TemplateFormData>(loadTemplateDraft);
+  const skipNextPersistRef = useRef(false);
 
   const updateField = useCallback(
     <K extends keyof TemplateFormData>(key: K, value: TemplateFormData[K]) => {
@@ -49,8 +62,24 @@ export function useTemplateForm() {
   );
 
   const resetForm = useCallback(() => {
+    skipNextPersistRef.current = true;
+    localStorage.removeItem(TEMPLATE_DRAFT_STORAGE_KEY);
     setForm(createInitialTemplateState());
   }, []);
+
+  useEffect(() => {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || '{}');
+      const previousDraft = saved && typeof saved === 'object' ? saved : {};
+      localStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({ ...previousDraft, form }));
+    } catch {
+      // Draft persistence is best-effort when storage is unavailable or full.
+    }
+  }, [form]);
 
   const bodyVariables = useMemo(
     () => extractVariables(form.body, form.parameterFormat),

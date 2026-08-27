@@ -41,7 +41,7 @@ import {
 } from '../constants/templateConstants';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useMediaUpload, type MediaFormPatch } from '../hooks/useMediaUpload';
-import { useTemplateForm } from '../hooks/useTemplateForm';
+import { TEMPLATE_DRAFT_STORAGE_KEY, useTemplateForm } from '../hooks/useTemplateForm';
 import type { EditableButton, TemplateType, WizardStep } from '../types';
 import { toE164Phone } from '../utils/templateFormatters';
 import { ReviewSections } from './ReviewSections';
@@ -62,6 +62,19 @@ interface TemplateWizardModalProps {
 }
 
 const RECENT_EMOJIS_STORAGE_KEY = 'yumcrm_recent_emojis';
+
+function loadDraftWizardStep(): WizardStep {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || 'null');
+    if (saved && typeof saved === 'object' && 'wizardStep' in saved) {
+      const step = saved.wizardStep;
+      if (step === 1 || step === 2 || step === 3) return step;
+    }
+  } catch {
+    // Ignore malformed or unavailable draft storage.
+  }
+  return 1;
+}
 const CATEGORY_ICONS = {
   MARKETING: Megaphone,
   UTILITY: Bell,
@@ -89,7 +102,7 @@ export function TemplateWizardModal({
   onResetCreateError,
   onSuccess,
 }: TemplateWizardModalProps) {
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+  const [wizardStep, setWizardStep] = useState<WizardStep>(loadDraftWizardStep);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [headerTooltipPosition, setHeaderTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const [recentEmojis, setRecentEmojis] = useState<string[]>(() => {
@@ -155,6 +168,16 @@ export function TemplateWizardModal({
       img.src = src;
     });
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || '{}');
+      const previousDraft = saved && typeof saved === 'object' ? saved : {};
+      localStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({ ...previousDraft, wizardStep }));
+    } catch {
+      // Draft persistence is best-effort when storage is unavailable or full.
+    }
+  }, [wizardStep]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -307,6 +330,9 @@ export function TemplateWizardModal({
             urlType: _urlType,
             url,
             urlExample,
+            flowId,
+            navigateScreen,
+            buttonIcon: _buttonIcon,
             phoneCountryIso,
             phoneNumber,
             activeForDays,
@@ -320,6 +346,9 @@ export function TemplateWizardModal({
               ? { phoneNumber: toE164Phone(phoneCountryIso, phoneNumber) }
               : {}),
             ...(button.type === 'VOICE_CALL' ? { activeForDays } : {}),
+            ...(button.type === 'FLOW'
+              ? { flowId: (flowId || '').trim(), ...((navigateScreen || '').trim() ? { navigateScreen: navigateScreen.trim() } : {}) }
+              : {}),
           })),
         };
       }
