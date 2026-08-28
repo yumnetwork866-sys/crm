@@ -350,7 +350,7 @@ export const EditableButtonItem = memo(function EditableButtonItem({
 
               {isFlowPickerOpen ? (
                 <div
-                  className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]"
+                  className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[1px]"
                   onMouseDown={closeFlowPicker}
                 >
                   <div

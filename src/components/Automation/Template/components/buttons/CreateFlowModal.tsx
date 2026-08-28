@@ -6,6 +6,7 @@ import {
   X,
 } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { WHATSAPP_FLOWS_URL } from '../../constants/templateConstants';
 
 type FlowType = 'SURVEY' | 'EVENT_REGISTRATION' | 'SIGN_UP' | 'CUSTOM';
@@ -162,9 +163,9 @@ export const CreateFlowModal = memo(function CreateFlowModal({
     onClose();
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/55 p-0 backdrop-blur-[1px] sm:p-4"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/55 p-0 backdrop-blur-[1px] sm:p-4"
       onMouseDown={onClose}
     >
       <div
@@ -468,7 +469,8 @@ export const CreateFlowModal = memo(function CreateFlowModal({
           </button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 });
 
