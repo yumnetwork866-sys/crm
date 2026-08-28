@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   BarChart3,
   Bell,
   CalendarDays,
@@ -26,7 +25,6 @@ interface TemplateDetailViewProps {
   analytics?: WhatsAppTemplateAnalytics;
   isAnalyticsLoading: boolean;
   analyticsError: string;
-  onBack: () => void;
 }
 
 function titleCase(value: string) {
@@ -70,7 +68,6 @@ export function TemplateDetailView({
   analytics,
   isAnalyticsLoading,
   analyticsError,
-  onBack,
 }: TemplateDetailViewProps) {
   const header = template.components.find((component) => component.type?.toUpperCase() === 'HEADER');
   const body = template.components.find((component) => component.type?.toUpperCase() === 'BODY');
@@ -104,16 +101,8 @@ export function TemplateDetailView({
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-slate-200 bg-linear-to-r from-rose-50 via-indigo-50 to-sky-50 p-4 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="flex min-w-0 items-start gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              aria-label="Quay lại danh sách template"
-              className="mt-1 rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
-            >
-              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            </button>
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
               <Bell aria-hidden="true" className="h-5 w-5" />
             </span>
@@ -144,7 +133,7 @@ export function TemplateDetailView({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 lg:shrink-0">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-400 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-white"

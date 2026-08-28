@@ -119,7 +119,6 @@ export function TemplateManagementView({
           analytics={selectedTemplate.id ? analyticsByTemplateId[selectedTemplate.id] : undefined}
           isAnalyticsLoading={isAnalyticsLoading}
           analyticsError={analyticsError}
-          onBack={() => void navigate('/automation/templates')}
         />
       );
     }
