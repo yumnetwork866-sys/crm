@@ -1,10 +1,10 @@
-import { FileText, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { TemplateManagementViewProps } from './types';
 import { TemplateCard } from './components/TemplateCard';
 import { TemplateWizardModal } from './components/TemplateWizardModal';
-import { WHATSAPP_MANAGER_URL } from './constants/templateConstants';
+
 
 export function TemplateManagementView({
   templates,
@@ -53,17 +53,9 @@ export function TemplateManagementView({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <a
-            href={WHATSAPP_MANAGER_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition"
-          >
-            <FileText className="h-4 w-4" />
-            <span>WhatsApp Manager</span>
-          </a>
+
           <h2 className="mt-1 text-xl font-bold text-slate-900">Quản lý Message Template</h2>
-          <p className="mt-1 text-xs text-slate-500">Tạo component và gửi trực tiếp sang WABA để Meta xét duyệt.</p>
+
         </div>
         <div className="flex gap-2">
           <button
