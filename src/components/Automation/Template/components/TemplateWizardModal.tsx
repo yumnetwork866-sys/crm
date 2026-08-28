@@ -364,9 +364,9 @@ export function TemplateWizardModal({
           onSubmit={handleSubmit}
           className="space-y-5 bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-3 pb-28 sm:p-5 sm:pb-24"
         >
-          <WizardProgress step={wizardStep} />
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 space-y-5">
+              <WizardProgress step={wizardStep} />
               {wizardStep === 1 ? (
                 <>
                   <section className={sectionClass}>
@@ -1014,26 +1014,31 @@ export function TemplateWizardModal({
               </div>
             </div>
 
-            <div className="w-full lg:sticky lg:top-5 lg:w-90">
-              <TemplatePreview
-                wizardStep={wizardStep}
-                templateType={form.templateType}
-                category={form.category}
-                headerFormat={form.headerFormat}
-                headerText={form.headerText}
-                headerExamples={form.headerExamples}
-                mediaFileName={form.mediaFileName}
-                mediaPreviewUrl={form.mediaPreviewUrl}
-                body={form.body}
-                bodyExamples={form.bodyExamples}
-                footer={form.footer}
-                buttons={form.buttons}
-                parameterFormat={form.parameterFormat}
-                otpType={form.otpType}
-                otpButtonText={form.otpButtonText}
-                otpExpiration={form.otpExpiration}
-                addSecurityRecommendation={form.addSecurityRecommendation}
-              />
+            <div className="w-full lg:w-90">
+              <div
+                className="z-20 lg:fixed lg:top-20 lg:max-h-[calc(100vh-11rem)] lg:w-90 lg:overflow-y-auto lg:rounded-2xl"
+                style={{ right: 'max(2rem, calc((100vw - 1536px) / 2))' }}
+              >
+                <TemplatePreview
+                  wizardStep={wizardStep}
+                  templateType={form.templateType}
+                  category={form.category}
+                  headerFormat={form.headerFormat}
+                  headerText={form.headerText}
+                  headerExamples={form.headerExamples}
+                  mediaFileName={form.mediaFileName}
+                  mediaPreviewUrl={form.mediaPreviewUrl}
+                  body={form.body}
+                  bodyExamples={form.bodyExamples}
+                  footer={form.footer}
+                  buttons={form.buttons}
+                  parameterFormat={form.parameterFormat}
+                  otpType={form.otpType}
+                  otpButtonText={form.otpButtonText}
+                  otpExpiration={form.otpExpiration}
+                  addSecurityRecommendation={form.addSecurityRecommendation}
+                />
+              </div>
             </div>
           </div>
       </form>
