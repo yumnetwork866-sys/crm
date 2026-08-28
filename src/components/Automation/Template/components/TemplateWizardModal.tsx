@@ -40,7 +40,7 @@ import {
 } from '../constants/templateConstants';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useMediaUpload, type MediaFormPatch } from '../hooks/useMediaUpload';
-import { TEMPLATE_DRAFT_STORAGE_KEY, useTemplateForm } from '../hooks/useTemplateForm';
+import { persistTemplateDraft, readTemplateDraft, useTemplateForm } from '../hooks/useTemplateForm';
 import type { EditableButton, TemplateType, WizardStep } from '../types';
 import { toE164Phone } from '../utils/templateFormatters';
 import { ReviewSections } from './ReviewSections';
@@ -63,16 +63,9 @@ interface TemplateWizardModalProps {
 const RECENT_EMOJIS_STORAGE_KEY = 'yumcrm_recent_emojis';
 
 function loadDraftWizardStep(): WizardStep {
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || 'null');
-    if (saved && typeof saved === 'object' && 'wizardStep' in saved) {
-      const step = saved.wizardStep;
-      if (step === 1 || step === 2 || step === 3) return step;
-    }
-  } catch {
-    // Ignore malformed or unavailable draft storage.
-  }
-  return 1;
+  const saved = readTemplateDraft();
+  const step = saved?.wizardStep;
+  return step === 1 || step === 2 || step === 3 ? step : 1;
 }
 const CATEGORY_ICONS = {
   MARKETING: Megaphone,
@@ -169,13 +162,7 @@ export function TemplateWizardModal({
   }, []);
 
   useEffect(() => {
-    try {
-      const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || '{}');
-      const previousDraft = saved && typeof saved === 'object' ? saved : {};
-      localStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({ ...previousDraft, wizardStep }));
-    } catch {
-      // Draft persistence is best-effort when storage is unavailable or full.
-    }
+    persistTemplateDraft({ wizardStep });
   }, [wizardStep]);
 
 
@@ -372,12 +359,10 @@ export function TemplateWizardModal({
 
   return (
     <div className="w-full space-y-4">
-
-      <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <form
+      <form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="space-y-5 bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-3 sm:p-5"
+          className="space-y-5 bg-linear-to-br from-slate-50 via-white to-indigo-50/50 p-3 pb-28 sm:p-5 sm:pb-24"
         >
           <WizardProgress step={wizardStep} />
           <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -982,7 +967,7 @@ export function TemplateWizardModal({
                   {createError.message}
                 </div>
               ) : null}
-              <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="fixed inset-x-4 bottom-3 z-40 mx-auto flex max-w-384 flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:inset-x-6 lg:inset-x-8">
                 <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
                   Hủy
                 </button>
@@ -1051,8 +1036,7 @@ export function TemplateWizardModal({
               />
             </div>
           </div>
-        </form>
-      </div>
+      </form>
     </div>
   );
 }

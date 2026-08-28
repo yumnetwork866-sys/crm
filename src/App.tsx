@@ -394,13 +394,6 @@ export default function App() {
                   </Suspense>
                 </main>
 
-                {activeTab !== 'messages' && (
-                  <footer className="bg-slate-900 border-t border-slate-800 text-xs text-slate-400 py-6 text-center mt-auto space-y-2 shrink-0">
-                    <div>
-                      YumNetwork CRM Platform &copy; 2026 — Quản Lý Khách Hàng, Phân Nhóm Tự Động &amp; Meta Graph API Automation.
-                    </div>
-                  </footer>
-                )}
 
                 {/* Modals */}
                 <CustomerDetailModal

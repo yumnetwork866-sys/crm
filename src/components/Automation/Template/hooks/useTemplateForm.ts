@@ -34,16 +34,50 @@ export function createInitialTemplateState(): TemplateFormData {
 
 export const INITIAL_TEMPLATE_STATE: TemplateFormData = createInitialTemplateState();
 export const TEMPLATE_DRAFT_STORAGE_KEY = 'yumcrm_template_draft_v1';
+export const TEMPLATE_DRAFT_TTL_MS = 60 * 60 * 1000;
 
-function loadTemplateDraft(): TemplateFormData {
+type TemplateDraftRecord = Record<string, unknown>;
+
+export function readTemplateDraft(): TemplateDraftRecord | null {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || 'null');
-    if (!saved || typeof saved !== 'object') return createInitialTemplateState();
-    const draft = 'form' in saved && saved.form && typeof saved.form === 'object' ? saved.form : saved;
-    return { ...createInitialTemplateState(), ...draft } as TemplateFormData;
+    if (!saved || typeof saved !== 'object') return null;
+
+    const expiresAt = 'expiresAt' in saved ? Number(saved.expiresAt) : 0;
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      localStorage.removeItem(TEMPLATE_DRAFT_STORAGE_KEY);
+      return null;
+    }
+
+    return saved as TemplateDraftRecord;
   } catch {
-    return createInitialTemplateState();
+    try {
+      localStorage.removeItem(TEMPLATE_DRAFT_STORAGE_KEY);
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
+    return null;
   }
+}
+
+export function persistTemplateDraft(patch: TemplateDraftRecord): void {
+  try {
+    const previousDraft = readTemplateDraft() || {};
+    localStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({
+      ...previousDraft,
+      ...patch,
+      expiresAt: Date.now() + TEMPLATE_DRAFT_TTL_MS,
+    }));
+  } catch {
+    // Draft persistence is best-effort when storage is unavailable or full.
+  }
+}
+
+function loadTemplateDraft(): TemplateFormData {
+  const saved = readTemplateDraft();
+  if (!saved) return createInitialTemplateState();
+  const draft = saved.form && typeof saved.form === 'object' ? saved.form : {};
+  return { ...createInitialTemplateState(), ...draft } as TemplateFormData;
 }
 
 function normalizeButtonText(text: string): string {
@@ -72,13 +106,7 @@ export function useTemplateForm() {
       skipNextPersistRef.current = false;
       return;
     }
-    try {
-      const saved: unknown = JSON.parse(localStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY) || '{}');
-      const previousDraft = saved && typeof saved === 'object' ? saved : {};
-      localStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify({ ...previousDraft, form }));
-    } catch {
-      // Draft persistence is best-effort when storage is unavailable or full.
-    }
+    persistTemplateDraft({ form });
   }, [form]);
 
   const bodyVariables = useMemo(
