@@ -1,4 +1,4 @@
-import { FileText, Image as ImageIcon, Loader2, LockKeyhole, MapPin, ShieldCheck, Video } from 'lucide-react';
+import { FileText, Image as ImageIcon, List, Loader2, LockKeyhole, MapPin, ShieldCheck, Video } from 'lucide-react';
 import { memo, useState } from 'react';
 import type {
   WhatsAppOtpType,
@@ -67,6 +67,8 @@ export const TemplatePreview = memo(function TemplatePreview({
       : MARKETING_SETUP_PREVIEW_IMAGES[templateType];
   const isImageReady = loadedSrc === setupPreviewImage;
   const previewTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const hasMoreButtonOptions = buttons.length >= 3;
+  const visibleButtons = hasMoreButtonOptions ? buttons.slice(0, 2) : buttons;
 
   return (
     <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -162,7 +164,7 @@ export const TemplatePreview = memo(function TemplatePreview({
                 </div>
                 {buttons.length > 0 ? (
                   <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">
-                    {buttons.map((button) => (
+                    {visibleButtons.map((button) => (
                       <div key={button.id} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>
                         <TemplateButtonIcon type={button.type} iconClass={button.buttonIcon} />
                         <span className="font-semibold text-emerald-600" style={{ color: '#059669' }}>
@@ -170,6 +172,16 @@ export const TemplatePreview = memo(function TemplatePreview({
                         </span>
                       </div>
                     ))}
+                    {hasMoreButtonOptions ? (
+                      <div className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600" style={{ color: '#059669' }}>
+                        <List
+                                                  aria-hidden="true"
+                                                  className="h-3.5 w-3.5 text-emerald-600"
+                                                  style={{ color: '#059669', stroke: '#059669' }}
+                                                />
+                        <span>See all options</span>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </>

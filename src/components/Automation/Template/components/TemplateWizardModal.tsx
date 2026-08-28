@@ -516,7 +516,7 @@ export function TemplateWizardModal({
                     <h3 className="font-bold text-slate-900">Template name and language</h3>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
                       <div>
-                        <label className={labelClass}>Name your template</label>
+                        <label className={labelClass}>Tên template</label>
                         <div className="relative">
                           <input
                             required
@@ -532,7 +532,7 @@ export function TemplateWizardModal({
                         </div>
                       </div>
                       <div>
-                        <label className={labelClass}>Select language</label>
+                        <label className={labelClass}>Chọn ngôn ngữ</label>
                         <select
                           required
                           value={form.language}
@@ -789,7 +789,7 @@ export function TemplateWizardModal({
                                 type="button"
                                 onClick={addHeaderVariable}
                                 disabled={headerVariables.length > 0 || form.headerText.length + (form.parameterFormat === 'NAMED' ? 17 : 5) > 60}
-                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <Plus aria-hidden="true" className="h-3.5 w-3.5" /> Thêm biến
                               </button>
@@ -892,6 +892,23 @@ export function TemplateWizardModal({
                             <button type="button" onClick={addBodyVariable} className="ml-1 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                               <Plus aria-hidden="true" className="h-3.5 w-3.5" /> Thêm biến
                             </button>
+                            <span className="group relative inline-flex">
+                              <button
+                                type="button"
+                                aria-label="Hướng dẫn thêm biến vào nội dung"
+                                aria-describedby="body-variable-tooltip"
+                                className="rounded-full text-slate-400 hover:text-indigo-600"
+                              >
+                                <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                              </button>
+                              <span
+                                id="body-variable-tooltip"
+                                role="tooltip"
+                                className="pointer-events-none absolute right-0 bottom-full z-30 mb-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-900 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                              >
+                                Thêm biến để dữ liệu tương ứng được thay thế khi gửi tin nhắn.
+                              </span>
+                            </span>
                           </div>
                         </div>
 

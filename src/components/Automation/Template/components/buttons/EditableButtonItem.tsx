@@ -468,15 +468,7 @@ export const EditableButtonItem = memo(function EditableButtonItem({
                 </div>
               ) : null}
 
-              <input
-                required
-                id={`template-button-flow-id-${button.id}`}
-                value={button.flowId}
-                onChange={(event) => onUpdate(button.id, { flowId: event.target.value })}
-                placeholder="Nhập Flow ID đã tạo"
-                className={`${inputClass} mt-2 h-10`}
-              />
-              <p className="mt-1 text-[11px] text-slate-500">Button mặc định sử dụng icon Flow và nội dung “View Flow”.</p>
+
             </div>
           ) : null}
         </div>
@@ -484,7 +476,9 @@ export const EditableButtonItem = memo(function EditableButtonItem({
         <button
           type="button"
           onClick={() => onRemove(button.id)}
-          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700"
+          className={`flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50 hover:text-rose-700 ${
+            button.type === 'FLOW' ? 'mt-5 self-start' : ''
+          }`}
           aria-label="Xóa button"
           title="Xóa button"
         >

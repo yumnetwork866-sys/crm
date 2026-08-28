@@ -10,7 +10,7 @@ const STEPS = ['Set up template', 'Edit template', 'Submit for Review'] as const
 
 export const WizardProgress = memo(function WizardProgress({ step }: WizardProgressProps) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-5 shadow-sm sm:px-8">
+    <div className="px-3 py-2 sm:px-8">
       <ol className="grid grid-cols-3">
         {STEPS.map((label, index) => {
           const number = (index + 1) as WizardStep;
