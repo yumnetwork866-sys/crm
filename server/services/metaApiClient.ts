@@ -456,6 +456,120 @@ export async function fetchApprovedMessageTemplates(options: {
   return templates.filter((template) => template.status === 'APPROVED');
 }
 
+export interface TemplateAnalyticsDataPoint {
+  start: number;
+  end: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  clicked: number;
+}
+
+export interface TemplateAnalyticsSummary {
+  templateId: string;
+  sent: number;
+  delivered: number;
+  read: number;
+  clicked: number;
+  dataPoints: TemplateAnalyticsDataPoint[];
+}
+
+function analyticsCount(value: unknown): number {
+  if (Array.isArray(value)) {
+    return value.reduce((total, item) => {
+      const count = item && typeof item === 'object' && 'count' in item
+        ? Number(item.count)
+        : 0;
+      return total + (Number.isFinite(count) ? count : 0);
+    }, 0);
+  }
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+}
+
+export async function fetchTemplateAnalytics(options: {
+  wabaId: string;
+  token: string;
+  templateIds: string[];
+  start?: number;
+  end?: number;
+}): Promise<TemplateAnalyticsSummary[]> {
+  const end = options.end ?? Math.floor(Date.now() / 1000);
+  const start = options.start ?? end - (30 * 24 * 60 * 60);
+  const templateIds = Array.from(new Set(options.templateIds));
+  const pointsByTemplate = new Map<string, Map<string, TemplateAnalyticsDataPoint>>(
+    templateIds.map((templateId) => [templateId, new Map()]),
+  );
+
+  for (let offset = 0; offset < templateIds.length; offset += 10) {
+    const batch = templateIds.slice(offset, offset + 10);
+    const query = new URLSearchParams({
+      start: String(start),
+      end: String(end),
+      granularity: 'DAILY',
+      metric_types: JSON.stringify(['SENT', 'DELIVERED', 'READ', 'CLICKED']),
+      template_ids: JSON.stringify(batch),
+    });
+    const response = await fetch(
+      `https://graph.facebook.com/v26.0/${options.wabaId}/template_analytics?${query.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${options.token}` },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    const result: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error?.message || 'Không thể tải thống kê WhatsApp template từ Meta.');
+    }
+
+    for (const entry of Array.isArray(result?.data) ? result.data : []) {
+      const rawPoints = Array.isArray(entry?.data_points) ? entry.data_points : [entry];
+      for (const rawPoint of rawPoints) {
+        const templateId = String(rawPoint?.template_id ?? entry?.template_id ?? '');
+        const templatePoints = pointsByTemplate.get(templateId);
+        if (!templatePoints) continue;
+        const point: TemplateAnalyticsDataPoint = {
+          start: analyticsCount(rawPoint?.start),
+          end: analyticsCount(rawPoint?.end),
+          sent: analyticsCount(rawPoint?.sent),
+          delivered: analyticsCount(rawPoint?.delivered),
+          read: analyticsCount(rawPoint?.read),
+          clicked: analyticsCount(rawPoint?.clicked),
+        };
+        const pointKey = `${point.start}:${point.end}`;
+        const existing = templatePoints.get(pointKey);
+        templatePoints.set(pointKey, existing ? {
+          start: point.start,
+          end: point.end,
+          sent: existing.sent + point.sent,
+          delivered: existing.delivered + point.delivered,
+          read: existing.read + point.read,
+          clicked: existing.clicked + point.clicked,
+        } : point);
+      }
+    }
+  }
+
+  return templateIds.map((templateId) => {
+    const dataPoints = Array.from(pointsByTemplate.get(templateId)?.values() || [])
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+    return dataPoints.reduce<TemplateAnalyticsSummary>((summary, point) => ({
+      ...summary,
+      sent: summary.sent + point.sent,
+      delivered: summary.delivered + point.delivered,
+      read: summary.read + point.read,
+      clicked: summary.clicked + point.clicked,
+    }), {
+      templateId,
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      clicked: 0,
+      dataPoints,
+    });
+  });
+}
+
 export interface WhatsAppFlow {
   id: string;
   name: string;

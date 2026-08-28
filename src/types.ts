@@ -155,6 +155,24 @@ export type BroadcastCampaignStatus =
   | 'Failed'
   | 'Cancelled';
 
+export interface WhatsAppTemplateAnalyticsPoint {
+  start: number;
+  end: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  clicked: number;
+}
+
+export interface WhatsAppTemplateAnalytics {
+  templateId: string;
+  sent: number;
+  delivered: number;
+  read: number;
+  clicked: number;
+  dataPoints: WhatsAppTemplateAnalyticsPoint[];
+}
+
 export interface WhatsAppApprovedTemplate {
   id?: string;
   name: string;

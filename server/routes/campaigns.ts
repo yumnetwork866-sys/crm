@@ -8,6 +8,7 @@ import { kickCampaignWorker } from '../services/campaignWorker';
 import {
   createMessageTemplate,
   fetchMessageTemplates,
+  fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   getIntegrationSetting,
   uploadTemplateSampleMedia,
@@ -19,6 +20,32 @@ const router = Router();
 router.use(authenticateToken);
 
 const categorySchema = z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']);
+
+const templateAnalyticsQuerySchema = z.object({
+  start: z.coerce.number().int().nonnegative().optional(),
+  end: z.coerce.number().int().nonnegative().optional(),
+  templateIds: z.preprocess(
+    (value) => {
+      const values = Array.isArray(value) ? value : [value];
+      return values.flatMap((item) => typeof item === 'string' ? item.split(',') : []);
+    },
+    z.array(z.string().trim().regex(/^\d+$/, 'Template ID phải là số.').max(128)).min(1).max(100),
+  ).transform((templateIds) => Array.from(new Set(templateIds))),
+}).strict().superRefine((data, context) => {
+  if ((data.start === undefined) !== (data.end === undefined)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [data.start === undefined ? 'start' : 'end'],
+      message: 'start và end phải được cung cấp cùng nhau.',
+    });
+  } else if (data.start !== undefined && data.end !== undefined && data.start >= data.end) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['end'],
+      message: 'end phải lớn hơn start.',
+    });
+  }
+});
 
 const campaignInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -461,6 +488,41 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
     return res.json(campaigns);
   } catch (error) {
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách chiến dịch' });
+  }
+});
+
+// GET /api/campaigns/templates/analytics - Real daily analytics loaded directly from WABA
+router.get('/templates/analytics', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = templateAnalyticsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: parsed.error.issues[0]?.message || 'Tham số thống kê template không hợp lệ.',
+    });
+  }
+
+  const end = parsed.data.end ?? Math.floor(Date.now() / 1000);
+  const start = parsed.data.start ?? end - (30 * 24 * 60 * 60);
+  try {
+    const setting = await getIntegrationSetting();
+    const wabaId = setting.whatsappWabaId?.trim();
+    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    if (!wabaId || !token) {
+      return res.status(409).json({
+        error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
+      });
+    }
+    const data = await fetchTemplateAnalytics({
+      wabaId,
+      token,
+      templateIds: parsed.data.templateIds,
+      start,
+      end,
+    });
+    return res.json({ start, end, data });
+  } catch (error: any) {
+    return res.status(502).json({
+      error: error?.message || 'Không thể tải thống kê WhatsApp template từ Meta.',
+    });
   }
 });
 

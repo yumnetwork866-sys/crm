@@ -118,6 +118,11 @@ export const WHATSAPP_MANAGER_URL =
     ? `https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?business_id=${encodeURIComponent(metaBusinessId)}&tab=phone-numbers&nav_ref=whatsapp_manager&asset_id=${encodeURIComponent(whatsappWabaId)}`
     : 'https://business.facebook.com/latest/whatsapp_manager/phone_numbers/';
 
+export const WHATSAPP_INSIGHTS_URL =
+  metaBusinessId && whatsappWabaId
+    ? `https://business.facebook.com/latest/whatsapp_manager/insights/?business_id=${encodeURIComponent(metaBusinessId)}&tab=insights&nav_ref=whatsapp_manager&asset_id=${encodeURIComponent(whatsappWabaId)}`
+    : 'https://business.facebook.com/latest/whatsapp_manager/insights/?tab=insights&nav_ref=whatsapp_manager';
+
 export const WHATSAPP_CALLING_DOCS_URL =
   'https://developers.facebook.com/docs/whatsapp/cloud-api/calling';
 

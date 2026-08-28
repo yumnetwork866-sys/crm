@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildMessageTemplatePayload,
+  fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   uploadTemplateSampleMedia,
 } from './metaApiClient';
@@ -161,6 +162,112 @@ describe('fetchWhatsAppFlows', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/waba-id/flows?');
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
       headers: { Authorization: 'Bearer access-token' },
+    });
+  });
+});
+
+describe('fetchTemplateAnalytics', () => {
+  it('batches template IDs and normalizes daily metrics and totals', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [{
+          granularity: 'DAILY',
+          data_points: [
+            {
+              template_id: '1',
+              start: 1_700_000_000,
+              end: 1_700_086_400,
+              sent: 10,
+              delivered: 8,
+              read: 6,
+              clicked: [{ count: 2 }, { count: 1 }],
+            },
+            {
+              template_id: '1',
+              start: 1_700_086_400,
+              end: 1_700_172_800,
+              sent: 5,
+              delivered: 4,
+              read: 3,
+              clicked: 2,
+            },
+          ],
+        }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [{
+          template_id: '11',
+          start: 1_700_000_000,
+          end: 1_700_086_400,
+          sent: 7,
+          delivered: 6,
+          read: 5,
+          clicked: [{ count: 4 }],
+        }],
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const templateIds = Array.from({ length: 11 }, (_, index) => String(index + 1));
+
+    const result = await fetchTemplateAnalytics({
+      wabaId: 'waba-id',
+      token: 'access-token',
+      templateIds,
+      start: 1_700_000_000,
+      end: 1_700_172_800,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(firstUrl.origin + firstUrl.pathname).toBe(
+      'https://graph.facebook.com/v26.0/waba-id/template_analytics',
+    );
+    expect(firstUrl.searchParams.get('start')).toBe('1700000000');
+    expect(firstUrl.searchParams.get('end')).toBe('1700172800');
+    expect(firstUrl.searchParams.get('granularity')).toBe('DAILY');
+    expect(JSON.parse(firstUrl.searchParams.get('metric_types') || '[]')).toEqual([
+      'SENT', 'DELIVERED', 'READ', 'CLICKED',
+    ]);
+    expect(JSON.parse(firstUrl.searchParams.get('template_ids') || '[]')).toEqual(templateIds.slice(0, 10));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(JSON.parse(secondUrl.searchParams.get('template_ids') || '[]')).toEqual(['11']);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { Authorization: 'Bearer access-token' },
+    });
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      headers: { Authorization: 'Bearer access-token' },
+    });
+
+    expect(result).toHaveLength(11);
+    expect(result[0]).toEqual({
+      templateId: '1',
+      sent: 15,
+      delivered: 12,
+      read: 9,
+      clicked: 5,
+      dataPoints: [
+        {
+          start: 1_700_000_000,
+          end: 1_700_086_400,
+          sent: 10,
+          delivered: 8,
+          read: 6,
+          clicked: 3,
+        },
+        {
+          start: 1_700_086_400,
+          end: 1_700_172_800,
+          sent: 5,
+          delivered: 4,
+          read: 3,
+          clicked: 2,
+        },
+      ],
+    });
+    expect(result[1]).toEqual({
+      templateId: '2', sent: 0, delivered: 0, read: 0, clicked: 0, dataPoints: [],
+    });
+    expect(result[10]).toMatchObject({
+      templateId: '11', sent: 7, delivered: 6, read: 5, clicked: 4,
     });
   });
 });

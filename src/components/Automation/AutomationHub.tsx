@@ -78,7 +78,9 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   onResetCreateTemplateError,
 }) => {
   const location = useLocation();
-  const isCreatingTemplate = location.pathname.replace(/\/$/, '') === '/automation/templates/create';
+  const normalizedPath = location.pathname.replace(/\/$/, '');
+  const isTemplateSubpage = normalizedPath.startsWith('/automation/templates/')
+    && normalizedPath !== '/automation/templates';
   const templateManagement = (
     <TemplateManagementView
       templates={templates}
@@ -94,7 +96,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
 
   return (
     <div className="space-y-6">
-      {!isCreatingTemplate ? (
+      {!isTemplateSubpage ? (
         <div key="automation-tabs" className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <div
             className="grid grid-cols-1 gap-2 sm:grid-cols-3"
