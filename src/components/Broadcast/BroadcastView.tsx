@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Send, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, MessageSquare,
-  Users, Tag, Globe, Play, Layers, Clock, AlertTriangle
+  Users, Tag, Globe, Play, Layers, Clock
 } from 'lucide-react';
 import type {
   Customer,
@@ -231,16 +231,6 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
         </div>
       </div>
 
-      {/* WhatsApp Compliance Warning */}
-      <div className="bg-amber-500/15 border border-amber-500/40 p-4 rounded-2xl flex items-start space-x-3 text-xs text-amber-900 dark:text-amber-200">
-        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-bold text-amber-900 dark:text-amber-300 text-sm">Chính Sách WhatsApp Business Platform (Opt-In Compliance)</span>
-          <p className="mt-0.5 text-amber-800 dark:text-amber-200/90 leading-relaxed">
-            Hệ thống CRM tự động lọc và <strong>chỉ gửi tin nhắn cho khách hàng đã đồng ý nhận tin nhắn (Opt-In)</strong>. Khách chưa Opt-In sẽ tự động bị bỏ qua để bảo vệ uy tín thương hiệu và tuân thủ chính sách chống Spam.
-          </p>
-        </div>
-      </div>
 
       {/* Main Campaign Builder Form */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

@@ -4,9 +4,6 @@ import {
   Plus,
   Trash2,
   Pencil,
-  ArrowUp,
-  ArrowDown,
-  RotateCcw,
   Check,
   Heart,
   MessageCircle,
@@ -48,7 +45,6 @@ interface AutomationStepModalProps {
   onClose: () => void;
   steps: AutomationStepItem[];
   onSaveSteps: (updatedSteps: AutomationStepItem[]) => void;
-  onResetDefaults: () => void;
   approvedTemplates?: WhatsAppApprovedTemplate[];
   initialEditStepId?: string | null;
 }
@@ -58,17 +54,21 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   onClose,
   steps,
   onSaveSteps,
-  onResetDefaults,
   approvedTemplates = [],
   initialEditStepId,
 }) => {
-  const [currentSteps, setCurrentSteps] = useState<AutomationStepItem[]>(steps);
+  const sortStepsByDay = (items: AutomationStepItem[]) =>
+    [...items]
+      .sort((a, b) => a.dayOffset - b.dayOffset)
+      .map((s, idx) => ({ ...s, step: idx + 1 }));
+
+  const [currentSteps, setCurrentSteps] = useState<AutomationStepItem[]>(() => sortStepsByDay(steps));
   const [editingStep, setEditingStep] = useState<AutomationStepItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
 
   // Sync when modal opens or steps change
   React.useEffect(() => {
-    setCurrentSteps(steps);
+    setCurrentSteps(sortStepsByDay(steps));
     if (initialEditStepId) {
       const target = steps.find((s) => s.id === initialEditStepId);
       if (target) {
@@ -160,26 +160,28 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         active: formData.active,
         templateName: formData.templateName || undefined,
       };
-      const updated = [...currentSteps, newStep].map((s, idx) => ({ ...s, step: idx + 1 }));
+      const updated = sortStepsByDay([...currentSteps, newStep]);
       setCurrentSteps(updated);
       onSaveSteps(updated);
     } else if (editingStep) {
-      const updated = currentSteps.map((s) => {
-        if (s.id === editingStep.id) {
-          return {
-            ...s,
-            title: formData.title.trim(),
-            dayOffset: Number(formData.dayOffset) || 0,
-            objective: formData.objective.trim(),
-            defaultMsg: formData.defaultMsg.trim(),
-            iconName: formData.iconName,
-            color: formData.color,
-            active: formData.active,
-            templateName: formData.templateName || undefined,
-          };
-        }
-        return s;
-      });
+      const updated = sortStepsByDay(
+        currentSteps.map((s) => {
+          if (s.id === editingStep.id) {
+            return {
+              ...s,
+              title: formData.title.trim(),
+              dayOffset: Number(formData.dayOffset) || 0,
+              objective: formData.objective.trim(),
+              defaultMsg: formData.defaultMsg.trim(),
+              iconName: formData.iconName,
+              color: formData.color,
+              active: formData.active,
+              templateName: formData.templateName || undefined,
+            };
+          }
+          return s;
+        })
+      );
       setCurrentSteps(updated);
       onSaveSteps(updated);
     }
@@ -194,9 +196,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     }
     if (!confirm('Bạn có chắc chắn muốn xóa bước này khỏi quy trình?')) return;
 
-    const updated = currentSteps
-      .filter((s) => s.id !== stepId)
-      .map((s, idx) => ({ ...s, step: idx + 1 }));
+    const updated = sortStepsByDay(currentSteps.filter((s) => s.id !== stepId));
     setCurrentSteps(updated);
     onSaveSteps(updated);
 
@@ -206,23 +206,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   };
 
   const handleToggleActive = (stepId: string) => {
-    const updated = currentSteps.map((s) => (s.id === stepId ? { ...s, active: !s.active } : s));
+    const updated = sortStepsByDay(currentSteps.map((s) => (s.id === stepId ? { ...s, active: !s.active } : s)));
     setCurrentSteps(updated);
     onSaveSteps(updated);
-  };
-
-  const handleMoveStep = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= currentSteps.length) return;
-
-    const updated = [...currentSteps];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-
-    const reindexed = updated.map((s, idx) => ({ ...s, step: idx + 1 }));
-    setCurrentSteps(reindexed);
-    onSaveSteps(reindexed);
   };
 
   const handleSelectApprovedTemplate = (templateName: string) => {
@@ -264,9 +250,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                 Tùy Chỉnh Quy Trình Chăm Sóc Khách Hàng Tự Động
               </h3>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Thêm, sửa, xóa hoặc thay đổi ngày gửi và nội dung tin nhắn của từng bước trong kịch bản.
-            </p>
+
           </div>
           <button
             onClick={onClose}
@@ -286,13 +270,32 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                   <Pencil className="w-4 h-4 text-emerald-600" />
                   <span>{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
                 </h4>
-                <button
-                  type="button"
-                  onClick={handleCancelForm}
-                  className="text-xs text-slate-500 hover:text-slate-800 font-medium transition cursor-pointer"
-                >
-                  Hủy quay lại
-                </button>
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={formData.active}
+                    onClick={() => setFormData((prev) => ({ ...prev, active: !prev.active }))}
+                    title={formData.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:outline-none focus:ring-0 ${
+                      formData.active ? 'bg-emerald-600' : 'bg-rose-500'
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        formData.active ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelForm}
+                    className="text-xs text-slate-500 hover:text-slate-800 font-medium transition cursor-pointer"
+                  >
+                    Hủy quay lại
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -510,11 +513,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
                             +{s.dayOffset} ngày
                           </span>
-                          {!s.active && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-200">
-                              Đã tắt
-                            </span>
-                          )}
                         </div>
                         <p className="text-[11px] text-slate-500 truncate mt-0.5 max-w-lg">
                           {s.objective || s.defaultMsg}
@@ -522,38 +520,24 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-1.5 shrink-0 self-end sm:self-auto">
-                      {/* Reorder Buttons */}
+                    <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                      {/* Active toggle switch */}
                       <button
                         type="button"
-                        disabled={isFirst}
-                        onClick={() => handleMoveStep(idx, 'up')}
-                        title="Di chuyển lên"
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isLast}
-                        onClick={() => handleMoveStep(idx, 'down')}
-                        title="Di chuyển xuống"
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Active toggle */}
-                      <button
-                        type="button"
+                        role="switch"
+                        aria-checked={s.active}
                         onClick={() => handleToggleActive(s.id)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                          s.active
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                            : 'bg-slate-100 border-slate-200 text-slate-500'
+                        title={s.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:outline-none focus:ring-0 ${
+                          s.active ? 'bg-emerald-600' : 'bg-rose-500'
                         }`}
                       >
-                        {s.active ? 'Đang bật' : 'Tắt'}
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            s.active ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
                       </button>
 
                       {/* Edit Button */}
@@ -584,21 +568,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0 bg-white">
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm('Khôi phục lại 4 bước quy trình mặc định (Ngày +3, +5, +7, +15)?')) {
-                onResetDefaults();
-                handleCancelForm();
-              }
-            }}
-            className="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-amber-600 transition cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Khôi phục mặc định</span>
-          </button>
-
+        <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-end shrink-0 bg-white">
           <button
             type="button"
             onClick={onClose}

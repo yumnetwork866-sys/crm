@@ -87,7 +87,9 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
               item.step === 3 ? DEFAULT_AUTOMATION_STEPS[2].color :
               DEFAULT_AUTOMATION_STEPS[3].color
             ),
-          }));
+          }))
+            .sort((a, b) => a.dayOffset - b.dayOffset)
+            .map((s, idx) => ({ ...s, step: idx + 1 }));
         }
       }
     } catch (err) {
@@ -100,33 +102,30 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalEditStepId, setModalEditStepId] = useState<string | null>(null);
 
-  const activeSteps = useMemo(() => steps.filter((s) => s.active), [steps]);
+  const activeSteps = useMemo(
+    () => [...steps].filter((s) => s.active).sort((a, b) => a.dayOffset - b.dayOffset),
+    [steps]
+  );
 
   const currentSelectedStep = useMemo(() => {
     return activeSteps.find((s) => s.id === selectedStepId) || activeSteps[0] || null;
   }, [activeSteps, selectedStepId]);
 
   const handleSaveSteps = (updatedSteps: AutomationStepItem[]) => {
-    setSteps(updatedSteps);
+    const sorted = [...updatedSteps]
+      .sort((a, b) => a.dayOffset - b.dayOffset)
+      .map((s, idx) => ({ ...s, step: idx + 1 }));
+    setSteps(sorted);
     try {
-      localStorage.setItem(STORAGE_KEY_AUTOMATION_STEPS, JSON.stringify(updatedSteps));
+      localStorage.setItem(STORAGE_KEY_AUTOMATION_STEPS, JSON.stringify(sorted));
     } catch (err) {
       console.error('Failed to save automation steps to localStorage', err);
     }
-    if (!updatedSteps.some((s) => s.id === selectedStepId && s.active)) {
-      setSelectedStepId(updatedSteps.find((s) => s.active)?.id || updatedSteps[0]?.id || '');
+    if (!sorted.some((s) => s.id === selectedStepId && s.active)) {
+      setSelectedStepId(sorted.find((s) => s.active)?.id || sorted[0]?.id || '');
     }
   };
 
-  const handleResetDefaults = () => {
-    setSteps(DEFAULT_AUTOMATION_STEPS);
-    try {
-      localStorage.removeItem(STORAGE_KEY_AUTOMATION_STEPS);
-    } catch (err) {
-      console.error('Failed to reset automation steps in localStorage', err);
-    }
-    setSelectedStepId(DEFAULT_AUTOMATION_STEPS[0].id);
-  };
 
   // Filter customers that have orders and active automation sequences
   const automationCustomers = customers.filter(
@@ -393,7 +392,6 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
         }}
         steps={steps}
         onSaveSteps={handleSaveSteps}
-        onResetDefaults={handleResetDefaults}
         approvedTemplates={approvedTemplates}
         initialEditStepId={modalEditStepId}
       />
