@@ -73,9 +73,6 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
           <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
             Quy Trình Automation WhatsApp Sau Mua
           </h2>
-          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
-            Khi khách phát sinh đơn hàng, CRM tự động thiết lập kịch bản gửi tin WhatsApp Ngày +3, +5, +7 và +15 để duy trì tương tác và thúc đẩy mua lại.
-          </p>
         </div>
 
         <button

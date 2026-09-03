@@ -8,6 +8,7 @@ import { kickCampaignWorker } from '../services/campaignWorker';
 import {
   createMessageTemplate,
   createSurveyFlow,
+  deleteMessageTemplate,
   fetchMessageTemplates,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
@@ -21,6 +22,13 @@ const router = Router();
 router.use(authenticateToken);
 
 const categorySchema = z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']);
+
+const templateBulkDeleteSchema = z.object({
+  templates: z.array(z.object({
+    id: z.string().trim().regex(/^\d+$/, 'Template ID phải là số.').max(128),
+    name: z.string().trim().regex(/^[a-z0-9_]+$/, 'Tên template không hợp lệ.').max(512),
+  }).strict()).min(1).max(100),
+}).strict();
 
 const templateAnalyticsQuerySchema = z.object({
   start: z.coerce.number().int().nonnegative().optional(),
@@ -614,6 +622,45 @@ router.post(
     } catch (error: any) {
       return res.status(502).json({
         error: error?.message || 'Không thể tạo WhatsApp Flow trên Meta.',
+      });
+    }
+  },
+);
+
+// POST /api/campaigns/templates/bulk-delete - Delete selected language variants from Meta
+router.post(
+  '/templates/bulk-delete',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = templateBulkDeleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Danh sách template cần xóa không hợp lệ.',
+      });
+    }
+
+    try {
+      const setting = await getIntegrationSetting();
+      const wabaId = setting.whatsappWabaId?.trim();
+      const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+      if (!wabaId || !token) {
+        return res.status(409).json({
+          error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
+        });
+      }
+
+      for (const template of parsed.data.templates) {
+        await deleteMessageTemplate({
+          wabaId,
+          token,
+          templateId: template.id,
+          name: template.name,
+        });
+      }
+      return res.json({ success: true, deleted: parsed.data.templates.length });
+    } catch (error: any) {
+      return res.status(502).json({
+        error: error?.message || 'Không thể xóa template khỏi Meta.',
       });
     }
   },

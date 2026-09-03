@@ -17,10 +17,12 @@ export function TemplateManagementView({
   isCreatePending,
   createError,
   onResetCreateError,
+  onRefetch,
 }: TemplateManagementViewProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [successMessage, setSuccessMessage] = useState('');
+  const [bulkActionError, setBulkActionError] = useState('');
   const [analyticsByTemplateId, setAnalyticsByTemplateId] = useState<Record<string, WhatsAppTemplateAnalytics>>({});
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
@@ -55,6 +57,32 @@ export function TemplateManagementView({
   const handleSuccess = useCallback((message: string) => {
     setSuccessMessage(message);
   }, []);
+
+  const deleteSelectedTemplates = useCallback(async (selectedTemplates: typeof templates) => {
+    const deletableTemplates = selectedTemplates.flatMap((template) => template.id
+      ? [{ id: template.id, name: template.name }]
+      : []);
+    if (deletableTemplates.length !== selectedTemplates.length) {
+      throw new Error('Không thể xóa template chưa có Meta ID.');
+    }
+
+    setBulkActionError('');
+    setSuccessMessage('');
+    try {
+      await api.post<{ success: boolean; deleted: number }>('/campaigns/templates/bulk-delete', {
+        templates: deletableTemplates,
+      });
+      setSuccessMessage(`Đã xóa ${deletableTemplates.length} template khỏi Meta.`);
+    } catch (deleteError) {
+      const message = deleteError instanceof Error
+        ? deleteError.message
+        : 'Không thể xóa template khỏi Meta.';
+      setBulkActionError(message);
+      throw deleteError;
+    } finally {
+      onRefetch();
+    }
+  }, [onRefetch, templates]);
 
   useEffect(() => {
     if (!templateIdsKey) {
@@ -165,9 +193,9 @@ export function TemplateManagementView({
         </div>
       ) : null}
 
-      {error ? (
+      {error || bulkActionError ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">
-          {error.message}
+          {bulkActionError || error?.message}
         </div>
       ) : null}
       {templates.length > 0 ? (
@@ -175,6 +203,7 @@ export function TemplateManagementView({
           templates={templates}
           analyticsByTemplateId={analyticsByTemplateId}
           isAnalyticsLoading={isAnalyticsLoading}
+          onDeleteTemplates={deleteSelectedTemplates}
           onSelectTemplate={(template) => {
             const key = template.id || `${template.name}::${template.language}`;
             void navigate(`/automation/templates/${encodeURIComponent(key)}`);

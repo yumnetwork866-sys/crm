@@ -1,4 +1,13 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, Info } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Info,
+  LoaderCircle,
+  Trash2,
+} from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import type { WhatsAppApprovedTemplate, WhatsAppTemplateAnalytics } from '../../../../types';
 import { getTemplateLanguageLabel } from '../constants/languages';
@@ -11,6 +20,7 @@ interface TemplateTableProps {
   templates: WhatsAppApprovedTemplate[];
   analyticsByTemplateId: Record<string, WhatsAppTemplateAnalytics>;
   isAnalyticsLoading: boolean;
+  onDeleteTemplates: (templates: WhatsAppApprovedTemplate[]) => Promise<void>;
   onSelectTemplate: (template: WhatsAppApprovedTemplate) => void;
 }
 
@@ -65,9 +75,11 @@ export const TemplateTable = memo(function TemplateTable({
   templates,
   analyticsByTemplateId,
   isAnalyticsLoading,
+  onDeleteTemplates,
   onSelectTemplate,
 }: TemplateTableProps) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('lastEdited');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -106,6 +118,7 @@ export const TemplateTable = memo(function TemplateTable({
     });
   }, [analyticsByTemplateId, sortDirection, sortKey, templates]);
 
+  const selectedTemplates = templates.filter((template) => selectedKeys.has(getTemplateKey(template)));
   const allSelected = templates.length > 0
     && templates.every((template) => selectedKeys.has(getTemplateKey(template)));
   const someSelected = !allSelected
@@ -137,6 +150,24 @@ export const TemplateTable = memo(function TemplateTable({
       else next.add(key);
       return next;
     });
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedTemplates.length || isDeleting) return;
+    const confirmed = window.confirm(
+      `Xóa ${selectedTemplates.length} template đã chọn khỏi Meta? Hành động này không thể hoàn tác.`,
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      await onDeleteTemplates(selectedTemplates);
+      setSelectedKeys(new Set());
+    } catch {
+      // The parent displays the API error while preserving the selection for retry.
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => {
@@ -176,6 +207,40 @@ export const TemplateTable = memo(function TemplateTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      {selectedTemplates.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-3">
+          <span className="mr-1 text-sm font-medium text-slate-800">
+            {selectedTemplates.length} templates selected
+          </span>
+          <button
+            type="button"
+            onClick={() => void deleteSelected()}
+            disabled={isDeleting || selectedTemplates.some((template) => !template.id)}
+            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeleting
+              ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Meta Graph API không hỗ trợ chủ động archive message template."
+            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Archive className="h-4 w-4" aria-hidden="true" /> Archive
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Meta Graph API không hỗ trợ chủ động unarchive message template."
+            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Unarchive
+          </button>
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-310 border-collapse text-sm">
           <thead className="border-b border-slate-200 bg-white text-xs">

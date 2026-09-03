@@ -3,6 +3,7 @@ import {
   buildMessageTemplatePayload,
   buildSurveyFlowJson,
   createSurveyFlow,
+  deleteMessageTemplate,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   uploadTemplateSampleMedia,
@@ -298,6 +299,30 @@ describe('createSurveyFlow', () => {
         headers: { Authorization: 'Bearer access-token' },
       }),
     ]);
+  });
+});
+
+describe('deleteMessageTemplate', () => {
+  it('deletes only the selected language variant by name and hsm_id', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(deleteMessageTemplate({
+      wabaId: 'waba-id',
+      token: 'access-token',
+      templateId: '123456',
+      name: 'order_ready',
+    })).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.facebook.com/v26.0/waba-id/message_templates?name=order_ready&hsm_id=123456',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer access-token' },
+      }),
+    );
   });
 });
 

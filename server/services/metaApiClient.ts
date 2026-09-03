@@ -448,6 +448,30 @@ export async function fetchMessageTemplates(options: {
   );
 }
 
+export async function deleteMessageTemplate(options: {
+  wabaId: string;
+  token: string;
+  templateId: string;
+  name: string;
+}): Promise<void> {
+  const query = new URLSearchParams({
+    name: options.name,
+    hsm_id: options.templateId,
+  });
+  const response = await fetch(
+    `https://graph.facebook.com/v26.0/${options.wabaId}/message_templates?${query.toString()}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${options.token}` },
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  const result: any = await response.json().catch(() => ({}));
+  if (!response.ok || result?.success !== true) {
+    throw new Error(getMetaApiError(result, `Meta không thể xóa template '${options.name}'.`));
+  }
+}
+
 export async function fetchApprovedMessageTemplates(options: {
   wabaId: string;
   token: string;
