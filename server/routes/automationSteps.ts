@@ -7,6 +7,18 @@ import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = Router();
 
+const automationStepSelect = {
+  id: true,
+  step: true,
+  dayOffset: true,
+  title: true,
+  defaultMsg: true,
+  iconName: true,
+  color: true,
+  active: true,
+  templateName: true,
+} as const;
+
 const automationStepSchema = z.object({
   id: z.string().trim().min(1).max(128),
   step: z.number().int().positive().optional(),
@@ -28,6 +40,7 @@ router.use(authenticateToken);
 router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const steps = await prisma.automationStep.findMany({
+      select: automationStepSelect,
       orderBy: [{ dayOffset: 'asc' }, { step: 'asc' }],
     });
     return res.json(steps);
@@ -69,6 +82,7 @@ router.put('/', async (req: AuthenticatedRequest, res: Response) => {
       await transaction.automationStep.deleteMany();
       await transaction.automationStep.createMany({ data: normalizedSteps });
       return transaction.automationStep.findMany({
+        select: automationStepSelect,
         orderBy: [{ dayOffset: 'asc' }, { step: 'asc' }],
       });
     });

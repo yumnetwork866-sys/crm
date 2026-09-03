@@ -13,7 +13,19 @@ export function useAutomationSteps() {
 
   const saveMutation = useMutation({
     mutationFn: (steps: AutomationStepItem[]) =>
-      api.put<AutomationStepItem[]>('/automation-steps', { steps }),
+      api.put<AutomationStepItem[]>('/automation-steps', {
+        steps: steps.map((step) => ({
+          id: step.id,
+          step: step.step,
+          dayOffset: step.dayOffset,
+          title: step.title,
+          defaultMsg: step.defaultMsg,
+          iconName: step.iconName,
+          color: step.color,
+          active: step.active,
+          templateName: step.templateName,
+        })),
+      }),
     onSuccess: (savedSteps) => {
       queryClient.setQueryData(queryKeys.automationSteps, savedSteps);
     },
