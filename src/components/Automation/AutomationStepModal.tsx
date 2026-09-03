@@ -32,7 +32,18 @@ export const STEP_ICON_MAP: Record<string, LucideIcon> = {
   Smile,
 };
 
-const STEP_COLOR_PRESETS = ['#e11d48', '#d97706', '#2563eb', '#059669', '#9333ea'] as const;
+const STEP_COLOR_PRESETS = [
+  '#e11d48',
+  '#d97706',
+  '#2563eb',
+  '#059669',
+  '#9333ea',
+  '#db2777',
+  '#ea580c',
+  '#0891b2',
+  '#4f46e5',
+  '#475569',
+] as const;
 
 export const normalizeStepColor = (color?: string, iconName?: string): string => {
   const value = (color || '').trim().toLowerCase();
@@ -90,6 +101,15 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   const [currentSteps, setCurrentSteps] = useState<AutomationStepItem[]>(() => sortStepsByDay(steps));
   const [editingStep, setEditingStep] = useState<AutomationStepItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [paletteColors, setPaletteColors] = useState<string[]>(() =>
+    Array.from(
+      new Set([
+        ...STEP_COLOR_PRESETS,
+        ...steps.map((step) => normalizeStepColor(step.color, step.iconName)),
+      ]),
+    ),
+  );
+  const customColorInputRef = React.useRef<HTMLInputElement>(null);
 
   // Sync when modal opens or steps change
   React.useEffect(() => {
@@ -420,26 +440,96 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Tông Màu Thẻ
-                  </label>
-                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <input
-                      type="color"
-                      value={normalizeStepColor(formData.color, formData.iconName)}
-                      onChange={(event) => setFormData({ ...formData, color: event.target.value })}
-                      aria-label="Chọn tông màu thẻ"
-                      className="h-11 w-14 cursor-pointer rounded border border-slate-300 bg-white p-1"
-                    />
-                    <div>
-                      <p className="font-mono text-xs font-semibold uppercase text-slate-800">
-                        {normalizeStepColor(formData.color, formData.iconName)}
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-slate-500">Chọn màu icon và nền biểu tượng</p>
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold text-slate-700">Tông Màu Thẻ</legend>
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                    <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-2.5">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
+                        style={getStepIconTheme(formData.color, formData.iconName).containerStyle}
+                      >
+                        {React.createElement(STEP_ICON_MAP[formData.iconName] || Heart, {
+                          className: 'h-5 w-5',
+                          style: getStepIconTheme(formData.color, formData.iconName).iconStyle,
+                        })}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-slate-500">Màu đang chọn</p>
+                        <p className="font-mono text-xs font-bold uppercase tracking-wide text-slate-800">
+                          {normalizeStepColor(formData.color, formData.iconName)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {paletteColors.map((color) => {
+                        const isSelected = normalizeStepColor(formData.color, formData.iconName) === color;
+                        return (
+                          <div key={color} className="group relative">
+                            <button
+                              type="button"
+                              onClick={() => setFormData({ ...formData, color })}
+                              aria-label={`Chọn màu ${color}`}
+                              aria-pressed={isSelected}
+                              title={color.toUpperCase()}
+                              className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white shadow-sm transition hover:scale-110 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 ${
+                                isSelected ? 'scale-110 ring-2 ring-slate-700 ring-offset-2' : ''
+                              }`}
+                              style={{ backgroundColor: color }}
+                            >
+                              {isSelected ? <Check className="h-4 w-4 text-white drop-shadow-sm" /> : null}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaletteColors((current) => {
+                                  const remaining = current.filter((item) => item !== color);
+                                  if (isSelected) {
+                                    setFormData((currentForm) => ({
+                                      ...currentForm,
+                                      color: remaining[0] || STEP_COLOR_PRESETS[0],
+                                    }));
+                                  }
+                                  return remaining;
+                                });
+                              }}
+                              aria-label={`Xóa màu ${color}`}
+                              title="Xóa màu"
+                              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-300 group-hover:opacity-100"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => customColorInputRef.current?.click()}
+                        aria-label="Thêm màu mới"
+                        title="Thêm màu mới"
+                        className="ml-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white text-slate-500 transition hover:scale-110 hover:border-slate-500 hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <input
+                        ref={customColorInputRef}
+                        type="color"
+                        value={normalizeStepColor(formData.color, formData.iconName)}
+                        onChange={(event) => {
+                          const color = event.target.value.toLowerCase();
+                          setFormData((current) => ({ ...current, color }));
+                          setPaletteColors((current) =>
+                            current.includes(color) ? current : [...current, color],
+                          );
+                        }}
+                        aria-label="Thêm màu mới"
+                        className="pointer-events-none absolute h-px w-px opacity-0"
+                        tabIndex={-1}
+                      />
                     </div>
                   </div>
-                </div>
+                </fieldset>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200">
