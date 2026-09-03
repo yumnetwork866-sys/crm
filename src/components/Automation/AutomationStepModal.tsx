@@ -281,7 +281,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <div className="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150">
-        
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
           {isAddingNew || editingStep ? (
@@ -357,7 +357,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                     onChange={(e) => handleSelectApprovedTemplate(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
                   >
-                    <option value="">-- Tự Soạn Tin Nhắn (Không dùng Template Meta) --</option>
+                    <option value="">Không dùng Template Meta (Chỉ gửi được cho khách hàng nhắn trong 24h)</option>
                     {approvedTemplates.map((tpl) => (
                       <option key={tpl.name} value={tpl.name}>
                         {tpl.name} ({tpl.category} - {tpl.language})
@@ -403,7 +403,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Biểu Tượng (Icon)
+                    Biểu Tượng
                   </label>
                   <div className="grid grid-cols-5 gap-2">
                     {Object.keys(STEP_ICON_MAP).map((iconKey) => {
