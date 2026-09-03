@@ -249,7 +249,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
               className="text-xs font-semibold text-slate-500 hover:text-emerald-600 flex items-center space-x-1.5 transition cursor-pointer"
             >
               <Pencil className="w-3.5 h-3.5" />
-              <span>Chỉnh sửa nội dung bước này</span>
+              <span>Chỉnh sửa</span>
             </button>
           </div>
 
@@ -297,7 +297,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                 {activeSteps.map((step) => (
                   <th key={step.id} className="py-2.5 px-3 text-center whitespace-nowrap">
                     <span>{step.dayOffset > 0 ? `Ngày +${step.dayOffset}` : 'Ngay sau mua'}</span>
-                    <div className="text-[9px] font-normal normal-case text-slate-500 truncate max-w-[110px] mx-auto">
+                    <div className="text-[9px] font-normal normal-case text-slate-500 truncate max-w-27.5 mx-auto">
                       {step.title.replace(/^Ngày\s*\+\d+:\s*/i, '')}
                     </div>
                   </th>
