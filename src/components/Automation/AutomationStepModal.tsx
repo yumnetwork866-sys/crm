@@ -283,7 +283,13 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       <div className="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-end shrink-0 bg-white">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
+          {isAddingNew || editingStep ? (
+            <h3 className="flex items-center space-x-2 text-base font-bold text-slate-900">
+              <Pencil className="h-4 w-4 text-emerald-600" />
+              <span>{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
+            </h3>
+          ) : <span aria-hidden="true" />}
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -293,18 +299,10 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
+        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
           {isAddingNew || editingStep ? (
             /* Form Add/Edit */
-            <form onSubmit={handleSaveForm} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center border-b border-slate-200 pb-3">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-                  <Pencil className="w-4 h-4 text-emerald-600" />
-                  <span>{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
-                </h4>
-
-              </div>
-
+            <form onSubmit={handleSaveForm} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 space-y-1">
                   <label className="block text-xs font-semibold text-slate-700">
