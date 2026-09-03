@@ -32,12 +32,53 @@ export const STEP_ICON_MAP: Record<string, LucideIcon> = {
   Smile,
 };
 
+export const getStepIconTheme = (color?: string, iconName?: string) => {
+  const c = (color || '').toLowerCase();
+  const name = iconName || '';
+
+  if (c.includes('pink') || c.includes('rose') || name === 'Heart') {
+    return {
+      containerClass: 'bg-rose-50 border-rose-200 text-rose-600 step-icon-pink',
+      iconClass: 'step-icon-pink text-rose-600',
+    };
+  }
+  if (c.includes('amber') || c.includes('orange') || name === 'MessageCircle') {
+    return {
+      containerClass: 'bg-amber-50 border-amber-200 text-amber-600 step-icon-amber',
+      iconClass: 'step-icon-amber text-amber-600',
+    };
+  }
+  if (c.includes('blue') || c.includes('cyan') || name === 'HelpCircle') {
+    return {
+      containerClass: 'bg-blue-50 border-blue-200 text-blue-600 step-icon-blue',
+      iconClass: 'step-icon-blue text-blue-600',
+    };
+  }
+  if (c.includes('emerald') || c.includes('teal') || c.includes('green') || name === 'Gift') {
+    return {
+      containerClass: 'bg-emerald-50 border-emerald-200 text-emerald-600 step-icon-emerald',
+      iconClass: 'step-icon-emerald text-emerald-600',
+    };
+  }
+  if (c.includes('purple') || c.includes('indigo') || c.includes('violet') || name === 'Sparkles') {
+    return {
+      containerClass: 'bg-purple-50 border-purple-200 text-purple-600 step-icon-purple',
+      iconClass: 'step-icon-purple text-purple-600',
+    };
+  }
+
+  return {
+    containerClass: 'bg-rose-50 border-rose-200 text-rose-600 step-icon-pink',
+    iconClass: 'step-icon-pink text-rose-600',
+  };
+};
+
 export const COLOR_OPTIONS = [
-  { label: 'Hồng (Tri ân)', value: 'from-pink-500/15 to-rose-500/15 border-pink-300 text-pink-700' },
-  { label: 'Cam (Trải nghiệm)', value: 'from-amber-500/15 to-orange-500/15 border-amber-300 text-amber-700' },
-  { label: 'Xanh dương (Tư vấn)', value: 'from-blue-500/15 to-cyan-500/15 border-blue-300 text-blue-700' },
-  { label: 'Xanh lá (Ưu đãi)', value: 'from-emerald-500/15 to-teal-500/15 border-emerald-300 text-emerald-700' },
-  { label: 'Tím (Đặc quyền)', value: 'from-purple-500/15 to-indigo-500/15 border-purple-300 text-purple-700' },
+  { label: 'Hồng (Tri ân)', value: 'pink' },
+  { label: 'Cam (Trải nghiệm)', value: 'amber' },
+  { label: 'Xanh dương (Tư vấn)', value: 'blue' },
+  { label: 'Xanh lá (Ưu đãi)', value: 'emerald' },
+  { label: 'Tím (Đặc quyền)', value: 'purple' },
 ];
 
 interface AutomationStepModalProps {
@@ -102,6 +143,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     active: true,
     templateName: '',
   });
+
 
   const handleStartEdit = (step: AutomationStepItem) => {
     setEditingStep(step);
@@ -189,6 +231,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     handleCancelForm();
   };
 
+
   const handleDeleteStep = (stepId: string) => {
     if (currentSteps.length <= 1) {
       alert('Quy trình phải có ít nhất 1 bước!');
@@ -196,17 +239,15 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     }
     if (!confirm('Bạn có chắc chắn muốn xóa bước này khỏi quy trình?')) return;
 
-    const updated = sortStepsByDay(currentSteps.filter((s) => s.id !== stepId));
+    const updated = sortStepsByDay(currentSteps.filter((step) => step.id !== stepId));
     setCurrentSteps(updated);
     onSaveSteps(updated);
-
-    if (editingStep?.id === stepId) {
-      handleCancelForm();
-    }
   };
 
   const handleToggleActive = (stepId: string) => {
-    const updated = sortStepsByDay(currentSteps.map((s) => (s.id === stepId ? { ...s, active: !s.active } : s)));
+    const updated = sortStepsByDay(currentSteps.map((step) => (
+      step.id === stepId ? { ...step, active: !step.active } : step
+    )));
     setCurrentSteps(updated);
     onSaveSteps(updated);
   };
@@ -242,16 +283,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       <div className="bg-white border border-slate-200 w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
-          <div>
-            <div className="flex items-center space-x-2">
-              <Zap className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-900 text-base">
-                Tùy Chỉnh Quy Trình Chăm Sóc Khách Hàng Tự Động
-              </h3>
-            </div>
-
-          </div>
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-end shrink-0 bg-white">
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -265,37 +297,12 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
           {isAddingNew || editingStep ? (
             /* Form Add/Edit */
             <form onSubmit={handleSaveForm} className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center border-b border-slate-200 pb-3">
                 <h4 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
                   <Pencil className="w-4 h-4 text-emerald-600" />
                   <span>{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
                 </h4>
-                <div className="flex items-center space-x-3">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={formData.active}
-                    onClick={() => setFormData((prev) => ({ ...prev, active: !prev.active }))}
-                    title={formData.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:outline-none focus:ring-0 ${
-                      formData.active ? 'bg-emerald-600' : 'bg-rose-500'
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        formData.active ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCancelForm}
-                    className="text-xs text-slate-500 hover:text-slate-800 font-medium transition cursor-pointer"
-                  >
-                    Hủy quay lại
-                  </button>
-                </div>
+
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -404,6 +411,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                     {Object.keys(STEP_ICON_MAP).map((iconKey) => {
                       const IconComp = STEP_ICON_MAP[iconKey];
                       const isSelected = formData.iconName === iconKey;
+                      const iconTheme = getStepIconTheme(formData.color, iconKey);
                       return (
                         <button
                           key={iconKey}
@@ -411,11 +419,11 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                           onClick={() => setFormData({ ...formData, iconName: iconKey })}
                           className={`p-2 rounded-lg border flex flex-col items-center justify-center transition cursor-pointer ${
                             isSelected
-                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold shadow-xs ring-1 ring-emerald-400'
+                              ? `${iconTheme.containerClass} shadow-xs ring-2 ring-emerald-500`
                               : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
-                          <IconComp className="w-4 h-4" />
+                          <IconComp className={`w-4 h-4 ${isSelected ? iconTheme.iconClass : ''}`} />
                           <span className="text-[9px] mt-1 truncate max-w-full font-medium">{iconKey}</span>
                         </button>
                       );
@@ -470,112 +478,94 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
             </form>
           ) : null}
 
-          {/* List of current steps */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 text-sm">
-                Danh Sách Các Bước Trong Kịch Bản ({currentSteps.length} bước)
-              </h4>
-              {!isAddingNew && !editingStep && (
+          {!isAddingNew && !editingStep ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-slate-900">
+                  Danh Sách Các Bước Trong Kịch Bản ({currentSteps.length} bước)
+                </h4>
                 <button
                   type="button"
                   onClick={handleStartAdd}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition shadow-sm cursor-pointer"
+                  className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="h-3.5 w-3.5" />
                   <span>Thêm Bước Mới</span>
                 </button>
-              )}
-            </div>
+              </div>
 
-            <div className="space-y-2">
-              {currentSteps.map((s, idx) => {
-                const IconComp = STEP_ICON_MAP[s.iconName] || Heart;
-                const isFirst = idx === 0;
-                const isLast = idx === currentSteps.length - 1;
-
-                return (
-                  <div
-                    key={s.id}
-                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition shadow-xs ${
-                      s.active
-                        ? 'bg-white border-slate-200'
-                        : 'bg-slate-100/60 border-slate-200 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-start sm:items-center space-x-3 min-w-0">
-                      <div className={`p-2.5 rounded-xl bg-gradient-to-br ${s.color} border shrink-0`}>
-                        <IconComp className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-bold text-slate-900 truncate">{s.title}</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            +{s.dayOffset} ngày
-                          </span>
+              <div className="space-y-2">
+                {currentSteps.map((step) => {
+                  const IconComponent = STEP_ICON_MAP[step.iconName] || Heart;
+                  const iconTheme = getStepIconTheme(step.color, step.iconName);
+                  return (
+                    <div
+                      key={step.id}
+                      className={`flex flex-col justify-between gap-3 rounded-xl border p-4 shadow-xs transition sm:flex-row sm:items-center ${
+                        step.active
+                          ? 'border-slate-200 bg-white'
+                          : 'border-slate-200 bg-slate-100/60 opacity-60'
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-start space-x-3 sm:items-center">
+                        <div className={`shrink-0 rounded-xl border p-2.5 ${iconTheme.containerClass}`}>
+                          <IconComponent className={`h-4 w-4 ${iconTheme.iconClass}`} />
                         </div>
-                        <p className="text-[11px] text-slate-500 truncate mt-0.5 max-w-lg">
-                          {s.objective || s.defaultMsg}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="truncate text-xs font-bold text-slate-900">{step.title}</span>
+                            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                              +{step.dayOffset} ngày
+                            </span>
+                          </div>
+                          <p className="mt-0.5 max-w-lg truncate text-[11px] text-slate-500">
+                            {step.objective || step.defaultMsg}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center space-x-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={step.active}
+                          onClick={() => handleToggleActive(step.id)}
+                          title={step.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
+                          className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                            step.active ? 'bg-emerald-600' : 'bg-rose-500'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-md transition ${
+                              step.active ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(step)}
+                          title="Chỉnh sửa bước này"
+                          className="rounded-lg bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStep(step.id)}
+                          title="Xóa bước này"
+                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 transition hover:bg-rose-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
-                      {/* Active toggle switch */}
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={s.active}
-                        onClick={() => handleToggleActive(s.id)}
-                        title={s.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
-                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus:outline-none focus:ring-0 ${
-                          s.active ? 'bg-emerald-600' : 'bg-rose-500'
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                            s.active ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(s)}
-                        title="Chỉnh sửa bước này"
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteStep(s.id)}
-                        title="Xóa bước này"
-                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
+          ) : null}
 
-        {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-200 flex items-center justify-end shrink-0 bg-white">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition cursor-pointer"
-          >
-            Đóng Lại
-          </button>
         </div>
 
       </div>

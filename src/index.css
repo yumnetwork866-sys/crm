@@ -260,12 +260,48 @@ body:not(.light-mode) .text-slate-600 {
 }
 
 /* Ensure buttons and elements with white/light backgrounds in Dark Mode retain crisp dark text and icons */
-body:not(.light-mode) .bg-white svg:not(.text-white),
-body:not(.light-mode) button.bg-white svg:not(.text-white),
-body:not(.light-mode) .bg-white .lucide,
-body:not(.light-mode) button.bg-white .lucide {
+body:not(.light-mode) .bg-white svg:not(.text-white):not([data-colored="true"]),
+body:not(.light-mode) button.bg-white svg:not(.text-white):not([data-colored="true"]),
+body:not(.light-mode) .bg-white .lucide:not([data-colored="true"]),
+body:not(.light-mode) button.bg-white .lucide:not([data-colored="true"]) {
   color: #334155 !important;
   stroke: #334155 !important;
+}
+
+/* Vibrant colors for automation workflow icons */
+.step-icon-pink,
+.step-icon-pink svg,
+.step-icon-pink .lucide {
+  color: #e11d48 !important;
+  stroke: #e11d48 !important;
+}
+
+.step-icon-amber,
+.step-icon-amber svg,
+.step-icon-amber .lucide {
+  color: #d97706 !important;
+  stroke: #d97706 !important;
+}
+
+.step-icon-blue,
+.step-icon-blue svg,
+.step-icon-blue .lucide {
+  color: #2563eb !important;
+  stroke: #2563eb !important;
+}
+
+.step-icon-emerald,
+.step-icon-emerald svg,
+.step-icon-emerald .lucide {
+  color: #059669 !important;
+  stroke: #059669 !important;
+}
+
+.step-icon-purple,
+.step-icon-purple svg,
+.step-icon-purple .lucide {
+  color: #9333ea !important;
+  stroke: #9333ea !important;
 }
 
 /* Explicitly preserve white text and icons inside filled primary buttons & badges! */

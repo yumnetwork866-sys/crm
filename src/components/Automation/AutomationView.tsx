@@ -4,18 +4,107 @@ import {
   Sparkles,
   Clock,
   Check,
-  ArrowRight,
   Sliders,
-  Plus,
   Pencil,
 } from 'lucide-react';
-import type { Customer, AutomationStepItem, WhatsAppApprovedTemplate } from '../../types';
-import { AutomationStepModal, STEP_ICON_MAP } from './AutomationStepModal';
+import type {
+  Customer,
+  AutomationStepItem,
+  WhatsAppApprovedTemplate,
+  WhatsAppTemplateButtonType,
+} from '../../types';
+import { AutomationStepModal, STEP_ICON_MAP, getStepIconTheme } from './AutomationStepModal';
+import { TemplateButtonIcon } from './Template/components/common/TemplateButtonIcon';
 
 interface AutomationViewProps {
   customers: Customer[];
   onSelectCustomer: (customer: Customer) => void;
   approvedTemplates?: WhatsAppApprovedTemplate[];
+}
+
+type PreviewButton = {
+  type?: string;
+  text?: string;
+  otp_type?: string;
+};
+
+function getPreviewButtonType(button: PreviewButton): WhatsAppTemplateButtonType {
+  if (button.type === 'COPY_CODE' || button.otp_type === 'COPY_CODE') return 'COPY_CODE';
+  const supportedTypes: WhatsAppTemplateButtonType[] = [
+    'QUICK_REPLY',
+    'URL',
+    'PHONE_NUMBER',
+    'VOICE_CALL',
+    'FLOW',
+    'CONTACT',
+  ];
+  return supportedTypes.includes(button.type as WhatsAppTemplateButtonType)
+    ? button.type as WhatsAppTemplateButtonType
+    : 'QUICK_REPLY';
+}
+
+function AutomationMessagePreview({
+  template,
+  fallbackBody,
+}: {
+  template?: WhatsAppApprovedTemplate;
+  fallbackBody: string;
+}) {
+  const header = template?.components.find((component) => component.type?.toUpperCase() === 'HEADER');
+  const body = template?.components.find((component) => component.type?.toUpperCase() === 'BODY');
+  const footer = template?.components.find((component) => component.type?.toUpperCase() === 'FOOTER');
+  const buttonComponent = template?.components.find((component) => component.type?.toUpperCase() === 'BUTTONS');
+  const buttons = Array.isArray(buttonComponent?.buttons)
+    ? buttonComponent.buttons as PreviewButton[]
+    : [];
+  const headerFormat = header?.format?.toUpperCase();
+  const visibleButtons = buttons.length >= 3 ? buttons.slice(0, 2) : buttons;
+  const previewTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div
+      className="rounded-xl border border-slate-200 bg-[#efeae2] p-4"
+      style={{
+        backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,.55) 0 1px, transparent 1px)',
+        backgroundSize: '16px 16px',
+      }}
+    >
+      <div className="ml-auto max-w-xl overflow-hidden rounded-lg rounded-tr-none bg-white shadow-sm">
+        {header ? (
+          headerFormat === 'TEXT' ? (
+            <p className="px-3 pt-3 text-sm font-bold text-slate-900">{header.text}</p>
+          ) : (
+            <div className="flex h-28 items-center justify-center bg-slate-100 text-xs font-semibold text-slate-500">
+              {headerFormat ? `${headerFormat} template` : 'Media template'}
+            </div>
+          )
+        ) : null}
+        <div className="space-y-2 px-3 pb-2 pt-3">
+          <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">
+            {body?.text || fallbackBody}
+          </p>
+          {footer?.text ? <p className="text-[11px] text-slate-500">{footer.text}</p> : null}
+          <div className="text-right text-[10px] text-slate-400">{previewTime}</div>
+        </div>
+        {buttons.length > 0 ? (
+          <div className="divide-y divide-slate-100 border-t border-slate-100 px-2">
+            {visibleButtons.map((button, index) => {
+              const buttonType = getPreviewButtonType(button);
+              return (
+                <div key={`${button.type || 'button'}-${index}`} className="flex items-center justify-center gap-2 py-2 text-center text-xs font-semibold text-emerald-600">
+                  <TemplateButtonIcon type={buttonType} />
+                  <span>{button.text || button.otp_type || 'Thao tác'}</span>
+                </div>
+              );
+            })}
+            {buttons.length >= 3 ? (
+              <div className="py-2 text-center text-xs font-semibold text-emerald-600">See all options</div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
@@ -26,7 +115,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +3: Lời Cảm Ơn & HDSD',
     objective: 'Bày tỏ lòng tri ân, gửi video/văn bản hướng dẫn sử dụng sản phẩm chuẩn xác.',
     iconName: 'Heart',
-    color: 'from-pink-500/15 to-rose-500/15 border-pink-300 text-pink-700',
+    color: 'pink',
     defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
     active: true,
   },
@@ -37,7 +126,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +5: Hỏi Trải Nghiệm',
     objective: 'Thăm vấn sự hài lòng sau 5 ngày trải nghiệm, xử lý sớm phản hồi.',
     iconName: 'MessageCircle',
-    color: 'from-amber-500/15 to-orange-500/15 border-amber-300 text-amber-700',
+    color: 'amber',
     defaultMsg: 'Chào {{Customer Name}}, bạn đã dùng sản phẩm được 5 ngày rồi. Làn da/mái tóc của bạn có cảm thấy mượt mà và dịu nhẹ hơn chưa? Hãy chia sẻ với bọn mình nhé!',
     active: true,
   },
@@ -48,7 +137,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +7: Giải Đáp & Gợi Ý SP',
     objective: 'Giải đáp thắc mắc thói quen skincare/chăm sóc và tư vấn dòng sản phẩm bổ trợ.',
     iconName: 'HelpCircle',
-    color: 'from-blue-500/15 to-cyan-500/15 border-blue-300 text-blue-700',
+    color: 'blue',
     defaultMsg: 'Chào {{Customer Name}}, nếu có bất kỳ thắc mắc nào khi kết hợp sản phẩm, đừng ngần ngại hỏi nhé! Ngoài ra, kết hợp cùng Serum Vitamin C sẽ nhân đôi hiệu quả đấy ạ.',
     active: true,
   },
@@ -59,7 +148,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +15: Gửi Voucher & Mua Lại',
     objective: 'Tặng mã giảm giá riêng tri ân khách hàng cũ, khuyến khích đặt hàng lần tiếp theo.',
     iconName: 'Gift',
-    color: 'from-emerald-500/15 to-teal-500/15 border-emerald-300 text-emerald-700',
+    color: 'emerald',
     defaultMsg: 'Chào {{Customer Name}}, tặng bạn Voucher VIP20OFF giảm 20% cho đơn hàng tiếp theo. Mã có hiệu lực trong 7 ngày tới, đặt ngay nhé!',
     active: true,
   },
@@ -110,6 +199,11 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
   const currentSelectedStep = useMemo(() => {
     return activeSteps.find((s) => s.id === selectedStepId) || activeSteps[0] || null;
   }, [activeSteps, selectedStepId]);
+  const currentSelectedTemplate = useMemo(() => (
+    currentSelectedStep?.templateName
+      ? approvedTemplates.find((template) => template.name === currentSelectedStep.templateName)
+      : undefined
+  ), [approvedTemplates, currentSelectedStep?.templateName]);
 
   const handleSaveSteps = (updatedSteps: AutomationStepItem[]) => {
     const sorted = [...updatedSteps]
@@ -160,30 +254,6 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
 
       {/* Interactive Workflow Sequence Builder Diagram */}
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
-              <span>Khung Quy Trình Chăm Sóc Tuần Tự</span>
-            </h3>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-              {activeSteps.length} bước kích hoạt
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => {
-                setModalEditStepId(null);
-                setIsModalOpen(true);
-              }}
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center space-x-1 transition cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Thêm bước mới</span>
-            </button>
-          </div>
-        </div>
 
         {/* Step Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -201,41 +271,25 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                     : 'bg-white border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${stepItem.color} border`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                      Bước {index + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModalEditStepId(stepItem.id);
-                        setIsModalOpen(true);
-                      }}
-                      title="Chỉnh sửa bước này"
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                  </div>
+                <div className="flex items-center space-x-2.5 min-w-0 mb-2.5">
+                  {(() => {
+                    const iconTheme = getStepIconTheme(stepItem.color, stepItem.iconName);
+                    return (
+                      <div className={`p-2 rounded-xl border shrink-0 ${iconTheme.containerClass}`}>
+                        <Icon className={`w-4 h-4 ${iconTheme.iconClass}`} />
+                      </div>
+                    );
+                  })()}
+                  <h4 className="font-bold text-slate-900 text-sm truncate" title={stepItem.title}>
+                    {stepItem.title}
+                  </h4>
                 </div>
 
-                <h4 className="font-bold text-slate-900 text-sm truncate">{stepItem.title}</h4>
-                <div className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                  +{stepItem.dayOffset} ngày sau mua
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1 min-h-[36px] line-clamp-2">
+                <p className="text-[11px] text-slate-500 min-h-[36px] line-clamp-2">
                   {stepItem.objective}
                 </p>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-emerald-600 font-semibold">
-                  <span>Tự động kích hoạt</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
+
               </div>
             );
           })}
@@ -263,29 +317,27 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
             </button>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs space-y-2">
-            <p className="text-slate-800 leading-relaxed font-mono whitespace-pre-wrap">
-              "{currentSelectedStep.defaultMsg}"
-            </p>
-            <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
-                <span>Thẻ động biến số:</span>
-                <code className="text-indigo-700 font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                  &#123;&#123;Customer Name&#125;&#125;
-                </code>
-                <code className="text-amber-700 font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                  &#123;&#123;Order ID&#125;&#125;
-                </code>
-              </div>
-              <div className="flex items-center space-x-2 text-emerald-600">
-                {currentSelectedStep.templateName && (
-                  <span className="text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
-                    Template: <b className="text-indigo-600">{currentSelectedStep.templateName}</b>
-                  </span>
-                )}
-                <span>Gửi qua WhatsApp Business API</span>
-              </div>
+          <AutomationMessagePreview
+            template={currentSelectedTemplate}
+            fallbackBody={currentSelectedStep.defaultMsg}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
+            <div className="flex items-center gap-2">
+              <span>Thẻ động biến số:</span>
+              <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-indigo-700">
+                &#123;&#123;Customer Name&#125;&#125;
+              </code>
+              <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-amber-700">
+                &#123;&#123;Order ID&#125;&#125;
+              </code>
             </div>
+            {currentSelectedStep.templateName ? (
+              <div className="flex items-center gap-2 text-emerald-600">
+                <span className="rounded border border-slate-200 bg-white px-2 py-0.5 text-slate-600">
+                  Template: <b className="text-indigo-600">{currentSelectedStep.templateName}</b>
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -297,9 +349,6 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
             <h3 className="font-bold text-slate-900 text-base">
               Danh Sách Khách Hàng Đang Trong Quy Trình Automation ({automationCustomers.length})
             </h3>
-            <p className="text-xs text-slate-500">
-              Trạng thái hoàn thành theo từng bước trong kịch bản tùy chỉnh của mỗi khách hàng.
-            </p>
           </div>
         </div>
 
