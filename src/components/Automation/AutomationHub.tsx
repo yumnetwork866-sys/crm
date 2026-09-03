@@ -25,7 +25,7 @@ interface AutomationHubProps {
   templatesError: Error | null;
   onRefetchTemplates: () => void;
   defaultTargetGroup?: string;
-  onRunSimulation: () => void;
+  onRunSimulation?: () => void;
   onSelectCustomer: (customer: Customer) => void;
   onLaunchCampaign: (input: LaunchCampaignInput) => Promise<BroadcastCampaign>;
   isLaunchPending: boolean;
@@ -139,8 +139,8 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
         {activeSection === 'workflow' ? (
           <AutomationView
             customers={customers}
-            onRunSimulation={onRunSimulation}
             onSelectCustomer={onSelectCustomer}
+            approvedTemplates={approvedTemplates}
           />
         ) : activeSection === 'broadcast' ? (
           <BroadcastView

@@ -8,7 +8,6 @@ import { TemplateDetailView } from './components/TemplateDetailView';
 import { TemplateTable } from './components/TemplateTable';
 import { TemplateWizardModal } from './components/TemplateWizardModal';
 
-
 export function TemplateManagementView({
   templates,
   isLoading,
@@ -26,9 +25,12 @@ export function TemplateManagementView({
   const [analyticsByTemplateId, setAnalyticsByTemplateId] = useState<Record<string, WhatsAppTemplateAnalytics>>({});
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
+  const displayedTemplates = useMemo(() => templates.map((template) => (
+    template.is_archived_locally ? { ...template, status: 'ARCHIVED' } : template
+  )), [templates]);
   const templateIds = useMemo(
-    () => templates.flatMap((template) => template.id ? [template.id] : []),
-    [templates],
+    () => displayedTemplates.flatMap((template) => template.id ? [template.id] : []),
+    [displayedTemplates],
   );
   const templateIdsKey = templateIds.join(',');
   const normalizedPath = location.pathname.replace(/\/$/, '');
@@ -38,7 +40,7 @@ export function TemplateManagementView({
     ? decodeURIComponent(normalizedPath.slice(detailPathPrefix.length))
     : '';
   const selectedTemplate = detailKey
-    ? templates.find((template) => (
+    ? displayedTemplates.find((template) => (
       template.id === detailKey || `${template.name}::${template.language}` === detailKey
     ))
     : undefined;
@@ -58,9 +60,57 @@ export function TemplateManagementView({
     setSuccessMessage(message);
   }, []);
 
+  const archiveSelectedTemplates = useCallback(async (selectedTemplates: typeof templates) => {
+    const archivePayload = selectedTemplates.flatMap((template) => template.id
+      ? [{ id: template.id, name: template.name, language: template.language }]
+      : []);
+    if (archivePayload.length !== selectedTemplates.length) {
+      throw new Error('Không thể archive template chưa có Meta ID.');
+    }
+
+    setBulkActionError('');
+    setSuccessMessage('');
+    try {
+      await api.post('/campaigns/templates/bulk-archive', { templates: archivePayload });
+      setSuccessMessage(`Đã lưu trữ ${archivePayload.length} template trong database.`);
+    } catch (archiveError) {
+      const message = archiveError instanceof Error
+        ? archiveError.message
+        : 'Không thể lưu trạng thái archive vào database.';
+      setBulkActionError(message);
+      throw archiveError;
+    } finally {
+      onRefetch();
+    }
+  }, [onRefetch, templates]);
+
+  const unarchiveSelectedTemplates = useCallback(async (selectedTemplates: typeof templates) => {
+    const unarchivePayload = selectedTemplates.flatMap((template) => template.id
+      ? [{ id: template.id, name: template.name, language: template.language }]
+      : []);
+    if (unarchivePayload.length !== selectedTemplates.length) {
+      throw new Error('Không thể unarchive template chưa có Meta ID.');
+    }
+
+    setBulkActionError('');
+    setSuccessMessage('');
+    try {
+      await api.post('/campaigns/templates/bulk-unarchive', { templates: unarchivePayload });
+      setSuccessMessage(`Đã bỏ lưu trữ ${unarchivePayload.length} template trong database.`);
+    } catch (unarchiveError) {
+      const message = unarchiveError instanceof Error
+        ? unarchiveError.message
+        : 'Không thể bỏ trạng thái archive trong database.';
+      setBulkActionError(message);
+      throw unarchiveError;
+    } finally {
+      onRefetch();
+    }
+  }, [onRefetch, templates]);
+
   const deleteSelectedTemplates = useCallback(async (selectedTemplates: typeof templates) => {
     const deletableTemplates = selectedTemplates.flatMap((template) => template.id
-      ? [{ id: template.id, name: template.name }]
+      ? [{ id: template.id, name: template.name, language: template.language }]
       : []);
     if (deletableTemplates.length !== selectedTemplates.length) {
       throw new Error('Không thể xóa template chưa có Meta ID.');
@@ -198,12 +248,14 @@ export function TemplateManagementView({
           {bulkActionError || error?.message}
         </div>
       ) : null}
-      {templates.length > 0 ? (
+      {displayedTemplates.length > 0 ? (
         <TemplateTable
-          templates={templates}
+          templates={displayedTemplates}
           analyticsByTemplateId={analyticsByTemplateId}
           isAnalyticsLoading={isAnalyticsLoading}
           onDeleteTemplates={deleteSelectedTemplates}
+          onArchiveTemplates={archiveSelectedTemplates}
+          onUnarchiveTemplates={unarchiveSelectedTemplates}
           onSelectTemplate={(template) => {
             const key = template.id || `${template.name}::${template.language}`;
             void navigate(`/automation/templates/${encodeURIComponent(key)}`);
@@ -215,7 +267,7 @@ export function TemplateManagementView({
           Không thể tải số liệu Meta Analytics: {analyticsError}
         </p>
       ) : null}
-      {!isLoading && !error && templates.length === 0 ? (
+      {!isLoading && !error && displayedTemplates.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-500">
           WABA chưa có template nào.
         </div>

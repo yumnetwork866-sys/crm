@@ -19,5 +19,7 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["src", "server", "prisma", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

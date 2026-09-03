@@ -21,6 +21,8 @@ interface TemplateTableProps {
   analyticsByTemplateId: Record<string, WhatsAppTemplateAnalytics>;
   isAnalyticsLoading: boolean;
   onDeleteTemplates: (templates: WhatsAppApprovedTemplate[]) => Promise<void>;
+  onArchiveTemplates: (templates: WhatsAppApprovedTemplate[]) => Promise<void>;
+  onUnarchiveTemplates: (templates: WhatsAppApprovedTemplate[]) => Promise<void>;
   onSelectTemplate: (template: WhatsAppApprovedTemplate) => void;
 }
 
@@ -30,6 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   REJECTED: 'Rejected',
   PAUSED: 'Paused',
   DISABLED: 'Disabled',
+  ARCHIVED: 'Archived',
   IN_APPEAL: 'In appeal',
 };
 
@@ -76,10 +79,13 @@ export const TemplateTable = memo(function TemplateTable({
   analyticsByTemplateId,
   isAnalyticsLoading,
   onDeleteTemplates,
+  onArchiveTemplates,
+  onUnarchiveTemplates,
   onSelectTemplate,
 }: TemplateTableProps) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingArchiveAction, setPendingArchiveAction] = useState<'archive' | 'unarchive' | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('lastEdited');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -152,6 +158,34 @@ export const TemplateTable = memo(function TemplateTable({
     });
   };
 
+  const archiveSelected = async () => {
+    const templatesToArchive = selectedTemplates.filter((template) => template.status !== 'ARCHIVED');
+    if (!templatesToArchive.length || pendingArchiveAction) return;
+    setPendingArchiveAction('archive');
+    try {
+      await onArchiveTemplates(templatesToArchive);
+      setSelectedKeys(new Set());
+    } catch {
+      // The parent displays the database error while preserving the selection for retry.
+    } finally {
+      setPendingArchiveAction(null);
+    }
+  };
+
+  const unarchiveSelected = async () => {
+    const templatesToUnarchive = selectedTemplates.filter((template) => template.status === 'ARCHIVED');
+    if (!templatesToUnarchive.length || pendingArchiveAction) return;
+    setPendingArchiveAction('unarchive');
+    try {
+      await onUnarchiveTemplates(templatesToUnarchive);
+      setSelectedKeys(new Set());
+    } catch {
+      // The parent displays the database error while preserving the selection for retry.
+    } finally {
+      setPendingArchiveAction(null);
+    }
+  };
+
   const deleteSelected = async () => {
     if (!selectedTemplates.length || isDeleting) return;
     const confirmed = window.confirm(
@@ -215,7 +249,7 @@ export const TemplateTable = memo(function TemplateTable({
           <button
             type="button"
             onClick={() => void deleteSelected()}
-            disabled={isDeleting || selectedTemplates.some((template) => !template.id)}
+            disabled={isDeleting || Boolean(pendingArchiveAction) || selectedTemplates.some((template) => !template.id)}
             className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isDeleting
@@ -225,19 +259,25 @@ export const TemplateTable = memo(function TemplateTable({
           </button>
           <button
             type="button"
-            disabled
-            title="Meta Graph API không hỗ trợ chủ động archive message template."
-            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void archiveSelected()}
+            disabled={isDeleting || Boolean(pendingArchiveAction) || selectedTemplates.every((template) => template.status === 'ARCHIVED')}
+            title="Lưu trạng thái archive vào database CRM, không thay đổi dữ liệu Meta."
+            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Archive className="h-4 w-4" aria-hidden="true" /> Archive
+            {pendingArchiveAction === 'archive'
+              ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <Archive className="h-4 w-4" aria-hidden="true" />} Archive
           </button>
           <button
             type="button"
-            disabled
-            title="Meta Graph API không hỗ trợ chủ động unarchive message template."
-            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void unarchiveSelected()}
+            disabled={isDeleting || Boolean(pendingArchiveAction) || selectedTemplates.every((template) => template.status !== 'ARCHIVED')}
+            title="Bỏ trạng thái archive đã lưu trong database CRM."
+            className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <ArchiveRestore className="h-4 w-4" aria-hidden="true" /> Unarchive
+            {pendingArchiveAction === 'unarchive'
+              ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <ArchiveRestore className="h-4 w-4" aria-hidden="true" />} Unarchive
           </button>
         </div>
       ) : null}

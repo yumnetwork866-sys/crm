@@ -136,6 +136,19 @@ export interface AutomationStepConfig {
   iconName: string;
 }
 
+export interface AutomationStepItem {
+  id: string;
+  step: number;
+  dayOffset: number;
+  title: string;
+  objective: string;
+  defaultMsg: string;
+  iconName: string;
+  color: string;
+  active: boolean;
+  templateName?: string;
+}
+
 export type WhatsAppTemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
 
 export type BroadcastCampaignCategory =
@@ -182,6 +195,7 @@ export interface WhatsAppApprovedTemplate {
   parameter_format?: string;
   rejected_reason?: string;
   quality_score?: { score?: string; date?: number };
+  is_archived_locally?: boolean;
   components: Array<{
     type: string;
     text?: string;

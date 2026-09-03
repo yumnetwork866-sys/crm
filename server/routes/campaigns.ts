@@ -23,10 +23,11 @@ router.use(authenticateToken);
 
 const categorySchema = z.enum(['MARKETING', 'UTILITY', 'AUTHENTICATION']);
 
-const templateBulkDeleteSchema = z.object({
+const templateBulkActionSchema = z.object({
   templates: z.array(z.object({
     id: z.string().trim().regex(/^\d+$/, 'Template ID phải là số.').max(128),
     name: z.string().trim().regex(/^[a-z0-9_]+$/, 'Tên template không hợp lệ.').max(512),
+    language: z.string().trim().min(2).max(32),
   }).strict()).min(1).max(100),
 }).strict();
 
@@ -568,7 +569,18 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
       });
     }
     const templates = await fetchMessageTemplates({ wabaId, token });
-    return res.json(templates);
+    const templateIds = templates.flatMap((template) => template.id ? [template.id] : []);
+    const archivedTemplates = templateIds.length
+      ? await prisma.whatsAppTemplateArchive.findMany({
+        where: { wabaId, templateId: { in: templateIds } },
+        select: { templateId: true },
+      })
+      : [];
+    const archivedTemplateIds = new Set(archivedTemplates.map((template) => template.templateId));
+    return res.json(templates.map((template) => ({
+      ...template,
+      is_archived_locally: Boolean(template.id && archivedTemplateIds.has(template.id)),
+    })));
   } catch (error: any) {
     return res.status(502).json({
       error: error?.message || 'Không thể tải template từ WABA.',
@@ -627,12 +639,87 @@ router.post(
   },
 );
 
+// POST /api/campaigns/templates/bulk-archive - Persist CRM-only archive state in PostgreSQL
+router.post(
+  '/templates/bulk-archive',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = templateBulkActionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Danh sách template cần archive không hợp lệ.',
+      });
+    }
+
+    try {
+      const setting = await getIntegrationSetting();
+      const wabaId = setting.whatsappWabaId?.trim();
+      if (!wabaId) {
+        return res.status(409).json({ error: 'Chưa cấu hình WhatsApp Business Account ID.' });
+      }
+      await prisma.$transaction(parsed.data.templates.map((template) => (
+        prisma.whatsAppTemplateArchive.upsert({
+          where: { wabaId_templateId: { wabaId, templateId: template.id } },
+          create: {
+            wabaId,
+            templateId: template.id,
+            templateName: template.name,
+            language: template.language,
+            archivedById: req.user?.id,
+          },
+          update: {
+            templateName: template.name,
+            language: template.language,
+            archivedById: req.user?.id,
+          },
+        })
+      )));
+      return res.json({ success: true, archived: parsed.data.templates.length });
+    } catch (error: any) {
+      return res.status(500).json({
+        error: error?.message || 'Không thể lưu trạng thái archive vào database.',
+      });
+    }
+  },
+);
+
+// POST /api/campaigns/templates/bulk-unarchive - Remove CRM-only archive state from PostgreSQL
+router.post(
+  '/templates/bulk-unarchive',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = templateBulkActionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Danh sách template cần unarchive không hợp lệ.',
+      });
+    }
+
+    try {
+      const setting = await getIntegrationSetting();
+      const wabaId = setting.whatsappWabaId?.trim();
+      if (!wabaId) {
+        return res.status(409).json({ error: 'Chưa cấu hình WhatsApp Business Account ID.' });
+      }
+      const templateIds = parsed.data.templates.map((template) => template.id);
+      await prisma.whatsAppTemplateArchive.deleteMany({
+        where: { wabaId, templateId: { in: templateIds } },
+      });
+      return res.json({ success: true, unarchived: templateIds.length });
+    } catch (error: any) {
+      return res.status(500).json({
+        error: error?.message || 'Không thể bỏ trạng thái archive trong database.',
+      });
+    }
+  },
+);
+
 // POST /api/campaigns/templates/bulk-delete - Delete selected language variants from Meta
 router.post(
   '/templates/bulk-delete',
   requireRole(['Admin', 'Marketing Lead']),
   async (req: AuthenticatedRequest, res: Response) => {
-    const parsed = templateBulkDeleteSchema.safeParse(req.body);
+    const parsed = templateBulkActionSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         error: parsed.error.issues[0]?.message || 'Danh sách template cần xóa không hợp lệ.',
@@ -655,6 +742,9 @@ router.post(
           token,
           templateId: template.id,
           name: template.name,
+        });
+        await prisma.whatsAppTemplateArchive.deleteMany({
+          where: { wabaId, templateId: template.id },
         });
       }
       return res.json({ success: true, deleted: parsed.data.templates.length });

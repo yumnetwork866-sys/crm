@@ -145,30 +145,30 @@ model OrderItem {
 }
 
 model BroadcastCampaign {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   name             String
   targetGroup      String
   targetProduct    String?
   targetGender     String?
   targetCountry    String?
-  category         String   @default("Thông báo")
+  category         String    @default("Thông báo")
   templateName     String?
-  templateLanguage String   @default("vi")
+  templateLanguage String    @default("vi")
   messageTemplate  String
-  status           String   @default("Draft") // Draft | Pending | Sending | Completed | PartiallyFailed | Failed | Cancelled
-  totalTargeted    Int      @default(0)
-  optedInCount     Int      @default(0)
-  sentCount        Int      @default(0)
-  deliveredCount   Int      @default(0)
-  readCount        Int      @default(0)
-  respondedCount   Int      @default(0)
-  failedCount      Int      @default(0)
+  status           String    @default("Draft") // Draft | Pending | Sending | Completed | PartiallyFailed | Failed | Cancelled
+  totalTargeted    Int       @default(0)
+  optedInCount     Int       @default(0)
+  sentCount        Int       @default(0)
+  deliveredCount   Int       @default(0)
+  readCount        Int       @default(0)
+  respondedCount   Int       @default(0)
+  failedCount      Int       @default(0)
   launchedById     String?
   launchedAt       DateTime?
   completedAt      DateTime?
   lastError        String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   recipients BroadcastRecipient[]
 
@@ -229,6 +229,20 @@ model IntegrationSetting {
   lastConnectedAt       DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+}
+
+model WhatsAppTemplateArchive {
+  id           String   @id @default(uuid())
+  wabaId       String
+  templateId   String
+  templateName String
+  language     String
+  archivedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([wabaId, templateId])
+  @@index([wabaId, createdAt(sort: Desc)])
 }
 
 model WhatsAppMessage {

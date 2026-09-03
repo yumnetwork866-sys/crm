@@ -31,6 +31,7 @@ export const STATUS_CLASSES: Record<string, string> = {
   REJECTED: 'border-rose-200 bg-rose-50 text-rose-700',
   PAUSED: 'border-orange-200 bg-orange-50 text-orange-700',
   DISABLED: 'border-slate-300 bg-slate-100 text-slate-700',
+  ARCHIVED: 'border-slate-300 bg-slate-100 text-slate-600',
 };
 
 export const inputClass =
