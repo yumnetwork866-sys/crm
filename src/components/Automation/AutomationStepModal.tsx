@@ -32,54 +32,38 @@ export const STEP_ICON_MAP: Record<string, LucideIcon> = {
   Smile,
 };
 
-export const getStepIconTheme = (color?: string, iconName?: string) => {
-  const c = (color || '').toLowerCase();
-  const name = iconName || '';
+const STEP_COLOR_PRESETS = ['#e11d48', '#d97706', '#2563eb', '#059669', '#9333ea'] as const;
 
-  if (c.includes('pink') || c.includes('rose') || name === 'Heart') {
-    return {
-      containerClass: 'bg-rose-50 border-rose-200 text-rose-600 step-icon-pink',
-      iconClass: 'step-icon-pink text-rose-600',
-    };
-  }
-  if (c.includes('amber') || c.includes('orange') || name === 'MessageCircle') {
-    return {
-      containerClass: 'bg-amber-50 border-amber-200 text-amber-600 step-icon-amber',
-      iconClass: 'step-icon-amber text-amber-600',
-    };
-  }
-  if (c.includes('blue') || c.includes('cyan') || name === 'HelpCircle') {
-    return {
-      containerClass: 'bg-blue-50 border-blue-200 text-blue-600 step-icon-blue',
-      iconClass: 'step-icon-blue text-blue-600',
-    };
-  }
-  if (c.includes('emerald') || c.includes('teal') || c.includes('green') || name === 'Gift') {
-    return {
-      containerClass: 'bg-emerald-50 border-emerald-200 text-emerald-600 step-icon-emerald',
-      iconClass: 'step-icon-emerald text-emerald-600',
-    };
-  }
-  if (c.includes('purple') || c.includes('indigo') || c.includes('violet') || name === 'Sparkles') {
-    return {
-      containerClass: 'bg-purple-50 border-purple-200 text-purple-600 step-icon-purple',
-      iconClass: 'step-icon-purple text-purple-600',
-    };
-  }
+export const normalizeStepColor = (color?: string, iconName?: string): string => {
+  const value = (color || '').trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(value)) return value;
+  if (value.includes('pink') || value.includes('rose')) return STEP_COLOR_PRESETS[0];
+  if (value.includes('amber') || value.includes('orange')) return STEP_COLOR_PRESETS[1];
+  if (value.includes('blue') || value.includes('cyan')) return STEP_COLOR_PRESETS[2];
+  if (value.includes('emerald') || value.includes('teal') || value.includes('green')) return STEP_COLOR_PRESETS[3];
+  if (value.includes('purple') || value.includes('indigo') || value.includes('violet')) return STEP_COLOR_PRESETS[4];
 
-  return {
-    containerClass: 'bg-rose-50 border-rose-200 text-rose-600 step-icon-pink',
-    iconClass: 'step-icon-pink text-rose-600',
+  const iconFallbacks: Record<string, string> = {
+    Heart: STEP_COLOR_PRESETS[0],
+    MessageCircle: STEP_COLOR_PRESETS[1],
+    HelpCircle: STEP_COLOR_PRESETS[2],
+    Gift: STEP_COLOR_PRESETS[3],
+    Sparkles: STEP_COLOR_PRESETS[4],
   };
+  return iconFallbacks[iconName || ''] || STEP_COLOR_PRESETS[0];
 };
 
-export const COLOR_OPTIONS = [
-  { label: 'Hồng (Tri ân)', value: 'pink' },
-  { label: 'Cam (Trải nghiệm)', value: 'amber' },
-  { label: 'Xanh dương (Tư vấn)', value: 'blue' },
-  { label: 'Xanh lá (Ưu đãi)', value: 'emerald' },
-  { label: 'Tím (Đặc quyền)', value: 'purple' },
-];
+export const getStepIconTheme = (color?: string, iconName?: string) => {
+  const hex = normalizeStepColor(color, iconName);
+  return {
+    containerStyle: {
+      backgroundColor: `${hex}14`,
+      borderColor: `${hex}45`,
+      color: hex,
+    },
+    iconStyle: { color: hex, stroke: hex },
+  };
+};
 
 interface AutomationStepModalProps {
   isOpen: boolean;
@@ -121,7 +105,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
           objective: target.objective,
           defaultMsg: target.defaultMsg,
           iconName: target.iconName,
-          color: target.color,
+          color: normalizeStepColor(target.color, target.iconName),
           active: target.active,
           templateName: target.templateName || '',
         });
@@ -139,7 +123,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     objective: '',
     defaultMsg: '',
     iconName: 'Heart',
-    color: COLOR_OPTIONS[0].value,
+    color: STEP_COLOR_PRESETS[0] as string,
     active: true,
     templateName: '',
   });
@@ -154,7 +138,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       objective: step.objective,
       defaultMsg: step.defaultMsg,
       iconName: step.iconName,
-      color: step.color,
+      color: normalizeStepColor(step.color, step.iconName),
       active: step.active,
       templateName: step.templateName || '',
     });
@@ -171,7 +155,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       objective: 'Gửi tin nhắn chăm sóc và gia tăng lòng trung thành của khách hàng.',
       defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm!',
       iconName: 'Sparkles',
-      color: COLOR_OPTIONS[(nextStepNum - 1) % COLOR_OPTIONS.length].value,
+      color: STEP_COLOR_PRESETS[(nextStepNum - 1) % STEP_COLOR_PRESETS.length],
       active: true,
       templateName: '',
     });
@@ -198,7 +182,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         objective: formData.objective.trim(),
         defaultMsg: formData.defaultMsg.trim(),
         iconName: formData.iconName,
-        color: formData.color,
+        color: normalizeStepColor(formData.color, formData.iconName),
         active: formData.active,
         templateName: formData.templateName || undefined,
       };
@@ -216,7 +200,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               objective: formData.objective.trim(),
               defaultMsg: formData.defaultMsg.trim(),
               iconName: formData.iconName,
-              color: formData.color,
+              color: normalizeStepColor(formData.color, formData.iconName),
               active: formData.active,
               templateName: formData.templateName || undefined,
             };
@@ -284,12 +268,16 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
-          {isAddingNew || editingStep ? (
-            <h3 className="flex items-center space-x-2 text-base font-bold text-slate-900">
-              <Pencil className="h-4 w-4 text-emerald-600" />
-              <span>{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
-            </h3>
-          ) : <span aria-hidden="true" />}
+          <h3 className="flex min-w-0 items-center space-x-2 text-base font-bold text-slate-900">
+            {isAddingNew || editingStep ? (
+              <>
+                <Pencil className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span className="truncate">{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
+              </>
+            ) : (
+              <span className="truncate">Danh Sách Các Bước Trong Kịch Bản ({currentSteps.length} bước)</span>
+            )}
+          </h3>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
@@ -417,11 +405,14 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                           onClick={() => setFormData({ ...formData, iconName: iconKey })}
                           className={`p-2 rounded-lg border flex flex-col items-center justify-center transition cursor-pointer ${
                             isSelected
-                              ? `${iconTheme.containerClass} shadow-xs ring-2 ring-emerald-500`
+                              ? 'bg-slate-100 border-slate-400 text-slate-800 shadow-xs ring-1 ring-slate-300'
                               : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
-                          <IconComp className={`w-4 h-4 ${isSelected ? iconTheme.iconClass : ''}`} />
+                          <IconComp
+                            className="h-4 w-4"
+                            style={isSelected ? iconTheme.iconStyle : undefined}
+                          />
                           <span className="text-[9px] mt-1 truncate max-w-full font-medium">{iconKey}</span>
                         </button>
                       );
@@ -433,38 +424,26 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700">
                     Tông Màu Thẻ
                   </label>
-                  <div className="space-y-1.5">
-                    {COLOR_OPTIONS.map((opt) => (
-                      <label
-                        key={opt.label}
-                        className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border cursor-pointer text-xs transition ${
-                          formData.color === opt.value
-                            ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-semibold shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="step_color"
-                          checked={formData.color === opt.value}
-                          onChange={() => setFormData({ ...formData, color: opt.value })}
-                          className="text-emerald-600 focus:ring-0"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    ))}
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <input
+                      type="color"
+                      value={normalizeStepColor(formData.color, formData.iconName)}
+                      onChange={(event) => setFormData({ ...formData, color: event.target.value })}
+                      aria-label="Chọn tông màu thẻ"
+                      className="h-11 w-14 cursor-pointer rounded border border-slate-300 bg-white p-1"
+                    />
+                    <div>
+                      <p className="font-mono text-xs font-semibold uppercase text-slate-800">
+                        {normalizeStepColor(formData.color, formData.iconName)}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-slate-500">Chọn màu icon và nền biểu tượng</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={handleCancelForm}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                >
-                  Hủy Bỏ
-                </button>
+
                 <button
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition cursor-pointer"
@@ -478,19 +457,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
 
           {!isAddingNew && !editingStep ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-900">
-                  Danh Sách Các Bước Trong Kịch Bản ({currentSteps.length} bước)
-                </h4>
-                <button
-                  type="button"
-                  onClick={handleStartAdd}
-                  className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Thêm Bước Mới</span>
-                </button>
-              </div>
 
               <div className="space-y-2">
                 {currentSteps.map((step) => {
@@ -506,8 +472,8 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                       }`}
                     >
                       <div className="flex min-w-0 items-start space-x-3 sm:items-center">
-                        <div className={`shrink-0 rounded-xl border p-2.5 ${iconTheme.containerClass}`}>
-                          <IconComponent className={`h-4 w-4 ${iconTheme.iconClass}`} />
+                        <div className="shrink-0 rounded-xl border p-2.5" style={iconTheme.containerStyle}>
+                          <IconComponent className="h-4 w-4" style={iconTheme.iconStyle} />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center space-x-2">
@@ -560,6 +526,16 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                     </div>
                   );
                 })}
+              </div>
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleStartAdd}
+                  className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Thêm</span>
+                </button>
               </div>
             </div>
           ) : null}

@@ -13,7 +13,12 @@ import type {
   WhatsAppApprovedTemplate,
   WhatsAppTemplateButtonType,
 } from '../../types';
-import { AutomationStepModal, STEP_ICON_MAP, getStepIconTheme } from './AutomationStepModal';
+import {
+  AutomationStepModal,
+  STEP_ICON_MAP,
+  getStepIconTheme,
+  normalizeStepColor,
+} from './AutomationStepModal';
 import { TemplateButtonIcon } from './Template/components/common/TemplateButtonIcon';
 
 interface AutomationViewProps {
@@ -115,7 +120,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +3: Lời Cảm Ơn & HDSD',
     objective: 'Bày tỏ lòng tri ân, gửi video/văn bản hướng dẫn sử dụng sản phẩm chuẩn xác.',
     iconName: 'Heart',
-    color: 'pink',
+    color: '#e11d48',
     defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
     active: true,
   },
@@ -126,7 +131,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +5: Hỏi Trải Nghiệm',
     objective: 'Thăm vấn sự hài lòng sau 5 ngày trải nghiệm, xử lý sớm phản hồi.',
     iconName: 'MessageCircle',
-    color: 'amber',
+    color: '#d97706',
     defaultMsg: 'Chào {{Customer Name}}, bạn đã dùng sản phẩm được 5 ngày rồi. Làn da/mái tóc của bạn có cảm thấy mượt mà và dịu nhẹ hơn chưa? Hãy chia sẻ với bọn mình nhé!',
     active: true,
   },
@@ -137,7 +142,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +7: Giải Đáp & Gợi Ý SP',
     objective: 'Giải đáp thắc mắc thói quen skincare/chăm sóc và tư vấn dòng sản phẩm bổ trợ.',
     iconName: 'HelpCircle',
-    color: 'blue',
+    color: '#2563eb',
     defaultMsg: 'Chào {{Customer Name}}, nếu có bất kỳ thắc mắc nào khi kết hợp sản phẩm, đừng ngần ngại hỏi nhé! Ngoài ra, kết hợp cùng Serum Vitamin C sẽ nhân đôi hiệu quả đấy ạ.',
     active: true,
   },
@@ -148,7 +153,7 @@ export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
     title: 'Ngày +15: Gửi Voucher & Mua Lại',
     objective: 'Tặng mã giảm giá riêng tri ân khách hàng cũ, khuyến khích đặt hàng lần tiếp theo.',
     iconName: 'Gift',
-    color: 'emerald',
+    color: '#059669',
     defaultMsg: 'Chào {{Customer Name}}, tặng bạn Voucher VIP20OFF giảm 20% cho đơn hàng tiếp theo. Mã có hiệu lực trong 7 ngày tới, đặt ngay nhé!',
     active: true,
   },
@@ -170,11 +175,9 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
           // If stored steps have old color classes, normalize them
           return parsed.map((item) => ({
             ...item,
-            color: item.color && !item.color.includes('dark:') ? item.color : (
-              item.step === 1 ? DEFAULT_AUTOMATION_STEPS[0].color :
-              item.step === 2 ? DEFAULT_AUTOMATION_STEPS[1].color :
-              item.step === 3 ? DEFAULT_AUTOMATION_STEPS[2].color :
-              DEFAULT_AUTOMATION_STEPS[3].color
+            color: normalizeStepColor(
+              item.color,
+              item.iconName || DEFAULT_AUTOMATION_STEPS[item.step - 1]?.iconName,
             ),
           }))
             .sort((a, b) => a.dayOffset - b.dayOffset)
@@ -275,8 +278,8 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                   {(() => {
                     const iconTheme = getStepIconTheme(stepItem.color, stepItem.iconName);
                     return (
-                      <div className={`p-2 rounded-xl border shrink-0 ${iconTheme.containerClass}`}>
-                        <Icon className={`w-4 h-4 ${iconTheme.iconClass}`} />
+                      <div className="shrink-0 rounded-xl border p-2" style={iconTheme.containerStyle}>
+                        <Icon className="h-4 w-4" style={iconTheme.iconStyle} />
                       </div>
                     );
                   })()}
