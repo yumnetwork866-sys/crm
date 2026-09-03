@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Heart,
-  Sparkles,
   Clock,
   Check,
   Sliders,
@@ -17,9 +16,9 @@ import {
   AutomationStepModal,
   STEP_ICON_MAP,
   getStepIconTheme,
-  normalizeStepColor,
 } from './AutomationStepModal';
 import { TemplateButtonIcon } from './Template/components/common/TemplateButtonIcon';
+import { useAutomationSteps } from '../../hooks/useAutomationSteps';
 
 interface AutomationViewProps {
   customers: Customer[];
@@ -112,85 +111,14 @@ function AutomationMessagePreview({
   );
 }
 
-export const DEFAULT_AUTOMATION_STEPS: AutomationStepItem[] = [
-  {
-    id: 'step_1',
-    step: 1,
-    dayOffset: 3,
-    title: 'Ngày +3: Lời Cảm Ơn & HDSD',
-    objective: 'Bày tỏ lòng tri ân, gửi video/văn bản hướng dẫn sử dụng sản phẩm chuẩn xác.',
-    iconName: 'Heart',
-    color: '#e11d48',
-    defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
-    active: true,
-  },
-  {
-    id: 'step_2',
-    step: 2,
-    dayOffset: 5,
-    title: 'Ngày +5: Hỏi Trải Nghiệm',
-    objective: 'Thăm vấn sự hài lòng sau 5 ngày trải nghiệm, xử lý sớm phản hồi.',
-    iconName: 'MessageCircle',
-    color: '#d97706',
-    defaultMsg: 'Chào {{Customer Name}}, bạn đã dùng sản phẩm được 5 ngày rồi. Làn da/mái tóc của bạn có cảm thấy mượt mà và dịu nhẹ hơn chưa? Hãy chia sẻ với bọn mình nhé!',
-    active: true,
-  },
-  {
-    id: 'step_3',
-    step: 3,
-    dayOffset: 7,
-    title: 'Ngày +7: Giải Đáp & Gợi Ý SP',
-    objective: 'Giải đáp thắc mắc thói quen skincare/chăm sóc và tư vấn dòng sản phẩm bổ trợ.',
-    iconName: 'HelpCircle',
-    color: '#2563eb',
-    defaultMsg: 'Chào {{Customer Name}}, nếu có bất kỳ thắc mắc nào khi kết hợp sản phẩm, đừng ngần ngại hỏi nhé! Ngoài ra, kết hợp cùng Serum Vitamin C sẽ nhân đôi hiệu quả đấy ạ.',
-    active: true,
-  },
-  {
-    id: 'step_4',
-    step: 4,
-    dayOffset: 15,
-    title: 'Ngày +15: Gửi Voucher & Mua Lại',
-    objective: 'Tặng mã giảm giá riêng tri ân khách hàng cũ, khuyến khích đặt hàng lần tiếp theo.',
-    iconName: 'Gift',
-    color: '#059669',
-    defaultMsg: 'Chào {{Customer Name}}, tặng bạn Voucher VIP20OFF giảm 20% cho đơn hàng tiếp theo. Mã có hiệu lực trong 7 ngày tới, đặt ngay nhé!',
-    active: true,
-  },
-];
-
-const STORAGE_KEY_AUTOMATION_STEPS = 'vietcrm_automation_steps';
 
 export const AutomationView: React.FC<AutomationViewProps> = ({
   customers,
   onSelectCustomer,
   approvedTemplates = [],
 }) => {
-  const [steps, setSteps] = useState<AutomationStepItem[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_AUTOMATION_STEPS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // If stored steps have old color classes, normalize them
-          return parsed.map((item) => ({
-            ...item,
-            color: normalizeStepColor(
-              item.color,
-              item.iconName || DEFAULT_AUTOMATION_STEPS[item.step - 1]?.iconName,
-            ),
-          }))
-            .sort((a, b) => a.dayOffset - b.dayOffset)
-            .map((s, idx) => ({ ...s, step: idx + 1 }));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load automation steps from localStorage', err);
-    }
-    return DEFAULT_AUTOMATION_STEPS;
-  });
-
-  const [selectedStepId, setSelectedStepId] = useState<string>(() => steps[0]?.id || 'step_1');
+  const { steps, isLoading, error, saveSteps, isSaving } = useAutomationSteps();
+  const [selectedStepId, setSelectedStepId] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalEditStepId, setModalEditStepId] = useState<string | null>(null);
 
@@ -208,18 +136,14 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
       : undefined
   ), [approvedTemplates, currentSelectedStep?.templateName]);
 
-  const handleSaveSteps = (updatedSteps: AutomationStepItem[]) => {
+  const handleSaveSteps = async (updatedSteps: AutomationStepItem[]) => {
     const sorted = [...updatedSteps]
-      .sort((a, b) => a.dayOffset - b.dayOffset)
-      .map((s, idx) => ({ ...s, step: idx + 1 }));
-    setSteps(sorted);
-    try {
-      localStorage.setItem(STORAGE_KEY_AUTOMATION_STEPS, JSON.stringify(sorted));
-    } catch (err) {
-      console.error('Failed to save automation steps to localStorage', err);
-    }
-    if (!sorted.some((s) => s.id === selectedStepId && s.active)) {
-      setSelectedStepId(sorted.find((s) => s.active)?.id || sorted[0]?.id || '');
+      .sort((left, right) => left.dayOffset - right.dayOffset)
+      .map((step, index) => ({ ...step, step: index + 1 }));
+    const savedSteps = await saveSteps(sorted);
+    setModalEditStepId(null);
+    if (!savedSteps.some((step) => step.id === selectedStepId && step.active)) {
+      setSelectedStepId(savedSteps.find((step) => step.active)?.id || savedSteps[0]?.id || '');
     }
   };
 
@@ -228,6 +152,22 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
   const automationCustomers = customers.filter(
     (c) => c.totalOrders >= 1 && c.automationSequence?.active
   );
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+        Đang tải quy trình automation...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm font-medium text-rose-700">
+        {error instanceof Error ? error.message : 'Không thể tải quy trình automation từ database.'}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -243,11 +183,12 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
         <div className="flex items-center space-x-2">
           <button
             type="button"
+            disabled={isSaving}
             onClick={() => {
               setModalEditStepId(null);
               setIsModalOpen(true);
             }}
-            className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-xs cursor-pointer"
+            className="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center space-x-2 transition shadow-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Sliders className="w-4 h-4 text-emerald-600" />
             <span>Tùy Chỉnh Quy Trình</span>
@@ -260,7 +201,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
 
         {/* Step Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {activeSteps.map((stepItem, index) => {
+          {activeSteps.map((stepItem) => {
             const Icon = STEP_ICON_MAP[stepItem.iconName] || Heart;
             const isSelected = currentSelectedStep?.id === stepItem.id;
 
@@ -288,10 +229,6 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                   </h4>
                 </div>
 
-                <p className="text-[11px] text-slate-500 min-h-[36px] line-clamp-2">
-                  {stepItem.objective}
-                </p>
-
 
               </div>
             );
@@ -302,11 +239,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
       {/* Active Step Details & Template Preview */}
       {currentSelectedStep && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-emerald-700 text-xs font-bold uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Mẫu Tin Nhắn WhatsApp Chi Tiết — {currentSelectedStep.title}</span>
-            </div>
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={() => {
@@ -446,6 +379,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
         onSaveSteps={handleSaveSteps}
         approvedTemplates={approvedTemplates}
         initialEditStepId={modalEditStepId}
+        isSaving={isSaving}
       />
 
     </div>

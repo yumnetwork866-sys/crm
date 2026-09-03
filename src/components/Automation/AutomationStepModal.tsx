@@ -80,9 +80,10 @@ interface AutomationStepModalProps {
   isOpen: boolean;
   onClose: () => void;
   steps: AutomationStepItem[];
-  onSaveSteps: (updatedSteps: AutomationStepItem[]) => void;
+  onSaveSteps: (updatedSteps: AutomationStepItem[]) => Promise<void>;
   approvedTemplates?: WhatsAppApprovedTemplate[];
   initialEditStepId?: string | null;
+  isSaving?: boolean;
 }
 
 export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
@@ -92,6 +93,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   onSaveSteps,
   approvedTemplates = [],
   initialEditStepId,
+  isSaving = false,
 }) => {
   const sortStepsByDay = (items: AutomationStepItem[]) =>
     [...items]
@@ -122,7 +124,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         setFormData({
           title: target.title,
           dayOffset: target.dayOffset,
-          objective: target.objective,
           defaultMsg: target.defaultMsg,
           iconName: target.iconName,
           color: normalizeStepColor(target.color, target.iconName),
@@ -140,7 +141,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   const [formData, setFormData] = useState({
     title: '',
     dayOffset: 3,
-    objective: '',
     defaultMsg: '',
     iconName: 'Heart',
     color: STEP_COLOR_PRESETS[0] as string,
@@ -155,7 +155,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setFormData({
       title: step.title,
       dayOffset: step.dayOffset,
-      objective: step.objective,
       defaultMsg: step.defaultMsg,
       iconName: step.iconName,
       color: normalizeStepColor(step.color, step.iconName),
@@ -172,7 +171,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setFormData({
       title: `Ngày +${lastDay}: Chăm sóc khách hàng`,
       dayOffset: lastDay,
-      objective: 'Gửi tin nhắn chăm sóc và gia tăng lòng trung thành của khách hàng.',
       defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm!',
       iconName: 'Sparkles',
       color: STEP_COLOR_PRESETS[(nextStepNum - 1) % STEP_COLOR_PRESETS.length],
@@ -186,57 +184,64 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setIsAddingNew(false);
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const persistSteps = async (updatedSteps: AutomationStepItem[]) => {
+    try {
+      await onSaveSteps(updatedSteps);
+      setCurrentSteps(updatedSteps);
+      return true;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể lưu quy trình vào database.');
+      return false;
+    }
+  };
+
+  const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) {
       alert('Vui lòng nhập tiêu đề bước!');
       return;
     }
+    if (!formData.templateName) {
+      alert('Vui lòng chọn một template đã được duyệt!');
+      return;
+    }
 
+    let updated: AutomationStepItem[] | null = null;
     if (isAddingNew) {
       const newStep: AutomationStepItem = {
         id: `step_${Date.now()}`,
         step: currentSteps.length + 1,
         dayOffset: Number(formData.dayOffset) || 0,
         title: formData.title.trim(),
-        objective: formData.objective.trim(),
         defaultMsg: formData.defaultMsg.trim(),
         iconName: formData.iconName,
         color: normalizeStepColor(formData.color, formData.iconName),
         active: formData.active,
         templateName: formData.templateName || undefined,
       };
-      const updated = sortStepsByDay([...currentSteps, newStep]);
-      setCurrentSteps(updated);
-      onSaveSteps(updated);
+      updated = sortStepsByDay([...currentSteps, newStep]);
     } else if (editingStep) {
-      const updated = sortStepsByDay(
-        currentSteps.map((s) => {
-          if (s.id === editingStep.id) {
-            return {
-              ...s,
+      updated = sortStepsByDay(
+        currentSteps.map((step) => step.id === editingStep.id
+          ? {
+              ...step,
               title: formData.title.trim(),
               dayOffset: Number(formData.dayOffset) || 0,
-              objective: formData.objective.trim(),
               defaultMsg: formData.defaultMsg.trim(),
               iconName: formData.iconName,
               color: normalizeStepColor(formData.color, formData.iconName),
               active: formData.active,
               templateName: formData.templateName || undefined,
-            };
-          }
-          return s;
-        })
+            }
+          : step),
       );
-      setCurrentSteps(updated);
-      onSaveSteps(updated);
     }
 
-    handleCancelForm();
+    if (updated && await persistSteps(updated)) handleCancelForm();
   };
 
 
-  const handleDeleteStep = (stepId: string) => {
+  const handleDeleteStep = async (stepId: string) => {
     if (currentSteps.length <= 1) {
       alert('Quy trình phải có ít nhất 1 bước!');
       return;
@@ -244,40 +249,20 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     if (!confirm('Bạn có chắc chắn muốn xóa bước này khỏi quy trình?')) return;
 
     const updated = sortStepsByDay(currentSteps.filter((step) => step.id !== stepId));
-    setCurrentSteps(updated);
-    onSaveSteps(updated);
+    await persistSteps(updated);
   };
 
-  const handleToggleActive = (stepId: string) => {
+  const handleToggleActive = async (stepId: string) => {
     const updated = sortStepsByDay(currentSteps.map((step) => (
       step.id === stepId ? { ...step, active: !step.active } : step
     )));
-    setCurrentSteps(updated);
-    onSaveSteps(updated);
+    await persistSteps(updated);
   };
 
   const handleSelectApprovedTemplate = (templateName: string) => {
-    setFormData((prev) => ({ ...prev, templateName }));
-    if (!templateName) return;
-
-    const found = approvedTemplates.find((t) => t.name === templateName);
-    if (found) {
-      const bodyComp = found.components.find((c) => c.type === 'BODY');
-      if (bodyComp?.text) {
-        setFormData((prev) => ({
-          ...prev,
-          templateName,
-          defaultMsg: bodyComp.text || prev.defaultMsg,
-        }));
-      }
-    }
-  };
-
-  const handleInsertToken = (token: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      defaultMsg: `${prev.defaultMsg} ${token}`,
-    }));
+    const found = approvedTemplates.find((template) => template.name === templateName);
+    const body = found?.components.find((component) => component.type === 'BODY')?.text || '';
+    setFormData((current) => ({ ...current, templateName, defaultMsg: body }));
   };
 
   if (!isOpen) return null;
@@ -342,69 +327,41 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                 </div>
               </div>
 
+
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Mục Tiêu Bước Chăm Sóc
+                  Chọn Template <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={formData.objective}
-                  onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
-                  placeholder="VD: Bày tỏ lòng tri ân, gửi video/văn bản hướng dẫn sử dụng sản phẩm chuẩn xác."
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
-                />
+                <select
+                  required
+                  value={formData.templateName}
+                  onChange={(event) => handleSelectApprovedTemplate(event.target.value)}
+                  disabled={approvedTemplates.length === 0}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 transition focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                >
+                  <option value="" disabled>
+                    {approvedTemplates.length > 0
+                      ? 'Chọn một template đã được duyệt'
+                      : 'Chưa có template nào được duyệt'}
+                  </option>
+                  {approvedTemplates.map((template) => (
+                    <option key={`${template.name}-${template.language}`} value={template.name}>
+                      {template.name} ({template.category} - {template.language})
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {approvedTemplates.length > 0 && (
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Liên Kết Mẫu WhatsApp Template Đã Duyệt (Tùy chọn)
-                  </label>
-                  <select
-                    value={formData.templateName}
-                    onChange={(e) => handleSelectApprovedTemplate(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
-                  >
-                    <option value="">Không dùng Template Meta (Chỉ gửi được cho khách hàng nhắn trong 24h)</option>
-                    {approvedTemplates.map((tpl) => (
-                      <option key={tpl.name} value={tpl.name}>
-                        {tpl.name} ({tpl.category} - {tpl.language})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Nội Dung Tin Nhắn Gửi Khách <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="flex items-center space-x-1.5 text-[11px] text-slate-500">
-                    <span>Chèn biến nhanh:</span>
-                    <button
-                      type="button"
-                      onClick={() => handleInsertToken('{{Customer Name}}')}
-                      className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-mono text-[10px] transition cursor-pointer"
-                    >
-                      &#123;&#123;Customer Name&#125;&#125;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleInsertToken('{{Order ID}}')}
-                      className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-mono text-[10px] transition cursor-pointer"
-                    >
-                      &#123;&#123;Order ID&#125;&#125;
-                    </button>
-                  </div>
-                </div>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Nội Dung Template
+                </label>
                 <textarea
                   rows={4}
-                  required
+                  readOnly
                   value={formData.defaultMsg}
-                  onChange={(e) => setFormData({ ...formData, defaultMsg: e.target.value })}
-                  placeholder="Nhập nội dung tin nhắn gửi khách..."
-                  className="w-full bg-white border border-slate-300 rounded-lg p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 leading-relaxed font-mono transition"
+                  placeholder="Chọn template để xem nội dung"
+                  className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700 placeholder-slate-400 focus:outline-none"
                 />
               </div>
 
@@ -443,23 +400,6 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold text-slate-700">Tông Màu Thẻ</legend>
                   <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
-                    <div className="mb-3 flex items-center gap-3 rounded-lg bg-slate-50 p-2.5">
-                      <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
-                        style={getStepIconTheme(formData.color, formData.iconName).containerStyle}
-                      >
-                        {React.createElement(STEP_ICON_MAP[formData.iconName] || Heart, {
-                          className: 'h-5 w-5',
-                          style: getStepIconTheme(formData.color, formData.iconName).iconStyle,
-                        })}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-medium text-slate-500">Màu đang chọn</p>
-                        <p className="font-mono text-xs font-bold uppercase tracking-wide text-slate-800">
-                          {normalizeStepColor(formData.color, formData.iconName)}
-                        </p>
-                      </div>
-                    </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                       {paletteColors.map((color) => {
@@ -536,10 +476,11 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
 
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-sm flex items-center space-x-1.5 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{isAddingNew ? 'Thêm Bước Này' : 'Lưu Thay Đổi'}</span>
+                  <span>{isSaving ? 'Đang lưu...' : isAddingNew ? 'Thêm' : 'Lưu'}</span>
                 </button>
               </div>
             </form>
@@ -572,9 +513,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                               +{step.dayOffset} ngày
                             </span>
                           </div>
-                          <p className="mt-0.5 max-w-lg truncate text-[11px] text-slate-500">
-                            {step.objective || step.defaultMsg}
-                          </p>
+
                         </div>
                       </div>
 
@@ -583,6 +522,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                           type="button"
                           role="switch"
                           aria-checked={step.active}
+                          disabled={isSaving}
                           onClick={() => handleToggleActive(step.id)}
                           title={step.active ? 'Đang kích hoạt - Nhấp để tắt' : 'Đang tạm tắt - Nhấp để bật'}
                           className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
@@ -598,17 +538,19 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                         </button>
                         <button
                           type="button"
+                          disabled={isSaving}
                           onClick={() => handleStartEdit(step)}
                           title="Chỉnh sửa bước này"
-                          className="rounded-lg bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200"
+                          className="rounded-lg bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
+                          disabled={isSaving}
                           onClick={() => handleDeleteStep(step.id)}
                           title="Xóa bước này"
-                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 transition hover:bg-rose-100"
+                          className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -620,8 +562,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               <div className="flex justify-center pt-1">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={handleStartAdd}
-                  className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500"
+                  className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Thêm</span>

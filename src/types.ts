@@ -131,7 +131,6 @@ export interface AutomationStepConfig {
   stepNumber: number;
   dayOffset: number; // +3, +5, +7, +15
   title: string;
-  objective: string;
   defaultTemplate: string;
   iconName: string;
 }
@@ -141,7 +140,6 @@ export interface AutomationStepItem {
   step: number;
   dayOffset: number;
   title: string;
-  objective: string;
   defaultMsg: string;
   iconName: string;
   color: string;

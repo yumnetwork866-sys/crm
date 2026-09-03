@@ -10,6 +10,7 @@ import orderRoutes from './routes/orders';
 import productRoutes from './routes/products';
 import userRoutes from './routes/users';
 import campaignRoutes from './routes/campaigns';
+import automationStepRoutes from './routes/automationSteps';
 import metaRoutes from './routes/metaRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import { startCampaignWorker } from './services/campaignWorker';
@@ -157,6 +158,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/automation-steps', automationStepRoutes);
 app.use('/api/upload', uploadRoutes);
 
 const httpServer = http.createServer(app);

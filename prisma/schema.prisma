@@ -219,6 +219,22 @@ model AutomationLog {
   @@index([customerId, sentAt(sort: Desc)])
 }
 
+model AutomationStep {
+  id           String   @id @default(uuid())
+  step         Int      @unique
+  dayOffset    Int
+  title        String
+  defaultMsg   String
+  iconName     String
+  color        String
+  active       Boolean  @default(true)
+  templateName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([active, dayOffset])
+}
+
 model IntegrationSetting {
   id                    String    @id @default("default")
   whatsappPhoneNumberId String?

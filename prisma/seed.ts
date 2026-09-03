@@ -12,6 +12,7 @@ async function main() {
   // 1. Clear existing records
   await prisma.whatsAppMessage.deleteMany();
   await prisma.automationLog.deleteMany();
+  await prisma.automationStep.deleteMany();
   await prisma.customerNote.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
@@ -21,6 +22,51 @@ async function main() {
   await prisma.broadcastCampaign.deleteMany();
 
   console.log('✅ Đã dọn dẹp bảng dữ liệu cũ.');
+
+  await prisma.automationStep.createMany({
+    data: [
+      {
+        id: 'step_1',
+        step: 1,
+        dayOffset: 3,
+        title: 'Ngày +3: Lời Cảm Ơn & HDSD',
+        defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
+        iconName: 'Heart',
+        color: '#e11d48',
+        active: true,
+      },
+      {
+        id: 'step_2',
+        step: 2,
+        dayOffset: 5,
+        title: 'Ngày +5: Hỏi Trải Nghiệm',
+        defaultMsg: 'Chào {{Customer Name}}, bạn đã dùng sản phẩm được 5 ngày rồi. Làn da/mái tóc của bạn có cảm thấy mượt mà và dịu nhẹ hơn chưa? Hãy chia sẻ với bọn mình nhé!',
+        iconName: 'MessageCircle',
+        color: '#d97706',
+        active: true,
+      },
+      {
+        id: 'step_3',
+        step: 3,
+        dayOffset: 7,
+        title: 'Ngày +7: Giải Đáp & Gợi Ý SP',
+        defaultMsg: 'Chào {{Customer Name}}, nếu có bất kỳ thắc mắc nào khi kết hợp sản phẩm, đừng ngần ngại hỏi nhé! Ngoài ra, kết hợp cùng Serum Vitamin C sẽ nhân đôi hiệu quả đấy ạ.',
+        iconName: 'HelpCircle',
+        color: '#2563eb',
+        active: true,
+      },
+      {
+        id: 'step_4',
+        step: 4,
+        dayOffset: 15,
+        title: 'Ngày +15: Gửi Voucher & Mua Lại',
+        defaultMsg: 'Chào {{Customer Name}}, tặng bạn Voucher VIP20OFF giảm 20% cho đơn hàng tiếp theo. Mã có hiệu lực trong 7 ngày tới, đặt ngay nhé!',
+        iconName: 'Gift',
+        color: '#059669',
+        active: true,
+      },
+    ],
+  });
 
   // 2. Seed Users
   const adminEmail = process.env.ADMIN?.trim() || 'anh.nguyen@vietcrm.vn';
