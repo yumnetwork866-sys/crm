@@ -342,10 +342,24 @@ export const EditableButtonItem = memo(function EditableButtonItem({
                   <Files className="h-3.5 w-3.5" /> Sử dụng có sẵn
                 </button>
               </div>
+              {button.flowId ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">
+                  Đã liên kết Flow: {availableFlows?.find((flow) => flow.id === button.flowId)?.name || button.flowId}
+                </p>
+              ) : null}
 
               <CreateFlowModal
                 isOpen={isCreateFlowModalOpen}
                 onClose={() => setIsCreateFlowModalOpen(false)}
+                onCreated={(flow) => {
+                  onUpdate(button.id, { flowId: flow.id, navigateScreen: 'SURVEY_ONE' });
+                  setAvailableFlows((current) => [
+                    { id: flow.id, name: flow.name, status: flow.status },
+                    ...(current || []).filter((item) => item.id !== flow.id),
+                  ]);
+                  setSelectedFlowId(flow.id);
+                  setIsCreateFlowModalOpen(false);
+                }}
               />
 
               {isFlowPickerOpen ? (

@@ -107,7 +107,6 @@ export default function App() {
     users,
     currentUser,
     isAdmin,
-    selectUser,
     saveUser: handleSaveUser,
     deleteUser: handleDeleteUser,
     toggleUserStatus: handleToggleUserStatus,
@@ -333,10 +332,7 @@ export default function App() {
                 <PublicLandingView
                   onOpenLogin={() => setIsLoginOpen(true)}
                   onNavigateLegal={(page) => { void navigate(`/${page === 'deletion' ? 'data-deletion' : page}`); }}
-                  onQuickDemoLogin={() => {
-                    selectUser(users[0]);
-                    void navigate('/crm');
-                  }}
+                  onQuickDemoLogin={() => setIsLoginOpen(true)}
                 />
                 <LoginModal
                   isOpen={isLoginOpen}

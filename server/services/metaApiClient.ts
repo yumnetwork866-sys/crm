@@ -609,6 +609,186 @@ export async function fetchWhatsAppFlows(options: {
   return flows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export interface SurveyFlowScreenInput {
+  title: string;
+  heading: string;
+  description: string;
+  options: string[];
+}
+
+export interface CreateSurveyFlowOptions {
+  wabaId: string;
+  token: string;
+  name: string;
+  screens: [SurveyFlowScreenInput, SurveyFlowScreenInput, SurveyFlowScreenInput];
+}
+
+export interface CreateSurveyFlowResult {
+  id: string;
+  name: string;
+  status: 'DRAFT';
+}
+
+type FlowJsonDataDefinition = {
+  type: 'array';
+  items: { type: 'string' };
+  __example__: string[];
+};
+
+/** Build a self-contained, endpoint-less survey accepted by the WhatsApp Flows JSON schema. */
+export function buildSurveyFlowJson(
+  screens: CreateSurveyFlowOptions['screens'],
+): Record<string, unknown> {
+  const screenIds = ['SURVEY_ONE', 'SURVEY_TWO', 'SURVEY_THREE'] as const;
+  const routingModel = Object.fromEntries(
+    screenIds.map((screenId, index) => [screenId, screenIds[index + 1] ? [screenIds[index + 1]] : []]),
+  );
+
+  return {
+    version: '7.1',
+    routing_model: routingModel,
+    screens: screens.map((screen, index) => {
+      const isLastScreen = index === screens.length - 1;
+      const previousAnswers = Object.fromEntries(
+        screens.slice(0, index).map((_previousScreen, previousIndex) => [
+          `answer_${previousIndex + 1}`,
+          {
+            type: 'array',
+            items: { type: 'string' },
+            __example__: [`option_${previousIndex + 1}_1`],
+          } satisfies FlowJsonDataDefinition,
+        ]),
+      );
+      const answerName = `answer_${index + 1}`;
+      const payload = Object.fromEntries([
+        ...Object.keys(previousAnswers).map((name) => [name, `\${data.${name}}`]),
+        [answerName, `\${form.${answerName}}`],
+      ]);
+
+      return {
+        id: screenIds[index],
+        title: screen.title,
+        ...(isLastScreen ? { terminal: true, success: true } : {}),
+        ...(index > 0 ? { data: previousAnswers } : {}),
+        layout: {
+          type: 'SingleColumnLayout',
+          children: [{
+            type: 'Form',
+            name: `survey_form_${index + 1}`,
+            children: [
+              { type: 'TextHeading', text: screen.heading },
+              { type: 'TextBody', text: screen.description },
+              {
+                type: 'CheckboxGroup',
+                name: answerName,
+                label: 'Chọn ít nhất một phương án',
+                required: true,
+                'data-source': screen.options.map((option, optionIndex) => ({
+                  id: `option_${index + 1}_${optionIndex + 1}`,
+                  title: option,
+                })),
+              },
+              {
+                type: 'Footer',
+                label: isLastScreen ? 'Gửi' : 'Tiếp tục',
+                'on-click-action': isLastScreen
+                  ? { name: 'complete', payload }
+                  : {
+                    name: 'navigate',
+                    next: { type: 'screen', name: screenIds[index + 1] },
+                    payload,
+                  },
+              },
+            ],
+          }],
+        },
+      };
+    }),
+  };
+}
+
+function getMetaApiError(result: any, fallback: string): string {
+  const validationErrors = Array.isArray(result?.validation_errors)
+    ? result.validation_errors
+      .map((error: any) => error?.error || error?.message)
+      .filter(Boolean)
+      .join('; ')
+    : '';
+  return result?.error?.error_user_msg
+    || result?.error?.message
+    || validationErrors
+    || fallback;
+}
+
+/** Create a real editable Meta Flow and upload its Flow JSON without publishing it. */
+export async function createSurveyFlow(
+  options: CreateSurveyFlowOptions,
+): Promise<CreateSurveyFlowResult> {
+  const createResponse = await fetch(
+    `https://graph.facebook.com/v26.0/${options.wabaId}/flows`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${options.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: options.name, categories: ['SURVEY'] }),
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  const createResult: any = await createResponse.json().catch(() => ({}));
+  if (!createResponse.ok || !createResult?.id) {
+    throw new Error(getMetaApiError(createResult, 'Meta không thể tạo WhatsApp Flow.'));
+  }
+
+  const flowId = String(createResult.id);
+  const formData = new FormData();
+  const flowJson = JSON.stringify(buildSurveyFlowJson(options.screens));
+  formData.append('file', new Blob([flowJson], { type: 'application/json' }), 'flow.json');
+  formData.append('name', 'flow.json');
+  formData.append('asset_type', 'FLOW_JSON');
+
+  try {
+    const uploadResponse = await fetch(
+      `https://graph.facebook.com/v26.0/${flowId}/assets`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${options.token}` },
+        body: formData,
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    const uploadResult: any = await uploadResponse.json().catch(() => ({}));
+    const hasValidationErrors = Array.isArray(uploadResult?.validation_errors)
+      && uploadResult.validation_errors.length > 0;
+    if (!uploadResponse.ok || uploadResult?.success === false || hasValidationErrors) {
+      throw new Error(getMetaApiError(uploadResult, 'Meta từ chối file flow.json.'));
+    }
+  } catch (uploadError: any) {
+    let cleanupSucceeded = false;
+    try {
+      const cleanupResponse = await fetch(`https://graph.facebook.com/v26.0/${flowId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${options.token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const cleanupResult: any = await cleanupResponse.json().catch(() => ({}));
+      cleanupSucceeded = cleanupResponse.ok && cleanupResult?.success !== false;
+    } catch {
+      cleanupSucceeded = false;
+    }
+    const uploadMessage = uploadError?.message || 'Không thể tải flow.json lên Meta.';
+    throw new Error(
+      cleanupSucceeded
+        ? `${uploadMessage} Flow nháp đã được dọn dẹp.`
+        : `${uploadMessage} Không thể dọn dẹp Flow nháp ${flowId}; hãy xóa thủ công trong Meta.`,
+      { cause: uploadError },
+    );
+  }
+
+  return { id: flowId, name: options.name, status: 'DRAFT' };
+}
+
 export interface MessageTemplateExample {
   name?: string;
   value: string;

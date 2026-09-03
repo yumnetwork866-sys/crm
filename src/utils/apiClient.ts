@@ -28,10 +28,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers
-  });
+  const method = options.method || 'GET';
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers
+    });
+  } catch (error) {
+    console.error(`[API NETWORK ERROR] ${method} ${endpoint}`, error);
+    throw error;
+  }
 
   if (response.status === 401 || response.status === 403) {
     // If unauthorized / token expired, clear token
@@ -43,7 +50,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || `Yêu cầu thất bại với mã lỗi ${response.status}`);
+    const message = typeof data.error === 'string'
+      ? data.error
+      : data.error?.message || data.message || `Yêu cầu thất bại với mã lỗi ${response.status}`;
+    console.error(`[API ERROR] ${method} ${endpoint} -> ${response.status}`, {
+      statusText: response.statusText,
+      message,
+    });
+    throw new Error(message);
   }
 
   return data as T;

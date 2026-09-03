@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { INITIAL_USERS } from '../data/mockData';
 import type { AppUser, UserRole } from '../types';
-import { api, removeStoredToken, setStoredToken } from '../utils/apiClient';
+import { api, getStoredToken, removeStoredToken, setStoredToken } from '../utils/apiClient';
 
 const STORAGE_KEY_USERS = 'yumcrm_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
@@ -53,7 +53,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<AppUser[]>(loadUsers);
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(loadCurrentUser);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => (
+    getStoredToken() ? loadCurrentUser() : null
+  ));
 
   useEffect(() => {
     try {
@@ -76,27 +78,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [currentUser]);
 
   useEffect(() => {
-    // Kiểm tra token và khôi phục thông tin đăng nhập từ backend
-    api.get<AppUser>('/auth/me')
-      .then((user) => {
-        if (user && user.id) {
-          setCurrentUser(user);
-        }
-      })
-      .catch(() => null);
+    if (!getStoredToken()) {
+      setCurrentUser(null);
+      return;
+    }
 
-    // Tự động tải danh sách người dùng từ DB nếu có quyền
-    api.get<AppUser[]>('/users')
-      .then((dbUsers) => {
-        if (Array.isArray(dbUsers) && dbUsers.length > 0) {
-          setUsers(dbUsers);
-        }
+    let isCancelled = false;
+    void api.get<AppUser>('/auth/me')
+      .then((user) => {
+        if (isCancelled) return;
+        if (!user?.id) throw new Error('Phiên đăng nhập không hợp lệ.');
+        setCurrentUser(user);
+
+        // Chỉ tải dữ liệu bảo vệ sau khi JWT đã được backend xác nhận.
+        void api.get<AppUser[]>('/users')
+          .then((dbUsers) => {
+            if (!isCancelled && Array.isArray(dbUsers) && dbUsers.length > 0) {
+              setUsers(dbUsers);
+            }
+          })
+          .catch(() => null);
       })
-      .catch(() => null);
+      .catch(() => {
+        if (isCancelled) return;
+        removeStoredToken();
+        setCurrentUser(null);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const selectUser = useCallback((user: AppUser | null) => {
-    if (!user) removeStoredToken();
+    if (!user) {
+      removeStoredToken();
+      setCurrentUser(null);
+      return;
+    }
+    if (!getStoredToken()) {
+      console.warn('[AUTH] Không thể chọn user khi chưa có JWT hợp lệ.');
+      setCurrentUser(null);
+      return;
+    }
     setCurrentUser(user);
   }, []);
 
@@ -109,40 +133,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, password: password.trim() }),
       });
-    } catch {
-      const localUser = users.find(
-        (user) => user.email.toLowerCase() === cleanEmail || (cleanEmail === 'admin' && user.role === 'Admin')
-      );
-      if (!localUser) {
-        if (cleanEmail === 'admin') {
-          const fallbackAdmin: AppUser = {
-            id: 'usr_001',
-            name: 'Quản Trị Viên (Admin)',
-            email: 'admin',
-            role: 'Admin',
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
-            phone: '',
-            department: 'Ban Giám Đốc',
-            status: 'active',
-            lastActive: 'Đang hoạt động',
-            assignedLeadsCount: 0,
-            totalRevenue: 0,
-          };
-          setCurrentUser(fallbackAdmin);
-          return fallbackAdmin;
-        }
-        throw new Error('Không thể kết nối máy chủ. Vui lòng thử lại.');
-      }
-      if (localUser.status === 'inactive') throw new Error('Tài khoản này đang bị vô hiệu hóa.');
-      setCurrentUser(localUser);
-      return localUser;
+    } catch (error) {
+      console.error('[AUTH NETWORK ERROR] POST /api/auth/login', error);
+      throw new Error('Không thể kết nối máy chủ. Vui lòng thử lại.', { cause: error });
     }
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(data.error || 'Email hoặc mật khẩu không chính xác.');
     }
-    if (data.token) setStoredToken(data.token);
+    if (!data.token || !data.user?.id) {
+      throw new Error('Máy chủ không trả về phiên đăng nhập hợp lệ.');
+    }
+    setStoredToken(data.token);
 
     const authenticatedUser: AppUser = {
       id: data.user.id,
@@ -172,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return [authenticatedUser, ...prev];
     });
     return authenticatedUser;
-  }, [users]);
+  }, []);
 
   const logout = useCallback(() => {
     removeStoredToken();
@@ -244,7 +247,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetAuth = useCallback(() => {
     setUsers(INITIAL_USERS);
-    setCurrentUser(INITIAL_USERS[0]);
   }, []);
 
   const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {

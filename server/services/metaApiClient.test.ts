@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildMessageTemplatePayload,
+  buildSurveyFlowJson,
+  createSurveyFlow,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   uploadTemplateSampleMedia,
@@ -135,6 +137,167 @@ describe('buildMessageTemplatePayload', () => {
         },
       ],
     });
+  });
+});
+
+const surveyScreens = [
+  {
+    title: 'Câu hỏi 1',
+    heading: 'Bạn quan tâm điều gì?',
+    description: 'Chọn các phương án phù hợp.',
+    options: ['Giá', 'Chất lượng'],
+  },
+  {
+    title: 'Câu hỏi 2',
+    heading: 'Bạn muốn được liên hệ ở đâu?',
+    description: 'Bạn có thể chọn nhiều kênh.',
+    options: ['WhatsApp', 'Email'],
+  },
+  {
+    title: 'Câu hỏi 3',
+    heading: 'Khi nào bạn muốn mua?',
+    description: 'Chọn thời gian phù hợp nhất.',
+    options: ['Hôm nay', 'Tuần sau'],
+  },
+] as const;
+
+describe('buildSurveyFlowJson', () => {
+  it('builds a three-screen endpoint-less survey with navigation and completion payloads', () => {
+    const flowJson: any = buildSurveyFlowJson(surveyScreens.map((screen) => ({
+      ...screen,
+      options: [...screen.options],
+    })) as unknown as Parameters<typeof buildSurveyFlowJson>[0]);
+
+    expect(flowJson.version).toBe('7.1');
+    expect(flowJson.routing_model).toEqual({
+      SURVEY_ONE: ['SURVEY_TWO'],
+      SURVEY_TWO: ['SURVEY_THREE'],
+      SURVEY_THREE: [],
+    });
+    expect(flowJson.screens).toHaveLength(3);
+    expect(flowJson.screens[0]).toMatchObject({
+      id: 'SURVEY_ONE',
+      title: 'Câu hỏi 1',
+      layout: {
+        type: 'SingleColumnLayout',
+        children: [{
+          type: 'Form',
+          name: 'survey_form_1',
+          children: [
+            { type: 'TextHeading', text: 'Bạn quan tâm điều gì?' },
+            { type: 'TextBody', text: 'Chọn các phương án phù hợp.' },
+            {
+              type: 'CheckboxGroup',
+              name: 'answer_1',
+              required: true,
+              'data-source': [
+                { id: 'option_1_1', title: 'Giá' },
+                { id: 'option_1_2', title: 'Chất lượng' },
+              ],
+            },
+            {
+              type: 'Footer',
+              'on-click-action': {
+                name: 'navigate',
+                next: { type: 'screen', name: 'SURVEY_TWO' },
+                payload: { answer_1: '${form.answer_1}' },
+              },
+            },
+          ],
+        }],
+      },
+    });
+    expect(flowJson.screens[1].data.answer_1).toEqual({
+      type: 'array',
+      items: { type: 'string' },
+      __example__: ['option_1_1'],
+    });
+    expect(flowJson.screens[2]).toMatchObject({
+      terminal: true,
+      success: true,
+      data: {
+        answer_1: expect.any(Object),
+        answer_2: expect.any(Object),
+      },
+    });
+    const finalAction = flowJson.screens[2].layout.children[0].children[3]['on-click-action'];
+    expect(finalAction).toEqual({
+      name: 'complete',
+      payload: {
+        answer_1: '${data.answer_1}',
+        answer_2: '${data.answer_2}',
+        answer_3: '${form.answer_3}',
+      },
+    });
+  });
+});
+
+describe('createSurveyFlow', () => {
+  it('creates a draft on the WABA then uploads flow.json as a FLOW_JSON asset', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'flow-123' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createSurveyFlow({
+      wabaId: 'waba-id',
+      token: 'access-token',
+      name: 'Khảo sát khách hàng',
+      screens: surveyScreens.map((screen) => ({ ...screen, options: [...screen.options] })) as unknown as Parameters<typeof buildSurveyFlowJson>[0],
+    })).resolves.toEqual({ id: 'flow-123', name: 'Khảo sát khách hàng', status: 'DRAFT' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://graph.facebook.com/v26.0/waba-id/flows');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer access-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'Khảo sát khách hàng', categories: ['SURVEY'] }),
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe('https://graph.facebook.com/v26.0/flow-123/assets');
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: 'POST',
+      headers: { Authorization: 'Bearer access-token' },
+    });
+    const formData = fetchMock.mock.calls[1][1]?.body as FormData;
+    expect(formData).toBeInstanceOf(FormData);
+    expect(formData.get('name')).toBe('flow.json');
+    expect(formData.get('asset_type')).toBe('FLOW_JSON');
+    const flowFile = formData.get('file') as File;
+    expect(flowFile.name).toBe('flow.json');
+    expect(flowFile.type).toBe('application/json');
+    expect(JSON.parse(await flowFile.text())).toEqual(buildSurveyFlowJson(
+      surveyScreens.map((screen) => ({ ...screen, options: [...screen.options] })) as unknown as Parameters<typeof buildSurveyFlowJson>[0],
+    ));
+  });
+
+  it('deletes the newly created draft when asset upload fails', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'flow-456' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        success: true,
+        validation_errors: [{ error: 'Invalid screen layout' }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createSurveyFlow({
+      wabaId: 'waba-id',
+      token: 'access-token',
+      name: 'Survey',
+      screens: surveyScreens.map((screen) => ({ ...screen, options: [...screen.options] })) as unknown as Parameters<typeof buildSurveyFlowJson>[0],
+    })).rejects.toThrow('Invalid screen layout Flow nháp đã được dọn dẹp.');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2]).toEqual([
+      'https://graph.facebook.com/v26.0/flow-456',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer access-token' },
+      }),
+    ]);
   });
 });
 

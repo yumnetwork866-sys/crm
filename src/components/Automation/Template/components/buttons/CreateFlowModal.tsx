@@ -8,6 +8,7 @@ import {
 import { memo, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { WHATSAPP_FLOWS_URL } from '../../constants/templateConstants';
+import { SurveyFlowEditorModal, type CreatedSurveyFlow } from './SurveyFlowEditorModal';
 
 type FlowType = 'SURVEY' | 'EVENT_REGISTRATION' | 'SIGN_UP' | 'CUSTOM';
 
@@ -84,13 +85,16 @@ const FLOW_TYPE_OPTIONS: FlowTypeOption[] = [
 interface CreateFlowModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreated: (flow: CreatedSurveyFlow) => void;
 }
 
 export const CreateFlowModal = memo(function CreateFlowModal({
   isOpen,
   onClose,
+  onCreated,
 }: CreateFlowModalProps) {
   const [selectedType, setSelectedType] = useState<FlowType>('SURVEY');
+  const [isSurveyEditorOpen, setIsSurveyEditorOpen] = useState(false);
   const [previewStep, setPreviewStep] = useState(1);
   const [previewSelections, setPreviewSelections] = useState<Record<number, string[]>>({});
   const [eventRegistration, setEventRegistration] = useState({
@@ -158,7 +162,26 @@ export const CreateFlowModal = memo(function CreateFlowModal({
 
   if (!isOpen) return null;
 
+  if (isSurveyEditorOpen) {
+    return (
+      <SurveyFlowEditorModal
+        onClose={() => {
+          setIsSurveyEditorOpen(false);
+          onClose();
+        }}
+        onCreated={(flow) => {
+          setIsSurveyEditorOpen(false);
+          onCreated(flow);
+        }}
+      />
+    );
+  }
+
   const createFlow = () => {
+    if (selectedType === 'SURVEY') {
+      setIsSurveyEditorOpen(true);
+      return;
+    }
     window.open(WHATSAPP_FLOWS_URL, '_blank', 'noopener,noreferrer');
     onClose();
   };

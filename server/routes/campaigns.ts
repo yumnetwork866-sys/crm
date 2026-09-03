@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { kickCampaignWorker } from '../services/campaignWorker';
 import {
   createMessageTemplate,
+  createSurveyFlow,
   fetchMessageTemplates,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
@@ -334,6 +335,27 @@ const templateCreateSchema = z.object({
   });
 });
 
+const surveyFlowScreenSchema = z.object({
+  title: z.string().trim().min(1, 'Tiêu đề màn hình là bắt buộc.').max(30),
+  heading: z.string().trim().min(1, 'Tiêu đề câu hỏi là bắt buộc.').max(80),
+  description: z.string().trim().min(1, 'Mô tả câu hỏi là bắt buộc.').max(300),
+  options: z.array(z.string().trim().min(1).max(30)).min(2).max(20),
+}).strict().superRefine((screen, context) => {
+  const normalizedOptions = screen.options.map((option) => option.toLocaleLowerCase());
+  if (new Set(normalizedOptions).size !== normalizedOptions.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['options'],
+      message: 'Các phương án trong cùng một câu hỏi không được trùng nhau.',
+    });
+  }
+});
+
+const surveyFlowCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Tên Flow là bắt buộc.').max(200),
+  screens: z.tuple([surveyFlowScreenSchema, surveyFlowScreenSchema, surveyFlowScreenSchema]),
+}).strict();
+
 const templateMediaUploadSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.enum(['image/jpeg', 'image/png', 'video/mp4', 'application/pdf']),
@@ -565,6 +587,37 @@ router.get('/templates/flows', async (_req: AuthenticatedRequest, res: Response)
     });
   }
 });
+
+// POST /api/campaigns/templates/flows - Create an editable DRAFT Flow on Meta
+router.post(
+  '/templates/flows',
+  requireRole(['Admin', 'Marketing Lead']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = surveyFlowCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: parsed.error.issues[0]?.message || 'Dữ liệu Flow không hợp lệ.',
+      });
+    }
+
+    try {
+      const setting = await getIntegrationSetting();
+      const wabaId = setting.whatsappWabaId?.trim();
+      const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+      if (!wabaId || !token) {
+        return res.status(409).json({
+          error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.',
+        });
+      }
+      const flow = await createSurveyFlow({ wabaId, token, ...parsed.data });
+      return res.status(201).json(flow);
+    } catch (error: any) {
+      return res.status(502).json({
+        error: error?.message || 'Không thể tạo WhatsApp Flow trên Meta.',
+      });
+    }
+  },
+);
 
 // POST /api/campaigns/templates - Submit a WhatsApp template to Meta for review
 router.post(

@@ -70,6 +70,40 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 }));
 
+// Log every failed API response in the server terminal without exposing headers,
+// request bodies, query parameters, access tokens, or other sensitive values.
+app.use('/api', (req, res, next) => {
+  const startedAt = Date.now();
+  const originalJson = res.json.bind(res);
+  let responseError = '';
+
+  res.json = ((body: unknown) => {
+    if (res.statusCode >= 400 && body && typeof body === 'object') {
+      const payload = body as Record<string, unknown>;
+      const error = payload.error;
+      responseError = typeof error === 'string'
+        ? error
+        : error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message || '')
+          : typeof payload.message === 'string'
+            ? payload.message
+            : '';
+    }
+    return originalJson(body);
+  }) as express.Response['json'];
+
+  res.on('finish', () => {
+    if (res.statusCode < 400) return;
+    const endpoint = req.originalUrl.split('?')[0];
+    const duration = Date.now() - startedAt;
+    console.error(
+      `[API ERROR] ${req.method} ${endpoint} -> ${res.statusCode} (${duration}ms)${responseError ? `: ${responseError}` : ''}`,
+    );
+  });
+
+  next();
+});
+
 // 3. META WEBHOOK & META API ROUTES (Bypasses rate limiters for 100% reliable Facebook Meta delivery)
 app.use('/webhook', metaRoutes);
 app.use('/webhooks', metaRoutes);
