@@ -1,6 +1,0 @@
-{
-  "name": "VietCRM - Quản Lý Khách Hàng & Automation",
-  "description": "Hệ thống CRM quản lý khách hàng, tự động phân nhóm, quy trình chăm sóc tự động (Automation), chiến dịch Broadcast WhatsApp và báo cáo Marketing, Sales, CRM.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
