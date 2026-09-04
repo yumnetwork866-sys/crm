@@ -800,3 +800,13 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   color: var(--whatsapp-green) !important;
 }
 
+/* Selected WhatsApp buttons always use white labels and icons on green. */
+.whatsapp-page button.bg-\[\#1fa855\],
+.whatsapp-page button.bg-\[\#1fa855\] *,
+.whatsapp-page button[aria-pressed="true"],
+.whatsapp-page button[aria-pressed="true"] * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
