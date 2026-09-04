@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { AutomationStepItem, WhatsAppApprovedTemplate } from '../../types';
+import { AutomationMessagePreview } from './AutomationMessagePreview';
 
 export const STEP_ICON_MAP: Record<string, LucideIcon> = {
   Heart,
@@ -237,7 +238,10 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       );
     }
 
-    if (updated && await persistSteps(updated)) handleCancelForm();
+    if (updated && await persistSteps(updated)) {
+      handleCancelForm();
+      onClose();
+    }
   };
 
 
@@ -328,9 +332,10 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               </div>
 
 
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Chọn Template <span className="text-rose-500">*</span>
+              <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Chọn Template <span className="text-rose-500">*</span>
                 </label>
                 <select
                   required
@@ -349,20 +354,20 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                       {template.name} ({template.category} - {template.language})
                     </option>
                   ))}
-                </select>
-              </div>
+                  </select>
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Nội Dung Template
-                </label>
-                <textarea
-                  rows={4}
-                  readOnly
-                  value={formData.defaultMsg}
-                  placeholder="Chọn template để xem nội dung"
-                  className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700 placeholder-slate-400 focus:outline-none"
-                />
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Nội Dung Template
+                  </label>
+                  <AutomationMessagePreview
+                    template={approvedTemplates.find(
+                      (template) => template.name === formData.templateName,
+                    )}
+                    fallbackBody={formData.defaultMsg}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
