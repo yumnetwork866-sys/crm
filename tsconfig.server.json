@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/server.tsbuildinfo"
+  },
+  "include": [
+    "server",
+    "prisma",
+    "vite.config.ts",
+    "src/data/mockData.ts",
+    "src/types.ts"
+  ]
+}
