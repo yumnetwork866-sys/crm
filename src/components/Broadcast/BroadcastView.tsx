@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Send, ShieldCheck, ShieldAlert, Sparkles, CheckCircle2, MessageSquare,
+  Send, ShieldCheck, ShieldAlert, CheckCircle2, MessageSquare,
   Users, Tag, Globe, Play, Layers, Clock
 } from 'lucide-react';
+import { AutomationMessagePreview } from '../Automation/AutomationMessagePreview';
 import type {
+  AutomationParameterSource,
+  AutomationTemplateParameterMapping,
   Customer,
   BroadcastCampaign,
   LaunchCampaignInput,
@@ -216,18 +219,49 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
     .replace(/\{\{Product\}\}/g, previewSampleCustomer?.interestedProducts?.[0] || 'Kem Dưỡng Da Premium')
     .replace(/\{\{Voucher Code\}\}/g, voucherCode || 'VOUCHER30OFF');
 
+  const selectedApprovedTemplate = useMemo(() => {
+    if (!templateName) return undefined;
+    return approvedTemplates.find(
+      (item) => item.name === templateName && item.language === templateLanguage,
+    );
+  }, [approvedTemplates, templateName, templateLanguage]);
+
+  const parameterMappings = useMemo<AutomationTemplateParameterMapping[]>(() => {
+    if (!selectedApprovedTemplate) return [];
+    const bodyIndex = selectedApprovedTemplate.components.findIndex(
+      (component) => component.type?.toUpperCase() === 'BODY',
+    );
+    if (bodyIndex === -1) return [];
+
+    return parameterSources.map((source, index) => {
+      let mappedSource: AutomationParameterSource | '' = '';
+      let value: string | undefined;
+
+      if (source === 'customer_name') mappedSource = 'customer_name';
+      else if (source === 'phone') mappedSource = 'customer_phone';
+      else if (source === 'product') mappedSource = 'product_name';
+      else if (source === 'voucher_code') {
+        mappedSource = 'constant';
+        value = voucherCode || 'VOUCHER30OFF';
+      }
+
+      return {
+        component: 'BODY' as const,
+        componentIndex: bodyIndex,
+        variable: String(index + 1),
+        source: mappedSource,
+        value,
+      };
+    });
+  }, [selectedApprovedTemplate, parameterSources, voucherCode]);
+
   return (
     <div className="space-y-6">
       
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2 text-teal-600 dark:text-teal-400 font-bold text-xs uppercase tracking-wider">
-            <Send className="w-4 h-4" />
-            <span>WhatsApp Business Platform Broadcast</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">Gửi Tin Nhắn Hàng Loạt (Broadcast)</h2>
-
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Gửi Tin Nhắn Hàng Loạt (Broadcast)</h2>
         </div>
       </div>
 
@@ -377,11 +411,6 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                   {templatesError.message}
                 </div>
               ) : null}
-              {category ? (
-                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
-                  Meta Category: {category}
-                </div>
-              ) : null}
             </div>
 
             {parameterSources.length > 0 ? (
@@ -417,20 +446,6 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
               />
             </div>
 
-            {/* Textarea */}
-            <div>
-              <label className="block text-slate-300 font-medium mb-1">Nội dung BODY từ WABA</label>
-              <textarea
-                value={templateText}
-                readOnly
-                rows={4}
-                className="w-full bg-slate-100 border border-slate-300 rounded-xl p-3 text-slate-900 text-xs leading-relaxed focus:outline-none font-sans"
-              />
-              <p className="mt-1 text-[11px] text-slate-500">
-                Nội dung được khóa theo approved template; chỉ dữ liệu các biến được cá nhân hóa.
-              </p>
-            </div>
-
           </div>
 
           {/* Launch Trigger */}
@@ -460,36 +475,18 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
         {/* Right Column: Live WhatsApp Preview & Campaign History */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* WhatsApp Phone Mockup Preview */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Xem Trước Màn Hình WhatsApp Của Khách</span>
-            </h4>
-
-            {/* Phone Screen Container */}
-            <div className="bg-[#0b141a] rounded-2xl p-4 border border-slate-800 shadow-2xl text-xs space-y-3">
-              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 text-[11px] text-teal-400 font-semibold">
-                <div className="w-6 h-6 rounded-full bg-[#00793d] flex items-center justify-center text-white text-[10px] font-bold">
-                  WA
-                </div>
-                <span>VietCRM Official Business Account</span>
+          {/* WhatsApp Template Preview */}
+          <div className="space-y-2">
+            <AutomationMessagePreview
+              template={selectedApprovedTemplate}
+              fallbackBody={sampleMessagePreview || 'Chọn template để xem nội dung xem trước'}
+              parameterMappings={parameterMappings}
+            />
+            {previewSampleCustomer ? (
+              <div className="text-[11px] text-slate-500 text-center italic">
+                Xem trước cá nhân hóa cho: <strong className="font-semibold text-slate-700 dark:text-slate-200">{previewSampleCustomer.name}</strong>
               </div>
-
-              <div className="bg-[#111b21] p-3.5 rounded-xl text-slate-100 border border-slate-800 space-y-2">
-                <div className="text-[10px] text-teal-400 font-semibold uppercase tracking-wider">
-                  [{category}]
-                </div>
-                <p className="whitespace-pre-wrap leading-relaxed text-white">
-                  {sampleMessagePreview}
-                </p>
-                <div className="text-[10px] text-slate-200 text-right">09:30 AM ✓✓</div>
-              </div>
-
-              <div className="text-[10px] text-slate-200 text-center italic">
-                Xem trước cá nhân hóa cho: <strong className="text-white font-bold">{previewSampleCustomer?.name}</strong>
-              </div>
-            </div>
+            ) : null}
           </div>
 
           {/* Broadcast Campaign History */}
