@@ -135,6 +135,27 @@ export interface AutomationStepConfig {
   iconName: string;
 }
 
+export type AutomationParameterSource =
+  | 'customer_name'
+  | 'customer_phone'
+  | 'customer_email'
+  | 'customer_address'
+  | 'order_code'
+  | 'order_date'
+  | 'order_total'
+  | 'product_name'
+  | 'product_quantity'
+  | 'constant';
+
+export interface AutomationTemplateParameterMapping {
+  component: 'HEADER' | 'BODY' | 'BUTTON';
+  componentIndex: number;
+  buttonIndex?: number;
+  variable: string;
+  source: AutomationParameterSource | '';
+  value?: string;
+}
+
 export interface AutomationStepItem {
   id: string;
   step: number;
@@ -145,6 +166,8 @@ export interface AutomationStepItem {
   color: string;
   active: boolean;
   templateName?: string;
+  templateLanguage?: string;
+  templateParameterMappings?: AutomationTemplateParameterMapping[];
 }
 
 export type WhatsAppTemplateCategory = 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
@@ -184,6 +207,26 @@ export interface WhatsAppTemplateAnalytics {
   dataPoints: WhatsAppTemplateAnalyticsPoint[];
 }
 
+export interface WhatsAppApprovedTemplateNamedExample {
+  param_name?: string;
+  example?: string;
+}
+
+export interface WhatsAppApprovedTemplateExampleData {
+  header_text?: string[];
+  header_text_named_params?: WhatsAppApprovedTemplateNamedExample[];
+  body_text?: string[][];
+  body_text_named_params?: WhatsAppApprovedTemplateNamedExample[];
+}
+
+export interface WhatsAppApprovedTemplateButton {
+  type?: string;
+  text?: string;
+  url?: string;
+  otp_type?: string;
+  example?: string[];
+}
+
 export interface WhatsAppApprovedTemplate {
   id?: string;
   name: string;
@@ -198,8 +241,8 @@ export interface WhatsAppApprovedTemplate {
     type: string;
     text?: string;
     format?: string;
-    buttons?: unknown[];
-    example?: unknown;
+    buttons?: WhatsAppApprovedTemplateButton[];
+    example?: WhatsAppApprovedTemplateExampleData;
   }>;
 }
 

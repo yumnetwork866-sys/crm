@@ -19,6 +19,11 @@ import {
   stripStepDayPrefix,
 } from './AutomationStepModal';
 import { AutomationMessagePreview } from './AutomationMessagePreview';
+import {
+  AUTOMATION_PARAMETER_SOURCE_OPTIONS,
+  extractApprovedTemplateVariables,
+  getAutomationParameterMappingKey,
+} from './Template/utils/templateFormatters';
 import { useAutomationSteps } from '../../hooks/useAutomationSteps';
 
 interface AutomationViewProps {
@@ -48,9 +53,18 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
   }, [activeSteps, selectedStepId]);
   const currentSelectedTemplate = useMemo(() => (
     currentSelectedStep?.templateName
-      ? approvedTemplates.find((template) => template.name === currentSelectedStep.templateName)
+      ? approvedTemplates.find((template) => (
+          template.name === currentSelectedStep.templateName && (
+            !currentSelectedStep.templateLanguage ||
+            template.language === currentSelectedStep.templateLanguage
+          )
+        ))
       : undefined
-  ), [approvedTemplates, currentSelectedStep?.templateName]);
+  ), [approvedTemplates, currentSelectedStep?.templateLanguage, currentSelectedStep?.templateName]);
+  const currentSelectedVariables = useMemo(
+    () => extractApprovedTemplateVariables(currentSelectedTemplate),
+    [currentSelectedTemplate],
+  );
 
   const handleSaveSteps = async (updatedSteps: AutomationStepItem[]) => {
     const sorted = [...updatedSteps]
@@ -175,16 +189,36 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
           <AutomationMessagePreview
             template={currentSelectedTemplate}
             fallbackBody={currentSelectedStep.defaultMsg}
+            parameterMappings={currentSelectedStep.templateParameterMappings}
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
-            <div className="flex items-center gap-2">
-              <span>Thẻ động biến số:</span>
-              <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-indigo-700">
-                &#123;&#123;Customer Name&#125;&#125;
-              </code>
-              <code className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-amber-700">
-                &#123;&#123;Order ID&#125;&#125;
-              </code>
+            <div className="flex flex-wrap items-center gap-2">
+              {currentSelectedVariables.length > 0 ? (
+                <>
+                  <span>Biến đã gán:</span>
+                  {currentSelectedVariables.map((variable) => {
+                    const key = getAutomationParameterMappingKey(variable);
+                    const mapping = currentSelectedStep.templateParameterMappings?.find(
+                      (item) => getAutomationParameterMappingKey(item) === key,
+                    );
+                    const sourceLabel = mapping?.source === 'constant'
+                      ? mapping.value || 'Giá trị cố định'
+                      : AUTOMATION_PARAMETER_SOURCE_OPTIONS.find(
+                          (option) => option.value === mapping?.source,
+                        )?.label || 'Chưa gán';
+                    return (
+                      <code
+                        key={key}
+                        className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-indigo-700"
+                      >
+                        {variable.token} → {sourceLabel}
+                      </code>
+                    );
+                  })}
+                </>
+              ) : (
+                <span>Template không có biến.</span>
+              )}
             </div>
             {currentSelectedStep.templateName ? (
               <div className="flex items-center gap-2 text-emerald-600">

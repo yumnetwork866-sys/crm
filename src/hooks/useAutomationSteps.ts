@@ -24,6 +24,8 @@ export function useAutomationSteps() {
           color: step.color,
           active: step.active,
           templateName: step.templateName,
+          templateLanguage: step.templateLanguage,
+          templateParameterMappings: step.templateParameterMappings,
         })),
       }),
     onSuccess: (savedSteps) => {

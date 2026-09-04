@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { substituteExamples, syncExamples, toE164Phone } from './templateFormatters';
+import {
+  extractApprovedTemplateVariables,
+  getAutomationParameterMappingKey,
+  getAutomationParameterPreviewValue,
+  substituteExamples,
+  syncExamples,
+  toE164Phone,
+} from './templateFormatters';
 
 describe('syncExamples', () => {
   it('preserves the same array when no example changed', () => {
@@ -64,6 +71,100 @@ describe('substituteExamples', () => {
         'NAMED',
       ),
     ).toBe('Xin chào An, mã {{code}}.');
+  });
+});
+
+describe('approved automation template variables', () => {
+  it('extracts scoped positional variables and their Meta examples', () => {
+    const variables = extractApprovedTemplateVariables({
+      name: 'order_update',
+      language: 'vi',
+      category: 'UTILITY',
+      status: 'APPROVED',
+      parameter_format: 'POSITIONAL',
+      components: [
+        {
+          type: 'HEADER',
+          format: 'TEXT',
+          text: 'Đơn hàng {{1}}',
+          example: { header_text: ['DH001'] },
+        },
+        {
+          type: 'BODY',
+          text: 'Xin chào {{1}}, tổng tiền {{2}}.',
+          example: { body_text: [['An', '500.000 ₫']] },
+        },
+      ],
+    });
+
+    expect(variables).toEqual([
+      {
+        component: 'HEADER',
+        componentIndex: 0,
+        variable: '1',
+        token: '{{1}}',
+        example: 'DH001',
+      },
+      {
+        component: 'BODY',
+        componentIndex: 1,
+        variable: '1',
+        token: '{{1}}',
+        example: 'An',
+      },
+      {
+        component: 'BODY',
+        componentIndex: 1,
+        variable: '2',
+        token: '{{2}}',
+        example: '500.000 ₫',
+      },
+    ]);
+    expect(getAutomationParameterMappingKey(variables[0])).toBe('HEADER:0:-:1');
+  });
+
+  it('extracts named body and URL button variables without key collisions', () => {
+    const variables = extractApprovedTemplateVariables({
+      name: 'order_link',
+      language: 'vi',
+      category: 'UTILITY',
+      status: 'APPROVED',
+      parameter_format: 'NAMED',
+      components: [
+        {
+          type: 'BODY',
+          text: 'Xin chào {{customer_name}}',
+          example: {
+            body_text_named_params: [{ param_name: 'customer_name', example: 'An' }],
+          },
+        },
+        {
+          type: 'BUTTONS',
+          buttons: [{ type: 'URL', text: 'Xem đơn', url: 'https://example.com/{{order_code}}' }],
+        },
+      ],
+    });
+
+    expect(variables.map(getAutomationParameterMappingKey)).toEqual([
+      'BODY:0:-:customer_name',
+      'BUTTON:1:0:order_code',
+    ]);
+  });
+
+  it('uses the assigned CRM sample or constant value in previews', () => {
+    expect(getAutomationParameterPreviewValue({
+      component: 'BODY',
+      componentIndex: 0,
+      variable: '1',
+      source: 'customer_name',
+    })).toBe('Nguyễn Văn A');
+    expect(getAutomationParameterPreviewValue({
+      component: 'BODY',
+      componentIndex: 0,
+      variable: '2',
+      source: 'constant',
+      value: 'VIP20',
+    })).toBe('VIP20');
   });
 });
 

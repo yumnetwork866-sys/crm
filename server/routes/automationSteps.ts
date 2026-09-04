@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -17,7 +18,50 @@ const automationStepSelect = {
   color: true,
   active: true,
   templateName: true,
+  templateLanguage: true,
+  templateParameterMappings: true,
 } as const;
+
+const parameterSourceSchema = z.enum([
+  'customer_name',
+  'customer_phone',
+  'customer_email',
+  'customer_address',
+  'order_code',
+  'order_date',
+  'order_total',
+  'product_name',
+  'product_quantity',
+  'constant',
+]);
+
+const templateParameterMappingSchema = z.object({
+  component: z.enum(['HEADER', 'BODY', 'BUTTON']),
+  componentIndex: z.number().int().nonnegative(),
+  buttonIndex: z.number().int().nonnegative().optional(),
+  variable: z.string().trim().regex(/^(?:\d+|[a-z][a-z0-9_]*)$/i, 'Tên biến template không hợp lệ.'),
+  source: parameterSourceSchema,
+  value: z.string().max(1024).optional(),
+}).strict().superRefine((mapping, context) => {
+  if (mapping.component === 'BUTTON' && mapping.buttonIndex === undefined) {
+    context.addIssue({ code: 'custom', path: ['buttonIndex'], message: 'Biến nút phải có vị trí nút.' });
+  }
+  if (mapping.source === 'constant' && !mapping.value?.trim()) {
+    context.addIssue({ code: 'custom', path: ['value'], message: 'Vui lòng nhập giá trị cố định.' });
+  }
+});
+
+const templateParameterMappingsSchema = z.array(templateParameterMappingSchema).max(50).superRefine((mappings, context) => {
+  const keys = mappings.map((mapping) => [
+    mapping.component,
+    mapping.componentIndex,
+    mapping.buttonIndex ?? '-',
+    mapping.variable,
+  ].join(':'));
+  if (new Set(keys).size !== keys.length) {
+    context.addIssue({ code: 'custom', message: 'Mỗi biến template chỉ được gán một lần.' });
+  }
+});
 
 const automationStepSchema = z.object({
   id: z.string().trim().min(1).max(128),
@@ -29,6 +73,8 @@ const automationStepSchema = z.object({
   color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Màu phải có định dạng #RRGGBB.'),
   active: z.boolean(),
   templateName: z.string().trim().min(1).max(512).optional().nullable(),
+  templateLanguage: z.string().trim().min(2).max(32).optional().nullable(),
+  templateParameterMappings: templateParameterMappingsSchema.optional().nullable(),
 }).strict();
 
 const replaceAutomationStepsSchema = z.object({
@@ -75,6 +121,14 @@ router.put('/', async (req: AuthenticatedRequest, res: Response) => {
       color: item.color.toLowerCase(),
       active: item.active,
       templateName: item.templateName?.trim() || null,
+      templateLanguage: item.templateLanguage?.trim() || null,
+      templateParameterMappings: item.templateParameterMappings?.length
+        ? item.templateParameterMappings.map((mapping) => ({
+            ...mapping,
+            variable: mapping.variable.trim(),
+            ...(mapping.value !== undefined ? { value: mapping.value.trim() } : {}),
+          }))
+        : Prisma.JsonNull,
     }));
 
   try {

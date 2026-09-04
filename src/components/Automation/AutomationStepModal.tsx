@@ -17,7 +17,16 @@ import {
   Smile,
   type LucideIcon,
 } from 'lucide-react';
-import type { AutomationStepItem, WhatsAppApprovedTemplate } from '../../types';
+import type {
+  AutomationStepItem,
+  AutomationTemplateParameterMapping,
+  WhatsAppApprovedTemplate,
+} from '../../types';
+import {
+  AUTOMATION_PARAMETER_SOURCE_OPTIONS,
+  extractApprovedTemplateVariables,
+  getAutomationParameterMappingKey,
+} from './Template/utils/templateFormatters';
 import { AutomationMessagePreview } from './AutomationMessagePreview';
 
 export const STEP_ICON_MAP: Record<string, LucideIcon> = {
@@ -32,6 +41,8 @@ export const STEP_ICON_MAP: Record<string, LucideIcon> = {
   ShoppingBag,
   Smile,
 };
+
+const EMPTY_APPROVED_TEMPLATES: WhatsAppApprovedTemplate[] = [];
 
 const STEP_COLOR_PRESETS = [
   '#e11d48',
@@ -83,6 +94,23 @@ export const getStepIconTheme = (color?: string, iconName?: string) => {
   };
 };
 
+function buildTemplateParameterMappings(
+  template?: WhatsAppApprovedTemplate,
+  existing: AutomationTemplateParameterMapping[] = [],
+): AutomationTemplateParameterMapping[] {
+  return extractApprovedTemplateVariables(template).map((variable) => {
+    const key = getAutomationParameterMappingKey(variable);
+    const saved = existing.find((mapping) => getAutomationParameterMappingKey(mapping) === key);
+    return saved || {
+      component: variable.component,
+      componentIndex: variable.componentIndex,
+      ...(variable.buttonIndex !== undefined ? { buttonIndex: variable.buttonIndex } : {}),
+      variable: variable.variable,
+      source: '',
+    };
+  });
+}
+
 interface AutomationStepModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -98,7 +126,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
   onClose,
   steps,
   onSaveSteps,
-  approvedTemplates = [],
+  approvedTemplates = EMPTY_APPROVED_TEMPLATES,
   initialEditStepId,
   isSaving = false,
 }) => {
@@ -126,6 +154,11 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     if (initialEditStepId) {
       const target = steps.find((s) => s.id === initialEditStepId);
       if (target) {
+        const selectedTemplate = approvedTemplates.find((template) => (
+          template.name === target.templateName && (
+            !target.templateLanguage || template.language === target.templateLanguage
+          )
+        ));
         setEditingStep(target);
         setIsAddingNew(false);
         setFormData({
@@ -136,16 +169,31 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
           color: normalizeStepColor(target.color, target.iconName),
           active: target.active,
           templateName: target.templateName || '',
+          templateLanguage: target.templateLanguage || selectedTemplate?.language || '',
+          templateParameterMappings: buildTemplateParameterMappings(
+            selectedTemplate,
+            target.templateParameterMappings,
+          ),
         });
       }
     } else {
       setEditingStep(null);
       setIsAddingNew(false);
     }
-  }, [steps, initialEditStepId, isOpen]);
+  }, [steps, initialEditStepId, isOpen, approvedTemplates]);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    dayOffset: number;
+    defaultMsg: string;
+    iconName: string;
+    color: string;
+    active: boolean;
+    templateName: string;
+    templateLanguage: string;
+    templateParameterMappings: AutomationTemplateParameterMapping[];
+  }>({
     title: '',
     dayOffset: 3,
     defaultMsg: '',
@@ -153,10 +201,17 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     color: STEP_COLOR_PRESETS[0] as string,
     active: true,
     templateName: '',
+    templateLanguage: '',
+    templateParameterMappings: [],
   });
 
 
   const handleStartEdit = (step: AutomationStepItem) => {
+    const selectedTemplate = approvedTemplates.find((template) => (
+      template.name === step.templateName && (
+        !step.templateLanguage || template.language === step.templateLanguage
+      )
+    ));
     setEditingStep(step);
     setIsAddingNew(false);
     setFormData({
@@ -167,6 +222,11 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       color: normalizeStepColor(step.color, step.iconName),
       active: step.active,
       templateName: step.templateName || '',
+      templateLanguage: step.templateLanguage || selectedTemplate?.language || '',
+      templateParameterMappings: buildTemplateParameterMappings(
+        selectedTemplate,
+        step.templateParameterMappings,
+      ),
     });
   };
 
@@ -183,6 +243,8 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       color: STEP_COLOR_PRESETS[(nextStepNum - 1) % STEP_COLOR_PRESETS.length],
       active: true,
       templateName: '',
+      templateLanguage: '',
+      templateParameterMappings: [],
     });
   };
 
@@ -208,8 +270,23 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
       alert('Vui lòng nhập tiêu đề bước!');
       return;
     }
-    if (!formData.templateName) {
+    if (!formData.templateName || !formData.templateLanguage) {
       alert('Vui lòng chọn một template đã được duyệt!');
+      return;
+    }
+    const selectedTemplate = approvedTemplates.find((template) => (
+      template.name === formData.templateName && template.language === formData.templateLanguage
+    ));
+    const requiredVariables = extractApprovedTemplateVariables(selectedTemplate);
+    const incompleteVariable = requiredVariables.find((variable) => {
+      const key = getAutomationParameterMappingKey(variable);
+      const mapping = formData.templateParameterMappings.find(
+        (item) => getAutomationParameterMappingKey(item) === key,
+      );
+      return !mapping?.source || (mapping.source === 'constant' && !mapping.value?.trim());
+    });
+    if (incompleteVariable) {
+      alert(`Vui lòng gán dữ liệu cho biến ${incompleteVariable.token}.`);
       return;
     }
 
@@ -225,6 +302,8 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         color: normalizeStepColor(formData.color, formData.iconName),
         active: formData.active,
         templateName: formData.templateName || undefined,
+        templateLanguage: formData.templateLanguage || undefined,
+        templateParameterMappings: formData.templateParameterMappings,
       };
       updated = sortStepsByDay([...currentSteps, newStep]);
     } else if (editingStep) {
@@ -239,6 +318,8 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               color: normalizeStepColor(formData.color, formData.iconName),
               active: formData.active,
               templateName: formData.templateName || undefined,
+              templateLanguage: formData.templateLanguage || undefined,
+              templateParameterMappings: formData.templateParameterMappings,
             }
           : step),
       );
@@ -269,10 +350,40 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     await persistSteps(updated);
   };
 
-  const handleSelectApprovedTemplate = (templateName: string) => {
-    const found = approvedTemplates.find((template) => template.name === templateName);
-    const body = found?.components.find((component) => component.type === 'BODY')?.text || '';
-    setFormData((current) => ({ ...current, templateName, defaultMsg: body }));
+  const handleSelectApprovedTemplate = (templateKey: string) => {
+    const found = approvedTemplates.find(
+      (template) => `${template.name}::${template.language}` === templateKey,
+    );
+    const body = found?.components.find(
+      (component) => component.type?.toUpperCase() === 'BODY',
+    )?.text || '';
+    const mappings = buildTemplateParameterMappings(found);
+    setFormData((current) => ({
+      ...current,
+      templateName: found?.name || '',
+      templateLanguage: found?.language || '',
+      defaultMsg: body,
+      templateParameterMappings: mappings,
+    }));
+  };
+
+  const selectedApprovedTemplate = approvedTemplates.find((template) => (
+    template.name === formData.templateName && template.language === formData.templateLanguage
+  ));
+  const selectedTemplateVariables = extractApprovedTemplateVariables(selectedApprovedTemplate);
+
+  const updateParameterMapping = (
+    variableKey: string,
+    updates: Partial<AutomationTemplateParameterMapping>,
+  ) => {
+    setFormData((current) => ({
+      ...current,
+      templateParameterMappings: current.templateParameterMappings.map((mapping) => (
+        getAutomationParameterMappingKey(mapping) === variableKey
+          ? { ...mapping, ...updates }
+          : mapping
+      )),
+    }));
   };
 
   if (!isOpen) return null;
@@ -347,7 +458,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                 </label>
                 <select
                   required
-                  value={formData.templateName}
+                  value={formData.templateName && formData.templateLanguage
+                    ? `${formData.templateName}::${formData.templateLanguage}`
+                    : ''}
                   onChange={(event) => handleSelectApprovedTemplate(event.target.value)}
                   disabled={approvedTemplates.length === 0}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 transition focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
@@ -358,11 +471,69 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                       : 'Chưa có template nào được duyệt'}
                   </option>
                   {approvedTemplates.map((template) => (
-                    <option key={`${template.name}-${template.language}`} value={template.name}>
+                    <option
+                      key={`${template.name}-${template.language}`}
+                      value={`${template.name}::${template.language}`}
+                    >
                       {template.name} ({template.category} - {template.language})
                     </option>
                   ))}
                   </select>
+
+                  {selectedTemplateVariables.length > 0 ? (
+                    <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold text-slate-800">Gán dữ liệu cho biến</p>
+                      <div className="space-y-2.5">
+                        {selectedTemplateVariables.map((variable) => {
+                          const key = getAutomationParameterMappingKey(variable);
+                          const mapping = formData.templateParameterMappings.find(
+                            (item) => getAutomationParameterMappingKey(item) === key,
+                          );
+                          return (
+                            <div key={key} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                              <div className="mb-1.5 flex items-center justify-between gap-2">
+                                <code className="text-[11px] font-bold text-indigo-700">{variable.token}</code>
+                                {variable.example ? (
+                                  <span
+                                    className="truncate text-[10px] font-medium text-slate-400"
+                                    title={`Mẫu Meta: ${variable.example}`}
+                                  >
+                                    Mẫu Meta: {variable.example}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <select
+                                value={mapping?.source || ''}
+                                onChange={(event) => updateParameterMapping(key, {
+                                  source: event.target.value as AutomationTemplateParameterMapping['source'],
+                                  value: event.target.value === 'constant' ? mapping?.value || '' : undefined,
+                                })}
+                                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              >
+                                <option value="">Chọn dữ liệu sử dụng</option>
+                                {AUTOMATION_PARAMETER_SOURCE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                              {mapping?.source === 'constant' ? (
+                                <input
+                                  type="text"
+                                  value={mapping.value || ''}
+                                  onChange={(event) => updateParameterMapping(key, { value: event.target.value })}
+                                  placeholder="Nhập giá trị cố định"
+                                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : selectedApprovedTemplate ? (
+                    <p className="mt-2 text-[10px] font-medium text-emerald-600">
+                      Template này không có biến cần gán.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1.5">
@@ -370,10 +541,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                     Nội Dung Template
                   </label>
                   <AutomationMessagePreview
-                    template={approvedTemplates.find(
-                      (template) => template.name === formData.templateName,
-                    )}
+                    template={selectedApprovedTemplate}
                     fallbackBody={formData.defaultMsg}
+                    parameterMappings={formData.templateParameterMappings}
                   />
                 </div>
               </div>

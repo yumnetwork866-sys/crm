@@ -228,8 +228,10 @@ model AutomationStep {
   iconName     String
   color        String
   active       Boolean  @default(true)
-  templateName String?
-  createdAt    DateTime @default(now())
+  templateName              String?
+  templateLanguage          String?
+  templateParameterMappings Json?
+  createdAt                 DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([active, dayOffset])
