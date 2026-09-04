@@ -240,7 +240,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 h-full w-full overflow-hidden">
+    <div className="whatsapp-page flex-1 flex flex-col min-h-0 h-full w-full overflow-hidden">
       {/* Main WhatsApp 3-Column Studio */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 h-full w-full bg-white overflow-hidden">
 
@@ -262,7 +262,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onClick={() => setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')}
                 className={`p-1.5 rounded-lg border transition cursor-pointer ${
                   activeFilter === 'unread'
-                    ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                    ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
                     : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
                 }`}
                 title="Lọc tin chưa đọc"
@@ -274,7 +274,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
           {/* Search Box */}
           <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200">
-            <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-2xs transition">
+            <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus-within:border-[#1fa855] focus-within:ring-1 focus-within:ring-[#1fa855] shadow-2xs transition">
               <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
               <input
                 type="text"
@@ -320,7 +320,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onClick={() => setActiveFilter(f.id)}
                 className={`px-3 py-1 rounded-lg text-[11px] transition whitespace-nowrap cursor-pointer ${
                   activeFilter === f.id
-                    ? 'bg-[#008069] text-white border border-[#008069] font-bold shadow-xs'
+                    ? 'bg-[#1fa855] text-white border border-[#1fa855] font-bold shadow-xs'
                     : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold shadow-2xs'
                 }`}
               >
@@ -356,7 +356,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     onClick={() => onSelectCustomerThread(thread.threadId, thread.customerPhone, thread.messages.map((m) => m.id))}
                     className={`group px-3 py-3 flex items-start space-x-3 cursor-pointer transition relative ${
                       isSelected
-                        ? 'bg-[#f0f2f5] border-l-4 border-[#008069]'
+                        ? 'bg-[#f0f2f5] border-l-4 border-[#1fa855]'
                         : 'hover:bg-[#f5f6f6]'
                     }`}
                   >
@@ -379,7 +379,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <span className={`text-xs truncate ${hasUnread ? 'font-black text-slate-950' : 'font-bold text-slate-800'}`}>
                           {thread.customerName}
                         </span>
-                        <span className={`text-[10px] shrink-0 ml-1 ${hasUnread ? 'text-[#00a884] font-bold' : 'text-slate-400'}`}>
+                        <span className={`text-[10px] shrink-0 ml-1 ${hasUnread ? 'text-[#1fa855] font-bold' : 'text-slate-400'}`}>
                           {timeString}
                         </span>
                       </div>
@@ -442,10 +442,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                         <div className="flex items-center space-x-1.5 shrink-0">
                           {thread.isPinned && (
-                            <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#008069" fill="#008069" strokeWidth={2.2} />
+                            <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#1fa855" fill="#1fa855" strokeWidth={2.2} />
                           )}
                           {hasUnread && (
-                            <span className="min-w-4.5 h-4.5 px-1 bg-[#25d366] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
+                            <span className="min-w-4.5 h-4.5 px-1 bg-[#1fa855] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
                               {thread.unreadCount}
                             </span>
                           )}
@@ -463,15 +463,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         }}
                         className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
                           thread.isPinned
-                            ? 'bg-[#e6f7f2] border-[#008069] hover:bg-[#d1f2e8]'
+                            ? 'bg-[#e6f7f2] border-[#1fa855] hover:bg-[#d1f2e8]'
                             : 'bg-white hover:bg-[#f1f5f9] border-[#cbd5e1]'
                         }`}
                         title={thread.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại lên đầu'}
                       >
                         <Pin
                           className="w-3.5 h-3.5 rotate-45"
-                          stroke={thread.isPinned ? '#008069' : '#334155'}
-                          fill={thread.isPinned ? '#008069' : 'none'}
+                          stroke={thread.isPinned ? '#1fa855' : '#334155'}
+                          fill={thread.isPinned ? '#1fa855' : 'none'}
                           strokeWidth={2.2}
                         />
                       </button>
@@ -535,7 +535,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                               : session24hInfo.hours < 12
                               ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : 'bg-emerald-50 text-[#00793d] border-emerald-300'
+                              : 'bg-emerald-50 text-emerald-600 border-emerald-300'
                           }`}
                           title={`Cửa sổ 24h phản hồi miễn phí Meta WhatsApp Business. ${
                             session24hInfo.isExpired
@@ -607,7 +607,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     aria-pressed={isChatSearchOpen}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
                       isChatSearchOpen
-                        ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                        ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
                     }`}
                     title="Tìm kiếm trong đoạn chat"
@@ -622,7 +622,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     aria-pressed={isDrawerOpen}
                     className={`p-2 rounded-lg border transition cursor-pointer ${
                       isDrawerOpen
-                        ? 'bg-[#008069] text-white border-[#008069] shadow-xs'
+                        ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
                     }`}
                     title="Bật/Tắt Hồ sơ CRM"
@@ -834,7 +834,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   }}
                                   className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer hover:scale-110 shadow-2xs ${
                                     showExpandedReactionPickerMsgId === msg.id
-                                      ? 'bg-[#00a884] text-white'
+                                      ? 'bg-[#1fa855] text-white'
                                       : 'bg-[#f0f2f5] text-[#54656f] hover:bg-[#e2e5e9] hover:text-[#111b21]'
                                   }`}
                                   title="Thêm biểu cảm khác (+)"
@@ -885,11 +885,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                             {/* Sender Info for Outgoing Agent Message */}
                             {isAgent && (
-                              <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-[#bbf7d0]/80 text-[10.5px] select-none">
-                                <span className="font-bold text-[#00793d] flex items-center gap-1 truncate">
+                              <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-emerald-600/30 text-[10.5px] select-none">
+                                <span className="font-bold text-emerald-600 flex items-center gap-1 truncate">
                                   <span className="truncate">{senderName}</span>
                                   {(isCurrentAgent || senderName.trim().toLowerCase() === (effectiveCurrentUser?.name || '').trim().toLowerCase()) && (
-                                    <span className="text-[9px] font-semibold bg-[#bbf7d0] text-[#006e57] px-1 py-0.2 rounded-xs ml-0.5">
+                                    <span className="text-[9px] font-semibold bg-emerald-600/10 text-emerald-600 px-1 py-0.2 rounded-xs ml-0.5">
                                       Bạn
                                     </span>
                                   )}
@@ -912,10 +912,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       e.stopPropagation();
                                       handleJumpToQuotedMessage(replyQuote.id);
                                     }}
-                                    className="mb-1.5 p-1.5 px-2 rounded-md bg-black/5 hover:bg-black/10 active:scale-95 border-l-[3.5px] border-[#00a884] flex flex-col justify-center transition-all cursor-pointer select-none group/quote"
+                                    className="mb-1.5 p-1.5 px-2 rounded-md bg-black/5 hover:bg-black/10 active:scale-95 border-l-[3.5px] border-[#1fa855] flex flex-col justify-center transition-all cursor-pointer select-none group/quote"
                                     title="Click để nhảy về tin nhắn được trả lời"
                                   >
-                                    <div className="flex items-center gap-1 text-[11px] font-bold text-[#00a884] leading-tight truncate group-hover/quote:underline">
+                                    <div className="flex items-center gap-1 text-[11px] font-bold text-[#1fa855] leading-tight truncate group-hover/quote:underline">
                                       <Reply className="w-3 h-3 shrink-0" />
                                       <span>{replyQuote.senderName || 'Tin nhắn được trả lời'}</span>
                                     </div>
@@ -985,7 +985,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   <div className="space-y-1.5 min-w-55">
                                     {renderQuoteHeader()}
                                     <div className="p-3 bg-slate-100/90 rounded-lg border border-slate-200 flex items-center gap-2.5">
-                                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
+                                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#1fa855] flex items-center justify-center shrink-0">
                                         <ImageIcon className="w-5 h-5" />
                                       </div>
                                       <div className="min-w-0 flex-1">
@@ -1173,10 +1173,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#008069] group-hover:underline">
+                        <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
                           {tmpl.title}
                         </span>
-                        <span className="text-[10px] font-mono bg-emerald-100 text-[#008069] px-1.5 py-0.5 rounded font-bold">
+                        <span className="text-[10px] font-mono bg-emerald-100 text-[#1fa855] px-1.5 py-0.5 rounded font-bold">
                           {tmpl.code}
                         </span>
                       </div>
@@ -1219,7 +1219,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#008069] group-hover:underline">
+                        <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
                           {tmpl.title}
                         </span>
                         <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
@@ -1254,7 +1254,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     }}
                     className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#008069] flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#1fa855] flex items-center justify-center shrink-0">
                       <ShoppingBag className="w-4 h-4" />
                     </div>
                     <span>Tạo Đơn Hàng Mới</span>
@@ -1287,8 +1287,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               {/* WhatsApp Authentic Reply Preview Banner */}
               {replyingToMessage && (
                 <div className="px-3.5 pt-2.5 pb-1 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
-                  <div className="flex-1 min-w-0 bg-white/90 rounded-lg p-2 border-l-4 border-[#00a884] shadow-2xs">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#00a884]">
+                  <div className="flex-1 min-w-0 bg-white/90 rounded-lg p-2 border-l-4 border-[#1fa855] shadow-2xs">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#1fa855]">
                       <Reply className="w-3.5 h-3.5 shrink-0" />
                       <span>Đang trả lời {replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng')}</span>
                     </div>
@@ -1312,7 +1312,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               {/* Attached Pending Image Thumbnail Strip (Inline inside input bar) */}
               {pendingImage && (
                 <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center gap-3 shrink-0 animate-fadeIn">
-                  <div className="relative group rounded-xl overflow-hidden border-2 border-[#00a884] bg-white shadow-xs w-14 h-14 shrink-0">
+                  <div className="relative group rounded-xl overflow-hidden border-2 border-[#1fa855] bg-white shadow-xs w-14 h-14 shrink-0">
                     <img src={pendingImage} alt="attached thumbnail" className="w-full h-full object-cover" />
                     <button
                       type="button"
@@ -1324,7 +1324,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     </button>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-[#008069] border border-emerald-200">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-[#1fa855] border border-emerald-200">
                       Ảnh đính kèm
                     </span>
                   </div>
@@ -1366,7 +1366,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <span>Phụ trách khách:</span>
                     <span className={`font-semibold px-1.5 py-0.2 rounded text-[10px] ${
                       activeCustomer.owner === effectiveCurrentUser?.name
-                        ? 'bg-emerald-100 text-[#00793d] font-bold'
+                        ? 'bg-emerald-100 text-emerald-600 font-bold'
                         : 'bg-slate-200 text-slate-700'
                     }`}>
                       {activeCustomer.owner === effectiveCurrentUser?.name ? `${activeCustomer.owner} (Chính bạn)` : activeCustomer.owner}
@@ -1426,7 +1426,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSend()}
-                    className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#008069] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
+                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
                     title="Gửi tin nhắn (Enter)"
                   >
                     <Send className="w-4 h-4 ml-0.5" />
@@ -1465,7 +1465,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             {/* Drawer Header */}
             <div className="p-3.5 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0">
               <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-[#008069]" />
+                <User className="w-4 h-4 text-[#1fa855]" />
                 <span>Hồ Sơ Khách Hàng</span>
               </h3>
               <button
@@ -1533,7 +1533,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <>
                         <button
                           onClick={() => onOpenAddOrder(activeCustomer)}
-                          className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
+                          className="w-full py-2.5 px-3 bg-[#1fa855] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
                         >
                           <ShoppingBag className="chat-primary-action-icon w-4 h-4" />
                           <span>+ Lên Đơn Hàng Mới</span>
@@ -1595,7 +1595,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   {/* Customer Journey Timeline */}
                   <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
                     <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#008069]" />
+                      <Clock className="w-3.5 h-3.5 text-[#1fa855]" />
                       <span>Timeline</span>
                     </span>
 
@@ -1700,13 +1700,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       value={newNoteText}
                       onChange={(e) => setNewNoteText(e.target.value)}
                       placeholder="Thêm ghi chú cho khách hàng này (vd: Khách thích nhận hàng chiều, đã giảm giá 10%)..."
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#008069]"
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#1fa855]"
                     />
                     <div className="flex justify-end">
                       <button
                         onClick={() => handleAddInternalNote(activeCustomer?.id || activeThread.threadId)}
                         disabled={!newNoteText.trim()}
-                        className="px-3 py-1.5 bg-[#008069] hover:bg-[#006a57] disabled:opacity-50 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 bg-[#1fa855] hover:bg-[#006a57] disabled:opacity-50 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Lưu Ghi Chú</span>

@@ -758,3 +758,45 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   stroke: #ffffff !important;
 }
 
+/* WhatsApp page uses the brighter green from the current WhatsApp UI. */
+.whatsapp-page {
+  --whatsapp-green: #1fa855;
+  --whatsapp-green-soft: rgb(31 168 85 / 0.1);
+  --whatsapp-green-border: rgb(31 168 85 / 0.3);
+}
+
+.whatsapp-page .text-emerald-300,
+.whatsapp-page .text-emerald-400,
+.whatsapp-page .text-emerald-500,
+.whatsapp-page .text-emerald-600,
+.whatsapp-page .text-emerald-700,
+.whatsapp-page .text-emerald-800,
+.whatsapp-page .text-emerald-900,
+.whatsapp-page .text-teal-300,
+.whatsapp-page .text-teal-400 {
+  color: var(--whatsapp-green) !important;
+  -webkit-text-fill-color: var(--whatsapp-green) !important;
+}
+
+.whatsapp-page .bg-emerald-500,
+.whatsapp-page .bg-emerald-600 {
+  background-color: var(--whatsapp-green) !important;
+}
+
+.whatsapp-page .bg-emerald-50,
+.whatsapp-page .bg-emerald-100,
+.whatsapp-page .bg-emerald-100\/80,
+.whatsapp-page .hover\:bg-emerald-50:hover {
+  background-color: var(--whatsapp-green-soft) !important;
+}
+
+.whatsapp-page .border-emerald-200,
+.whatsapp-page .border-emerald-300,
+.whatsapp-page .border-emerald-600\/30 {
+  border-color: var(--whatsapp-green-border) !important;
+}
+
+.whatsapp-page .hover\:text-emerald-800:hover {
+  color: var(--whatsapp-green) !important;
+}
+
