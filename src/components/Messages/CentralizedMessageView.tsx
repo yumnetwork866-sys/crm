@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   MessageSquare,
   Search,
@@ -19,7 +19,6 @@ import {
   Pin,
   Clock,
   X,
-  Info,
   ShieldAlert,
   ChevronRight,
   ChevronLeft,
@@ -66,6 +65,12 @@ import { LoadOlderMessagesButton } from '../../features/messages/components/Load
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
 import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
 
+interface SavedMessageList {
+  id: string;
+  name: string;
+  filter: ActiveMessageFilter;
+}
+
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
   customers: Customer[];
@@ -109,6 +114,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const effectiveCurrentUser = authCurrentUser || currentUser;
 
   const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
+  const [savedFilterLists, setSavedFilterLists] = useState<SavedMessageList[]>(() => {
+    try {
+      const savedLists = localStorage.getItem('whatsapp-saved-filter-lists');
+      const parsedLists: unknown = savedLists ? JSON.parse(savedLists) : [];
+      return Array.isArray(parsedLists) ? parsedLists as SavedMessageList[] : [];
+    } catch {
+      return [];
+    }
+  });
+  const filterMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
@@ -227,6 +244,61 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     onReplyMessage: startReplyMessage,
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('whatsapp-saved-filter-lists', JSON.stringify(savedFilterLists));
+    } catch {
+      // Keep saved lists available for this session when browser storage is unavailable.
+    }
+  }, [savedFilterLists]);
+
+  useEffect(() => {
+    if (!isFilterMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!filterMenuRef.current?.contains(event.target as Node)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isFilterMenuOpen]);
+
+  const filterOptions = [
+    { id: 'all', label: `Tất cả (${threads.length})` },
+    { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, thread) => sum + thread.unreadCount, 0)})` },
+    { id: 'vip', label: 'Khách VIP' },
+    { id: 'repeat', label: 'Đã mua 1 lần' },
+    { id: 'new', label: 'Khách mới' },
+  ] satisfies Array<{ id: ActiveMessageFilter; label: string }>;
+  const visibleFilterOptions = activeFilter === 'all'
+    ? filterOptions
+    : [
+        filterOptions[0],
+        filterOptions.find((filterOption) => filterOption.id === activeFilter)!,
+        ...filterOptions.filter((filterOption) => filterOption.id !== 'all' && filterOption.id !== activeFilter),
+      ];
+
+  const selectBuiltInFilter = (filter: ActiveMessageFilter) => {
+    setActiveFilter(filter);
+    setActiveSavedListId(null);
+  };
+
+  const handleCreateSavedList = () => {
+    const name = window.prompt('Tên danh sách mới:')?.trim();
+    if (!name) return;
+
+    const newList: SavedMessageList = {
+      id: `list_${Date.now()}`,
+      name,
+      filter: activeFilter,
+    };
+    setSavedFilterLists((currentLists) => [...currentLists, newList]);
+    setActiveSavedListId(newList.id);
+    setIsFilterMenuOpen(false);
+  };
+
   const getSlaWarning = (thread: { messages: CentralMessage[]; lastMessage: CentralMessage }) => {
     if (thread.lastMessage.sender !== 'customer') return null;
     const elapsedMs = currentTime - new Date(thread.lastMessage.timestamp).getTime();
@@ -259,7 +331,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
             <div className="flex items-center space-x-1 text-slate-600 shrink-0">
               <button
-                onClick={() => setActiveFilter(activeFilter === 'unread' ? 'all' : 'unread')}
+                onClick={() => selectBuiltInFilter(activeFilter === 'unread' ? 'all' : 'unread')}
                 className={`p-1.5 rounded-lg border transition cursor-pointer ${
                   activeFilter === 'unread'
                     ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
@@ -292,41 +364,121 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* WhatsApp Filter Pills */}
-          <div
-            className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 flex space-x-1.5 overflow-x-auto no-scrollbar shrink-0"
-            onWheel={(event) => {
-              if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+          <div className="whatsapp-filter-shell relative px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 shrink-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                {visibleFilterOptions.map((filterOption) => (
+                  <button
+                    key={filterOption.id}
+                    type="button"
+                    data-primary={filterOption.id === 'all'}
+                    aria-pressed={activeFilter === filterOption.id}
+                    onClick={() => selectBuiltInFilter(filterOption.id)}
+                    className={`whatsapp-filter-chip shrink-0 px-3 py-1 rounded-full text-[11px] transition whitespace-nowrap cursor-pointer ${
+                      activeFilter === filterOption.id
+                        ? 'bg-[#1fa855] text-white border border-[#1fa855] font-bold shadow-xs'
+                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold shadow-2xs'
+                    }`}
+                  >
+                    {filterOption.label}
+                  </button>
+                ))}
+              </div>
 
-              const container = event.currentTarget;
-              const maxScrollLeft = container.scrollWidth - container.clientWidth;
-              const canScroll = event.deltaY < 0
-                ? container.scrollLeft > 0
-                : container.scrollLeft < maxScrollLeft;
+              <div ref={filterMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="Mở danh sách bộ lọc"
+                  aria-haspopup="menu"
+                  aria-expanded={isFilterMenuOpen}
+                  onClick={() => setIsFilterMenuOpen((isOpen) => !isOpen)}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-2xs transition cursor-pointer ${
+                    isFilterMenuOpen
+                      ? 'bg-[#1fa855] text-white border-[#1fa855]'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                  title="Thêm hoặc chọn bộ lọc"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              if (!canScroll) return;
-              event.preventDefault();
-              container.scrollLeft += event.deltaY;
-            }}
-          >
-            {([
-              { id: 'all', label: `Tất cả (${threads.length})` },
-              { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, t) => sum + t.unreadCount, 0)})` },
-              { id: 'vip', label: 'Khách VIP' },
-              { id: 'repeat', label: 'Đã mua 1 lần' },
-              { id: 'new', label: 'Khách mới' },
-            ] satisfies Array<{ id: ActiveMessageFilter; label: string }>).map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setActiveFilter(f.id)}
-                className={`px-3 py-1 rounded-lg text-[11px] transition whitespace-nowrap cursor-pointer ${
-                  activeFilter === f.id
-                    ? 'bg-[#1fa855] text-white border border-[#1fa855] font-bold shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold shadow-2xs'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+                {isFilterMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-10 z-50 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                  >
+                    {savedFilterLists.length > 0 && (
+                      <>
+                        {savedFilterLists.map((savedList) => {
+                          const isActive = activeSavedListId === savedList.id;
+                          return (
+                            <button
+                              key={savedList.id}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={isActive}
+                              onClick={() => {
+                                setActiveFilter(savedList.filter);
+                                setActiveSavedListId(savedList.id);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition cursor-pointer ${
+                                isActive
+                                  ? 'bg-emerald-50 font-bold text-[#1fa855]'
+                                  : 'text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                {isActive ? <Check className="h-4 w-4" /> : null}
+                              </span>
+                              <span className="truncate">{savedList.name}</span>
+                            </button>
+                          );
+                        })}
+                        <div className="my-1 border-t border-slate-200" />
+                      </>
+                    )}
+
+                    {filterOptions.map((filterOption) => {
+                      const isActive = activeFilter === filterOption.id;
+                      return (
+                        <button
+                          key={filterOption.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={isActive}
+                          onClick={() => {
+                            selectBuiltInFilter(filterOption.id);
+                            setIsFilterMenuOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition cursor-pointer ${
+                            isActive
+                              ? 'bg-emerald-50 font-bold text-[#1fa855]'
+                              : 'text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                            {isActive ? <Check className="h-4 w-4" /> : null}
+                          </span>
+                          <span>{filterOption.label}</span>
+                        </button>
+                      );
+                    })}
+
+                    <div className="my-1 border-t border-slate-200" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleCreateSavedList}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-800 transition hover:bg-slate-100 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4 shrink-0" />
+                      <span>Thêm danh sách</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Thread List */}
@@ -1688,18 +1840,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               ) : (
                 /* Internal Notes Tab */
                 <div className="space-y-3">
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-800 flex items-start gap-1.5">
-                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span>Ghi chú nội bộ chỉ hiển thị cho nhân viên Yum CRM, khách hàng không thể nhìn thấy.</span>
-                  </div>
-
                   {/* Add Note Form */}
                   <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <textarea
                       rows={2}
                       value={newNoteText}
                       onChange={(e) => setNewNoteText(e.target.value)}
-                      placeholder="Thêm ghi chú cho khách hàng này (vd: Khách thích nhận hàng chiều, đã giảm giá 10%)..."
+                      placeholder="Thêm ghi chú cho khách hàng này"
                       className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#1fa855]"
                     />
                     <div className="flex justify-end">

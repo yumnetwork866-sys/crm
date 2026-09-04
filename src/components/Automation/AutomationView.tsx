@@ -5,6 +5,7 @@ import {
   Check,
   Sliders,
   Pencil,
+  ChevronRight,
 } from 'lucide-react';
 import type {
   Customer,
@@ -126,110 +127,131 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
         </div>
       </div>
 
-      {/* Interactive Workflow Sequence Builder Diagram */}
-      <div className="space-y-3">
+      {/* Workflow Sequence (Steps) & Live Preview in Left-Right Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* Left Column: Step Cards */}
+        <div className="lg:col-span-5 space-y-2.5">
+          {activeSteps.map((stepItem, index) => {
+              const Icon = STEP_ICON_MAP[stepItem.iconName] || Heart;
+              const isSelected = currentSelectedStep?.id === stepItem.id;
+              const iconTheme = getStepIconTheme(stepItem.color, stepItem.iconName);
 
-        {/* Step Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {activeSteps.map((stepItem) => {
-            const Icon = STEP_ICON_MAP[stepItem.iconName] || Heart;
-            const isSelected = currentSelectedStep?.id === stepItem.id;
-
-            return (
-              <div
-                key={stepItem.id}
-                onClick={() => setSelectedStepId(stepItem.id)}
-                className={`p-5 rounded-2xl border cursor-pointer transition-all duration-200 relative group shadow-xs ${
-                  isSelected
-                    ? 'bg-emerald-50/40 border-emerald-500 shadow-md ring-2 ring-emerald-500/30'
-                    : 'bg-white border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center space-x-2.5 min-w-0 mb-2.5">
-                  {(() => {
-                    const iconTheme = getStepIconTheme(stepItem.color, stepItem.iconName);
-                    return (
+              return (
+                <div
+                  key={stepItem.id}
+                  onClick={() => setSelectedStepId(stepItem.id)}
+                  className={`p-4 rounded-2xl border cursor-pointer transition-all duration-200 relative group shadow-xs ${
+                    isSelected
+                      ? 'bg-emerald-50/50 border-emerald-500 shadow-md ring-2 ring-emerald-500/30'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3 min-w-0">
                       <div className="shrink-0 rounded-xl border p-2" style={iconTheme.containerStyle}>
                         <Icon className="h-4 w-4" style={iconTheme.iconStyle} />
                       </div>
-                    );
-                  })()}
-                  <h4
-                    className="truncate text-sm font-bold text-slate-900"
-                    title={formatStepTitle(stepItem.title, stepItem.dayOffset)}
-                  >
-                    {formatStepTitle(stepItem.title, stepItem.dayOffset)}
-                  </h4>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-400">
+                            Bước {index + 1}
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                            {stepItem.dayOffset === 0 ? 'Gửi ngay' : `Sau ${stepItem.dayOffset} ngày`}
+                          </span>
+                        </div>
+                        <h4
+                          className="truncate text-sm font-bold text-slate-900 mt-0.5"
+                          title={formatStepTitle(stepItem.title, stepItem.dayOffset)}
+                        >
+                          {stripStepDayPrefix(stepItem.title)}
+                        </h4>
+                        {stepItem.templateName ? (
+                          <div className="text-[11px] text-indigo-600 font-medium truncate mt-0.5">
+                            Mẫu: {stepItem.templateName}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <ChevronRight className={`w-4 h-4 shrink-0 transition-colors ${isSelected ? 'text-emerald-600' : 'text-slate-300 group-hover:text-slate-400'}`} />
+                  </div>
                 </div>
-
-
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
-      </div>
 
-      {/* Active Step Details & Template Preview */}
-      {currentSelectedStep && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3 shadow-xs">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                setModalEditStepId(currentSelectedStep.id);
-                setIsModalOpen(true);
-              }}
-              className="text-xs font-semibold text-slate-500 hover:text-emerald-600 flex items-center space-x-1.5 transition cursor-pointer"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              <span>Chỉnh sửa</span>
-            </button>
-          </div>
+        {/* Right Column: Active Step Details & Template Preview */}
+        <div className="lg:col-span-7">
+          {currentSelectedStep ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalEditStepId(currentSelectedStep.id);
+                    setIsModalOpen(true);
+                  }}
+                  className="text-xs font-semibold text-slate-600 hover:text-emerald-600 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/60 flex items-center space-x-1.5 transition cursor-pointer shrink-0"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Chỉnh sửa</span>
+                </button>
+              </div>
 
-          <AutomationMessagePreview
-            template={currentSelectedTemplate}
-            fallbackBody={currentSelectedStep.defaultMsg}
-            parameterMappings={currentSelectedStep.templateParameterMappings}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
-            <div className="flex flex-wrap items-center gap-2">
-              {currentSelectedVariables.length > 0 ? (
-                <>
-                  <span>Biến đã gán:</span>
-                  {currentSelectedVariables.map((variable) => {
-                    const key = getAutomationParameterMappingKey(variable);
-                    const mapping = currentSelectedStep.templateParameterMappings?.find(
-                      (item) => getAutomationParameterMappingKey(item) === key,
-                    );
-                    const sourceLabel = mapping?.source === 'constant'
-                      ? mapping.value || 'Giá trị cố định'
-                      : AUTOMATION_PARAMETER_SOURCE_OPTIONS.find(
-                          (option) => option.value === mapping?.source,
-                        )?.label || 'Chưa gán';
-                    return (
-                      <code
-                        key={key}
-                        className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-bold text-indigo-700"
-                      >
-                        {variable.token} → {sourceLabel}
-                      </code>
-                    );
-                  })}
-                </>
-              ) : (
-                <span>Template không có biến.</span>
-              )}
+              <AutomationMessagePreview
+                template={currentSelectedTemplate}
+                fallbackBody={currentSelectedStep.defaultMsg}
+                parameterMappings={currentSelectedStep.templateParameterMappings}
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {currentSelectedVariables.length > 0 ? (
+                    <>
+                      <span className="font-medium text-slate-600">Biến đã gán:</span>
+                      {currentSelectedVariables.map((variable) => {
+                        const key = getAutomationParameterMappingKey(variable);
+                        const mapping = currentSelectedStep.templateParameterMappings?.find(
+                          (item) => getAutomationParameterMappingKey(item) === key,
+                        );
+                        const sourceLabel = mapping?.source === 'constant'
+                          ? mapping.value || 'Giá trị cố định'
+                          : AUTOMATION_PARAMETER_SOURCE_OPTIONS.find(
+                              (option) => option.value === mapping?.source,
+                            )?.label || 'Chưa gán';
+                        return (
+                          <code
+                            key={key}
+                            className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-bold text-indigo-700 text-[10px]"
+                          >
+                            {variable.token} → {sourceLabel}
+                          </code>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <span className="text-slate-400">Template không có biến động.</span>
+                  )}
+                </div>
+                {currentSelectedStep.templateName ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                      Template: <b className="text-indigo-600 font-semibold">{currentSelectedStep.templateName}</b>
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
-            {currentSelectedStep.templateName ? (
-              <div className="flex items-center gap-2 text-emerald-600">
-                <span className="rounded border border-slate-200 bg-white px-2 py-0.5 text-slate-600">
-                  Template: <b className="text-indigo-600">{currentSelectedStep.templateName}</b>
-                </span>
-              </div>
-            ) : null}
-          </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-xs text-slate-400 shadow-sm">
+              Chọn một bước ở cột bên trái để xem trước tin nhắn
+            </div>
+          )}
         </div>
-      )}
+
+      </div>
 
       {/* Customers Currently in Automation Pipeline Table */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">

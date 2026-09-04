@@ -765,6 +765,35 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   --whatsapp-green-border: rgb(31 168 85 / 0.3);
 }
 
+.whatsapp-filter-shell {
+  container-name: whatsapp-filters;
+  container-type: inline-size;
+}
+
+@container whatsapp-filters (max-width: 520px) {
+  .whatsapp-filter-chip:nth-child(n + 5) {
+    display: none;
+  }
+}
+
+@container whatsapp-filters (max-width: 400px) {
+  .whatsapp-filter-chip:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@container whatsapp-filters (max-width: 300px) {
+  .whatsapp-filter-chip:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+@container whatsapp-filters (max-width: 220px) {
+  .whatsapp-filter-chip:not([data-primary="true"]):not([aria-pressed="true"]) {
+    display: none;
+  }
+}
+
 .whatsapp-page .text-emerald-300,
 .whatsapp-page .text-emerald-400,
 .whatsapp-page .text-emerald-500,
