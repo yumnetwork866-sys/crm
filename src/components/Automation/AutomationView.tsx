@@ -14,7 +14,9 @@ import type {
 import {
   AutomationStepModal,
   STEP_ICON_MAP,
+  formatStepTitle,
   getStepIconTheme,
+  stripStepDayPrefix,
 } from './AutomationStepModal';
 import { AutomationMessagePreview } from './AutomationMessagePreview';
 import { useAutomationSteps } from '../../hooks/useAutomationSteps';
@@ -138,8 +140,11 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                       </div>
                     );
                   })()}
-                  <h4 className="font-bold text-slate-900 text-sm truncate" title={stepItem.title}>
-                    {stepItem.title}
+                  <h4
+                    className="truncate text-sm font-bold text-slate-900"
+                    title={formatStepTitle(stepItem.title, stepItem.dayOffset)}
+                  >
+                    {formatStepTitle(stepItem.title, stepItem.dayOffset)}
                   </h4>
                 </div>
 
@@ -212,7 +217,7 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                   <th key={step.id} className="py-2.5 px-3 text-center whitespace-nowrap">
                     <span>{step.dayOffset > 0 ? `Ngày +${step.dayOffset}` : 'Ngay sau mua'}</span>
                     <div className="text-[9px] font-normal normal-case text-slate-500 truncate max-w-27.5 mx-auto">
-                      {step.title.replace(/^Ngày\s*\+\d+:\s*/i, '')}
+                      {stripStepDayPrefix(step.title)}
                     </div>
                   </th>
                 ))}

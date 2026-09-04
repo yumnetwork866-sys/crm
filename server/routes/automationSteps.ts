@@ -69,7 +69,7 @@ router.put('/', async (req: AuthenticatedRequest, res: Response) => {
       id: item.id,
       step: index + 1,
       dayOffset: item.dayOffset,
-      title: item.title.trim(),
+      title: item.title.replace(/^Ngày\s*\+\d+\s*:\s*/i, '').trim(),
       defaultMsg: item.defaultMsg,
       iconName: item.iconName.trim(),
       color: item.color.toLowerCase(),

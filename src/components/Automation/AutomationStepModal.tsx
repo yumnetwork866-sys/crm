@@ -65,6 +65,12 @@ export const normalizeStepColor = (color?: string, iconName?: string): string =>
   return iconFallbacks[iconName || ''] || STEP_COLOR_PRESETS[0];
 };
 
+export const stripStepDayPrefix = (title: string): string =>
+  title.replace(/^Ngày\s*\+\d+\s*:\s*/i, '').trim();
+
+export const formatStepTitle = (title: string, dayOffset: number): string =>
+  `Ngày +${dayOffset}: ${stripStepDayPrefix(title)}`;
+
 export const getStepIconTheme = (color?: string, iconName?: string) => {
   const hex = normalizeStepColor(color, iconName);
   return {
@@ -123,7 +129,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         setEditingStep(target);
         setIsAddingNew(false);
         setFormData({
-          title: target.title,
+          title: stripStepDayPrefix(target.title),
           dayOffset: target.dayOffset,
           defaultMsg: target.defaultMsg,
           iconName: target.iconName,
@@ -154,7 +160,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setEditingStep(step);
     setIsAddingNew(false);
     setFormData({
-      title: step.title,
+      title: stripStepDayPrefix(step.title),
       dayOffset: step.dayOffset,
       defaultMsg: step.defaultMsg,
       iconName: step.iconName,
@@ -170,7 +176,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setEditingStep(null);
     setIsAddingNew(true);
     setFormData({
-      title: `Ngày +${lastDay}: Chăm sóc khách hàng`,
+      title: '',
       dayOffset: lastDay,
       defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm!',
       iconName: 'Sparkles',
@@ -213,7 +219,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         id: `step_${Date.now()}`,
         step: currentSteps.length + 1,
         dayOffset: Number(formData.dayOffset) || 0,
-        title: formData.title.trim(),
+        title: stripStepDayPrefix(formData.title),
         defaultMsg: formData.defaultMsg.trim(),
         iconName: formData.iconName,
         color: normalizeStepColor(formData.color, formData.iconName),
@@ -226,7 +232,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
         currentSteps.map((step) => step.id === editingStep.id
           ? {
               ...step,
-              title: formData.title.trim(),
+              title: stripStepDayPrefix(formData.title),
               dayOffset: Number(formData.dayOffset) || 0,
               defaultMsg: formData.defaultMsg.trim(),
               iconName: formData.iconName,
@@ -281,7 +287,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
             {isAddingNew || editingStep ? (
               <>
                 <Pencil className="h-4 w-4 shrink-0 text-emerald-600" />
-                <span className="truncate">{isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${editingStep?.title}`}</span>
+                <span className="truncate">
+                  {isAddingNew ? 'Thêm Bước Mới' : `Chỉnh Sửa: ${formatStepTitle(formData.title, formData.dayOffset)}`}
+                </span>
               </>
             ) : (
               <span className="truncate">Danh Sách Các Bước Trong Kịch Bản ({currentSteps.length} bước)</span>
@@ -303,21 +311,21 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 space-y-1">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Tiêu Đề Bước <span className="text-rose-500">*</span>
+                    Tiêu Đề <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="VD: Ngày +3: Lời Cảm Ơn & HDSD"
+                    placeholder="VD: Lời Cảm Ơn & HDSD"
                     className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Số Ngày Sau Mua (+Ngày) <span className="text-rose-500">*</span>
+                    Số Ngày Sau Mua <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -513,7 +521,9 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center space-x-2">
-                            <span className="truncate text-xs font-bold text-slate-900">{step.title}</span>
+                            <span className="truncate text-xs font-bold text-slate-900">
+                              {formatStepTitle(step.title, step.dayOffset)}
+                            </span>
                             <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                               +{step.dayOffset} ngày
                             </span>
