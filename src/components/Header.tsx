@@ -179,7 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <NavLink
                     key={item.id}
                     to={`/${item.id}`}
-                    end
+                    end={item.id !== 'automation'}
                     onClick={() => {
                       if (item.id === 'automation') onChangeTab(item.id);
                     }}
