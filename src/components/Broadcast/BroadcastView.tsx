@@ -297,7 +297,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
               <select
                 value={targetGroup}
                 onChange={(e) => setTargetGroup(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500 font-semibold text-teal-300"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 focus:outline-none focus:border-teal-500 font-semibold text-teal-300"
               >
                 <option value="Tất cả khách hàng">Tất cả khách hàng trong CRM</option>
                 <option value="Khách mới">Nhóm 1: Khách mới (Chưa tư vấn)</option>
@@ -495,7 +495,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
               Lịch Sử Các Chiến Dịch Broadcast Đã Gửi
             </h4>
 
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-75 overflow-y-auto pr-1">
                {campaigns.map((camp) => {
                 const sentCount = camp.stats.sentCount;
                 const deliveredCount = camp.stats.deliveredCount;
