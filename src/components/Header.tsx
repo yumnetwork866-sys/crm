@@ -301,7 +301,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
                     >
                       <ShieldCheck className="w-4 h-4 text-purple-400" />
-                      <span>Quản lý User & Phân quyền</span>
+                      <span>Quản lý</span>
                     </button>
                   )}
 

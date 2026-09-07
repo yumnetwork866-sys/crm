@@ -15,7 +15,6 @@ import {
   Phone,
   Building2,
   Award,
-  KeyRound,
   ShieldAlert,
   History,
   Lock,
@@ -183,10 +182,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Top Header & Sub-tabs */}
       <div className="bg-white border border-slate-300 rounded-3xl p-6 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-black border border-purple-300 mb-2">
-            <KeyRound className="w-4 h-4" />
-            Admin Security &amp; Authorization Center
-          </div>
+
           <h1 className="text-2xl font-black text-slate-950 tracking-tight">
             Trung Tâm Quản Trị Auth &amp; Phân Quyền Hệ Thống
           </h1>
@@ -239,7 +235,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <div>
                 <div className="text-xs font-bold text-slate-600">Tổng Số Thành Viên</div>
                 <div className="text-2xl font-black text-slate-950 mt-1">{totalUsers} nhân sự</div>
-                <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Toàn hệ thống CRM</div>
+
               </div>
               <div className="p-3 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
                 <Users className="w-6 h-6" />
@@ -250,7 +246,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <div>
                 <div className="text-xs font-bold text-slate-600">Thành Viên Hoạt Động</div>
                 <div className="text-2xl font-black text-emerald-700 mt-1">{activeUsers} Active</div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">Tài khoản khả dụng</div>
+
               </div>
               <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200">
                 <CheckCircle2 className="w-6 h-6" />
@@ -261,7 +257,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <div>
                 <div className="text-xs font-bold text-slate-600">Quản Lý &amp; Admin</div>
                 <div className="text-2xl font-black text-purple-700 mt-1">{adminCount} nhân sự</div>
-                <div className="text-[11px] text-purple-700 font-semibold mt-0.5">Quyền Quản Trị Hệ Thống</div>
+
               </div>
               <div className="p-3 bg-purple-100 text-purple-700 rounded-xl border border-purple-200">
                 <ShieldCheck className="w-6 h-6" />
@@ -272,7 +268,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <div>
                 <div className="text-xs font-bold text-slate-600">Tổng Doanh Thu Đội Ngũ</div>
                 <div className="text-2xl font-black text-emerald-700 mt-1">{formatVND(totalTeamRevenue)}</div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">Doanh số cộng dồn</div>
+
               </div>
               <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200">
                 <Award className="w-6 h-6" />
