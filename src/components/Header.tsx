@@ -164,11 +164,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 2. Center: Navigation Tabs */}
           <nav
             ref={navRef}
-            className="min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain py-1 no-scrollbar !bg-transparent !border-0 !shadow-none"
+            className="min-w-0 flex-1 touch-pan-x overflow-x-auto overscroll-x-contain py-1 no-scrollbar bg-transparent! border-0! shadow-none!"
             style={{ background: 'transparent', backgroundColor: 'transparent', border: 'none', boxShadow: 'none' }}
           >
             <div
-              className="flex w-max min-w-full items-center justify-center gap-1 !bg-transparent"
+              className="flex w-max min-w-full items-center justify-center gap-1 bg-transparent!"
               style={{ background: 'transparent', backgroundColor: 'transparent' }}
             >
               {navItems.map((item) => {

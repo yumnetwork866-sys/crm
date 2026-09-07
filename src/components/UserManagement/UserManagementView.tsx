@@ -494,9 +494,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
             <div>
               <h2 className="text-lg font-black text-slate-950">Ma Trận Phân Quyền Vai Trò (Role Access Control)</h2>
-              <p className="text-xs text-slate-600 font-semibold mt-0.5">
-                Bảng quy định quyền hạn truy cập module của từng vai trò tài khoản nhân sự trong hệ thống.
-              </p>
+
             </div>
             <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-black border border-indigo-300">
               RBAC Policy Enabled
@@ -584,9 +582,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 <History className="w-5 h-5 text-indigo-600" />
                 Nhật Ký Bảo Mật &amp; Đăng Nhập (Auth Audit Logs)
               </h2>
-              <p className="text-xs text-slate-600 font-semibold mt-0.5">
-                Theo dõi các sự kiện đăng nhập, cập nhật mật khẩu và thay đổi quyền hạn tài khoản trong thời gian thực.
-              </p>
+
             </div>
             <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-300">
               Live Monitoring Active
