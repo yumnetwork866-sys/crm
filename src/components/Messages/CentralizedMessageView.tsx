@@ -304,10 +304,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     const minutes = Math.floor(elapsedMs / (1000 * 60));
     if (minutes < 15) return null;
     if (minutes >= 60) {
-      const hours = Math.floor(minutes / 60);
-      return { label: `Chờ > ${hours}h`, minutes, isSevere: true };
+      const hours = Math.min(Math.floor(minutes / 60), 24);
+      return { label: `${hours}h`, minutes, isSevere: true };
     }
-    return { label: `Chờ ${minutes}p`, minutes, isSevere: false };
+    return { label: `${minutes}p`, minutes, isSevere: false };
   };
 
   return (
