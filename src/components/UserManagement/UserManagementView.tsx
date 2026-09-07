@@ -20,8 +20,7 @@ import {
   History,
   Lock,
   Check,
-  Ban,
-  Facebook
+  Ban
 } from 'lucide-react';
 
 interface UserManagementViewProps {
@@ -32,7 +31,6 @@ interface UserManagementViewProps {
   onDeleteUser: (userId: string) => void;
   onToggleUserStatus: (userId: string) => void;
   onSwitchUser: (user: AppUser) => void;
-  onNavigateToWhatsApp?: () => void;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
@@ -43,7 +41,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onDeleteUser,
   onToggleUserStatus,
   onSwitchUser,
-  onNavigateToWhatsApp,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'permissions' | 'audit'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
@@ -193,9 +190,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <h1 className="text-2xl font-black text-slate-950 tracking-tight">
             Trung Tâm Quản Trị Auth &amp; Phân Quyền Hệ Thống
           </h1>
-          <p className="text-xs font-bold text-slate-600 mt-1">
-            Quản lý tài khoản đăng nhập, đổi mật khẩu, cấp quyền truy cập và kiểm soát an toàn dữ liệu CRM.
-          </p>
         </div>
 
         {/* Sub-tab Selectors */}
@@ -344,17 +338,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <div className="bg-white border border-slate-300 rounded-2xl overflow-hidden shadow-lg">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="font-extrabold text-slate-950 text-sm">Danh Sách Tài Khoản Auth System ({filteredUsers.length})</h3>
-              <div className="flex items-center gap-3">
-                {currentUser?.role === 'Admin' && onNavigateToWhatsApp && (
-                  <button
-                    onClick={onNavigateToWhatsApp}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer"
-                  >
-                    <Facebook className="w-3.5 h-3.5" />
-                    <span>Cấu Hình WhatsApp</span>
-                  </button>
-                )}
-              </div>
             </div>
 
             <div className="overflow-x-auto">

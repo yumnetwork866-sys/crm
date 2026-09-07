@@ -584,7 +584,6 @@ export default function App() {
                     onDeleteUser={handleDeleteUser}
                     onToggleUserStatus={handleToggleUserStatus}
                     onSwitchUser={handleSwitchUser}
-                    onNavigateToWhatsApp={() => { void navigate('/meta-verification'); }}
                   />
                 ) : (
                   <Navigate to="/crm" replace />

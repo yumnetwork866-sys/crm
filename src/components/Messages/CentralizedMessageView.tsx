@@ -1875,9 +1875,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                       return notes.map((note) => (
                         <div key={note.id} className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative group">
-                          <div className="flex items-center justify-between text-[10px] text-slate-500">
-                            <span className="font-bold text-slate-800">{note.author}</span>
-                            <span>{formatDate(note.timestamp)} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pr-5 text-[10px] text-slate-500">
+                            <span className="truncate font-bold text-slate-800">{note.author}</span>
+                            <span className="whitespace-nowrap">{formatDate(note.timestamp)} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                           <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
 
