@@ -73,8 +73,8 @@ export const PublicLandingView: React.FC<PublicLandingViewProps> = ({
               onClick={onOpenLogin}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-extrabold shadow-md shadow-red-600/30 transition cursor-pointer"
             >
-              <LogIn className="w-4 h-4" />
-              Đăng Nhập CRM
+              <LogIn className="w-4 h-4 text-white" />
+              <span className="text-white">Đăng Nhập CRM</span>
             </button>
           </div>
         </div>
@@ -99,10 +99,7 @@ export const PublicLandingView: React.FC<PublicLandingViewProps> = ({
           </span>
         </h1>
 
-        {/* Subtitle */}
-        <p className="mt-6 text-base sm:text-xl text-slate-800 max-w-3xl mx-auto font-semibold leading-relaxed">
-          Đồng bộ tự động dữ liệu <strong className="text-slate-950 font-black">Facebook Lead Ads</strong>, quản lý tin nhắn hội thoại <strong className="text-slate-950 font-black">Messenger &amp; WhatsApp Business</strong> tập trung. Kích hoạt chuỗi gửi tin chăm sóc khách hàng tự động Ngày +3, +5, +7, +15.
-        </p>
+
 
         {/* Dashboard Preview Mockup (High Contrast Light Theme) */}
         <div className="mt-14 relative max-w-5xl mx-auto rounded-3xl bg-white border border-slate-300 p-3 sm:p-4 shadow-2xl shadow-slate-300/80">

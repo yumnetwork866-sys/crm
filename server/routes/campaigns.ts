@@ -2,7 +2,8 @@ import type { Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requireRole } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { kickCampaignWorker } from '../services/campaignWorker';
 import {
@@ -511,7 +512,7 @@ async function loadAudience(input: CampaignInput) {
 }
 
 // GET /api/campaigns
-router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission(Permission.AUTOMATION_VIEW), async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const campaigns = await prisma.broadcastCampaign.findMany({
       orderBy: { createdAt: 'desc' },
@@ -523,7 +524,7 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/campaigns/templates/analytics - Real daily analytics loaded directly from WABA
-router.get('/templates/analytics', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/templates/analytics', requirePermission(Permission.AUTOMATION_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = templateAnalyticsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({
@@ -558,7 +559,7 @@ router.get('/templates/analytics', async (req: AuthenticatedRequest, res: Respon
 });
 
 // GET /api/campaigns/templates - All templates loaded directly from WABA
-router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/templates', requirePermission(Permission.AUTOMATION_VIEW), async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const setting = await getIntegrationSetting();
     const wabaId = setting.whatsappWabaId?.trim();
@@ -589,7 +590,7 @@ router.get('/templates', async (_req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/campaigns/templates/flows - Flows loaded directly from WABA
-router.get('/templates/flows', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/templates/flows', requirePermission(Permission.AUTOMATION_VIEW), async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const setting = await getIntegrationSetting();
     const wabaId = setting.whatsappWabaId?.trim();
@@ -611,7 +612,7 @@ router.get('/templates/flows', async (_req: AuthenticatedRequest, res: Response)
 // POST /api/campaigns/templates/flows - Create an editable DRAFT Flow on Meta
 router.post(
   '/templates/flows',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = surveyFlowCreateSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -642,7 +643,7 @@ router.post(
 // POST /api/campaigns/templates/bulk-archive - Persist CRM-only archive state in PostgreSQL
 router.post(
   '/templates/bulk-archive',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = templateBulkActionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -686,7 +687,7 @@ router.post(
 // POST /api/campaigns/templates/bulk-unarchive - Remove CRM-only archive state from PostgreSQL
 router.post(
   '/templates/bulk-unarchive',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = templateBulkActionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -717,7 +718,7 @@ router.post(
 // POST /api/campaigns/templates/bulk-delete - Delete selected language variants from Meta
 router.post(
   '/templates/bulk-delete',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = templateBulkActionSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -759,7 +760,7 @@ router.post(
 // POST /api/campaigns/templates - Submit a WhatsApp template to Meta for review
 router.post(
   '/templates',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = templateCreateSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -793,7 +794,7 @@ router.post(
 // POST /api/campaigns/templates/media - Upload a template sample through Meta resumable uploads
 router.post(
   '/templates/media',
-  requireRole(['Admin', 'Marketing Lead']),
+  requirePermission(Permission.TEMPLATES_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = templateMediaUploadSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -827,7 +828,7 @@ router.post(
 );
 
 // POST /api/campaigns/preview - Authoritative audience count from the server
-router.post('/preview', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/preview', requirePermission(Permission.CAMPAIGNS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = campaignInputSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dữ liệu chiến dịch không hợp lệ.' });
@@ -848,7 +849,7 @@ router.post('/preview', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/campaigns/launch - Snapshot recipients and enqueue approved template messages
 router.post(
   '/launch',
-  requireRole(['Admin', 'Marketing Lead', 'Sales Manager']),
+  requirePermission(Permission.CAMPAIGNS_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = campaignInputSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -933,7 +934,7 @@ router.post(
 );
 
 // GET /api/campaigns/:id/recipients - Auditable per-recipient delivery state
-router.get('/:id/recipients', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id/recipients', requirePermission(Permission.AUTOMATION_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
   const status = typeof req.query.status === 'string' ? req.query.status : undefined;
@@ -975,7 +976,7 @@ router.get('/:id/recipients', async (req: AuthenticatedRequest, res: Response) =
 // POST /api/campaigns/:id/cancel - Stop recipients that have not been sent
 router.post(
   '/:id/cancel',
-  requireRole(['Admin', 'Marketing Lead', 'Sales Manager']),
+  requirePermission(Permission.CAMPAIGNS_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const campaign = await prisma.broadcastCampaign.findUnique({ where: { id: req.params.id } });
@@ -1003,7 +1004,7 @@ router.post(
 // POST /api/campaigns - Retained as a draft endpoint for compatibility
 router.post(
   '/',
-  requireRole(['Admin', 'Marketing Lead', 'Sales Manager']),
+  requirePermission(Permission.CAMPAIGNS_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
   const parsed = campaignInputSchema.safeParse(req.body);
   if (!parsed.success) {

@@ -1,7 +1,8 @@
 import type { Response } from 'express';
 import { Router } from 'express';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 
@@ -52,7 +53,7 @@ const customerSchema = z.object({
 router.use(authenticateToken);
 
 // GET /api/customers - List customers with search, filter & pagination
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       search,
@@ -163,7 +164,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/customers/:id - Single Customer Detail
-router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', requirePermission(Permission.CUSTOMERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const customer = await prisma.customer.findUnique({
@@ -186,7 +187,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/customers - Create New Customer
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const parseResult = customerSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -243,7 +244,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // PUT /api/customers/:id - Update Customer
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.customer.findUnique({ where: { id } });
@@ -279,7 +280,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // DELETE /api/customers/:id - Delete Customer
-router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     await prisma.customer.delete({ where: { id } });
@@ -290,7 +291,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/customers/:id/notes - Add Customer Note
-router.post('/:id/notes', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/notes', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { content, type, author } = req.body;
@@ -322,7 +323,7 @@ router.post('/:id/notes', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/customers/:id/automation-logs - Add Customer Automation Log
-router.post('/:id/automation-logs', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/automation-logs', requirePermission(Permission.AUTOMATION_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { step, stepName, message, status } = req.body;

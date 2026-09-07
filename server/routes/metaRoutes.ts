@@ -20,6 +20,8 @@ import {
   getRealtimeStream
 } from '../controllers/chatController';
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 
 const router = Router();
 
@@ -47,18 +49,19 @@ router.post(['/', '/webhook', '/webhooks'], verifyMetaWebhookSignature, handleWe
 // ==========================================
 // 3. Centralized Chat & Messaging Routes
 // ==========================================
-router.get('/messages', getMessages);
-router.get('/messages/thread/:customerId', getMessages);
-router.post('/messages/read', markMessagesAsRead);
-router.post('/messages/send', sendMessage);
-router.post('/messages/react', sendReaction);
-router.delete('/messages', clearAllMessages);
-router.delete('/messages/thread/:customerId', deleteThread);
-router.delete('/messages/item/:messageId', deleteMessage);
+router.get('/messages', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
+router.get('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
+router.post('/messages/read', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), markMessagesAsRead);
+router.post('/messages/send', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendMessage);
+router.post('/messages/react', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendReaction);
+router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);
+router.delete('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteThread);
+router.delete('/messages/item/:messageId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessage);
 
 // ==========================================
 // 4. Meta Media Proxy & CDN Cache
 // ==========================================
+// Media URLs are consumed directly by <img>/<video>; these requests cannot attach the bearer header.
 router.get('/media/:mediaId', getMediaProxy);
 
 export default router;

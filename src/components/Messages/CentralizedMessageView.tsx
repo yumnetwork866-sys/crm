@@ -58,6 +58,7 @@ import { useMessagePreferences } from '../../features/messages/hooks/useMessageP
 import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
 import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
+import { Permission } from '../../lib/permissions';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
@@ -109,7 +110,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   isLoadingOlderMessages = false,
   onLoadOlderMessages,
 }) => {
-  const { currentUser: authCurrentUser, users } = useAuth();
+  const { currentUser: authCurrentUser, users, hasPermission } = useAuth();
   const effectiveCurrentUser = authCurrentUser || currentUser;
 
   const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
@@ -146,7 +147,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const [newNoteText, setNewNoteText] = useState('');
 
-  const isAdmin = effectiveCurrentUser?.role === 'Admin';
+  const isAdmin = hasPermission(Permission.MESSAGES_MANAGE);
 
   const handleAddInternalNote = (customerId: string) => {
     if (!newNoteText.trim()) return;

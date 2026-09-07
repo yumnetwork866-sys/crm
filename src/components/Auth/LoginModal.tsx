@@ -157,13 +157,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang đăng nhập...</span>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span className="text-white">Đang đăng nhập...</span>
               </>
             ) : (
               <>
-                <LogIn className="w-4 h-4" />
-                <span>Đăng Nhập Vào YumNetwork CRM</span>
+                <LogIn className="w-4 h-4 text-white" />
+                <span className="text-white">Đăng Nhập Vào YumNetwork CRM</span>
               </>
             )}
           </button>

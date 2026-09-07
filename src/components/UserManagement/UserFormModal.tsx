@@ -5,7 +5,7 @@ import { X, User, Mail, Phone, Shield, Building2, Save, KeyRound } from 'lucide-
 interface UserFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (user: Partial<AppUser> & { password?: string }) => void;
+  onSave: (user: Partial<AppUser> & { password?: string }) => Promise<void>;
   initialUser?: AppUser | null;
 }
 
@@ -46,23 +46,27 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) {
       alert('Vui lòng nhập Họ tên và Email.');
       return;
     }
 
-    onSave({
-      ...formData,
-      avatar:
-        formData.avatar ||
-        `https://images.unsplash.com/photo-${
-          Math.floor(Math.random() * 5) === 0 ? '1534528741775-53994a69daeb' : '1507003211169-0a1dd7228f2d'
-        }?auto=format&fit=crop&q=80&w=250`,
-      lastActive: 'Vừa tạo mới',
-    });
-    onClose();
+    try {
+      await onSave({
+        ...formData,
+        avatar:
+          formData.avatar ||
+          `https://images.unsplash.com/photo-${
+            Math.floor(Math.random() * 5) === 0 ? '1534528741775-53994a69daeb' : '1507003211169-0a1dd7228f2d'
+          }?auto=format&fit=crop&q=80&w=250`,
+        lastActive: 'Vừa tạo mới',
+      });
+      onClose();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể lưu tài khoản.');
+    }
   };
 
   return (

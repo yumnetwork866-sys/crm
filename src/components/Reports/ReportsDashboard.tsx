@@ -24,6 +24,8 @@ import {
   Calendar,
   Filter,
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Permission } from '../../lib/permissions';
 
 interface ReportsDashboardProps {
   customers: Customer[];
@@ -40,7 +42,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   currentUser,
   onUpdateMarketingReports,
 }) => {
-  const isAdmin = currentUser?.role === 'Admin';
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission(Permission.REPORTS_EXPORT);
   const [subTab, setSubTab] = useState<'marketing' | 'sales' | 'whatsapp' | 'crm'>('marketing');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 

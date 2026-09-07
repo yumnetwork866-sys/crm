@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import type { AppUser, UserRole } from '../../types';
+import React, { useEffect, useState } from 'react';
+import type { AppUser, PermissionDefinition, RolePermissionPolicy, UserRole } from '../../types';
+import { api } from '../../utils/apiClient';
+import { Permission } from '../../lib/permissions';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatVND } from '../../utils/crmUtils';
 import {
   Users,
@@ -11,15 +14,16 @@ import {
   XCircle,
   Edit2,
   Trash2,
-  LogIn,
   Phone,
   Building2,
   Award,
   ShieldAlert,
   History,
-  Lock,
-  Check,
-  Ban
+  Save,
+  Loader2,
+  AlertCircle,
+  RotateCcw,
+  ChevronRight
 } from 'lucide-react';
 
 interface UserManagementViewProps {
@@ -27,9 +31,8 @@ interface UserManagementViewProps {
   currentUser: AppUser | null;
   onAddUser: () => void;
   onEditUser: (user: AppUser) => void;
-  onDeleteUser: (userId: string) => void;
-  onToggleUserStatus: (userId: string) => void;
-  onSwitchUser: (user: AppUser) => void;
+  onDeleteUser: (userId: string) => Promise<void>;
+  onToggleUserStatus: (userId: string) => Promise<void>;
 }
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
@@ -39,12 +42,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onEditUser,
   onDeleteUser,
   onToggleUserStatus,
-  onSwitchUser,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'permissions' | 'audit'>('accounts');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [permissionDefinitions, setPermissionDefinitions] = useState<PermissionDefinition[]>([]);
+  const [rolePolicies, setRolePolicies] = useState<RolePermissionPolicy[]>([]);
+  const [permissionDrafts, setPermissionDrafts] = useState<Record<string, string>>({});
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsError, setPermissionsError] = useState('');
+  const [savingRole, setSavingRole] = useState<UserRole | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>('Admin');
+  const { refreshCurrentUser } = useAuth();
 
   // Metrics
   const totalUsers = users.length;
@@ -82,63 +92,85 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   };
 
-  // Static Permission Matrix Data
-  const permissionModules = [
-    {
-      module: 'Quản Lý Khách Hàng (Customer CRM)',
-      description: 'Xem data khách hàng, chỉnh sửa thông tin, phân nhóm G1-G4',
-      Admin: true,
-      'Sales Manager': true,
-      'Sales Rep': true,
-      'Marketing Lead': true,
-      'Customer Support': true,
+  useEffect(() => {
+    if (activeSubTab !== 'permissions' || rolePolicies.length > 0) return;
+    let cancelled = false;
+    setPermissionsLoading(true);
+    setPermissionsError('');
+    void api.get<{
+      definitions: PermissionDefinition[];
+      roles: RolePermissionPolicy[];
+    }>('/permissions/roles')
+      .then((data) => {
+        if (cancelled) return;
+        setPermissionDefinitions(data.definitions);
+        setRolePolicies(data.roles);
+        setPermissionDrafts(Object.fromEntries(data.roles.map((policy) => [policy.role, policy.permissions])));
+      })
+      .catch((error) => {
+        if (!cancelled) setPermissionsError(error instanceof Error ? error.message : 'Không thể tải phân quyền.');
+      })
+      .finally(() => {
+        if (!cancelled) setPermissionsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeSubTab, rolePolicies.length]);
+
+  const togglePermission = (role: UserRole, definition: PermissionDefinition) => {
+    if (role === 'Admin' && definition.bit === Permission.USERS_MANAGE.toString()) return;
+    setPermissionDrafts((previous) => {
+      const current = BigInt(previous[role] || '0');
+      return { ...previous, [role]: (current ^ BigInt(definition.bit)).toString() };
+    });
+  };
+
+  const selectedPolicy = rolePolicies.find((policy) => policy.role === selectedRole);
+  const selectedMask = BigInt(permissionDrafts[selectedRole] || '0');
+  const selectedRoleIsDirty = Boolean(
+    selectedPolicy && permissionDrafts[selectedRole] !== selectedPolicy.permissions
+  );
+
+  const permissionGroups = permissionDefinitions.reduce<Array<{ name: string; permissions: PermissionDefinition[] }>>(
+    (groups, definition) => {
+      const currentGroup = groups.at(-1);
+      if (currentGroup?.name === definition.group) currentGroup.permissions.push(definition);
+      else groups.push({ name: definition.group, permissions: [definition] });
+      return groups;
     },
-    {
-      module: 'Quản Lý Đơn Hàng & In Hóa Đơn',
-      description: 'Tạo đơn mới, cập nhật trạng thái giao hàng, in hóa đơn GTGT',
-      Admin: true,
-      'Sales Manager': true,
-      'Sales Rep': true,
-      'Marketing Lead': false,
-      'Customer Support': true,
-    },
-    {
-      module: 'Quản Lý Kho & Giá Bán Sản Phẩm',
-      description: 'Cập nhật danh mục sản phẩm, quản lý tồn kho, thay đổi giá',
-      Admin: true,
-      'Sales Manager': true,
-      'Sales Rep': false,
-      'Marketing Lead': false,
-      'Customer Support': false,
-    },
-    {
-      module: 'Automation & WhatsApp Campaigns',
-      description: 'Tạo chuỗi chăm sóc tự động, gửi tin nhắn hàng loạt WhatsApp',
-      Admin: true,
-      'Sales Manager': true,
-      'Sales Rep': false,
-      'Marketing Lead': true,
-      'Customer Support': false,
-    },
-    {
-      module: 'Báo Cáo Doanh Số & Analytics',
-      description: 'Xem biểu đồ doanh thu, báo cáo Telesales, hiệu quả quảng cáo',
-      Admin: true,
-      'Sales Manager': true,
-      'Sales Rep': false,
-      'Marketing Lead': true,
-      'Customer Support': false,
-    },
-    {
-      module: 'Quản Trị Auth & Đổi Mật Khẩu Hệ Thống',
-      description: 'Tạo/xóa tài khoản nhân sự, phân quyền vai trò, xem audit logs',
-      Admin: true,
-      'Sales Manager': false,
-      'Sales Rep': false,
-      'Marketing Lead': false,
-      'Customer Support': false,
-    },
-  ];
+    []
+  );
+
+  const resetRolePermissions = () => {
+    if (!selectedPolicy) return;
+    setPermissionDrafts((previous) => ({
+      ...previous,
+      [selectedRole]: selectedPolicy.permissions,
+    }));
+    setPermissionsError('');
+  };
+
+  const runUserAction = (action: () => Promise<void>) => {
+    void action().catch((error) => {
+      alert(error instanceof Error ? error.message : 'Không thể cập nhật tài khoản.');
+    });
+  };
+
+  const saveRolePermissions = async (role: UserRole) => {
+    setSavingRole(role);
+    setPermissionsError('');
+    try {
+      const updated = await api.put<RolePermissionPolicy>(`/permissions/roles/${encodeURIComponent(role)}`, {
+        permissions: permissionDrafts[role],
+      });
+      setRolePolicies((previous) => previous.map((policy) => policy.role === role ? updated : policy));
+      setPermissionDrafts((previous) => ({ ...previous, [role]: updated.permissions }));
+      if (currentUser?.role === role) await refreshCurrentUser();
+    } catch (error) {
+      setPermissionsError(error instanceof Error ? error.message : 'Không thể lưu phân quyền.');
+    } finally {
+      setSavingRole(null);
+    }
+  };
 
   // Static Auth Audit Logs
   const auditLogs = [
@@ -178,7 +210,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   return (
     <div className="space-y-6">
-      
+
       {/* Top Header & Sub-tabs */}
       <div className="bg-white border border-slate-300 rounded-3xl p-6 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -210,7 +242,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            Ma Trận Phân Quyền
+            Phân Quyền
           </button>
           <button
             onClick={() => setActiveSubTab('audit')}
@@ -427,7 +459,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           {/* Status */}
                           <td className="py-3.5 px-3 text-center">
                             <button
-                              onClick={() => onToggleUserStatus(user.id)}
+                              onClick={() => runUserAction(() => onToggleUserStatus(user.id))}
                               className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-[10px] font-black border transition cursor-pointer ${
                                 user.status === 'active'
                                   ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
@@ -451,14 +483,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           {/* Actions */}
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end space-x-1.5">
-                              <button
-                                onClick={() => onSwitchUser(user)}
-                                className="px-2.5 py-1.5 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white border border-indigo-200 transition cursor-pointer text-[11px] font-extrabold flex items-center gap-1 shadow-xs"
-                                title="Đăng nhập nhanh với vai trò này"
-                              >
-                                <LogIn className="w-3.5 h-3.5" />
-                                <span>Đăng nhập</span>
-                              </button>
 
                               <button
                                 onClick={() => onEditUser(user)}
@@ -469,7 +493,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               </button>
 
                               <button
-                                onClick={() => onDeleteUser(user.id)}
+                                onClick={() => runUserAction(() => onDeleteUser(user.id))}
                                 className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-rose-200 transition cursor-pointer"
                                 title="Xóa tài khoản"
                               >
@@ -490,86 +514,149 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
       {/* SUB-TAB 2: ROLE PERMISSION MATRIX */}
       {activeSubTab === 'permissions' && (
-        <div className="bg-white border border-slate-300 rounded-3xl p-6 shadow-lg space-y-6">
-          <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-black text-slate-950">Ma Trận Phân Quyền Vai Trò (Role Access Control)</h2>
-
+        <div className="overflow-hidden rounded-3xl border border-slate-300 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h2 className="text-lg font-black text-slate-950">Phân Quyền Vai Trò</h2>
             </div>
-            <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-black border border-indigo-300">
-              RBAC Policy Enabled
-            </span>
+            {!permissionsLoading && permissionDefinitions.length > 0 && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold text-slate-600">
+                {permissionDefinitions.length} quyền
+              </span>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border border-slate-300 rounded-2xl overflow-hidden">
-              <thead>
-                <tr className="bg-slate-100 text-slate-800 font-black text-[11px] uppercase border-b border-slate-300">
-                  <th className="p-4">Module / Tính Năng CRM</th>
-                  <th className="p-4 text-center bg-purple-50 text-purple-900 border-l border-slate-300">Admin</th>
-                  <th className="p-4 text-center bg-indigo-50 text-indigo-900 border-l border-slate-300">Sales Manager</th>
-                  <th className="p-4 text-center bg-emerald-50 text-emerald-900 border-l border-slate-300">Sales Rep</th>
-                  <th className="p-4 text-center bg-amber-50 text-amber-900 border-l border-slate-300">Marketing Lead</th>
-                  <th className="p-4 text-center bg-teal-50 text-teal-900 border-l border-slate-300">Customer Support</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-900 font-semibold">
-                {permissionModules.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-4">
-                      <div className="font-black text-slate-950 text-xs">{item.module}</div>
-                      <div className="text-[11px] text-slate-600 font-medium mt-0.5">{item.description}</div>
-                    </td>
+          {permissionsError && (
+            <div className="mx-5 mt-5 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700 sm:mx-6">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {permissionsError}
+            </div>
+          )}
 
-                    {/* Admin */}
-                    <td className="p-4 text-center border-l border-slate-200 bg-purple-50/30">
-                      {item.Admin ? (
-                        <Check className="w-5 h-5 text-emerald-600 mx-auto stroke-[3]" />
-                      ) : (
-                        <Ban className="w-4 h-4 text-slate-300 mx-auto" />
-                      )}
-                    </td>
+          {permissionsLoading ? (
+            <div className="flex items-center justify-center gap-2 py-20 text-sm font-bold text-slate-600">
+              <Loader2 className="h-5 w-5 animate-spin" /> Đang tải phân quyền...
+            </div>
+          ) : (
+            <div className="grid min-h-150 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <aside className="border-b border-slate-200 bg-slate-50/80 p-3 lg:border-r lg:border-b-0">
+                <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible">
+                  {rolePolicies.map((policy) => {
+                    const role = policy.role;
+                    const active = selectedRole === role;
+                    const dirty = permissionDrafts[role] !== policy.permissions;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setSelectedRole(role)}
+                        className={`group flex min-w-52 items-center gap-3 rounded-xl border px-3 py-3 text-left transition lg:min-w-0 lg:w-full ${
+                          active
+                            ? 'border-indigo-200 bg-white text-indigo-800 shadow-sm'
+                            : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-white'
+                        }`}
+                      >
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${getRoleBadge(role)}`}>
+                          {role.charAt(0)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-extrabold">{role}</span>
+                        {dirty ? (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Chưa lưu" />
+                        ) : (
+                          <ChevronRight className={`h-4 w-4 shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}`} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </aside>
 
-                    {/* Sales Manager */}
-                    <td className="p-4 text-center border-l border-slate-200 bg-indigo-50/30">
-                      {item['Sales Manager'] ? (
-                        <Check className="w-5 h-5 text-emerald-600 mx-auto stroke-[3]" />
-                      ) : (
-                        <Ban className="w-4 h-4 text-slate-300 mx-auto" />
-                      )}
-                    </td>
+              <section className="relative bg-slate-50/30 p-4 sm:p-6">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">{selectedRole}</h3>
+                    {selectedRoleIsDirty && (
+                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                        Chưa lưu
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Sales Rep */}
-                    <td className="p-4 text-center border-l border-slate-200 bg-emerald-50/30">
-                      {item['Sales Rep'] ? (
-                        <Check className="w-5 h-5 text-emerald-600 mx-auto stroke-[3]" />
-                      ) : (
-                        <Ban className="w-4 h-4 text-slate-300 mx-auto" />
-                      )}
-                    </td>
+                <div className="space-y-4 pb-20">
+                  {permissionGroups.map((group) => (
+                    <div key={group.name} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        {group.name}
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {group.permissions.map((definition) => {
+                          const enabled = (selectedMask & BigInt(definition.bit)) === BigInt(definition.bit);
+                          const locked = selectedRole === 'Admin' && definition.bit === Permission.USERS_MANAGE.toString();
+                          return (
+                            <button
+                              key={definition.key}
+                              type="button"
+                              role="switch"
+                              aria-checked={enabled}
+                              disabled={locked || savingRole !== null}
+                              onClick={() => togglePermission(selectedRole, definition)}
+                              className="flex w-full items-center gap-4 px-4 py-3.5 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed"
+                              title={locked ? 'Admin phải giữ quyền quản lý tài khoản.' : undefined}
+                            >
+                              <span className="min-w-0 flex-1 text-xs font-extrabold text-slate-800">
+                                {definition.label}
+                              </span>
+                              {locked && (
+                                <span className="hidden text-[10px] font-bold text-slate-400 sm:inline">Bắt buộc</span>
+                              )}
+                              <span
+                                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                                  enabled ? 'bg-indigo-600' : 'bg-slate-300'
+                                } ${locked ? 'opacity-60' : ''}`}
+                              >
+                                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                  enabled ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                    {/* Marketing Lead */}
-                    <td className="p-4 text-center border-l border-slate-200 bg-amber-50/30">
-                      {item['Marketing Lead'] ? (
-                        <Check className="w-5 h-5 text-emerald-600 mx-auto stroke-[3]" />
-                      ) : (
-                        <Ban className="w-4 h-4 text-slate-300 mx-auto" />
-                      )}
-                    </td>
-
-                    {/* Customer Support */}
-                    <td className="p-4 text-center border-l border-slate-200 bg-teal-50/30">
-                      {item['Customer Support'] ? (
-                        <Check className="w-5 h-5 text-emerald-600 mx-auto stroke-[3]" />
-                      ) : (
-                        <Ban className="w-4 h-4 text-slate-300 mx-auto" />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                {selectedRoleIsDirty && (
+                  <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-2xl sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs font-bold text-slate-800">Bạn có thay đổi chưa lưu</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={savingRole !== null}
+                        onClick={resetRolePermissions}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 transition hover:bg-slate-100 sm:flex-none"
+                      >
+                        <RotateCcw className="h-4 w-4" /> Hoàn tác
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingRole !== null}
+                        onClick={() => void saveRolePermissions(selectedRole)}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60 sm:flex-none"
+                      >
+                        {savingRole === selectedRole ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        {savingRole === selectedRole ? 'Đang lưu...' : 'Lưu thay đổi'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
         </div>
       )}
 

@@ -17,6 +17,7 @@ import type { ActiveTab } from './Navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
+import { Permission } from '../lib/permissions';
 
 const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
   <i className={`fa-brands fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
@@ -43,8 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   unreadMessagesCount = 0,
   onOpenLoginModal,
 }) => {
-  const { logout } = useAuth();
-  const isAdmin = currentUser?.role === 'Admin';
+  const { logout, hasPermission } = useAuth();
+  const canManageUsers = hasPermission(Permission.USERS_MANAGE);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -117,30 +118,35 @@ export const Header: React.FC<HeaderProps> = ({
       label: 'Khách Hàng',
       subtitle: 'Thông tin & Data',
       icon: Users,
+      permission: Permission.CUSTOMERS_VIEW,
     },
     {
       id: 'orders' as ActiveTab,
       label: 'Bán Hàng',
       subtitle: 'Đơn hàng & Sản phẩm',
       icon: ShoppingBag,
+      permission: Permission.ORDERS_VIEW,
     },
     {
       id: 'segmentation' as ActiveTab,
       label: 'Phân Nhóm',
       subtitle: 'Nhóm 1 - 4 Tự động',
       icon: Layers,
+      permission: Permission.CUSTOMERS_VIEW,
     },
     {
       id: 'automation' as ActiveTab,
       label: 'Automation',
       subtitle: 'Tự động & Gửi hàng loạt',
       icon: Zap,
+      permission: Permission.AUTOMATION_VIEW,
     },
     {
       id: 'reports' as ActiveTab,
       label: 'Báo Cáo',
       subtitle: 'Analytics & Sales',
       icon: BarChart3,
+      permission: Permission.REPORTS_VIEW,
     },
     {
       id: 'messages' as ActiveTab,
@@ -148,6 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
       subtitle: 'WhatsApp Cloud API',
       icon: WhatsAppIcon,
       badge: unreadMessagesCount,
+      permission: Permission.MESSAGES_VIEW,
     },
   ];
 
@@ -171,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex w-max min-w-full items-center justify-center gap-1 bg-transparent!"
               style={{ background: 'transparent', backgroundColor: 'transparent' }}
             >
-              {navItems.map((item) => {
+              {navItems.filter((item) => !currentUser || hasPermission(item.permission)).map((item) => {
                 const Icon = item.icon;
                 const badge = item.badge;
 
@@ -235,8 +242,8 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
                 title="Đăng nhập tài khoản"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Đăng Nhập</span>
+                <ShieldCheck className="w-4 h-4 text-white" />
+                <span className="text-white">Đăng Nhập</span>
               </button>
             )}
 
@@ -255,7 +262,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
                       <div className="text-[11px] text-slate-400 truncate">{currentUser.email || currentUser.phone || currentUser.department || 'Nhân viên'}</div>
                       <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        isAdmin
+                        canManageUsers
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                           : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                       }`}>
@@ -291,7 +298,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Đổi mật khẩu</span>
                   </button>
 
-                  {isAdmin && (
+                  {canManageUsers && (
                     <button
                       type="button"
                       onClick={() => {

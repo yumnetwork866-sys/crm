@@ -29,6 +29,8 @@ import {
 } from '../../utils/crmUtils';
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
+import { useAuth } from '../../contexts/AuthContext';
+import { Permission } from '../../lib/permissions';
 
 type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'vip' | 'unassigned';
 
@@ -80,7 +82,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onUpdateOwner,
   onImportCustomers,
 }) => {
-  const isAdmin = currentUser?.role === 'Admin';
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission(Permission.CUSTOMERS_EXPORT);
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);

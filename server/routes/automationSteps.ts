@@ -4,7 +4,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 
 const router = Router();
 
@@ -83,7 +84,7 @@ const replaceAutomationStepsSchema = z.object({
 
 router.use(authenticateToken);
 
-router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission(Permission.AUTOMATION_VIEW), async (_req: AuthenticatedRequest, res: Response) => {
   try {
     const steps = await prisma.automationStep.findMany({
       select: automationStepSelect,
@@ -96,7 +97,7 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-router.put('/', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/', requirePermission(Permission.AUTOMATION_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = replaceAutomationStepsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

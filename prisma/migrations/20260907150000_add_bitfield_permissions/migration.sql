@@ -1,0 +1,18 @@
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "permissionAllow" BIGINT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "permissionDeny" BIGINT NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS "RolePermission" (
+  "role" TEXT NOT NULL,
+  "permissions" BIGINT NOT NULL DEFAULT 0,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("role")
+);
+
+INSERT INTO "RolePermission" ("role", "permissions", "updatedAt") VALUES
+  ('Admin', 2097151, CURRENT_TIMESTAMP),
+  ('Sales Manager', 261630, CURRENT_TIMESTAMP),
+  ('Sales Rep', 213110, CURRENT_TIMESTAMP),
+  ('Marketing Lead', 130250, CURRENT_TIMESTAMP),
+  ('Customer Support', 196726, CURRENT_TIMESTAMP)
+ON CONFLICT ("role") DO NOTHING;

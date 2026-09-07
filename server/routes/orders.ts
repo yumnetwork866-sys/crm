@@ -1,7 +1,8 @@
 import type { Response } from 'express';
 import { Router } from 'express';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 
@@ -10,7 +11,7 @@ const router = Router();
 router.use(authenticateToken);
 
 // GET /api/orders - List orders with pagination, status & customer filtering
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { page: pageQuery, limit: limitQuery, status, customerId, search, paginate } = req.query;
 
@@ -85,7 +86,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/orders - Create Order
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { customerId, customerName, customerPhone, products, totalAmount, notes } = req.body;
 
@@ -148,7 +149,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // PATCH /api/orders/:id/status
-router.patch('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:id/status', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;

@@ -312,6 +312,18 @@ body:not(.light-mode) button.bg-white .lucide:not([data-colored="true"]) {
 .light-mode .bg-indigo-600 *,
 .light-mode .bg-indigo-700,
 .light-mode .bg-indigo-700 *,
+.light-mode .bg-red-500,
+.light-mode .bg-red-500 *,
+.light-mode .bg-red-600,
+.light-mode .bg-red-600 *,
+.light-mode .bg-red-700,
+.light-mode .bg-red-700 *,
+.light-mode button.from-red-500,
+.light-mode button.from-red-500 *,
+.light-mode button.from-red-600,
+.light-mode button.from-red-600 *,
+.light-mode button.from-red-700,
+.light-mode button.from-red-700 *,
 .light-mode .bg-emerald-600,
 .light-mode .bg-emerald-600 *,
 .light-mode .bg-emerald-700,
@@ -333,6 +345,12 @@ body:not(.light-mode) button.bg-white .lucide:not([data-colored="true"]) {
   color: #ffffff !important;
   stroke: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Always preserve gradient text fill for bg-clip-text */
+.bg-clip-text,
+.text-transparent {
+  -webkit-text-fill-color: transparent !important;
 }
 
 /* Preserve dark phone mockup background & white text for WhatsApp screen preview */

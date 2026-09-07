@@ -1,11 +1,13 @@
+import type { User } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
+import { Permission, getEffectivePermissions } from '../auth/permissions';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
@@ -20,12 +22,22 @@ const registerSchema = z.object({
   name: z.string().min(2, 'Tên phải từ 2 ký tự trở lên'),
   email: z.string().email('Email không đúng định dạng'),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự trở lên'),
-  role: z.enum(['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support']).default('Sales Rep'),
   department: z.string().default('Sales'),
   phone: z.string().optional()
 });
 
 import dotenv from 'dotenv';
+
+async function serializeUser(user: User) {
+  const { password: _password, permissionAllow, permissionDeny, ...safeUser } = user;
+  const effectivePermissions = await getEffectivePermissions(user.role, permissionAllow, permissionDeny);
+  return {
+    ...safeUser,
+    permissionAllow: permissionAllow.toString(),
+    permissionDeny: permissionDeny.toString(),
+    effectivePermissions: effectivePermissions.toString(),
+  };
+}
 
 /**
  * Đọc cấu hình ADMIN và ADMIN_PASSWORD mới nhất từ .env
@@ -179,12 +191,10 @@ router.post('/login', async (req: Request, res: Response) => {
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-    const { password: _, ...userWithoutPassword } = user;
-
     return res.json({
       message: 'Đăng nhập thành công',
       token,
-      user: userWithoutPassword
+      user: await serializeUser(user)
     });
   } catch (error) {
     console.error('Lỗi khi đăng nhập:', error);
@@ -192,8 +202,8 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/auth/register (Public or Admin)
-router.post('/register', async (req: Request, res: Response) => {
+// POST /api/auth/register - kept for compatibility, but no longer public.
+router.post('/register', authenticateToken, requirePermission(Permission.USERS_MANAGE), async (req: Request, res: Response) => {
   try {
     const parseResult = registerSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -214,16 +224,15 @@ router.post('/register', async (req: Request, res: Response) => {
         name: data.name,
         email: data.email,
         password: hashedPassword,
-        role: data.role,
+        role: 'Sales Rep',
         department: data.department,
         phone: data.phone || ''
       }
     });
 
-    const { password: _, ...userWithoutPassword } = newUser;
     return res.status(201).json({
       message: 'Đăng ký tài khoản thành công',
-      user: userWithoutPassword
+      user: await serializeUser(newUser)
     });
   } catch (error) {
     console.error('Lỗi khi đăng ký:', error);
@@ -237,10 +246,9 @@ router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res: Resp
     if (!req.user) return res.status(401).json({ error: 'Chưa xác thực' });
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user) return res.status(444).json({ error: 'Không tìm thấy thông tin người dùng' });
+    if (!user) return res.status(404).json({ error: 'Không tìm thấy thông tin người dùng' });
 
-    const { password: _, ...userWithoutPassword } = user;
-    return res.json(userWithoutPassword);
+    return res.json(await serializeUser(user));
   } catch (error) {
     return res.status(500).json({ error: 'Lỗi hệ thống' });
   }
@@ -302,10 +310,9 @@ router.post('/change-avatar', authenticateToken, async (req: AuthenticatedReques
       data: { avatar: avatar.trim() }
     });
 
-    const { password: _, ...userWithoutPassword } = updatedUser;
     return res.json({
       message: 'Cập nhật ảnh đại diện thành công!',
-      user: userWithoutPassword
+      user: await serializeUser(updatedUser)
     });
   } catch (error) {
     console.error('Lỗi khi đổi ảnh đại diện:', error);

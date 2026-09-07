@@ -40,8 +40,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw error;
   }
 
-  if (response.status === 401 || response.status === 403) {
-    // If unauthorized / token expired, clear token
+  if (response.status === 401) {
+    // Chỉ token không hợp lệ/hết hạn mới kết thúc phiên; 403 chỉ là thiếu quyền.
     if (endpoint !== '/auth/login') {
       removeStoredToken();
     }

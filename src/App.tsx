@@ -20,6 +20,7 @@ import { CustomerChatModal } from './components/CustomerManagement/CustomerChatM
 import { LoginModal } from './components/Auth/LoginModal';
 import { UserFormModal } from './components/UserManagement/UserFormModal';
 import type { AutomationSection } from './components/Automation/AutomationHub';
+import { Permission } from './lib/permissions';
 
 // Lazy-loaded route components for Code Splitting
 const CustomerList = React.lazy(() =>
@@ -106,11 +107,10 @@ export default function App() {
   const {
     users,
     currentUser,
-    isAdmin,
+    hasPermission,
     saveUser: handleSaveUser,
     deleteUser: handleDeleteUser,
     toggleUserStatus: handleToggleUserStatus,
-    switchUser: handleSwitchUser,
     resetAuth,
   } = useAuth();
 
@@ -277,8 +277,10 @@ export default function App() {
     void navigate('/automation/broadcast');
   };
 
+  const canManageUsers = hasPermission(Permission.USERS_MANAGE);
+
   const handleTabChange = (tab: ActiveTab) => {
-    if (tab === 'users' && !isAdmin) {
+    if (tab === 'users' && !canManageUsers) {
       void navigate('/crm');
     } else {
       void navigate(tab === 'automation' ? '/automation/workflow' : `/${tab}`);
@@ -569,7 +571,7 @@ export default function App() {
             <Route
               path="/users"
               element={
-                isAdmin ? (
+                canManageUsers ? (
                   <UserManagementView
                     users={users}
                     currentUser={currentUser}
@@ -583,7 +585,6 @@ export default function App() {
                     }}
                     onDeleteUser={handleDeleteUser}
                     onToggleUserStatus={handleToggleUserStatus}
-                    onSwitchUser={handleSwitchUser}
                   />
                 ) : (
                   <Navigate to="/crm" replace />

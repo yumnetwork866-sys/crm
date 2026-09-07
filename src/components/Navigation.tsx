@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, Layers, Zap, BarChart3, ShoppingBag, ShieldCheck, MessageSquare } from 'lucide-react';
 import type { AppUser } from '../types';
+import { Permission, hasPermission } from '../lib/permissions';
 
 export type ActiveTab = 'crm' | 'orders' | 'products' | 'segmentation' | 'automation' | 'reports' | 'users' | 'messages' | 'meta-verification';
 
@@ -31,7 +32,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   unreadMessagesCount = 0,
   currentUser,
 }) => {
-  const isAdmin = currentUser?.role === 'Admin';
+  const isAdmin = hasPermission(currentUser?.effectivePermissions, Permission.USERS_MANAGE);
 
   const navItems = [
     {

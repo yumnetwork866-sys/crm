@@ -1,7 +1,8 @@
 import type { Response } from 'express';
 import { Router } from 'express';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requireRole } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 
 const router = Router();
@@ -9,7 +10,7 @@ const router = Router();
 router.use(authenticateToken);
 
 // GET /api/products
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requirePermission(Permission.PRODUCTS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: 'desc' }
@@ -21,7 +22,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/products - Create Product (Requires Admin or Manager)
-router.post('/', requireRole(['Admin', 'Sales Manager', 'Marketing Lead']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requirePermission(Permission.PRODUCTS_CREATE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { name, category, price, costPrice, stock, sku, description, image } = req.body;
 
@@ -58,7 +59,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Marketing Lead']), asyn
 });
 
 // PUT /api/products/:id - Update Product
-router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', requirePermission(Permission.PRODUCTS_UPDATE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, category, price, costPrice, stock, sku, description, image } = req.body;
@@ -90,7 +91,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req: Authenti
 });
 
 // DELETE /api/products/:id
-router.delete('/:id', requireRole(['Admin']), async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', requirePermission(Permission.PRODUCTS_DELETE), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     await prisma.product.delete({ where: { id } });

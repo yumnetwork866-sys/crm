@@ -373,4 +373,19 @@ export interface AppUser {
   lastActive: string;
   assignedLeadsCount?: number;
   totalRevenue?: number;
+  permissionAllow?: string;
+  permissionDeny?: string;
+  effectivePermissions?: string;
+}
+
+export interface RolePermissionPolicy {
+  role: UserRole;
+  permissions: string;
+}
+
+export interface PermissionDefinition {
+  key: string;
+  bit: string;
+  label: string;
+  group: string;
 }
