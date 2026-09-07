@@ -42,6 +42,7 @@ export function useBusinessPhones() {
                 id: phone.id,
                 verifiedName: phone.verifiedName || 'Yum Network WABA',
                 displayPhoneNumber: phone.displayPhoneNumber || phone.id,
+                profilePictureUrl: phone.profilePictureUrl,
                 qualityRating: phone.qualityRating || 'GREEN',
               }));
               setBusinessPhones(phones);

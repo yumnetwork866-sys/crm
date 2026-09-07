@@ -6,6 +6,7 @@ export interface BusinessPhoneNumber {
   id: string;
   verifiedName: string;
   displayPhoneNumber: string;
+  profilePictureUrl?: string;
   qualityRating?: string;
 }
 

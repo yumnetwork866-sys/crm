@@ -185,6 +185,31 @@ export async function fetchWabaPhoneNumbers(wabaId: string, token: string) {
 }
 
 /**
+ * Fetch the public business profile attached to a WhatsApp phone number.
+ */
+export async function fetchWhatsAppBusinessProfile(phoneId: string, token: string) {
+  try {
+    const query = new URLSearchParams({ fields: 'profile_picture_url' });
+    const response = await fetch(
+      `https://graph.facebook.com/v26.0/${encodeURIComponent(phoneId)}/whatsapp_business_profile?${query.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!response.ok) return null;
+
+    const payload: any = await response.json().catch(() => ({}));
+    return payload?.data?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Upload media directly to Meta Graph API for real WhatsApp image dispatch
  */
 export async function uploadMediaToMeta(

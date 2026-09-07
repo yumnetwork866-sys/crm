@@ -7,7 +7,6 @@ import {
   Check,
   User,
   ShoppingBag,
-  Filter,
   ArrowUpRight,
   Trash2,
   Video,
@@ -329,19 +328,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               onSelect={handleSelectBusinessPhone}
             />
 
-            <div className="flex items-center space-x-1 text-slate-600 shrink-0">
-              <button
-                onClick={() => selectBuiltInFilter(activeFilter === 'unread' ? 'all' : 'unread')}
-                className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                  activeFilter === 'unread'
-                    ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
-                }`}
-                title="Lọc tin chưa đọc"
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-            </div>
           </div>
 
           {/* Search Box */}

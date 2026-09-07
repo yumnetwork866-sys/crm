@@ -5,6 +5,7 @@ import {
   resolvePhoneNumberId,
   ensureWabaSubscribed,
   fetchWabaPhoneNumbers,
+  fetchWhatsAppBusinessProfile,
   dispatchMetaMessage
 } from '../services/metaApiClient';
 import type { InMemoryMessage } from '../services/messageStore';
@@ -115,16 +116,24 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
     }
 
     const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, token);
+    const phoneNumbersWithProfiles = await Promise.all(
+      phoneNumbers.map(async (phone: any) => {
+        const profile = await fetchWhatsAppBusinessProfile(phone.id, token);
+        return {
+          id: phone.id,
+          verifiedName: phone.verified_name || phone.display_phone_number || 'Chưa đặt tên',
+          displayPhoneNumber: phone.display_phone_number || phone.id,
+          profilePictureUrl: profile?.profile_picture_url || undefined,
+          qualityRating: phone.quality_rating || 'UNKNOWN',
+          codeVerificationStatus: phone.code_verification_status || 'VERIFIED',
+        };
+      }),
+    );
+
     return res.json({
       success: true,
-      count: phoneNumbers.length,
-      phoneNumbers: phoneNumbers.map((p: any) => ({
-        id: p.id,
-        verifiedName: p.verified_name || p.display_phone_number || 'Chưa đặt tên',
-        displayPhoneNumber: p.display_phone_number || p.id,
-        qualityRating: p.quality_rating || 'UNKNOWN',
-        codeVerificationStatus: p.code_verification_status || 'VERIFIED'
-      }))
+      count: phoneNumbersWithProfiles.length,
+      phoneNumbers: phoneNumbersWithProfiles,
     });
   } catch (error: any) {
     console.error('Fetch Phone Numbers Exception:', error);
