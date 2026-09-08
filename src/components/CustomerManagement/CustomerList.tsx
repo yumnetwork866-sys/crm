@@ -487,7 +487,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       </section>
 
       {selectedCustomerIds.length > 0 && (
-        <section className="sticky top-[58px] z-20 bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3 shadow-xl flex flex-wrap items-center gap-2">
+        <section className="sticky top-14.5 z-20 bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3 shadow-xl flex flex-wrap items-center gap-2">
           <div className="mr-2">
             <div className="text-sm font-bold">Đã chọn {selectedCustomerIds.length} khách hàng</div>
             <div className="text-[11px] text-slate-400">Thao tác áp dụng cho toàn bộ danh sách đã chọn</div>
@@ -578,7 +578,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     <td className="py-3 px-3 text-center">
                       <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(customer.id)} aria-label={`Chọn ${customer.name}`} className="w-4 h-4 accent-indigo-600" />
                     </td>
-                    <td className="py-3 px-4 min-w-[240px]">
+                    <td className="py-3 px-4 min-w-60">
                       <div className="flex items-center gap-3">
                         <img src={customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`} alt="" className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover" />
                         <div className="min-w-0">
