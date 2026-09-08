@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { getRouteParam } from '../utils/requestParams';
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.post('/', requirePermission(Permission.PRODUCTS_CREATE), async (req: Auth
 // PUT /api/products/:id - Update Product
 router.put('/:id', requirePermission(Permission.PRODUCTS_UPDATE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const { name, category, price, costPrice, stock, sku, description, image } = req.body;
 
     const numStock = Number(stock);
@@ -93,7 +94,7 @@ router.put('/:id', requirePermission(Permission.PRODUCTS_UPDATE), async (req: Au
 // DELETE /api/products/:id
 router.delete('/:id', requirePermission(Permission.PRODUCTS_DELETE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     await prisma.product.delete({ where: { id } });
     return res.json({ message: 'Xóa sản phẩm thành công' });
   } catch (error) {

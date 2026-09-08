@@ -10,6 +10,7 @@ import {
   parsePermissionMask,
 } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { getRouteParam } from '../utils/requestParams';
 
 const router = Router();
 const SUPPORTED_ROLES = Object.keys(ROLE_DEFAULT_PERMISSIONS);
@@ -40,7 +41,7 @@ router.get('/roles', async (_req: AuthenticatedRequest, res: Response) => {
 
 router.put('/roles/:role', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const role = decodeURIComponent(req.params.role);
+    const role = decodeURIComponent(getRouteParam(req.params.role));
     if (!SUPPORTED_ROLES.includes(role)) {
       return res.status(404).json({ error: 'Vai trò không được hỗ trợ.' });
     }

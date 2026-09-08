@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
@@ -10,7 +11,12 @@ import {
   INITIAL_USERS,
 } from '../src/data/mockData';
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required to seed the database.');
+}
+
+const prisma = new PrismaClient({ adapter: new PrismaPg(databaseUrl) });
 
 const DEFAULT_AUTOMATION_STEPS = [
   {

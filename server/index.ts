@@ -186,7 +186,7 @@ async function setupFrontend() {
     });
     app.use(vite.middlewares);
 
-    app.get('*', async (req, res, next) => {
+    app.get('/{*splat}', async (req, res, next) => {
       if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
         return next();
       }
@@ -205,7 +205,7 @@ async function setupFrontend() {
     const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
 
-    app.get('*', (req, res, next) => {
+    app.get('/{*splat}', (req, res, next) => {
       if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
         return next();
       }

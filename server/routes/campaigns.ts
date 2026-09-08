@@ -6,6 +6,7 @@ import { authenticateToken, requirePermission } from '../middleware/authMiddlewa
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { kickCampaignWorker } from '../services/campaignWorker';
+import { getRouteParam } from '../utils/requestParams';
 import {
   createMessageTemplate,
   createSurveyFlow,
@@ -939,7 +940,8 @@ router.get('/:id/recipients', requirePermission(Permission.AUTOMATION_VIEW), asy
   const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
   const status = typeof req.query.status === 'string' ? req.query.status : undefined;
   try {
-    const where = { campaignId: req.params.id, ...(status ? { status } : {}) };
+    const campaignId = getRouteParam(req.params.id);
+    const where = { campaignId, ...(status ? { status } : {}) };
     const [total, recipients] = await Promise.all([
       prisma.broadcastRecipient.count({ where }),
       prisma.broadcastRecipient.findMany({
@@ -979,7 +981,8 @@ router.post(
   requirePermission(Permission.CAMPAIGNS_MANAGE),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const campaign = await prisma.broadcastCampaign.findUnique({ where: { id: req.params.id } });
+      const campaignId = getRouteParam(req.params.id);
+      const campaign = await prisma.broadcastCampaign.findUnique({ where: { id: campaignId } });
       if (!campaign) return res.status(404).json({ error: 'Không tìm thấy chiến dịch.' });
       if (!['Pending', 'Sending'].includes(campaign.status)) {
         return res.status(409).json({ error: 'Chỉ có thể hủy chiến dịch đang chờ hoặc đang gửi.' });

@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from '../services/messageStore';
 import { messageStore } from '../services/messageStore';
 import { realtimeHub } from '../services/realtimeHub';
+import { getRouteParam } from '../utils/requestParams';
 import {
   getIntegrationSetting,
   resolvePhoneNumberId,
@@ -447,7 +448,7 @@ export async function clearAllMessages(req: Request, res: Response) {
  * Delete a specific conversation thread
  */
 export async function deleteThread(req: Request, res: Response) {
-  const { customerId } = req.params;
+  const customerId = getRouteParam(req.params.customerId);
   const { customerPhone } = req.query;
   const rawPhone = typeof customerPhone === 'string' ? customerPhone : customerId;
   const cleanPhone = rawPhone.replace(/\D/g, '');
@@ -485,7 +486,7 @@ export async function deleteThread(req: Request, res: Response) {
  * Delete a single message by ID
  */
 export async function deleteMessage(req: Request, res: Response) {
-  const { messageId } = req.params;
+  const messageId = getRouteParam(req.params.messageId);
   messageStore.filter((m) => m.id !== messageId);
 
   try {
@@ -505,7 +506,7 @@ export async function deleteMessage(req: Request, res: Response) {
  * Proxy Meta Media (Images, Audio, Documents) with local disk caching
  */
 export async function getMediaProxy(req: Request, res: Response) {
-  const { mediaId } = req.params;
+  const mediaId = getRouteParam(req.params.mediaId);
   try {
     const media = await fetchAndCacheMetaMedia(mediaId);
     if (!media) {

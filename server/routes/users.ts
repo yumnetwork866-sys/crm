@@ -7,6 +7,7 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission, getEffectivePermissions, parsePermissionMask } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { getRouteParam } from '../utils/requestParams';
 
 const router = Router();
 const userRoleSchema = z.enum(['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support']);
@@ -116,7 +117,8 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
       return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dữ liệu tài khoản không hợp lệ.' });
     }
 
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const userId = getRouteParam(req.params.id);
+    const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
 
     const data = parsed.data;
@@ -152,10 +154,11 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
 // DELETE /api/users/:id
 router.delete('/:id', requirePermission(Permission.USERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (req.user?.id === req.params.id) {
+    const userId = getRouteParam(req.params.id);
+    if (req.user?.id === userId) {
       return res.status(400).json({ error: 'Bạn không thể xóa tài khoản đang đăng nhập.' });
     }
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
     if (target.role === 'Admin' && target.status === 'active' && !(await ensureAnotherActiveAdmin(target.id))) {
       return res.status(400).json({ error: 'Hệ thống phải còn ít nhất một tài khoản Admin đang hoạt động.' });

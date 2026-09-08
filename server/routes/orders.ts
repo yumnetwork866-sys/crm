@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
 
 const router = Router();
@@ -151,7 +152,7 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
 // PATCH /api/orders/:id/status
 router.patch('/:id/status', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const { status } = req.body;
 
     const updated = await prisma.order.update({

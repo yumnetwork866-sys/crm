@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
 
 const router = Router();
@@ -166,7 +167,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 // GET /api/customers/:id - Single Customer Detail
 router.get('/:id', requirePermission(Permission.CUSTOMERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const customer = await prisma.customer.findUnique({
       where: { id },
       include: {
@@ -246,7 +247,7 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
 // PUT /api/customers/:id - Update Customer
 router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const existing = await prisma.customer.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
@@ -282,7 +283,7 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
 // DELETE /api/customers/:id - Delete Customer
 router.delete('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     await prisma.customer.delete({ where: { id } });
     return res.json({ message: 'Xóa khách hàng thành công' });
   } catch (error) {
@@ -293,7 +294,7 @@ router.delete('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req
 // POST /api/customers/:id/notes - Add Customer Note
 router.post('/:id/notes', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const { content, type, author } = req.body;
 
     if (!content || typeof content !== 'string') {
@@ -325,7 +326,7 @@ router.post('/:id/notes', requirePermission(Permission.CUSTOMERS_MANAGE), async 
 // POST /api/customers/:id/automation-logs - Add Customer Automation Log
 router.post('/:id/automation-logs', requirePermission(Permission.AUTOMATION_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getRouteParam(req.params.id);
     const { step, stepName, message, status } = req.body;
 
     if (step === undefined || !stepName || !message) {

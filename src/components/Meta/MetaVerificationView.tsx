@@ -90,8 +90,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setConnectionStatus(data.status || (data.hasAccessToken ? 'connected' : 'disconnected'));
-        setLastConnectedAt(data.lastConnectedAt || null);
 
         if (data.whatsappWabaId && data.hasAccessToken) {
           await fetchPhoneNumbersList(data.whatsappWabaId);
