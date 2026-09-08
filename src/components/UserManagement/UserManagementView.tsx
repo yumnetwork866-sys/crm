@@ -22,7 +22,9 @@ import {
   Loader2,
   AlertCircle,
   RotateCcw,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  X,
 } from 'lucide-react';
 
 interface UserManagementViewProps {
@@ -53,7 +55,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [permissionsError, setPermissionsError] = useState('');
   const [savingRole, setSavingRole] = useState<UserRole | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>('Admin');
-  const { refreshCurrentUser } = useAuth();
+  const [roleEditorMode, setRoleEditorMode] = useState<'create' | 'rename' | null>(null);
+  const [roleName, setRoleName] = useState('');
+  const [roleActionLoading, setRoleActionLoading] = useState(false);
+  const { refreshCurrentUser, refreshUsers } = useAuth();
 
   // Metrics
   const totalUsers = users.length;
@@ -91,7 +96,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   };
 
   useEffect(() => {
-    if (activeSubTab !== 'permissions' || rolePolicies.length > 0) return;
+    if (rolePolicies.length > 0) return;
     let cancelled = false;
     setPermissionsLoading(true);
     setPermissionsError('');
@@ -104,6 +109,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         setPermissionDefinitions(data.definitions);
         setRolePolicies(data.roles);
         setPermissionDrafts(Object.fromEntries(data.roles.map((policy) => [policy.role, policy.permissions])));
+        if (!data.roles.some((policy) => policy.role === selectedRole) && data.roles[0]) {
+          setSelectedRole(data.roles[0].role);
+        }
       })
       .catch((error) => {
         if (!cancelled) setPermissionsError(error instanceof Error ? error.message : 'Không thể tải phân quyền.');
@@ -112,7 +120,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         if (!cancelled) setPermissionsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeSubTab, rolePolicies.length]);
+  }, [rolePolicies.length, selectedRole]);
 
   const togglePermission = (role: UserRole, definition: PermissionDefinition) => {
     if (role === 'Admin' && definition.bit === Permission.USERS_MANAGE.toString()) return;
@@ -170,6 +178,81 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   };
 
+  const openCreateRole = () => {
+    setRoleEditorMode('create');
+    setRoleName('');
+    setPermissionsError('');
+  };
+
+  const openRenameRole = () => {
+    setRoleEditorMode('rename');
+    setRoleName(selectedRole);
+    setPermissionsError('');
+  };
+
+  const submitRoleEditor = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!roleName.trim()) return;
+    setRoleActionLoading(true);
+    setPermissionsError('');
+    try {
+      if (roleEditorMode === 'create') {
+        const created = await api.post<RolePermissionPolicy>('/permissions/roles', { name: roleName });
+        setRolePolicies((previous) => [...previous, created].sort((a, b) => a.role.localeCompare(b.role)));
+        setPermissionDrafts((previous) => ({ ...previous, [created.role]: created.permissions }));
+        setSelectedRole(created.role);
+      } else if (roleEditorMode === 'rename') {
+        const previousRole = selectedRole;
+        const updated = await api.patch<RolePermissionPolicy>(
+          `/permissions/roles/${encodeURIComponent(previousRole)}`,
+          { name: roleName },
+        );
+        setRolePolicies((previous) => previous
+          .map((policy) => policy.role === previousRole ? updated : policy)
+          .sort((a, b) => a.role.localeCompare(b.role)));
+        setPermissionDrafts((previous) => {
+          const { [previousRole]: oldDraft, ...remaining } = previous;
+          return { ...remaining, [updated.role]: oldDraft ?? updated.permissions };
+        });
+        setSelectedRole(updated.role);
+        await refreshUsers();
+        if (currentUser?.role === previousRole) await refreshCurrentUser();
+      }
+      setRoleEditorMode(null);
+      setRoleName('');
+    } catch (error) {
+      setPermissionsError(error instanceof Error ? error.message : 'Không thể cập nhật vai trò.');
+    } finally {
+      setRoleActionLoading(false);
+    }
+  };
+
+  const deleteSelectedRole = async () => {
+    const policy = rolePolicies.find((item) => item.role === selectedRole);
+    if (!policy || selectedRole === 'Admin') return;
+    if (policy.userCount > 0) {
+      setPermissionsError(`Vai trò đang được gán cho ${policy.userCount} tài khoản. Hãy chuyển các tài khoản sang vai trò khác trước khi xóa.`);
+      return;
+    }
+    if (!confirm(`Xóa vai trò “${selectedRole}”? Thao tác này không thể hoàn tác.`)) return;
+    setRoleActionLoading(true);
+    setPermissionsError('');
+    try {
+      await api.delete(`/permissions/roles/${encodeURIComponent(selectedRole)}`);
+      const remaining = rolePolicies.filter((item) => item.role !== selectedRole);
+      setRolePolicies(remaining);
+      setPermissionDrafts((previous) => {
+        const { [selectedRole]: _removed, ...rest } = previous;
+        return rest;
+      });
+      setSelectedRole(remaining.find((item) => item.role === 'Admin')?.role || remaining[0]?.role || 'Admin');
+    } catch (error) {
+      setPermissionsError(error instanceof Error ? error.message : 'Không thể xóa vai trò.');
+    } finally {
+      setRoleActionLoading(false);
+    }
+  };
+
   // Static Auth Audit Logs
   const auditLogs = [
     {
@@ -209,51 +292,41 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   return (
     <div className="space-y-6">
 
-      {/* Top Header & Sub-tabs */}
-      <div className="bg-white border border-slate-300 rounded-3xl p-6 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-
-          <h1 className="text-2xl font-black text-slate-950 tracking-tight">
-            Trung Tâm Quản Trị Auth &amp; Phân Quyền Hệ Thống
-          </h1>
-        </div>
-
-        {/* Sub-tab Selectors */}
-        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-300 gap-1 self-stretch md:self-auto">
-          <button
-            onClick={() => setActiveSubTab('accounts')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-              activeSubTab === 'accounts'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                : 'text-slate-700 hover:text-slate-950'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Tài Khoản ({users.length})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('permissions')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-              activeSubTab === 'permissions'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                : 'text-slate-700 hover:text-slate-950'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            Phân Quyền
-          </button>
-          <button
-            onClick={() => setActiveSubTab('audit')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-              activeSubTab === 'audit'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-                : 'text-slate-700 hover:text-slate-950'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            Logs
-          </button>
-        </div>
+      {/* Sub-tab Selectors */}
+      <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-300 gap-1 w-fit">
+        <button
+          onClick={() => setActiveSubTab('accounts')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+            activeSubTab === 'accounts'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-700 hover:text-slate-950'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Tài Khoản ({users.length})
+        </button>
+        <button
+          onClick={() => setActiveSubTab('permissions')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+            activeSubTab === 'permissions'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-700 hover:text-slate-950'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Phân Quyền
+        </button>
+        <button
+          onClick={() => setActiveSubTab('audit')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+            activeSubTab === 'audit'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-700 hover:text-slate-950'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Logs
+        </button>
       </div>
 
       {/* SUB-TAB 1: ACCOUNTS & PASSWORDS MANAGEMENT */}
@@ -329,11 +402,9 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold outline-none"
                 >
                   <option value="all">Tất cả vai trò</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Sales Manager">Sales Manager</option>
-                  <option value="Sales Rep">Sales Rep</option>
-                  <option value="Marketing Lead">Marketing Lead</option>
-                  <option value="Customer Support">Customer Support</option>
+                  {rolePolicies.map((policy) => (
+                    <option key={policy.role} value={policy.role}>{policy.role}</option>
+                  ))}
                 </select>
               </div>
 
@@ -362,10 +433,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
           {/* User Accounts Table */}
           <div className="bg-white border border-slate-300 rounded-2xl overflow-hidden shadow-lg">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-extrabold text-slate-950 text-sm">Danh Sách Tài Khoản Auth System ({filteredUsers.length})</h3>
-            </div>
-
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -517,7 +584,52 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
               <h2 className="text-lg font-black text-slate-950">Phân Quyền Vai Trò</h2>
             </div>
+            <button
+              type="button"
+              onClick={openCreateRole}
+              disabled={roleActionLoading}
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60"
+            >
+              <Plus className="h-4 w-4" /> Thêm vai trò
+            </button>
           </div>
+
+          {roleEditorMode && (
+            <form
+              onSubmit={(event) => void submitRoleEditor(event)}
+              className="mx-5 mt-5 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 sm:mx-6 sm:flex-row sm:items-end"
+            >
+              <label className="min-w-0 flex-1 text-xs font-extrabold text-slate-800">
+                {roleEditorMode === 'create' ? 'Tên vai trò mới' : `Đổi tên “${selectedRole}”`}
+                <input
+                  autoFocus
+                  value={roleName}
+                  onChange={(event) => setRoleName(event.target.value)}
+                  maxLength={50}
+                  placeholder="Ví dụ: Trưởng nhóm CSKH"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-950 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRoleEditorMode(null)}
+                  disabled={roleActionLoading}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                >
+                  <X className="h-4 w-4" /> Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={roleActionLoading || roleName.trim().length < 2}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-extrabold text-white hover:bg-indigo-500 disabled:opacity-50"
+                >
+                  {roleActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {roleEditorMode === 'create' ? 'Tạo vai trò' : 'Lưu tên'}
+                </button>
+              </div>
+            </form>
+          )}
 
           {permissionsError && (
             <div className="mx-5 mt-5 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700 sm:mx-6">
@@ -539,26 +651,33 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     const active = selectedRole === role;
                     const dirty = permissionDrafts[role] !== policy.permissions;
                     return (
-                      <button
+                      <div
                         key={role}
-                        type="button"
-                        onClick={() => setSelectedRole(role)}
-                        className={`group flex min-w-52 items-center gap-3 rounded-xl border px-3 py-3 text-left transition lg:min-w-0 lg:w-full ${
+                        className={`group flex min-w-60 items-center rounded-xl border transition lg:min-w-0 lg:w-full ${
                           active
                             ? 'border-indigo-200 bg-white text-indigo-800 shadow-sm'
                             : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-white'
                         }`}
                       >
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${getRoleBadge(role)}`}>
-                          {role.charAt(0)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-xs font-extrabold">{role}</span>
-                        {dirty ? (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Chưa lưu" />
-                        ) : (
-                          <ChevronRight className={`h-4 w-4 shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}`} />
-                        )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole(role)}
+                          className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left"
+                        >
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${getRoleBadge(role)}`}>
+                            {role.charAt(0)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-extrabold">{role}</span>
+                            <span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{policy.userCount} tài khoản</span>
+                          </span>
+                          {dirty ? (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Chưa lưu" />
+                          ) : (
+                            <ChevronRight className={`h-4 w-4 shrink-0 ${active ? 'text-indigo-500' : 'text-slate-300'}`} />
+                          )}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -573,6 +692,26 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         Chưa lưu
                       </span>
                     )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openRenameRole}
+                      disabled={selectedRole === 'Admin' || roleActionLoading}
+                      title={selectedRole === 'Admin' ? 'Không thể đổi tên vai trò Admin hệ thống.' : 'Đổi tên vai trò'}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" /> Đổi tên
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSelectedRole()}
+                      disabled={selectedRole === 'Admin' || roleActionLoading}
+                      title={selectedRole === 'Admin' ? 'Không thể xóa vai trò Admin hệ thống.' : 'Xóa vai trò'}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-extrabold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Xóa
+                    </button>
                   </div>
                 </div>
 

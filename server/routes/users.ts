@@ -10,7 +10,7 @@ import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 
 const router = Router();
-const userRoleSchema = z.enum(['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support']);
+const userRoleSchema = z.string().trim().min(2).max(50);
 const permissionMaskSchema = z.string()
   .regex(/^\d+$/, 'Permission mask phải là chuỗi số nguyên không âm.')
   .refine((value) => {
@@ -64,6 +64,10 @@ async function ensureAnotherActiveAdmin(targetId: string): Promise<boolean> {
   return count > 0;
 }
 
+async function roleExists(role: string): Promise<boolean> {
+  return Boolean(await prisma.rolePermission.findUnique({ where: { role } }));
+}
+
 router.use(authenticateToken);
 
 // GET /api/users
@@ -86,6 +90,9 @@ router.post('/', requirePermission(Permission.USERS_MANAGE), async (req: Authent
     }
 
     const data = parsed.data;
+    if (!(await roleExists(data.role))) {
+      return res.status(400).json({ error: 'Vai trò được chọn không tồn tại.' });
+    }
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) return res.status(409).json({ error: 'Email đã tồn tại' });
 
@@ -122,6 +129,9 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     if (!target) return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
 
     const data = parsed.data;
+    if (data.role !== undefined && !(await roleExists(data.role))) {
+      return res.status(400).json({ error: 'Vai trò được chọn không tồn tại.' });
+    }
     if (req.user?.id === target.id && data.status === 'inactive') {
       return res.status(400).json({ error: 'Bạn không thể tự vô hiệu hóa tài khoản đang đăng nhập.' });
     }

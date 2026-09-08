@@ -358,7 +358,7 @@ export interface SalesRepPerformance {
   totalRevenue: number;
 }
 
-export type UserRole = 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Marketing Lead' | 'Customer Support';
+export type UserRole = string;
 
 export interface AppUser {
   id: string;
@@ -380,6 +380,7 @@ export interface AppUser {
 export interface RolePermissionPolicy {
   role: UserRole;
   permissions: string;
+  userCount: number;
 }
 
 export interface PermissionDefinition {

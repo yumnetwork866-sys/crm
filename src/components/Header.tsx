@@ -164,9 +164,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5">
           
           {/* 1. Left: Logo & Brand */}
-          <div className="flex w-10 shrink-0 items-center justify-start">
+          <NavLink
+            to="/crm"
+            aria-label="Về trang chủ"
+            title="Về trang chủ"
+            className="flex w-10 shrink-0 items-center justify-start rounded-lg cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+          >
             <YumLogo size="md" showText={false} />
-          </div>
+          </NavLink>
 
           {/* 2. Center: Navigation Tabs */}
           <nav
@@ -260,7 +265,6 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
-                      <div className="text-[11px] text-slate-400 truncate">{currentUser.email || currentUser.phone || 'Nhân viên'}</div>
                       <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
                         canManageUsers
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'

@@ -98,7 +98,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     Đang Đăng Nhập
                   </span>
                 </div>
-                <div className="text-xs text-slate-600 truncate mt-0.5 font-medium">{currentUser.email} • {currentUser.role}</div>
+                <div className="text-xs text-slate-600 truncate mt-0.5 font-medium">
+                  {currentUser.email && currentUser.email.includes('@')
+                    ? `${currentUser.email} • ${currentUser.role}`
+                    : currentUser.role}
+                </div>
               </div>
             </div>
 

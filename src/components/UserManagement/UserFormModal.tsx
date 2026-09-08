@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AppUser, UserRole } from '../../types';
 import { X, User, Mail, Phone, Shield, Save, KeyRound } from 'lucide-react';
+import { api } from '../../utils/apiClient';
 
 interface UserFormModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface UserFormModalProps {
   initialUser?: AppUser | null;
 }
 
-const ROLES: UserRole[] = ['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support'];
+const FALLBACK_ROLES: UserRole[] = ['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support'];
 
 export const UserFormModal: React.FC<UserFormModalProps> = ({
   isOpen,
@@ -17,6 +18,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   onSave,
   initialUser,
 }) => {
+  const [roles, setRoles] = useState<UserRole[]>(FALLBACK_ROLES);
   const [formData, setFormData] = useState<Partial<AppUser> & { password?: string }>({
     name: '',
     email: '',
@@ -40,6 +42,17 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
       });
     }
   }, [initialUser, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void api.get<{ roles: Array<{ role: UserRole }> }>('/permissions/roles')
+      .then((data) => {
+        if (!cancelled && data.roles.length > 0) setRoles(data.roles.map((item) => item.role));
+      })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -141,7 +154,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none"
               >
-                {ROLES.map((role) => (
+                {roles.map((role) => (
                   <option key={role} value={role} className="bg-slate-900 text-white">
                     {role}
                   </option>

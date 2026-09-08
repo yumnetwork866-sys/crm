@@ -49,6 +49,7 @@ interface AuthContextValue {
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   changeAvatar: (avatarUrl: string) => Promise<void>;
   refreshCurrentUser: () => Promise<AppUser>;
+  refreshUsers: () => Promise<AppUser[]>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -256,6 +257,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user;
   }, []);
 
+  const refreshUsers = useCallback(async () => {
+    const dbUsers = await api.get<AppUser[]>('/users');
+    setUsers(dbUsers);
+    return dbUsers;
+  }, []);
+
   const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
     await api.post('/auth/change-password', { oldPassword, newPassword });
   }, []);
@@ -288,6 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       changeAvatar,
       refreshCurrentUser,
+      refreshUsers,
     }),
     [
       users,
@@ -304,6 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       changeAvatar,
       refreshCurrentUser,
+      refreshUsers,
     ]
   );
 
