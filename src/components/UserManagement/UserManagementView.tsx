@@ -251,7 +251,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
             }`}
           >
             <History className="w-4 h-4" />
-            Lịch Sử Auth Logs
+            Logs
           </button>
         </div>
       </div>
@@ -517,11 +517,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               </div>
               <h2 className="text-lg font-black text-slate-950">Phân Quyền Vai Trò</h2>
             </div>
-            {!permissionsLoading && permissionDefinitions.length > 0 && (
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold text-slate-600">
-                {permissionDefinitions.length} quyền
-              </span>
-            )}
           </div>
 
           {permissionsError && (
