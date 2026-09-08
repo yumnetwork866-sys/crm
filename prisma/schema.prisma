@@ -21,7 +21,6 @@ model User {
   permissionAllow    BigInt   @default(0)
   permissionDeny     BigInt   @default(0)
   phone              String?
-  department         String   @default("Sales")
   status             String   @default("active") // 'active' | 'inactive'
   lastActive         DateTime @default(now())
   assignedLeadsCount Int      @default(0)

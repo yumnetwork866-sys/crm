@@ -156,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: data.user.role,
       avatar: data.user.avatar || '',
       phone: data.user.phone || '',
-      department: data.user.department || 'Sales',
       status: data.user.status || 'active',
       lastActive: 'Đang hoạt động',
       assignedLeadsCount: data.user.assignedLeadsCount || 0,
@@ -208,7 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const payload = {
       name: data.name,
       role: data.role,
-      department: data.department,
       phone: data.phone,
       status: data.status,
       ...(data.password ? { password: data.password } : {}),

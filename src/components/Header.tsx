@@ -260,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
-                      <div className="text-[11px] text-slate-400 truncate">{currentUser.email || currentUser.phone || currentUser.department || 'Nhân viên'}</div>
+                      <div className="text-[11px] text-slate-400 truncate">{currentUser.email || currentUser.phone || 'Nhân viên'}</div>
                       <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
                         canManageUsers
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'

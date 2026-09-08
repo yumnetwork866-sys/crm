@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AppUser, UserRole } from '../../types';
-import { X, User, Mail, Phone, Shield, Building2, Save, KeyRound } from 'lucide-react';
+import { X, User, Mail, Phone, Shield, Save, KeyRound } from 'lucide-react';
 
 interface UserFormModalProps {
   isOpen: boolean;
@@ -10,7 +10,6 @@ interface UserFormModalProps {
 }
 
 const ROLES: UserRole[] = ['Admin', 'Sales Manager', 'Sales Rep', 'Marketing Lead', 'Customer Support'];
-const DEPARTMENTS = ['Ban Giám Đốc', 'Phòng Sales', 'Phòng Marketing', 'Chăm Sóc Khách Hàng', 'Kỹ Thuật'];
 
 export const UserFormModal: React.FC<UserFormModalProps> = ({
   isOpen,
@@ -23,7 +22,6 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
     email: '',
     phone: '',
     role: 'Sales Rep',
-    department: 'Phòng Sales',
     status: 'active',
     password: '',
   });
@@ -37,7 +35,6 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
         email: '',
         phone: '',
         role: 'Sales Rep',
-        department: 'Phòng Sales',
         status: 'active',
         password: '',
       });
@@ -134,42 +131,22 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             </div>
           </div>
 
-          {/* Role & Department */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Vai Trò (Role)</label>
-              <div className="relative">
-                <Shield className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <select
-                  value={formData.role || 'Sales Rep'}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r} className="bg-slate-900 text-white">
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Phòng Ban</label>
-              <div className="relative">
-                <Building2 className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <select
-                  value={formData.department || 'Phòng Sales'}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none"
-                >
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d} className="bg-slate-900 text-white">
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Role */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Vai Trò (Role)</label>
+            <div className="relative">
+              <Shield className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <select
+                value={formData.role || 'Sales Rep'}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none"
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role} className="bg-slate-900 text-white">
+                    {role}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

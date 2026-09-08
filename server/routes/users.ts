@@ -26,7 +26,6 @@ const createUserSchema = z.object({
   email: z.string().trim().email('Email không đúng định dạng.'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
   role: userRoleSchema.default('Sales Rep'),
-  department: z.string().trim().min(1).default('Sales'),
   phone: z.string().trim().optional().default(''),
   status: z.enum(['active', 'inactive']).default('active'),
   permissionAllow: permissionMaskSchema.optional(),
@@ -36,7 +35,6 @@ const createUserSchema = z.object({
 const updateUserSchema = z.object({
   name: z.string().trim().min(2).optional(),
   role: userRoleSchema.optional(),
-  department: z.string().trim().min(1).optional(),
   phone: z.string().trim().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.').optional(),
@@ -96,7 +94,6 @@ router.post('/', requirePermission(Permission.USERS_MANAGE), async (req: Authent
         email: data.email,
         password: await bcrypt.hash(data.password, 10),
         role: data.role,
-        department: data.department,
         phone: data.phone,
         status: data.status,
         permissionAllow: data.permissionAllow ? parsePermissionMask(data.permissionAllow) : 0n,
@@ -137,7 +134,6 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
       data: {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.role !== undefined && { role: data.role }),
-        ...(data.department !== undefined && { department: data.department }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.password !== undefined && { password: await bcrypt.hash(data.password, 10) }),

@@ -368,7 +368,6 @@ export interface AppUser {
   avatar?: string;
   role: UserRole;
   phone?: string;
-  department: string;
   status: 'active' | 'inactive';
   lastActive: string;
   assignedLeadsCount?: number;

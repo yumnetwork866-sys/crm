@@ -15,7 +15,6 @@ import {
   Edit2,
   Trash2,
   Phone,
-  Building2,
   Award,
   ShieldAlert,
   History,
@@ -66,8 +65,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.department.toLowerCase().includes(searchTerm.toLowerCase());
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
@@ -316,7 +314,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tìm theo tên, email, phòng ban..."
+                placeholder="Tìm theo tên hoặc email..."
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
               />
             </div>
@@ -357,7 +355,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition active:scale-95 cursor-pointer ml-auto md:ml-0"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>+ Thêm Tài Khoản Nhân Sự</span>
+                <span>+ Thêm Tài Khoản</span>
               </button>
             </div>
           </div>
@@ -373,11 +371,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-black tracking-wider border-b border-slate-300">
                     <th className="py-3 px-4">Thành Viên</th>
-                    <th className="py-3 px-3">Vai Trò &amp; Phòng Ban</th>
+                    <th className="py-3 px-3">Vai Trò</th>
                     <th className="py-3 px-3">Liên Hệ</th>
-                    <th className="py-3 px-3 text-right">Lead Đảm Nhận</th>
-                    <th className="py-3 px-3 text-right">Doanh Số (VND)</th>
-                    <th className="py-3 px-3 text-center">Trạng Thái Auth</th>
+                    <th className="py-3 px-3 text-right">Đảm nhận</th>
+                    <th className="py-3 px-3 text-right">Doanh Số</th>
+                    <th className="py-3 px-3 text-center">Trạng Thái</th>
                     <th className="py-3 px-4 text-right">Thao Tác</th>
                   </tr>
                 </thead>
@@ -423,7 +421,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             </div>
                           </td>
 
-                          {/* Role & Department */}
+                          {/* Role */}
                           <td className="py-3.5 px-3">
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] border ${getRoleBadge(
@@ -432,10 +430,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             >
                               {user.role}
                             </span>
-                            <div className="text-[10px] text-slate-600 font-medium mt-1 flex items-center gap-1">
-                              <Building2 className="w-3 h-3 text-slate-500" />
-                              <span>{user.department}</span>
-                            </div>
+
                           </td>
 
                           {/* Contact */}

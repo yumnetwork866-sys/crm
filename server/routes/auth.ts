@@ -22,7 +22,6 @@ const registerSchema = z.object({
   name: z.string().min(2, 'Tên phải từ 2 ký tự trở lên'),
   email: z.string().email('Email không đúng định dạng'),
   password: z.string().min(6, 'Mật khẩu phải từ 6 ký tự trở lên'),
-  department: z.string().default('Sales'),
   phone: z.string().optional()
 });
 
@@ -79,7 +78,6 @@ export async function ensureAdminUser(): Promise<void> {
           email: adminEmail,
           password: hashedPassword,
           role: 'Admin',
-          department: 'Ban Giám Đốc',
           status: 'active'
         }
       });
@@ -143,7 +141,6 @@ router.post('/login', async (req: Request, res: Response) => {
             email: envAdmin || 'admin',
             password: hashedPassword,
             role: 'Admin',
-            department: 'Ban Giám Đốc',
             status: 'active'
           }
         });
@@ -225,7 +222,6 @@ router.post('/register', authenticateToken, requirePermission(Permission.USERS_M
         email: data.email,
         password: hashedPassword,
         role: 'Sales Rep',
-        department: data.department,
         phone: data.phone || ''
       }
     });

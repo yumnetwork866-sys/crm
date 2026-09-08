@@ -80,7 +80,6 @@ async function main() {
         avatar: user.avatar || '',
         role: user.role,
         phone: user.phone || '',
-        department: user.department,
         status: user.status,
         assignedLeadsCount: user.assignedLeadsCount || 0,
         totalRevenue: user.totalRevenue || 0,
