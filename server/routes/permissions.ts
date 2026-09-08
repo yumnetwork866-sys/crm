@@ -11,8 +11,13 @@ import {
 } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
+import { FALLBACK_ROLE_COLOR, resolveRoleColor } from '../auth/roleColors';
 
 const router = Router();
+const roleColorSchema = z.string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Màu vai trò phải là mã hex hợp lệ.')
+  .transform((color) => color.toLowerCase());
+
 const roleNameSchema = z.string()
   .trim()
   .min(2, 'Tên vai trò phải có ít nhất 2 ký tự.')
@@ -42,6 +47,7 @@ router.get('/roles', async (_req: AuthenticatedRequest, res: Response) => {
       roles: storedPolicies.map((policy) => ({
         role: policy.role,
         permissions: policy.permissions.toString(),
+        color: resolveRoleColor(policy.role, policy.color),
         userCount: countsByRole.get(policy.role) ?? 0,
       })),
     });
@@ -64,8 +70,19 @@ router.post('/roles', async (req: AuthenticatedRequest, res: Response) => {
     if (existing) return res.status(409).json({ error: 'Tên vai trò đã tồn tại.' });
 
     const permissions = req.body?.permissions === undefined ? 0n : parsePermissionMask(req.body.permissions);
-    const policy = await prisma.rolePermission.create({ data: { role, permissions } });
-    return res.status(201).json({ role: policy.role, permissions: policy.permissions.toString(), userCount: 0 });
+    const parsedColor = req.body?.color === undefined
+      ? { success: true as const, data: FALLBACK_ROLE_COLOR }
+      : roleColorSchema.safeParse(req.body.color);
+    if (!parsedColor.success) {
+      return res.status(400).json({ error: parsedColor.error.issues[0]?.message || 'Màu vai trò không hợp lệ.' });
+    }
+    const policy = await prisma.rolePermission.create({ data: { role, permissions, color: parsedColor.data } });
+    return res.status(201).json({
+      role: policy.role,
+      permissions: policy.permissions.toString(),
+      color: resolveRoleColor(policy.role, policy.color),
+      userCount: 0,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Không thể tạo vai trò.';
     return res.status(400).json({ error: message });
@@ -78,15 +95,24 @@ router.put('/roles/:role', async (req: AuthenticatedRequest, res: Response) => {
     const existing = await prisma.rolePermission.findUnique({ where: { role } });
     if (!existing) return res.status(404).json({ error: 'Không tìm thấy vai trò.' });
     const permissions = parsePermissionMask(req.body?.permissions);
+    const parsedColor = roleColorSchema.safeParse(req.body?.color);
+    if (!parsedColor.success) {
+      return res.status(400).json({ error: parsedColor.error.issues[0]?.message || 'Màu vai trò không hợp lệ.' });
+    }
     if (role === 'Admin' && !((permissions & Permission.USERS_MANAGE) === Permission.USERS_MANAGE)) {
       return res.status(400).json({ error: 'Vai trò Admin phải giữ quyền quản lý tài khoản và phân quyền.' });
     }
     const policy = await prisma.rolePermission.update({
       where: { role },
-      data: { permissions },
+      data: { permissions, color: parsedColor.data },
     });
     const userCount = await prisma.user.count({ where: { role } });
-    return res.json({ role: policy.role, permissions: policy.permissions.toString(), userCount });
+    return res.json({
+      role: policy.role,
+      permissions: policy.permissions.toString(),
+      color: resolveRoleColor(policy.role, policy.color),
+      userCount,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Permission mask không hợp lệ.';
     return res.status(400).json({ error: message });
@@ -116,7 +142,12 @@ router.patch('/roles/:role', async (req: AuthenticatedRequest, res: Response) =>
       prisma.rolePermission.update({ where: { role: currentRole }, data: { role: nextRole } }),
     ]);
     const userCount = await prisma.user.count({ where: { role: nextRole } });
-    return res.json({ role: policy.role, permissions: policy.permissions.toString(), userCount });
+    return res.json({
+      role: policy.role,
+      permissions: policy.permissions.toString(),
+      color: resolveRoleColor(policy.role, policy.color),
+      userCount,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Không thể đổi tên vai trò.';
     return res.status(400).json({ error: message });

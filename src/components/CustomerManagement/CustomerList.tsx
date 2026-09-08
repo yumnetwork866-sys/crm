@@ -29,8 +29,10 @@ import {
 } from '../../utils/crmUtils';
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
+import { UserInfoModal } from '../Common/UserInfoModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { Permission } from '../../lib/permissions';
+import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 
 type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'vip' | 'unassigned';
 
@@ -82,7 +84,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onUpdateOwner,
   onImportCustomers,
 }) => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, users } = useAuth();
   const isAdmin = hasPermission(Permission.CUSTOMERS_EXPORT);
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -91,6 +93,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>('all');
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkOwner, setBulkOwner] = useState('');
+  const [selectedOwnerUser, setSelectedOwnerUser] = useState<AppUser | null>(null);
 
   const {
     searchQuery,
@@ -329,7 +332,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
             <select
               value={selectedOwner}
               onChange={(event) => setSelectedOwner(event.target.value)}
-              aria-label="Lọc theo Sales phụ trách"
+              aria-label="Lọc theo người phụ trách"
               className="bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             >
               <option value="ALL">Tất cả Sales</option>
@@ -554,7 +557,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                 <th className="py-3 px-3">Số điện thoại</th>
                 <th className="py-3 px-3">Nguồn khách</th>
                 <th className="py-3 px-3">Trạng thái</th>
-                <th className="py-3 px-3">Sales phụ trách</th>
+                <th className="py-3 px-3">Phụ trách</th>
                 <th className="py-3 px-4 text-right">Giá trị</th>
                 <th className="py-3 px-4 text-center">Hành động</th>
               </tr>
@@ -573,6 +576,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                 const unread = hasUnreadMessage(customer);
                 const group = getCustomerGroup(customer);
                 const unassigned = UNASSIGNED_OWNERS.includes(customer.owner || '');
+                const ownerUser = findUserByName(users, customer.owner)
+                  ?? (currentUser?.name === customer.owner ? currentUser : undefined);
                 return (
                   <tr key={customer.id} className={`group transition hover:bg-slate-50 ${isSelected ? 'bg-indigo-50' : ''}`}>
                     <td className="py-3 px-3 text-center">
@@ -658,7 +663,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                               e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(customer.owner)}`;
                             }}
                           />
-                          <span className="font-bold text-slate-900 text-sm whitespace-nowrap">{customer.owner}</span>
+                          <button
+                            type="button"
+                            onClick={() => ownerUser && setSelectedOwnerUser(ownerUser)}
+                            disabled={!ownerUser}
+                            title={ownerUser ? `Xem thông tin ${ownerUser.name}` : undefined}
+                            className="whitespace-nowrap text-sm font-bold hover:underline disabled:cursor-default disabled:no-underline"
+                            style={getUserRoleTextStyle(ownerUser)}
+                          >
+                            {customer.owner}
+                          </button>
                         </div>
                       )}
                     </td>
@@ -681,6 +695,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
           </table>
         </div>
       </section>
+
+      <UserInfoModal user={selectedOwnerUser} onClose={() => setSelectedOwnerUser(null)} />
 
       {isImportCsvOpen && (
         <ImportCustomerCsvModal

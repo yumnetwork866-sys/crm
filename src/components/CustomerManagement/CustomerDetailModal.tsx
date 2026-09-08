@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import type { Customer, CustomerStatus } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
+import { useAuth } from '../../contexts/AuthContext';
+import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
+import { UserInfoModal } from '../Common/UserInfoModal';
 
 interface CustomerDetailModalProps {
   isOpen: boolean;
@@ -28,8 +31,13 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'notes' | 'automation'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
+  const [isOwnerInfoOpen, setIsOwnerInfoOpen] = useState(false);
+  const { users, currentUser } = useAuth();
 
   if (!isOpen || !customer) return null;
+
+  const ownerUser = findUserByName(users, customer.owner)
+    ?? (currentUser?.name === customer.owner ? currentUser : undefined);
 
   const groupKey = getCustomerGroup(customer);
   const groupInfo = CUSTOMER_GROUPS[groupKey];
@@ -164,7 +172,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     </select>
                   </div>
                   <div className="flex items-center space-x-1.5 text-xs mt-2">
-                    <span className="text-slate-500 font-medium">Sales:</span>
+                    <span className="text-slate-500 font-medium">Phụ trách:</span>
                     {customer.owner && !['chưa phân công', 'unassigned', ''].includes(customer.owner.trim().toLowerCase()) ? (
                       <div className="inline-flex items-center gap-1.5">
                         <img
@@ -175,7 +183,16 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                             e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(customer.owner)}`;
                           }}
                         />
-                        <span className="font-semibold text-slate-800">{customer.owner}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsOwnerInfoOpen(true)}
+                          disabled={!ownerUser}
+                          title={ownerUser ? `Xem thông tin ${ownerUser.name}` : undefined}
+                          className="font-semibold hover:underline disabled:cursor-default disabled:no-underline"
+                          style={getUserRoleTextStyle(ownerUser)}
+                        >
+                          {customer.owner}
+                        </button>
                       </div>
                     ) : (
                       <span className="text-slate-400">Chưa phân công</span>
@@ -479,6 +496,10 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         </div>
 
       </div>
+      <UserInfoModal
+        user={isOwnerInfoOpen ? ownerUser ?? null : null}
+        onClose={() => setIsOwnerInfoOpen(false)}
+      />
     </div>
   );
 };

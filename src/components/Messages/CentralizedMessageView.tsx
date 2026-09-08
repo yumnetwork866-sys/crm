@@ -59,10 +59,12 @@ import { useMessageThreads } from '../../features/messages/hooks/useMessageThrea
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
 import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
 import { Permission } from '../../lib/permissions';
+import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
+import { UserInfoModal } from '../Common/UserInfoModal';
 import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
 
 interface SavedMessageList {
@@ -130,6 +132,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [selectedInfoUser, setSelectedInfoUser] = useState<AppUser | null>(null);
   const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
   const {
     soundEnabled,
@@ -731,7 +734,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
                             }}
                           />
-                          <span className="font-semibold text-slate-700">{activeCustomer.owner}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ownerUser = findUserByName(users, activeCustomer.owner);
+                              if (ownerUser) setSelectedInfoUser(ownerUser);
+                            }}
+                            disabled={!findUserByName(users, activeCustomer.owner)}
+                            className="font-semibold hover:underline disabled:cursor-default disabled:no-underline"
+                            style={getUserRoleTextStyle(findUserByName(users, activeCustomer.owner))}
+                          >
+                            {activeCustomer.owner}
+                          </button>
                         </span>
                       )}
                     </p>
@@ -1026,7 +1040,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             {isAgent && (
                               <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-emerald-600/30 text-[10.5px] select-none">
                                 <span className="font-bold text-emerald-600 flex items-center gap-1 truncate">
-                                  <span className="truncate">{senderName}</span>
+                                  <span
+                                    className="truncate"
+                                    style={getUserRoleTextStyle(matchedUser)}
+                                  >
+                                    {senderName}
+                                  </span>
                                   {(isCurrentAgent || senderName.trim().toLowerCase() === (effectiveCurrentUser?.name || '').trim().toLowerCase()) && (
                                     <span className="text-[9px] font-semibold bg-emerald-600/10 text-emerald-600 px-1 py-0.2 rounded-xs ml-0.5">
                                       Bạn
@@ -1709,7 +1728,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <span className="font-semibold text-slate-800">Malaysia (MY)</span>
                       </div>
                       <div className="flex items-center justify-between text-slate-600">
-                        <span>Sale phụ trách:</span>
+                        <span>Phụ trách:</span>
                         <div className="flex items-center gap-1.5">
                           {activeCustomer.owner && !['chưa phân công', 'unassigned', ''].includes(activeCustomer.owner.trim().toLowerCase()) ? (
                             <>
@@ -1721,7 +1740,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
                                 }}
                               />
-                              <span className="font-semibold text-slate-800">{activeCustomer.owner}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ownerUser = findUserByName(users, activeCustomer.owner);
+                                  if (ownerUser) setSelectedInfoUser(ownerUser);
+                                }}
+                                disabled={!findUserByName(users, activeCustomer.owner)}
+                                className="font-semibold hover:underline disabled:cursor-default disabled:no-underline"
+                                style={getUserRoleTextStyle(findUserByName(users, activeCustomer.owner))}
+                              >
+                                {activeCustomer.owner}
+                              </button>
                             </>
                           ) : (
                             <span className="text-slate-400">Chưa phân công</span>
@@ -1889,6 +1919,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       </div>
 
       <MessageLightbox imageUrl={previewLightboxImg} onClose={() => setPreviewLightboxImg(null)} />
+      <UserInfoModal user={selectedInfoUser} onClose={() => setSelectedInfoUser(null)} />
 
     </div>
   );

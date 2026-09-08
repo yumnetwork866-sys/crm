@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Dices, Loader2, ShieldCheck, Upload, X, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRoleTextStyle } from '../../utils/roleColors';
 
 interface ChangeAvatarModalProps {
   isOpen: boolean;
@@ -165,7 +166,10 @@ export const ChangeAvatarModal: React.FC<ChangeAvatarModalProps> = ({ isOpen, on
           </div>
           <div>
             <h2 className="text-base font-bold text-white">Đổi Ảnh Đại Diện</h2>
-            <p className="text-xs text-slate-400">Tải ảnh từ máy tính hoặc chọn mẫu cho {currentUser.name}</p>
+            <p className="text-xs text-slate-400">
+              Tải ảnh từ máy tính hoặc chọn mẫu cho{' '}
+              <span className="font-bold" style={getUserRoleTextStyle(currentUser)}>{currentUser.name}</span>
+            </p>
           </div>
         </div>
 

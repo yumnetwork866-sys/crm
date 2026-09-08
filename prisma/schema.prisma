@@ -31,6 +31,7 @@ model User {
 model RolePermission {
   role        String   @id
   permissions BigInt   @default(0)
+  color       String?
   updatedAt   DateTime @updatedAt
 }
 

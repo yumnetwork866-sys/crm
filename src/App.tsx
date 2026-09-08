@@ -283,7 +283,7 @@ export default function App() {
     if (tab === 'users' && !canManageUsers) {
       void navigate('/crm');
     } else {
-      void navigate(tab === 'automation' ? '/automation/workflow' : `/${tab}`);
+      void navigate(tab === 'automation' ? '/automation/workflow' : tab === 'users' ? '/users/accounts' : `/${tab}`);
     }
   };
 
@@ -570,6 +570,16 @@ export default function App() {
             />
             <Route
               path="/users"
+              element={
+                canManageUsers ? (
+                  <Navigate to="/users/accounts" replace />
+                ) : (
+                  <Navigate to="/crm" replace />
+                )
+              }
+            />
+            <Route
+              path="/users/*"
               element={
                 canManageUsers ? (
                   <UserManagementView

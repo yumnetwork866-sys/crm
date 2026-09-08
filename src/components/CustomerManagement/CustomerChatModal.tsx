@@ -3,6 +3,7 @@ import { X, Send, CheckCheck, ShieldAlert } from 'lucide-react';
 import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRoleTextStyle } from '../../utils/roleColors';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
@@ -147,7 +148,9 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                       : 'bg-slate-100 text-slate-900 rounded-tl-none border border-slate-200'
                   }`}>
                     <div className={`flex items-center justify-between gap-4 text-[10px] pb-0.5 ${msg.isAgent ? 'text-[#00793d] font-bold' : 'text-slate-500 font-semibold'}`}>
-                      <span>{msg.senderName}</span>
+                      <span style={msg.isAgent ? getUserRoleTextStyle(matchedUser) : undefined}>
+                        {msg.senderName}
+                      </span>
                       <span className="text-slate-400 font-normal">{msg.time}</span>
                     </div>
                     <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-900">

@@ -367,6 +367,7 @@ export interface AppUser {
   password?: string;
   avatar?: string;
   role: UserRole;
+  roleColor?: string;
   phone?: string;
   status: 'active' | 'inactive';
   lastActive: string;
@@ -380,6 +381,7 @@ export interface AppUser {
 export interface RolePermissionPolicy {
   role: UserRole;
   permissions: string;
+  color: string;
   userCount: number;
 }
 

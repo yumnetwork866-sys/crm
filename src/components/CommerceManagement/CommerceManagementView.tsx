@@ -38,7 +38,6 @@ export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({
     {
       id: 'orders' as const,
       label: 'Đơn hàng',
-      description: 'Quản lý và xử lý đơn',
       count: ordersCount,
       icon: ShoppingBag,
       to: '/orders',
@@ -46,7 +45,6 @@ export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({
     {
       id: 'products' as const,
       label: 'Sản phẩm',
-      description: 'Kho hàng và giá bán',
       count: products.length,
       icon: Package,
       to: '/orders?tab=products',
@@ -87,16 +85,13 @@ export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({
                   style={{ color: isActive ? '#ffffff' : '#000000', stroke: isActive ? '#ffffff' : '#000000' }}
                 />
               </span>
-              <span className="min-w-0 text-left">
-                <span className="flex items-center gap-2">
-                  <span className="text-sm font-extrabold">{tab.label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                    isActive ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {tab.count}
-                  </span>
+              <span className="min-w-0 flex items-center gap-2 text-left">
+                <span className="text-sm font-extrabold">{tab.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                  isActive ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {tab.count}
                 </span>
-                <span className="hidden text-[11px] font-medium text-slate-500 sm:block">{tab.description}</span>
               </span>
             </NavLink>
           );

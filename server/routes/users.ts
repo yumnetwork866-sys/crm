@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission, getEffectivePermissions, parsePermissionMask } from '../auth/permissions';
+import { getRoleColor } from '../auth/roleColors';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 
@@ -50,6 +51,7 @@ async function serializeUser(user: User) {
     permissionAllow: permissionAllow.toString(),
     permissionDeny: permissionDeny.toString(),
     effectivePermissions: (await getEffectivePermissions(user.role, permissionAllow, permissionDeny)).toString(),
+    roleColor: await getRoleColor(user.role),
   };
 }
 

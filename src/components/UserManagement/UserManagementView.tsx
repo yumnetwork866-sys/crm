@@ -1,9 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppUser, PermissionDefinition, RolePermissionPolicy, UserRole } from '../../types';
 import { api } from '../../utils/apiClient';
 import { Permission } from '../../lib/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatVND } from '../../utils/crmUtils';
+import {
+  cacheRoleColors,
+  getRoleColor as getCachedRoleColor,
+  loadRoleColorCache,
+} from '../../utils/roleColors';
 import {
   Users,
   ShieldCheck,
@@ -25,7 +31,22 @@ import {
   ChevronRight,
   Plus,
   X,
+  Check,
 } from 'lucide-react';
+
+const ROLE_COLOR_PRESETS = [
+  '#e11d48',
+  '#d97706',
+  '#2563eb',
+  '#059669',
+  '#9333ea',
+  '#db2777',
+  '#ea580c',
+  '#0891b2',
+  '#4f46e5',
+  '#475569',
+] as const;
+const FALLBACK_ROLE_COLOR = '#475569';
 
 interface UserManagementViewProps {
   users: AppUser[];
@@ -44,13 +65,32 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   onDeleteUser,
   onToggleUserStatus,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'accounts' | 'permissions' | 'audit'>('accounts');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const activeSubTab = useMemo<'accounts' | 'permissions' | 'audit'>(() => {
+    const segments = location.pathname.replace(/^\//, '').split('/');
+    if (segments[0] === 'users') {
+      const sub = segments[1];
+      if (sub === 'permissions') return 'permissions';
+      if (sub === 'logs' || sub === 'audit') return 'audit';
+      if (sub === 'accounts') return 'accounts';
+    }
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'permissions') return 'permissions';
+    if (tabParam === 'logs' || tabParam === 'audit') return 'audit';
+    return 'accounts';
+  }, [location.pathname, location.search]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [permissionDefinitions, setPermissionDefinitions] = useState<PermissionDefinition[]>([]);
   const [rolePolicies, setRolePolicies] = useState<RolePermissionPolicy[]>([]);
   const [permissionDrafts, setPermissionDrafts] = useState<Record<string, string>>({});
+  const [roleColorDrafts, setRoleColorDrafts] = useState<Record<string, string>>(loadRoleColorCache);
+  const [paletteColors, setPaletteColors] = useState<string[]>([...ROLE_COLOR_PRESETS]);
+  const customColorInputRef = React.useRef<HTMLInputElement>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [permissionsError, setPermissionsError] = useState('');
   const [savingRole, setSavingRole] = useState<UserRole | null>(null);
@@ -78,21 +118,26 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'Admin':
-        return 'bg-purple-100 text-purple-800 border-purple-300 font-extrabold';
-      case 'Sales Manager':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold';
-      case 'Sales Rep':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
-      case 'Marketing Lead':
-        return 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
-      case 'Customer Support':
-        return 'bg-teal-100 text-teal-800 border-teal-300 font-bold';
-      default:
-        return 'bg-slate-100 text-slate-800 border-slate-300';
-    }
+  const getRoleColor = (role: UserRole) =>
+    roleColorDrafts[role]
+    ?? rolePolicies.find((policy) => policy.role === role)?.color
+    ?? getCachedRoleColor(role);
+
+  const getRoleTextStyle = (role: UserRole): React.CSSProperties => {
+    const color = getRoleColor(role);
+    return {
+      color,
+      WebkitTextFillColor: color,
+    };
+  };
+
+  const getRoleBadgeStyle = (role: UserRole): React.CSSProperties => {
+    const color = getRoleColor(role);
+    return {
+      ...getRoleTextStyle(role),
+      borderColor: `${color}55`,
+      backgroundColor: `${color}18`,
+    };
   };
 
   useEffect(() => {
@@ -107,8 +152,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       .then((data) => {
         if (cancelled) return;
         setPermissionDefinitions(data.definitions);
+        cacheRoleColors(Object.fromEntries(data.roles.map((policy) => [policy.role, policy.color])));
         setRolePolicies(data.roles);
         setPermissionDrafts(Object.fromEntries(data.roles.map((policy) => [policy.role, policy.permissions])));
+        setRoleColorDrafts(Object.fromEntries(data.roles.map((policy) => [policy.role, policy.color])));
+        setPaletteColors((current) => Array.from(new Set([
+          ...current,
+          ...data.roles.map((policy) => policy.color.toLowerCase()),
+        ])));
         if (!data.roles.some((policy) => policy.role === selectedRole) && data.roles[0]) {
           setSelectedRole(data.roles[0].role);
         }
@@ -133,7 +184,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const selectedPolicy = rolePolicies.find((policy) => policy.role === selectedRole);
   const selectedMask = BigInt(permissionDrafts[selectedRole] || '0');
   const selectedRoleIsDirty = Boolean(
-    selectedPolicy && permissionDrafts[selectedRole] !== selectedPolicy.permissions
+    selectedPolicy && (
+      permissionDrafts[selectedRole] !== selectedPolicy.permissions
+      || roleColorDrafts[selectedRole] !== selectedPolicy.color
+    )
   );
 
   const permissionGroups = permissionDefinitions.reduce<Array<{ name: string; permissions: PermissionDefinition[] }>>(
@@ -152,6 +206,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       ...previous,
       [selectedRole]: selectedPolicy.permissions,
     }));
+    setRoleColorDrafts((previous) => ({
+      ...previous,
+      [selectedRole]: selectedPolicy.color,
+    }));
     setPermissionsError('');
   };
 
@@ -167,9 +225,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     try {
       const updated = await api.put<RolePermissionPolicy>(`/permissions/roles/${encodeURIComponent(role)}`, {
         permissions: permissionDrafts[role],
+        color: roleColorDrafts[role] ?? FALLBACK_ROLE_COLOR,
       });
       setRolePolicies((previous) => previous.map((policy) => policy.role === role ? updated : policy));
       setPermissionDrafts((previous) => ({ ...previous, [role]: updated.permissions }));
+      setRoleColorDrafts((previous) => ({ ...previous, [role]: updated.color }));
+      cacheRoleColors({ [role]: updated.color });
+      await refreshUsers();
       if (currentUser?.role === role) await refreshCurrentUser();
     } catch (error) {
       setPermissionsError(error instanceof Error ? error.message : 'Không thể lưu phân quyền.');
@@ -200,6 +262,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         const created = await api.post<RolePermissionPolicy>('/permissions/roles', { name: roleName });
         setRolePolicies((previous) => [...previous, created].sort((a, b) => a.role.localeCompare(b.role)));
         setPermissionDrafts((previous) => ({ ...previous, [created.role]: created.permissions }));
+        setRoleColorDrafts((previous) => ({ ...previous, [created.role]: created.color }));
+        cacheRoleColors({ [created.role]: created.color });
         setSelectedRole(created.role);
       } else if (roleEditorMode === 'rename') {
         const previousRole = selectedRole;
@@ -213,6 +277,12 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         setPermissionDrafts((previous) => {
           const { [previousRole]: oldDraft, ...remaining } = previous;
           return { ...remaining, [updated.role]: oldDraft ?? updated.permissions };
+        });
+        setRoleColorDrafts((previous) => {
+          const { [previousRole]: oldColor, ...remaining } = previous;
+          const nextColor = oldColor ?? updated.color;
+          cacheRoleColors({ [updated.role]: nextColor });
+          return { ...remaining, [updated.role]: nextColor };
         });
         setSelectedRole(updated.role);
         await refreshUsers();
@@ -242,6 +312,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       const remaining = rolePolicies.filter((item) => item.role !== selectedRole);
       setRolePolicies(remaining);
       setPermissionDrafts((previous) => {
+        const { [selectedRole]: _removed, ...rest } = previous;
+        return rest;
+      });
+      setRoleColorDrafts((previous) => {
         const { [selectedRole]: _removed, ...rest } = previous;
         return rest;
       });
@@ -295,7 +369,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
       {/* Sub-tab Selectors */}
       <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-300 gap-1 w-fit">
         <button
-          onClick={() => setActiveSubTab('accounts')}
+          type="button"
+          onClick={() => navigate('/users/accounts')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
             activeSubTab === 'accounts'
               ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
@@ -306,7 +381,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           Tài Khoản ({users.length})
         </button>
         <button
-          onClick={() => setActiveSubTab('permissions')}
+          type="button"
+          onClick={() => navigate('/users/permissions')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
             activeSubTab === 'permissions'
               ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
@@ -317,7 +393,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           Phân Quyền
         </button>
         <button
-          onClick={() => setActiveSubTab('audit')}
+          type="button"
+          onClick={() => navigate('/users/logs')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
             activeSubTab === 'audit'
               ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
@@ -476,12 +553,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                               />
                               <div>
                                 <div className="font-extrabold text-slate-950 text-xs flex items-center space-x-2">
-                                  <span>{user.name}</span>
-                                  {isCurrent && (
-                                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-black border border-indigo-300">
-                                      Tài Khoản Hiện Tại
-                                    </span>
-                                  )}
+                                  <span style={getRoleTextStyle(user.role)}>{user.name}</span>
                                 </div>
                                 <div className="text-[11px] text-slate-600 font-medium mt-0.5">{user.email}</div>
                               </div>
@@ -491,9 +563,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           {/* Role */}
                           <td className="py-3.5 px-3">
                             <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] border ${getRoleBadge(
-                                user.role
-                              )}`}
+                              className="inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold"
+                              style={getRoleBadgeStyle(user.role)}
                             >
                               {user.role}
                             </span>
@@ -649,7 +720,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   {rolePolicies.map((policy) => {
                     const role = policy.role;
                     const active = selectedRole === role;
-                    const dirty = permissionDrafts[role] !== policy.permissions;
+                    const dirty = permissionDrafts[role] !== policy.permissions
+                      || roleColorDrafts[role] !== policy.color;
                     return (
                       <div
                         key={role}
@@ -662,13 +734,15 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedRole(role)}
-                          className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left"
+                          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-3 text-left"
                         >
-                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black ${getRoleBadge(role)}`}>
-                            {role.charAt(0)}
-                          </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-extrabold">{role}</span>
+                            <span
+                              className="block truncate text-xs font-extrabold"
+                              style={getRoleTextStyle(role)}
+                            >
+                              {role}
+                            </span>
                             <span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{policy.userCount} tài khoản</span>
                           </span>
                           {dirty ? (
@@ -686,12 +760,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
               <section className="relative bg-slate-50/30 p-4 sm:p-6">
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-black text-slate-950">{selectedRole}</h3>
-                    {selectedRoleIsDirty && (
-                      <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                        Chưa lưu
-                      </span>
-                    )}
+                    <h3
+                      className="text-base font-black"
+                      style={getRoleTextStyle(selectedRole)}
+                    >
+                      {selectedRole}
+                    </h3>
+
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -716,6 +791,78 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 </div>
 
                 <div className="space-y-4 pb-20">
+                  <fieldset>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {paletteColors.map((color) => {
+                          const isSelected = getRoleColor(selectedRole) === color;
+                          return (
+                            <div key={color} className="group relative">
+                              <button
+                                type="button"
+                                onClick={() => setRoleColorDrafts((previous) => ({ ...previous, [selectedRole]: color }))}
+                                disabled={savingRole !== null}
+                                aria-label={`Chọn màu ${color}`}
+                                aria-pressed={isSelected}
+                                title={color.toUpperCase()}
+                                className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white shadow-sm transition hover:scale-110 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 ${
+                                  isSelected ? 'scale-110 ring-2 ring-slate-700 ring-offset-2' : ''
+                                }`}
+                                style={{ backgroundColor: color }}
+                              >
+                                {isSelected ? <Check className="h-4 w-4 text-white drop-shadow-sm" /> : null}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPaletteColors((current) => {
+                                    const remaining = current.filter((item) => item !== color);
+                                    if (isSelected) {
+                                      setRoleColorDrafts((previous) => ({
+                                        ...previous,
+                                        [selectedRole]: remaining[0] || ROLE_COLOR_PRESETS[0],
+                                      }));
+                                    }
+                                    return remaining;
+                                  });
+                                }}
+                                disabled={savingRole !== null}
+                                aria-label={`Xóa màu ${color}`}
+                                title="Xóa màu"
+                                className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 opacity-0 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-300 group-hover:opacity-100"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          onClick={() => customColorInputRef.current?.click()}
+                          disabled={savingRole !== null}
+                          aria-label="Thêm màu mới"
+                          title="Thêm màu mới"
+                          className="ml-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white text-slate-500 transition hover:scale-110 hover:border-slate-500 hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={customColorInputRef}
+                          type="color"
+                          value={getRoleColor(selectedRole)}
+                          onChange={(event) => {
+                            const color = event.target.value.toLowerCase();
+                            setRoleColorDrafts((previous) => ({ ...previous, [selectedRole]: color }));
+                            setPaletteColors((current) => current.includes(color) ? current : [...current, color]);
+                          }}
+                          disabled={savingRole !== null}
+                          aria-label="Thêm màu mới"
+                          className="pointer-events-none absolute h-px w-px opacity-0"
+                          tabIndex={-1}
+                        />
+                    </div>
+                  </fieldset>
+
                   {permissionGroups.map((group) => (
                     <div key={group.name} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                       <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -760,8 +907,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                 </div>
 
                 {selectedRoleIsDirty && (
-                  <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-2xl sm:flex-row sm:items-center sm:justify-between">
-                    <span className="text-xs font-bold text-slate-800">Bạn có thay đổi chưa lưu</span>
+                  <div className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 flex-col gap-3 rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-2xl sm:flex-row sm:items-center sm:justify-between">
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: '#dc2626', WebkitTextFillColor: '#dc2626' }}
+                    >
+                      Bạn có thay đổi chưa lưu
+                    </span>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -778,7 +930,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60 sm:flex-none"
                       >
                         {savingRole === selectedRole ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        {savingRole === selectedRole ? 'Đang lưu...' : 'Lưu thay đổi'}
+                        {savingRole === selectedRole ? 'Đang lưu...' : 'Lưu'}
                       </button>
                     </div>
                   </div>

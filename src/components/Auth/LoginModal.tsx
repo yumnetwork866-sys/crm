@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { LogIn, LogOut, X, Mail, Lock, Loader2 } from 'lucide-react';
 import { YumLogo } from '../Common/YumLogo';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRoleTextStyle } from '../../utils/roleColors';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -93,7 +94,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                  <span className="font-extrabold text-slate-950 text-sm whitespace-nowrap">{currentUser.name}</span>
+                  <span
+                    className="whitespace-nowrap text-sm font-extrabold"
+                    style={getUserRoleTextStyle(currentUser)}
+                  >
+                    {currentUser.name}
+                  </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 whitespace-nowrap">
                     Đang Đăng Nhập
                   </span>

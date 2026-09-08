@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 import { Permission } from '../lib/permissions';
+import { getUserRoleColor, getUserRoleTextStyle } from '../utils/roleColors';
 
 const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
   <i className={`fa-brands fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
@@ -264,12 +265,20 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold text-white truncate">{currentUser.name}</div>
-                      <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        canManageUsers
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                      }`}>
+                      <div
+                        className="truncate text-sm font-bold"
+                        style={getUserRoleTextStyle(currentUser)}
+                      >
+                        {currentUser.name}
+                      </div>
+                      <span
+                        className="mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold"
+                        style={{
+                          ...getUserRoleTextStyle(currentUser),
+                          backgroundColor: `${getUserRoleColor(currentUser)}18`,
+                          borderColor: `${getUserRoleColor(currentUser)}55`,
+                        }}
+                      >
                         {currentUser.role}
                       </span>
                     </div>

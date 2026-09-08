@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRoleTextStyle } from '../../utils/roleColors';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -96,7 +97,10 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
           </div>
           <div>
             <h2 className="text-base font-bold text-white">Đổi Mật Khẩu</h2>
-            <p className="text-xs text-slate-400">Cập nhật mật khẩu cho tài khoản {currentUser.name}</p>
+            <p className="text-xs text-slate-400">
+              Cập nhật mật khẩu cho tài khoản{' '}
+              <span className="font-bold" style={getUserRoleTextStyle(currentUser)}>{currentUser.name}</span>
+            </p>
           </div>
         </div>
 

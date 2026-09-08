@@ -8,6 +8,7 @@ import { authenticateToken, requirePermission } from '../middleware/authMiddlewa
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { Permission, getEffectivePermissions } from '../auth/permissions';
+import { getRoleColor } from '../auth/roleColors';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
@@ -35,6 +36,7 @@ async function serializeUser(user: User) {
     permissionAllow: permissionAllow.toString(),
     permissionDeny: permissionDeny.toString(),
     effectivePermissions: effectivePermissions.toString(),
+    roleColor: await getRoleColor(user.role),
   };
 }
 

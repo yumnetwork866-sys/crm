@@ -11,6 +11,7 @@ import { INITIAL_USERS } from '../data/mockData';
 import type { AppUser, UserRole } from '../types';
 import { Permission, hasPermission as maskHasPermission } from '../lib/permissions';
 import { api, getStoredToken, removeStoredToken, setStoredToken } from '../utils/apiClient';
+import { cacheUserRoleColors } from '../utils/roleColors';
 
 const STORAGE_KEY_USERS = 'yumcrm_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
@@ -18,7 +19,9 @@ const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
 const loadUsers = (): AppUser[] => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_USERS);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    const users: AppUser[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+    cacheUserRoleColors(users);
+    return users;
   } catch {
     return INITIAL_USERS;
   }
@@ -27,7 +30,9 @@ const loadUsers = (): AppUser[] => {
 const loadCurrentUser = (): AppUser | null => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-    return saved ? JSON.parse(saved) : null;
+    const user: AppUser | null = saved ? JSON.parse(saved) : null;
+    cacheUserRoleColors([user]);
+    return user;
   } catch {
     return null;
   }
@@ -61,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ));
 
   useEffect(() => {
+    cacheUserRoleColors(users);
     try {
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     } catch (error) {
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       if (currentUser) {
+        cacheUserRoleColors([currentUser]);
         localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
       } else {
         localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
@@ -155,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: data.user.name,
       email: data.user.email,
       role: data.user.role,
+      roleColor: data.user.roleColor,
       avatar: data.user.avatar || '',
       phone: data.user.phone || '',
       status: data.user.status || 'active',
