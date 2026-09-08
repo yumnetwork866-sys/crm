@@ -60,10 +60,7 @@ export const PublicLandingView: React.FC<PublicLandingViewProps> = ({
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-extrabold text-slate-900">
             <a href="#features" className="hover:text-red-600 transition">Tính Năng</a>
-            <a href="#meta-integration" className="hover:text-red-600 transition flex items-center gap-1.5">
-              <span>Tích Hợp Meta</span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-700 border border-red-300">API v19.0</span>
-            </a>
+            <a href="#meta-integration" className="hover:text-red-600 transition">Tích Hợp Meta</a>
             <a href="#compliance" className="hover:text-red-600 transition">Pháp Lý &amp; Bảo Mật</a>
           </nav>
 
