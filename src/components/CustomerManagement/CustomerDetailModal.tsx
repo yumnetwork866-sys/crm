@@ -10,7 +10,6 @@ import {
   Phone,
   Plus,
   ReceiptText,
-  ShoppingBag,
   StickyNote,
   User,
   WalletCards,
@@ -140,33 +139,26 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              title="Đóng"
-              aria-label="Đóng chi tiết khách hàng"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2 sm:justify-end">
-
-            <button
-              type="button"
-              onClick={() => onOpenAddOrder(customer)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-500"
-            >
-              <ShoppingBag className="h-4 w-4" /> Tạo đơn
-            </button>
-            <button
-              type="button"
-              onClick={() => onEditCustomer(customer)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-            >
-              <Pencil className="h-4 w-4" /> Chỉnh sửa
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onEditCustomer(customer)}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                title="Chỉnh sửa thông tin khách hàng"
+                aria-label="Chỉnh sửa thông tin khách hàng"
+              >
+                <Pencil className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                title="Đóng"
+                aria-label="Đóng chi tiết khách hàng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -548,14 +540,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               </div>
 
               {/* Execution Logs */}
-              <div className="space-y-2">
-                <h5 className="font-bold text-xs text-slate-900">Lịch Sử Tin Nhắn Tự Động Đã Kích Hoạt</h5>
-                {(!customer.automationSequence?.logs || customer.automationSequence.logs.length === 0) ? (
-                  <div className="p-4 bg-white border border-slate-200 rounded-xl text-center text-xs text-slate-500 shadow-sm">
-                    Chưa có lịch sử tự động.
-                  </div>
-                ) : (
-                  customer.automationSequence.logs.map((log, idx) => (
+              {Boolean(customer.automationSequence?.logs && customer.automationSequence.logs.length > 0) && (
+                <div className="space-y-2">
+                  {customer.automationSequence!.logs.map((log, idx) => (
                     <div key={idx} className="bg-white border border-slate-200 p-3 rounded-xl text-xs space-y-1 shadow-sm">
                       <div className="flex justify-between text-slate-600 text-[11px]">
                         <span className="font-bold text-emerald-700">{log.stepName}</span>
@@ -563,9 +550,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                       </div>
                       <p className="text-slate-900 italic font-medium">"{log.message}"</p>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
 
             </div>
           )}
