@@ -399,8 +399,15 @@ export default function App() {
                   onClose={() => setIsDetailOpen(false)}
                   customer={selectedCustomer}
                   onOpenAddOrder={(cust) => {
+                    setIsDetailOpen(false);
                     setOrderCustomer(cust);
                     setIsOrderOpen(true);
+                  }}
+
+                  onEditCustomer={(cust) => {
+                    setIsDetailOpen(false);
+                    setEditingCustomer(cust);
+                    setIsFormOpen(true);
                   }}
                   onAddNote={handleAddNote}
                   onUpdateStatus={handleUpdateStatus}
