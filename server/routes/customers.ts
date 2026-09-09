@@ -46,8 +46,7 @@ const customerSchema = z.object({
   owner: z.string().default('Chưa phân công'),
   status: z.string().default('New Lead'),
   group: z.enum(['group_1', 'group_2', 'group_3', 'group_4']).default('group_1'),
-  interestedProducts: z.array(z.string()).default([]),
-  whatsappOptIn: z.boolean().default(false)
+  interestedProducts: z.array(z.string()).default([])
 });
 
 // All routes require authentication
@@ -61,7 +60,6 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       status,
       source,
       owner,
-      whatsappOptIn,
       page: pageQuery,
       limit: limitQuery,
       sortBy = 'name',
@@ -84,9 +82,6 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
     }
     if (owner && typeof owner === 'string' && owner !== 'all') {
       whereClause.owner = owner;
-    }
-    if (whatsappOptIn !== undefined && whatsappOptIn !== 'all') {
-      whereClause.whatsappOptIn = String(whatsappOptIn) === 'true';
     }
 
     if (search && typeof search === 'string') {
@@ -224,8 +219,6 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
         status: data.status,
         group: data.group,
         interestedProducts: data.interestedProducts,
-        whatsappOptIn: data.whatsappOptIn,
-        whatsappOptInDate: data.whatsappOptIn ? new Date() : null,
         firstContact: new Date(),
         lastContact: new Date(),
         notes: notesToCreate

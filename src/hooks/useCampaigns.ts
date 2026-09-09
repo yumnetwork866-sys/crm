@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AppUser,
   BroadcastCampaign,
+  CampaignAudiencePreview,
   CreateWhatsAppTemplateInput,
   LaunchCampaignInput,
   WhatsAppApprovedTemplate,
@@ -61,6 +62,11 @@ export function useCampaigns(currentUser: AppUser | null) {
     [createTemplateMutation]
   );
 
+  const previewCampaign = useCallback(
+    (input: LaunchCampaignInput) => api.post<CampaignAudiencePreview>('/campaigns/preview', input),
+    []
+  );
+
   const launchMutation = useMutation<BroadcastCampaign, Error, LaunchCampaignInput>({
     mutationFn: async (input) => {
       const saved = await api.post<any>('/campaigns/launch', input);
@@ -95,6 +101,7 @@ export function useCampaigns(currentUser: AppUser | null) {
     isCreateTemplatePending: createTemplateMutation.isPending,
     createTemplateError: createTemplateMutation.error,
     resetCreateTemplateError: createTemplateMutation.reset,
+    previewCampaign,
     launchCampaign,
     resetCampaigns,
     isLoading: campaignsQuery.isLoading,

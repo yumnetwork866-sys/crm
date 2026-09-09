@@ -130,8 +130,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 8500000,
     lastPurchaseDate: '2026-07-20',
     interestedProducts: ['Kem Dưỡng Da Collagen Premium', 'Serum Vitamin C Sáng Da'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-01',
     orders: [
       {
         id: 'ord_101',
@@ -199,8 +197,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalOrders: 0,
     totalSpent: 0,
     interestedProducts: ['Serum Vitamin C Sáng Da'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-15',
     orders: []
   },
   {
@@ -226,8 +222,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 1100000,
     lastPurchaseDate: '2026-07-18',
     interestedProducts: ['Bộ Chăm Sóc Tóc Thảo Dược'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-18',
     orders: [
       {
         id: 'ord_301',
@@ -272,8 +266,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 7000000,
     lastPurchaseDate: '2026-07-21',
     interestedProducts: ['Máy Rửa Mặt Ultrasonic Pro', 'Kem Chống Nắng SPF50+ PA++++'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-10',
     orders: [
       {
         id: 'ord_401',
@@ -324,7 +316,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalOrders: 0,
     totalSpent: 0,
     interestedProducts: ['Kem Chống Nắng SPF50+ PA++++'],
-    whatsappOptIn: false,
     orders: []
   },
   {
@@ -349,8 +340,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalOrders: 0,
     totalSpent: 0,
     interestedProducts: ['Sữa Rút Mặt Nhẹ Dịu Balance'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-08',
     orders: []
   },
   {
@@ -376,8 +365,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 4200000,
     lastPurchaseDate: '2026-07-05',
     interestedProducts: ['Kem Dưỡng Da Collagen Premium', 'Máy Rửa Mặt Ultrasonic Pro'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-07-05',
     orders: [
       {
         id: 'ord_701',
@@ -414,8 +401,6 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     totalSpent: 12400000,
     lastPurchaseDate: '2026-07-15',
     interestedProducts: ['Kem Dưỡng Da Collagen Premium', 'Son Dưỡng Ẩm Hồng Tự Nhiên'],
-    whatsappOptIn: true,
-    whatsappOptInDate: '2026-06-15',
     orders: [
       { id: 'o1', orderCode: 'DH-20260615-01', date: '2026-06-15', totalAmount: 2500000, status: 'Completed', products: [{ productName: 'Kem Dưỡng Da Collagen Premium', quantity: 1, price: 1800000 }, { productName: 'Son Dưỡng Ẩm Hồng Tự Nhiên', quantity: 2, price: 700000 }] },
       { id: 'o2', orderCode: 'DH-20260628-05', date: '2026-06-28', totalAmount: 3200000, status: 'Completed', products: [{ productName: 'Máy Rửa Mặt Ultrasonic Pro', quantity: 1, price: 3200000 }] },
@@ -436,7 +421,9 @@ export const INITIAL_CAMPAIGNS: BroadcastCampaign[] = [
     status: 'Completed',
     stats: {
       totalTargeted: 120,
-      optedInCount: 115,
+      eligibleCount: 115,
+      sessionOpenCount: 40,
+      templateRequiredCount: 75,
       sentCount: 115,
       deliveredCount: 112,
       readCount: 98,
@@ -453,7 +440,9 @@ export const INITIAL_CAMPAIGNS: BroadcastCampaign[] = [
     status: 'Completed',
     stats: {
       totalTargeted: 85,
-      optedInCount: 78,
+      eligibleCount: 78,
+      sessionOpenCount: 25,
+      templateRequiredCount: 53,
       sentCount: 78,
       deliveredCount: 76,
       readCount: 61,

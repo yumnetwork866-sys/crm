@@ -1783,11 +1783,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         </div>
                       )}
 
-                      <div className="relative pl-3 text-[11px]">
-                        <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-white"></span>
-                        <p className="font-bold text-slate-900">Đăng ký & Đồng thuận Opt-In</p>
-                        <p className="text-[10px] text-slate-500">Yum Network WABA Channel</p>
-                      </div>
                     </div>
                   </div>
 

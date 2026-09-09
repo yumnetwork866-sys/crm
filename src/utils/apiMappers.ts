@@ -13,9 +13,6 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
     lastContact: apiCustomer.lastContact
       ? new Date(apiCustomer.lastContact).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0],
-    whatsappOptInDate: apiCustomer.whatsappOptInDate
-      ? new Date(apiCustomer.whatsappOptInDate).toISOString().split('T')[0]
-      : undefined,
     lastPurchaseDate: apiCustomer.lastPurchaseDate
       ? new Date(apiCustomer.lastPurchaseDate).toISOString().split('T')[0]
       : undefined,
@@ -52,7 +49,9 @@ export const mapApiCampaignToFrontend = (apiCampaign: any): BroadcastCampaign =>
     : '',
   stats: apiCampaign.stats || {
     totalTargeted: apiCampaign.totalTargeted ?? 0,
-    optedInCount: apiCampaign.optedInCount ?? 0,
+    eligibleCount: apiCampaign.eligibleCount ?? 0,
+    sessionOpenCount: apiCampaign.sessionOpenCount ?? 0,
+    templateRequiredCount: apiCampaign.templateRequiredCount ?? 0,
     sentCount: apiCampaign.sentCount ?? 0,
     deliveredCount: apiCampaign.deliveredCount ?? 0,
     readCount: apiCampaign.readCount ?? 0,

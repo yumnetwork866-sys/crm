@@ -107,7 +107,6 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
         status,
         campaign: `Import CSV ${formatDate(new Date())}`,
         owner: 'Nguyễn Văn Ánh',
-        whatsappOptIn: true,
       };
     });
 
@@ -157,8 +156,6 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
       totalOrders: 0,
       totalSpent: 0,
       interestedProducts: [],
-      whatsappOptIn: true,
-      whatsappOptInDate: new Date().toISOString().split('T')[0],
       orders: [],
     }));
 

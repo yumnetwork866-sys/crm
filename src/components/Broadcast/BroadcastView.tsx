@@ -1,14 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Send, ShieldCheck, ShieldAlert, CheckCircle2, MessageSquare,
-  Users, Tag, Globe, Play, Layers, Clock
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Layers, MessageSquare, Send, Users } from 'lucide-react';
 import { AutomationMessagePreview } from '../Automation/AutomationMessagePreview';
 import type {
   AutomationParameterSource,
   AutomationTemplateParameterMapping,
   Customer,
   BroadcastCampaign,
+  CampaignAudiencePreview,
   LaunchCampaignInput,
   WhatsAppApprovedTemplate,
   WhatsAppTemplateCategory,
@@ -23,6 +21,7 @@ interface BroadcastViewProps {
   isTemplatesLoading: boolean;
   templatesError: Error | null;
   onRefetchTemplates: () => void;
+  onPreviewCampaign: (input: LaunchCampaignInput) => Promise<CampaignAudiencePreview>;
   onLaunchCampaign: (input: LaunchCampaignInput) => Promise<BroadcastCampaign>;
   isLaunchPending: boolean;
   launchError: Error | null;
@@ -70,6 +69,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   isTemplatesLoading,
   templatesError,
   onRefetchTemplates,
+  onPreviewCampaign,
   onLaunchCampaign,
   isLaunchPending,
   launchError,
@@ -86,12 +86,11 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   const [templateBody, setTemplateBody] = useState('');
   const [parameterSources, setParameterSources] = useState<TemplateParameterSource[]>([]);
   const [voucherCode, setVoucherCode] = useState('VOUCHER30OFF');
-
   const [templateText, setTemplateText] = useState('');
+  const [audiencePreview, setAudiencePreview] = useState<CampaignAudiencePreview | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
-
-  // Calculate targeted audience strictly conforming to WhatsApp Opt-in
-  const { targetedTotal, optedInTotal, eligibleCustomers } = useMemo(() => {
+  const { targetedTotal, eligibleCustomers } = useMemo(() => {
     const matched = customers.filter((c) => {
       // Group filter
       if (targetGroup === 'Khách mới') {
@@ -122,14 +121,68 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
       return true;
     });
 
-    const optedIn = matched.filter((c) => c.whatsappOptIn);
-
     return {
       targetedTotal: matched.length,
-      optedInTotal: optedIn.length,
-      eligibleCustomers: optedIn,
+      eligibleCustomers: matched,
     };
   }, [customers, targetGroup, targetProduct, targetGender]);
+
+  const campaignInput = useMemo<LaunchCampaignInput | null>(() => {
+    if (!campaignName.trim() || !templateName.trim() || !category || !templateText.trim()) return null;
+    return {
+      name: campaignName.trim(),
+      targetGroup,
+      targetProduct: targetProduct !== 'ALL' ? targetProduct : undefined,
+      targetGender: targetGender !== 'ALL' ? targetGender as 'Nam' | 'Nữ' | 'Khác' : undefined,
+      category,
+      templateName: templateName.trim(),
+      templateLanguage: templateLanguage.trim() || 'vi',
+      templateParameterSources: parameterSources,
+      messageTemplate: templateText.trim(),
+      voucherCode: voucherCode.trim() || undefined,
+    };
+  }, [
+    campaignName,
+    targetGroup,
+    targetProduct,
+    targetGender,
+    category,
+    templateName,
+    templateLanguage,
+    parameterSources,
+    templateText,
+    voucherCode,
+  ]);
+
+  useEffect(() => {
+    if (!campaignInput) {
+      setAudiencePreview(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+
+    let isCurrent = true;
+    const timer = window.setTimeout(() => {
+      setIsPreviewLoading(true);
+      void onPreviewCampaign(campaignInput)
+        .then((preview) => {
+          if (isCurrent) setAudiencePreview(preview);
+        })
+        .catch(() => {
+          if (isCurrent) setAudiencePreview(null);
+        })
+        .finally(() => {
+          if (isCurrent) setIsPreviewLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      isCurrent = false;
+      window.clearTimeout(timer);
+    };
+  }, [campaignInput, onPreviewCampaign]);
+
+  const eligibleTotal = audiencePreview?.eligibleCount ?? targetedTotal;
 
   const handleTemplateSelect = (templateKey: string) => {
     const template = approvedTemplates.find(
@@ -184,28 +237,16 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
       alert('Vui lòng nhập nội dung xem trước của template!');
       return;
     }
-    if (optedInTotal === 0) {
-      alert('Không có khách hàng hợp lệ (đã Opt-In WhatsApp) trong tập lựa chọn này!');
+    if (targetedTotal === 0) {
+      alert('Không có khách hàng trong tập lựa chọn này!');
       return;
     }
+    if (!campaignInput) return;
 
     onResetLaunchError();
     try {
-      const campaign = await onLaunchCampaign({
-        name: campaignName.trim(),
-        targetGroup,
-        targetProduct: targetProduct !== 'ALL' ? targetProduct : undefined,
-        targetGender: targetGender !== 'ALL'
-          ? targetGender as 'Nam' | 'Nữ' | 'Khác'
-          : undefined,
-        category,
-        templateName: templateName.trim(),
-        templateLanguage: templateLanguage.trim() || 'vi',
-        templateParameterSources: parameterSources,
-        messageTemplate: templateText.trim(),
-        voucherCode: voucherCode.trim() || undefined,
-      });
-      alert(`Chiến dịch đã được xếp hàng cho ${campaign.stats.optedInCount} khách hàng. Trạng thái gửi sẽ được cập nhật tự động.`);
+      const campaign = await onLaunchCampaign(campaignInput);
+      alert(`Chiến dịch đã được xếp hàng cho ${campaign.stats.eligibleCount} khách hàng: ${campaign.stats.sessionOpenCount} tin custom và ${campaign.stats.templateRequiredCount} tin template.`);
     } catch {
       // Mutation error is rendered inline below the launch button.
     }
@@ -339,18 +380,28 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
             </div>
 
             {/* Audience Count Summary Display */}
-            <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700/80 flex items-center justify-between">
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-700/80 bg-slate-800/80 p-4 sm:grid-cols-3">
               <div>
-                <div className="text-slate-400">Khách thỏa mãn bộ lọc:</div>
-                <div className="text-sm font-bold text-white">{targetedTotal} khách</div>
+                <div className="text-slate-400">Khách thỏa mãn bộ lọc</div>
+                <div className="text-lg font-extrabold text-white">{targetedTotal} khách</div>
               </div>
-
-              <div className="text-right">
-                <div className="text-[#00793d] dark:text-[#20a361] font-semibold flex items-center space-x-1 justify-end">
-                  <ShieldCheck className="w-4 h-4 text-[#00793d] dark:text-[#20a361]" />
-                  <span>Đủ điều kiện gửi (Opt-In):</span>
+              <div className="flex items-center gap-2 sm:border-l sm:border-slate-700 sm:pl-3">
+                <MessageSquare className="h-4 w-4 shrink-0 text-teal-400" />
+                <div>
+                  <div className="font-semibold text-teal-300">Custom trong 24h</div>
+                  <div className="text-lg font-extrabold text-white">
+                    {isPreviewLoading ? '…' : `${audiencePreview?.sessionOpenCount ?? 0} khách`}
+                  </div>
                 </div>
-                <div className="text-xl font-extrabold text-[#00793d] dark:text-[#20a361]">{optedInTotal} khách</div>
+              </div>
+              <div className="flex items-center gap-2 sm:border-l sm:border-slate-700 sm:pl-3">
+                <Layers className="h-4 w-4 shrink-0 text-amber-400" />
+                <div>
+                  <div className="font-semibold text-amber-300">Cần dùng template</div>
+                  <div className="text-lg font-extrabold text-white">
+                    {isPreviewLoading ? '…' : `${audiencePreview?.templateRequiredCount ?? 0} khách`}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -452,14 +503,14 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
           <div className="pt-2">
             <button
               onClick={() => void handleLaunch()}
-              disabled={isLaunchPending || optedInTotal === 0 || !templateName.trim()}
+              disabled={isLaunchPending || eligibleTotal === 0 || !templateName.trim()}
               className="w-full py-3 bg-[#00793d] hover:bg-[#006232] disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-[#00793d]/25 transition flex items-center justify-center space-x-2 text-sm"
             >
               <Send className="w-4 h-4" />
               <span>
                 {isLaunchPending
                   ? 'Đang kiểm tra template và xếp hàng...'
-                  : `Gửi Broadcast Cho ${optedInTotal} Khách Hàng`}
+                  : `Gửi Broadcast Cho ${eligibleTotal} Khách Hàng`}
               </span>
             </button>
 
@@ -521,6 +572,10 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                           <span>Template: <strong>{camp.templateName}</strong> ({camp.templateLanguage})</span>
                         </>
                       ) : null}
+                      <span>•</span>
+                      <span>Custom: <strong>{camp.stats.sessionOpenCount}</strong></span>
+                      <span>•</span>
+                      <span>Template: <strong>{camp.stats.templateRequiredCount}</strong></span>
                     </div>
                     {camp.lastError ? (
                       <p className="rounded-lg bg-rose-50 p-2 text-[10px] font-medium text-rose-700">

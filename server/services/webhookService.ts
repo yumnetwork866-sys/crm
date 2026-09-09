@@ -176,7 +176,7 @@ async function processCampaignStatuses(body: any) {
 }
 
 /**
- * Process entire Meta Webhook payload: parse, match, save, and mark opt-in
+ * Process entire Meta Webhook payload: parse, match, save, and update campaign delivery states
  */
 export async function processWebhookPayload(body: any): Promise<number> {
   let parsedBody = body;

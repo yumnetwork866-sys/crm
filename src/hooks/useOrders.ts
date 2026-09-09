@@ -187,8 +187,6 @@ export function useOrders() {
             totalOrders: 1,
             totalSpent: order.status === 'Completed' ? order.totalAmount : 0,
             interestedProducts: order.products.map((product) => product.productName),
-            whatsappOptIn: true,
-            whatsappOptInDate: new Date().toISOString().split('T')[0],
             orders: [{ ...order, customerId }],
           }, ...updated];
           return;

@@ -18,6 +18,7 @@ import {
   uploadTemplateSampleMedia,
   verifyApprovedMessageTemplate,
 } from '../services/metaApiClient';
+import { isWhatsAppSessionOpen } from '../services/whatsappSessionWindow';
 
 const router = Router();
 
@@ -482,19 +483,38 @@ async function loadAudience(input: CampaignInput) {
       phone: true,
       gender: true,
       interestedProducts: true,
-      whatsappOptIn: true,
     },
   });
   const targeted = customers.filter((customer) => matchesGender(customer.gender, input.targetGender));
-  const eligible = targeted.filter((customer) => customer.whatsappOptIn);
+  const customerIds = targeted.map((customer) => customer.id);
+  const inboundGroups = customerIds.length > 0
+    ? await prisma.whatsAppMessage.groupBy({
+      by: ['customerId'],
+      where: {
+        customerId: { in: customerIds },
+        sender: 'customer',
+        channel: 'WhatsApp',
+      },
+      _max: { timestamp: true },
+    })
+    : [];
+  const lastInboundByCustomer = new Map(
+    inboundGroups.flatMap((group) => group.customerId && group._max.timestamp
+      ? [[group.customerId, group._max.timestamp] as const]
+      : []),
+  );
   const seenPhones = new Set<string>();
-  const recipients = eligible.flatMap((customer) => {
+  const recipients = targeted.flatMap((customer) => {
     const normalizedPhone = normalizeWhatsAppPhone(customer.phone);
     if (!normalizedPhone || seenPhones.has(normalizedPhone)) return [];
     seenPhones.add(normalizedPhone);
+    const lastInboundAt = lastInboundByCustomer.get(customer.id) ?? null;
+    const plannedMessageType = isWhatsAppSessionOpen(lastInboundAt) ? 'Text' : 'Template';
     return [{
       customer,
       normalizedPhone,
+      lastInboundAt,
+      plannedMessageType,
       templateData: resolveTemplateData(
         input.messageTemplate,
         customer,
@@ -506,8 +526,10 @@ async function loadAudience(input: CampaignInput) {
   });
   return {
     totalTargeted: targeted.length,
-    optedInCount: eligible.length,
-    invalidOrDuplicateCount: eligible.length - recipients.length,
+    eligibleCount: recipients.length,
+    sessionOpenCount: recipients.filter((recipient) => recipient.plannedMessageType === 'Text').length,
+    templateRequiredCount: recipients.filter((recipient) => recipient.plannedMessageType === 'Template').length,
+    invalidOrDuplicateCount: targeted.length - recipients.length,
     recipients,
   };
 }
@@ -838,8 +860,9 @@ router.post('/preview', requirePermission(Permission.CAMPAIGNS_MANAGE), async (r
     const audience = await loadAudience(parsed.data);
     return res.json({
       totalTargeted: audience.totalTargeted,
-      optedInCount: audience.optedInCount,
-      eligibleCount: audience.recipients.length,
+      eligibleCount: audience.eligibleCount,
+      sessionOpenCount: audience.sessionOpenCount,
+      templateRequiredCount: audience.templateRequiredCount,
       invalidOrDuplicateCount: audience.invalidOrDuplicateCount,
     });
   } catch (error: any) {
@@ -847,7 +870,7 @@ router.post('/preview', requirePermission(Permission.CAMPAIGNS_MANAGE), async (r
   }
 });
 
-// POST /api/campaigns/launch - Snapshot recipients and enqueue approved template messages
+// POST /api/campaigns/launch - Snapshot recipients and enqueue messages selected by the 24-hour session window
 router.post(
   '/launch',
   requirePermission(Permission.CAMPAIGNS_MANAGE),
@@ -882,7 +905,7 @@ router.post(
 
       const audience = await loadAudience(input);
       if (audience.recipients.length === 0) {
-        return res.status(400).json({ error: 'Không có khách hàng Opt-In với số điện thoại hợp lệ trong tập lựa chọn.' });
+        return res.status(400).json({ error: 'Không có khách hàng với số điện thoại hợp lệ trong tập lựa chọn.' });
       }
 
       const maxRecipients = Math.max(1, Number(process.env.MAX_CAMPAIGN_RECIPIENTS) || 5_000);
@@ -905,19 +928,29 @@ router.post(
             messageTemplate: input.messageTemplate,
             status: 'Pending',
             totalTargeted: audience.totalTargeted,
-            optedInCount: audience.recipients.length,
+            eligibleCount: audience.eligibleCount,
+            sessionOpenCount: audience.sessionOpenCount,
+            templateRequiredCount: audience.templateRequiredCount,
             launchedById: req.user?.id,
             launchedAt: new Date(),
           },
         });
         await tx.broadcastRecipient.createMany({
-          data: audience.recipients.map(({ customer, normalizedPhone, templateData }) => ({
+          data: audience.recipients.map(({
+            customer,
+            normalizedPhone,
+            templateData,
+            plannedMessageType,
+            lastInboundAt,
+          }) => ({
             campaignId: created.id,
             customerId: customer.id,
             customerName: customer.name,
             customerPhone: customer.phone,
             normalizedPhone,
             templateParams: templateData,
+            plannedMessageType,
+            lastInboundAtSnapshot: lastInboundAt,
             status: 'Pending',
           })),
           skipDuplicates: true,
@@ -955,6 +988,10 @@ router.get('/:id/recipients', requirePermission(Permission.AUTOMATION_VIEW), asy
           customerName: true,
           customerPhone: true,
           status: true,
+          plannedMessageType: true,
+          actualMessageType: true,
+          lastInboundAtSnapshot: true,
+          windowEvaluatedAt: true,
           attemptCount: true,
           metaMessageId: true,
           lastErrorCode: true,

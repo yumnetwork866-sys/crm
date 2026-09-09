@@ -29,7 +29,6 @@ interface CustomerDetailModalProps {
   onEditCustomer: (customer: Customer) => void;
   onAddNote: (customerId: string, noteText: string) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
-  onToggleOptIn: (customerId: string) => void;
 }
 
 export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
@@ -40,7 +39,6 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onEditCustomer,
   onAddNote,
   onUpdateStatus,
-  onToggleOptIn,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'notes' | 'automation'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
@@ -55,7 +53,6 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const groupKey = getCustomerGroup(customer);
   const groupInfo = CUSTOMER_GROUPS[groupKey];
 
-  const isOptedIn = Boolean(customer.whatsappOptIn);
   const averageOrderValue = customer.totalOrders > 0 ? customer.totalSpent / customer.totalOrders : 0;
   const marketName = customer.country || 'Malaysia';
   const landingPageUrl = customer.landingPage && /^https?:\/\//i.test(customer.landingPage)
@@ -290,25 +287,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         {customer.address || 'Chưa cập nhật'}
                       </dd>
                     </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 py-3">
-                      <dt className="font-medium text-slate-500">WhatsApp Opt-In</dt>
-                      <dd className="flex items-center gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                          isOptedIn
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-rose-200 bg-rose-50 text-rose-700'
-                        }`}>
-                          {isOptedIn ? '✓ Opt-in Marketing' : '! Chưa Opt-in'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onToggleOptIn(customer.id)}
-                          className="text-[10px] font-semibold text-indigo-600 hover:underline"
-                        >
-                          Đổi trạng thái
-                        </button>
-                      </dd>
-                    </div>
+
                   </dl>
                 </section>
 
@@ -405,7 +384,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Tạo Đơn Hàng Mới</span>
+                  <span>Tạo Đơn</span>
                 </button>
               </div>
 

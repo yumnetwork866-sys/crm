@@ -421,6 +421,58 @@ export interface MetaTemplateDispatchResult {
   metaResult: any;
 }
 
+export async function dispatchMetaTextMessage(options: {
+  phoneId: string;
+  token: string;
+  cleanPhone: string;
+  content: string;
+}): Promise<MetaTemplateDispatchResult> {
+  const { phoneId, token, cleanPhone, content } = options;
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: cleanPhone,
+    type: 'text',
+    text: {
+      body: content,
+      preview_url: false,
+    },
+  };
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v26.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const metaResult: any = await response.json().catch(() => ({}));
+    const messageId = metaResult?.messages?.[0]?.id;
+    const metaCode = metaResult?.error?.code;
+    const retryable = response.status === 429 || response.status >= 500 || [1, 2, 4, 17, 32, 613].includes(metaCode);
+
+    return {
+      isRealSent: Boolean(response.ok && messageId),
+      messageId,
+      errorCode: metaCode ? String(metaCode) : undefined,
+      errorMessage: metaResult?.error?.message,
+      retryable,
+      metaResult,
+    };
+  } catch (error: any) {
+    return {
+      isRealSent: false,
+      errorCode: error?.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK_ERROR',
+      errorMessage: error?.message || 'Không thể kết nối WhatsApp Cloud API.',
+      retryable: true,
+      metaResult: null,
+    };
+  }
+}
+
 export interface WhatsAppApprovedTemplate {
   id?: string;
   name: string;

@@ -108,14 +108,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     setSelectedGroup,
     selectedOwner,
     setSelectedOwner,
-    selectedOptIn,
-    setSelectedOptIn,
     startDate,
     setStartDate,
     endDate,
     setEndDate,
     filteredCustomers,
-    isCustomerOptedIn,
   } = filterModel;
   const [startDateInput, setStartDateInput] = useState(startDate ? formatDate(startDate) : '');
   const [endDateInput, setEndDateInput] = useState(endDate ? formatDate(endDate) : '');
@@ -177,7 +174,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     selectedSource !== 'ALL',
     selectedGender !== 'ALL',
     selectedGroup !== 'ALL',
-    selectedOptIn !== 'ALL',
     Boolean(startDate || endDate),
   ].filter(Boolean).length;
 
@@ -193,7 +189,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     setSelectedGender('ALL');
     setSelectedGroup('ALL');
     setSelectedOwner('ALL');
-    setSelectedOptIn('ALL');
     clearDateFilters();
     setWorkQueueFilter('all');
   };
@@ -222,7 +217,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     const headers = [
       'ID', 'Name', 'Phone', 'Gender', 'Address', 'Email', 'Note', 'Source', 'Campaign',
       'AdSet', 'LandingPage', 'FirstContact', 'LastContact', 'Owner', 'Status', 'Group',
-      'TotalOrders', 'TotalSpentVND', 'WhatsAppOptIn',
+      'TotalOrders', 'TotalSpentVND',
     ];
     const rows = records.map((customer) => [
       customer.id,
@@ -243,7 +238,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       CUSTOMER_GROUPS[getCustomerGroup(customer)].name,
       customer.totalOrders,
       customer.totalSpent,
-      isCustomerOptedIn(customer) ? 'Opt-in' : 'No Opt-in',
     ]);
     const csvContent = `data:text/csv;charset=utf-8,\uFEFF${[headers.join(','), ...rows.map((row) => row.join(','))].join('\n')}`;
     const link = document.createElement('a');
@@ -396,14 +390,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                         <option value="Khác">Khác</option>
                       </select>
                     </label>
-                    <label className="text-xs font-semibold text-slate-600">
-                      WhatsApp Opt-in
-                      <select value={selectedOptIn} onChange={(event) => setSelectedOptIn(event.target.value)} className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800">
-                        <option value="ALL">Tất cả Opt-in</option>
-                        <option value="optin">Đã Opt-in</option>
-                        <option value="no_optin">Chưa Opt-in</option>
-                      </select>
-                    </label>
+
                     <label className="text-xs font-semibold text-slate-600">
                       Tiếp cận từ ngày
                       <input
@@ -482,7 +469,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
             {selectedSource !== 'ALL' && <FilterChip label={`Nguồn: ${selectedSource}`} onClear={() => setSelectedSource('ALL')} />}
             {selectedGroup !== 'ALL' && <FilterChip label={`Nhóm: ${CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name}`} onClear={() => setSelectedGroup('ALL')} />}
             {selectedGender !== 'ALL' && <FilterChip label={`Giới tính: ${selectedGender}`} onClear={() => setSelectedGender('ALL')} />}
-            {selectedOptIn !== 'ALL' && <FilterChip label={selectedOptIn === 'optin' ? 'Đã Opt-in' : 'Chưa Opt-in'} onClear={() => setSelectedOptIn('ALL')} />}
             {(startDate || endDate) && <FilterChip label={`Ngày: ${startDate ? formatDate(startDate) : '…'} – ${endDate ? formatDate(endDate) : '…'}`} onClear={clearDateFilters} />}
             <button type="button" onClick={clearAllFilters} className="ml-auto text-[11px] font-semibold text-indigo-600 hover:underline">Xóa tất cả</button>
           </div>
@@ -620,14 +606,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       <span className="font-medium text-slate-800 text-xs">{customer.phone || '—'}</span>
                     </td>
                     <td className="py-3 px-3 min-w-32">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <div className="font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</div>
-                        {isCustomerOptedIn(customer) ? (
-                          <SignalBadge label="Opt-in" className="bg-emerald-50 text-emerald-700 border-emerald-200" />
-                        ) : (
-                          <SignalBadge label="No Opt-in" className="bg-rose-50 text-rose-700 border-rose-200" />
-                        )}
-                      </div>
+                      <div className="font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</div>
                       {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim()) && (
                         <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>
                           {customer.campaign}

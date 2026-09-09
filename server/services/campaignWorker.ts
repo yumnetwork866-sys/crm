@@ -1,9 +1,11 @@
 import { prisma } from '../lib/prisma';
 import {
   dispatchMetaTemplateMessage,
+  dispatchMetaTextMessage,
   getIntegrationSetting,
   resolvePhoneNumberId,
 } from './metaApiClient';
+import { getLatestCustomerInboundAt, isWhatsAppSessionOpen } from './whatsappSessionWindow';
 
 const WORKER_INTERVAL_MS = Math.max(1_000, Number(process.env.CAMPAIGN_WORKER_INTERVAL_MS) || 2_000);
 const WORKER_CONCURRENCY = Math.max(1, Math.min(20, Number(process.env.CAMPAIGN_WORKER_CONCURRENCY) || 5));
@@ -159,25 +161,12 @@ async function processRecipient() {
       return true;
     }
 
-    if (recipient.customerId) {
-      const customer = await prisma.customer.findUnique({
-        where: { id: recipient.customerId },
-        select: { whatsappOptIn: true },
-      });
-      if (!customer?.whatsappOptIn) {
-        await prisma.broadcastRecipient.update({
-          where: { id: recipient.id },
-          data: {
-            status: 'Cancelled',
-            lockedAt: null,
-            lastErrorCode: 'OPT_OUT',
-            lastErrorMessage: 'Khách hàng đã thu hồi quyền nhận tin trước khi gửi.',
-          },
-        });
-        await aggregateCampaign(campaign.id);
-        return true;
-      }
-    }
+    const windowEvaluatedAt = new Date();
+    const latestInboundAt = recipient.customerId
+      ? await getLatestCustomerInboundAt(recipient.customerId)
+      : null;
+    const useTextMessage = isWhatsAppSessionOpen(latestInboundAt, windowEvaluatedAt);
+    const actualMessageType = useTextMessage ? 'Text' : 'Template';
 
     const setting = await getIntegrationSetting();
     const phoneId = await resolvePhoneNumberId(setting);
@@ -192,14 +181,22 @@ async function processRecipient() {
       bodyParameters?: string[];
       renderedMessage?: string;
     } | null;
-    const result = await dispatchMetaTemplateMessage({
-      phoneId,
-      token,
-      cleanPhone: recipient.normalizedPhone,
-      templateName: campaign.templateName,
-      languageCode: campaign.templateLanguage,
-      bodyParameters: templateData?.bodyParameters || [],
-    });
+    const renderedMessage = templateData?.renderedMessage || campaign.messageTemplate;
+    const result = useTextMessage
+      ? await dispatchMetaTextMessage({
+          phoneId,
+          token,
+          cleanPhone: recipient.normalizedPhone,
+          content: renderedMessage,
+        })
+      : await dispatchMetaTemplateMessage({
+          phoneId,
+          token,
+          cleanPhone: recipient.normalizedPhone,
+          templateName: campaign.templateName,
+          languageCode: campaign.templateLanguage,
+          bodyParameters: templateData?.bodyParameters || [],
+        });
 
     if (!result.isRealSent || !result.messageId) {
       await failRecipient(
@@ -207,19 +204,22 @@ async function processRecipient() {
         recipient.attemptCount + 1,
         result.retryable,
         result.errorCode || 'META_REJECTED',
-        result.errorMessage || 'Meta không chấp nhận tin nhắn template.',
+        result.errorMessage || `Meta không chấp nhận tin nhắn ${actualMessageType === 'Text' ? 'custom' : 'template'}.`,
       );
       await aggregateCampaign(campaign.id);
       return true;
     }
 
+    const sentAt = new Date();
     await prisma.$transaction([
       prisma.broadcastRecipient.update({
         where: { id: recipient.id },
         data: {
           status: 'Sent',
           metaMessageId: result.messageId,
-          sentAt: new Date(),
+          actualMessageType,
+          windowEvaluatedAt,
+          sentAt,
           lockedAt: null,
           nextAttemptAt: null,
           lastErrorCode: null,
@@ -237,10 +237,10 @@ async function processRecipient() {
           sender: 'agent',
           agentName: 'Broadcast Automation',
           channel: 'WhatsApp',
-          content: templateData?.renderedMessage || campaign.messageTemplate,
+          content: renderedMessage,
           isRead: true,
           isRealSent: true,
-          timestamp: new Date(),
+          timestamp: sentAt,
         },
       }),
     ]);

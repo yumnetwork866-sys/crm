@@ -56,9 +56,6 @@ model Customer {
   totalSpent         Float     @default(0)
   lastPurchaseDate   DateTime?
   interestedProducts String[]  @default([])
-  whatsappOptIn      Boolean   @default(false)
-  whatsappOptInDate  DateTime?
-
   notes            CustomerNote[]
   orders           Order[]
   automationLogs   AutomationLog[]
@@ -71,7 +68,6 @@ model Customer {
   @@index([status])
   @@index([owner])
   @@index([source])
-  @@index([whatsappOptIn])
   @@index([updatedAt(sort: Desc)])
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_name_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_phone_trgm_idx")
@@ -163,9 +159,11 @@ model BroadcastCampaign {
   templateLanguage String    @default("vi")
   messageTemplate  String
   status           String    @default("Draft") // Draft | Pending | Sending | Completed | PartiallyFailed | Failed | Cancelled
-  totalTargeted    Int       @default(0)
-  optedInCount     Int       @default(0)
-  sentCount        Int       @default(0)
+  totalTargeted         Int      @default(0)
+  eligibleCount         Int      @default(0)
+  sessionOpenCount      Int      @default(0)
+  templateRequiredCount Int      @default(0)
+  sentCount             Int      @default(0)
   deliveredCount   Int       @default(0)
   readCount        Int       @default(0)
   respondedCount   Int       @default(0)
@@ -190,8 +188,12 @@ model BroadcastRecipient {
   customerName     String
   customerPhone    String
   normalizedPhone  String
-  templateParams   Json?
-  status           String    @default("Pending") // Pending | Processing | Retry | Sent | Delivered | Read | Failed | Cancelled
+  templateParams        Json?
+  plannedMessageType    String?
+  actualMessageType     String?
+  lastInboundAtSnapshot DateTime?
+  windowEvaluatedAt     DateTime?
+  status                 String    @default("Pending") // Pending | Processing | Retry | Sent | Delivered | Read | Failed | Cancelled
   metaMessageId    String?   @unique
   attemptCount     Int       @default(0)
   nextAttemptAt    DateTime?
@@ -291,5 +293,6 @@ model WhatsAppMessage {
   @@index([customerId])
   @@index([customerPhone])
   @@index([timestamp(sort: Desc)])
+  @@index([customerId, sender, channel, timestamp(sort: Desc)])
   @@index([isRead, sender])
 }

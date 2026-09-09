@@ -40,7 +40,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [status, setStatus] = useState<CustomerStatus>('New Lead');
   const [group, setGroup] = useState<CustomerGroupId>('group_1');
   const [noteContent, setNoteContent] = useState('');
-  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
   useEffect(() => {
@@ -62,7 +61,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setOwner(initialData.owner || SALES_REPS[0]);
       setStatus(initialData.status || 'New Lead');
       setGroup(getCustomerGroup(initialData));
-      setWhatsappOptIn(initialData.whatsappOptIn ?? true);
       setSelectedProducts(initialData.interestedProducts || []);
     } else {
       setPhone('');
@@ -82,7 +80,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setStatus('New Lead');
       setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
-      setWhatsappOptIn(true);
       setSelectedProducts([INITIAL_PRODUCTS[0]]);
     }
   }, [initialData, isOpen]);
@@ -121,7 +118,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       owner,
       status,
       group,
-      whatsappOptIn,
       interestedProducts: selectedProducts,
       ...(noteContent && !initialData
         ? {
@@ -257,18 +253,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 />
               </div>
 
-              <div className="sm:col-span-2 flex items-center space-x-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="whatsappOptIn"
-                  checked={whatsappOptIn}
-                  onChange={(e) => setWhatsappOptIn(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-800"
-                />
-                <label htmlFor="whatsappOptIn" className="text-xs text-slate-300 cursor-pointer">
-                  Đồng ý nhận tin nhắn WhatsApp Business (Opt-in Policy)
-                </label>
-              </div>
             </div>
           </div>
 

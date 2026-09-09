@@ -253,21 +253,7 @@ export function useCentralMessages({
         }
       });
       eventSource.addEventListener('message:cleared', () => setMessages([]));
-      eventSource.addEventListener('customer:optin', (event: MessageEvent) => {
-        try {
-          const { customerId, whatsappOptIn } = JSON.parse(event.data);
-          if (!customerId) return;
-          setCustomers((previous) =>
-            previous.map((customer) =>
-              customer.id === customerId
-                ? { ...customer, whatsappOptIn: Boolean(whatsappOptIn) }
-                : customer
-            )
-          );
-        } catch {
-          // Ignore malformed realtime events.
-        }
-      });
+
       eventSource.onerror = (error) => {
         console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', error);
       };

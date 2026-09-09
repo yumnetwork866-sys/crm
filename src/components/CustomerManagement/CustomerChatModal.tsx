@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, CheckCheck, ShieldAlert } from 'lucide-react';
+import { X, Send, CheckCheck } from 'lucide-react';
 import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -50,7 +50,6 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     isAgent: m.sender === 'agent',
   }));
 
-  const isOptedIn = Boolean(customer.whatsappOptIn);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -67,18 +66,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
               />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-sm font-bold text-slate-900">{customer.name}</h3>
-                {isOptedIn ? (
-                  <span className="text-[10px] bg-emerald-100 text-[#00793d] border border-emerald-300 px-2 py-0.5 rounded-full font-medium">
-                    ✓ Opt-In Policy (WABA)
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full font-medium">
-                    ! Chưa Opt-In
-                  </span>
-                )}
-              </div>
+              <h3 className="text-sm font-bold text-slate-900">{customer.name}</h3>
               <p className="text-xs text-slate-500">{customer.phone}</p>
             </div>
           </div>
@@ -92,11 +80,6 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
           </button>
         </div>
 
-        {/* WhatsApp Policy Compliance Header */}
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-[11px] text-slate-700 flex items-center space-x-2 shrink-0">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-          <span>WhatsApp Business Platform: Tin nhắn tuân thủ chính sách Opt-In của khách hàng.</span>
-        </div>
 
         {/* Chat Messages Body */}
         <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-white">

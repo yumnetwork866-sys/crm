@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
-import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../types';
-import { compareVietnameseNames, formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
+import type { AppUser, Customer, CustomerGroupId, CustomerStatus } from '../types';
+import { compareVietnameseNames, formatDateTime, getCustomerGroup } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
@@ -36,14 +36,11 @@ export interface CustomerFilterModel {
   setSelectedGroup: Dispatch<SetStateAction<string>>;
   selectedOwner: string;
   setSelectedOwner: Dispatch<SetStateAction<string>>;
-  selectedOptIn: string;
-  setSelectedOptIn: Dispatch<SetStateAction<string>>;
   startDate: string;
   setStartDate: Dispatch<SetStateAction<string>>;
   endDate: string;
   setEndDate: Dispatch<SetStateAction<string>>;
   filteredCustomers: Customer[];
-  isCustomerOptedIn: (customer: Customer) => boolean;
 }
 
 const matchesGender = (customerGender: string | undefined, filterGender: string) => {
@@ -93,7 +90,6 @@ export function useCustomers(currentUser: AppUser | null) {
   const [selectedGender, setSelectedGender] = useState('ALL');
   const [selectedGroup, setSelectedGroup] = useState('ALL');
   const [selectedOwner, setSelectedOwner] = useState('ALL');
-  const [selectedOptIn, setSelectedOptIn] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -148,8 +144,6 @@ export function useCustomers(currentUser: AppUser | null) {
         totalOrders: 0,
         totalSpent: 0,
         interestedProducts: data.interestedProducts || [],
-        whatsappOptIn: data.whatsappOptIn ?? true,
-        whatsappOptInDate: new Date().toISOString().split('T')[0],
         orders: [],
       };
       queryClient.setQueryData<Customer[]>(queryKeys.customers, [optimistic, ...previous]);
@@ -259,27 +253,6 @@ export function useCustomers(currentUser: AppUser | null) {
     },
   });
 
-  const optInMutation = useMutation({
-    mutationFn: async ({ customerId, whatsappOptIn }: { customerId: string; whatsappOptIn: boolean }) =>
-      mapApiCustomerToFrontend(await api.put<any>(`/customers/${customerId}`, { whatsappOptIn })),
-    onMutate: async ({ customerId, whatsappOptIn }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
-      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
-      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
-        current.map((customer) => customer.id === customerId ? { ...customer, whatsappOptIn } : customer)
-      );
-      return { previous };
-    },
-    onError: (_error, _variables, context) => {
-      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
-    },
-    onSuccess: (saved) => {
-      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
-        current.map((customer) => customer.id === saved.id ? saved : customer)
-      );
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
-  });
 
   const noteMutation = useMutation({
     mutationFn: async ({ customerId, noteText, author }: { customerId: string; noteText: string; author: string }) => {
@@ -367,10 +340,7 @@ export function useCustomers(currentUser: AppUser | null) {
   const updateGroup = useCallback(async (customerId: string, group: CustomerGroupId) => {
     await groupMutation.mutateAsync({ customerId, group }).catch((error) => console.error('Error updating customer group:', error));
   }, [groupMutation]);
-  const toggleOptIn = useCallback(async (customerId: string) => {
-    const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
-    if (customer) await optInMutation.mutateAsync({ customerId, whatsappOptIn: !customer.whatsappOptIn }).catch((error) => console.error('Error updating opt-in:', error));
-  }, [optInMutation, queryClient]);
+
   const addNote = useCallback(async (customerId: string, noteText: string) => {
     const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
     if (customer) await noteMutation.mutateAsync({ customerId, noteText, author: customer.owner }).catch((error) => console.error('Error adding note:', error));
@@ -395,34 +365,7 @@ export function useCustomers(currentUser: AppUser | null) {
     queryClient.setQueryData(queryKeys.customers, INITIAL_CUSTOMERS);
   }, [queryClient]);
 
-  const buildFilterModel = useCallback((messages: CentralMessage[]): CustomerFilterModel => {
-    const chattedIdentifiers = new Set<string>();
-    messages.forEach((message) => {
-      if (message.customerPhone) {
-        const phone = message.customerPhone.replace(/\D/g, '');
-        if (phone) chattedIdentifiers.add(phone.length >= 7 ? phone.slice(-9) : phone);
-      }
-      if (message.customerId) {
-        const identifier = message.customerId.startsWith('cust_')
-          ? message.customerId.replace('cust_', '').replace(/\D/g, '')
-          : message.customerId;
-        if (identifier) {
-          chattedIdentifiers.add(identifier.length >= 7 ? identifier.slice(-9) : identifier);
-        }
-      }
-    });
-
-    const isCustomerOptedIn = (customer: Customer) => {
-      if (customer.whatsappOptIn || chattedIdentifiers.has(customer.id)) return true;
-      const phone = customer.phone?.replace(/\D/g, '') || '';
-      if (phone && (chattedIdentifiers.has(phone) || chattedIdentifiers.has(phone.slice(-9)))) return true;
-      return messages.some(
-        (message) => message.customerId === customer.id
-          || isSamePhoneNumber(message.customerPhone, customer.phone)
-          || isSamePhoneNumber(message.customerId, customer.phone)
-      );
-    };
-
+  const buildFilterModel = useCallback((): CustomerFilterModel => {
     const normalizedQuery = searchQuery.toLowerCase().trim();
     const filteredCustomers = sortCustomersByName(
       customers.filter((customer) => {
@@ -439,8 +382,6 @@ export function useCustomers(currentUser: AppUser | null) {
         if (selectedSource !== 'ALL' && customer.source !== selectedSource) return false;
         if (!matchesGender(customer.gender, selectedGender)) return false;
         if (selectedOwner !== 'ALL' && customer.owner !== selectedOwner) return false;
-        if (selectedOptIn === 'optin' && !isCustomerOptedIn(customer)) return false;
-        if (selectedOptIn === 'no_optin' && isCustomerOptedIn(customer)) return false;
         if (selectedGroup !== 'ALL' && getCustomerGroup(customer) !== selectedGroup) return false;
         if (startDate && customer.firstContact && customer.firstContact < startDate) return false;
         if (endDate && customer.firstContact && customer.firstContact > endDate) return false;
@@ -461,14 +402,11 @@ export function useCustomers(currentUser: AppUser | null) {
       setSelectedGroup,
       selectedOwner,
       setSelectedOwner,
-      selectedOptIn,
-      setSelectedOptIn,
       startDate,
       setStartDate,
       endDate,
       setEndDate,
       filteredCustomers,
-      isCustomerOptedIn,
     };
   }, [
     customers,
@@ -478,13 +416,12 @@ export function useCustomers(currentUser: AppUser | null) {
     selectedGender,
     selectedGroup,
     selectedOwner,
-    selectedOptIn,
     startDate,
     endDate,
   ]);
 
   const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
-    || statusMutation.error || groupMutation.error || optInMutation.error || noteMutation.error || automationMutation.error;
+    || statusMutation.error || groupMutation.error || noteMutation.error || automationMutation.error;
   return {
     customers,
     setCustomers,
@@ -495,7 +432,6 @@ export function useCustomers(currentUser: AppUser | null) {
     deleteCustomer,
     updateStatus,
     updateGroup,
-    toggleOptIn,
     addNote,
     runAutomationSimulation,
     resetCustomers,
@@ -505,6 +441,6 @@ export function useCustomers(currentUser: AppUser | null) {
     isError: customersQuery.isError || Boolean(mutationError),
     error: customersQuery.error || mutationError,
     isMutating: saveMutation.isPending || importMutation.isPending || deleteMutation.isPending
-      || statusMutation.isPending || groupMutation.isPending || optInMutation.isPending || noteMutation.isPending || automationMutation.isPending,
+      || statusMutation.isPending || groupMutation.isPending || noteMutation.isPending || automationMutation.isPending,
   };
 }

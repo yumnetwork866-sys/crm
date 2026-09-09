@@ -131,7 +131,6 @@ export default function App() {
     deleteCustomer,
     updateStatus: handleUpdateStatus,
     updateGroup: handleUpdateGroup,
-    toggleOptIn: handleToggleOptIn,
     addNote: handleAddNote,
     runAutomationSimulation,
     resetCustomers,
@@ -158,6 +157,7 @@ export default function App() {
     isCreateTemplatePending,
     createTemplateError,
     resetCreateTemplateError,
+    previewCampaign: handlePreviewCampaign,
     launchCampaign: handleLaunchCampaign,
     resetCampaigns,
     isError: isCampaignsError,
@@ -189,8 +189,8 @@ export default function App() {
     isError: isMessagesError,
   } = useCentralMessages({ customers, setCustomers, currentUser });
   const customerFilterModel = useMemo(
-    () => buildFilterModel(centralMessages),
-    [buildFilterModel, centralMessages]
+    () => buildFilterModel(),
+    [buildFilterModel]
   );
   const hasDataError = isCustomersError || isProductsError || isCampaignsError
     || isMessagesError || isOrdersError;
@@ -411,7 +411,6 @@ export default function App() {
                   }}
                   onAddNote={handleAddNote}
                   onUpdateStatus={handleUpdateStatus}
-                  onToggleOptIn={handleToggleOptIn}
                 />
 
                 <CustomerFormModal
@@ -552,6 +551,7 @@ export default function App() {
                     setSelectedCustomer(cust);
                     setIsDetailOpen(true);
                   }}
+                  onPreviewCampaign={handlePreviewCampaign}
                   onLaunchCampaign={handleLaunchCampaign}
                   isLaunchPending={isCampaignLaunchPending}
                   launchError={campaignLaunchError}

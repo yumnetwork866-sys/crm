@@ -99,9 +99,6 @@ export interface Customer {
   interestedProducts: string[];
   orders: CustomerOrder[];
 
-  // WhatsApp Policy Compliance
-  whatsappOptIn: boolean;
-  whatsappOptInDate?: string;
 
   // Automation Tracking
   automationSequence?: {
@@ -315,6 +312,14 @@ export interface LaunchCampaignInput {
   voucherCode?: string;
 }
 
+export interface CampaignAudiencePreview {
+  totalTargeted: number;
+  eligibleCount: number;
+  sessionOpenCount: number;
+  templateRequiredCount: number;
+  invalidOrDuplicateCount: number;
+}
+
 export interface BroadcastCampaign {
   id: string;
   name: string;
@@ -331,7 +336,9 @@ export interface BroadcastCampaign {
   lastError?: string;
   stats: {
     totalTargeted: number;
-    optedInCount: number;
+    eligibleCount: number;
+    sessionOpenCount: number;
+    templateRequiredCount: number;
     sentCount: number;
     deliveredCount: number;
     readCount: number;

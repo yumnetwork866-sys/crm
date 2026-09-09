@@ -3,6 +3,7 @@ import { FileText, Send, Zap } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import type {
   BroadcastCampaign,
+  CampaignAudiencePreview,
   CreateWhatsAppTemplateInput,
   Customer,
   LaunchCampaignInput,
@@ -27,6 +28,7 @@ interface AutomationHubProps {
   defaultTargetGroup?: string;
   onRunSimulation?: () => void;
   onSelectCustomer: (customer: Customer) => void;
+  onPreviewCampaign: (input: LaunchCampaignInput) => Promise<CampaignAudiencePreview>;
   onLaunchCampaign: (input: LaunchCampaignInput) => Promise<BroadcastCampaign>;
   isLaunchPending: boolean;
   launchError: Error | null;
@@ -68,6 +70,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   defaultTargetGroup = 'Tất cả khách hàng',
   onRunSimulation,
   onSelectCustomer,
+  onPreviewCampaign,
   onLaunchCampaign,
   isLaunchPending,
   launchError,
@@ -150,6 +153,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
             isTemplatesLoading={isTemplatesLoading}
             templatesError={templatesError}
             onRefetchTemplates={onRefetchTemplates}
+            onPreviewCampaign={onPreviewCampaign}
             onLaunchCampaign={onLaunchCampaign}
             isLaunchPending={isLaunchPending}
             launchError={launchError}
