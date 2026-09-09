@@ -211,41 +211,41 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             <div className="space-y-6">
 
               {/* Customer value metrics */}
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                    <ReceiptText className="h-4.5 w-4.5" />
+              <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <ReceiptText className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-slate-500">Tổng đơn hàng</div>
-                    <div className="mt-0.5 text-lg font-black text-slate-950">{customer.totalOrders} đơn</div>
+                    <div className="text-[10px] font-semibold text-slate-500">Tổng đơn hàng</div>
+                    <div className="mt-0.5 whitespace-nowrap text-sm font-black text-slate-950">{customer.totalOrders} đơn</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <WalletCards className="h-4.5 w-4.5" />
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <WalletCards className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-slate-500">Tổng chi tiêu</div>
-                    <div className="mt-0.5 truncate text-lg font-black text-emerald-700">{formatVND(customer.totalSpent)}</div>
+                    <div className="text-[10px] font-semibold text-slate-500">Tổng chi tiêu</div>
+                    <div className="mt-0.5 whitespace-nowrap text-sm font-black text-emerald-700">{formatVND(customer.totalSpent)}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                    <Calculator className="h-4.5 w-4.5" />
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                    <Calculator className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-slate-500">Trung bình mỗi đơn</div>
-                    <div className="mt-0.5 truncate text-lg font-black text-slate-950">{formatVND(averageOrderValue)}</div>
+                    <div className="text-[10px] font-semibold leading-tight text-slate-500">Trung bình mỗi đơn</div>
+                    <div className="mt-0.5 whitespace-nowrap text-sm font-black text-slate-950">{formatVND(averageOrderValue)}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                    <CalendarClock className="h-4.5 w-4.5" />
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                    <CalendarClock className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-slate-500">Mua gần nhất</div>
-                    <div className="mt-0.5 text-base font-black text-slate-950">{customer.lastPurchaseDate ? formatDate(customer.lastPurchaseDate) : '_'}</div>
+                    <div className="text-[10px] font-semibold text-slate-500">Mua gần nhất</div>
+                    <div className="mt-0.5 whitespace-nowrap text-sm font-black text-slate-950">{customer.lastPurchaseDate ? formatDate(customer.lastPurchaseDate) : '_'}</div>
                   </div>
                 </div>
               </div>
