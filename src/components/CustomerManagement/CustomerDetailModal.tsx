@@ -88,28 +88,27 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     {groupInfo.name}
                   </span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-slate-500">
                   <a href={`tel:${customer.phone}`} className="inline-flex items-center gap-1 font-semibold hover:text-indigo-600">
                     <Phone className="h-3.5 w-3.5" /> {customer.phone}
                   </a>
+                  <span className="text-slate-300">•</span>
                   <span>{marketName}</span>
+                  <span className="text-slate-300">•</span>
                   <span>{customer.gender || 'Chưa cập nhật'}</span>
-                </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-                  <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                    Trạng thái
-                    <select
-                      value={customer.status}
-                      onChange={(event) => onUpdateStatus(customer.id, event.target.value as CustomerStatus)}
-                      className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs font-bold shadow-sm outline-none ${getStatusColorClass(customer.status)}`}
-                    >
-                      <option value="New Lead">New Lead</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Quoted">Quoted</option>
-                      <option value="Won">Won</option>
-                      <option value="Lost">Lost</option>
-                    </select>
-                  </label>
+                  <span className="text-slate-300">•</span>
+                  <select
+                    value={customer.status}
+                    onChange={(event) => onUpdateStatus(customer.id, event.target.value as CustomerStatus)}
+                    aria-label="Trạng thái khách hàng"
+                    className={`cursor-pointer rounded-lg border px-2 py-0.5 text-[11px] font-bold shadow-sm outline-none ${getStatusColorClass(customer.status)}`}
+                  >
+                    <option value="New Lead">New Lead</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Quoted">Quoted</option>
+                    <option value="Won">Won</option>
+                    <option value="Lost">Lost</option>
+                  </select>
                   <span className="text-slate-300">•</span>
                   <div className="inline-flex items-center gap-1.5 text-[11px]">
                     <span className="font-semibold text-slate-500">Phụ trách</span>
