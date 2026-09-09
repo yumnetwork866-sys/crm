@@ -12,6 +12,8 @@ import type { InMemoryMessage } from '../services/messageStore';
 import { messageStore } from '../services/messageStore';
 import { verifyWebhookChallenge, processWebhookPayload } from '../services/webhookService';
 import { prisma } from '../lib/prisma';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Read current integration configuration
@@ -97,12 +99,58 @@ export async function saveConfig(req: Request, res: Response) {
   }
 }
 
+const AVATAR_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 ngày (24 giờ) cho avatar
+
+async function getOrUpdateWabaAvatar(phoneId: string, token: string, forceRefresh = false): Promise<string | undefined> {
+  const uploadsDir = path.resolve(process.cwd(), 'public/uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const filename = `waba_avatar_${phoneId}.jpg`;
+  const filePath = path.join(uploadsDir, filename);
+
+  const now = Date.now();
+  // 1. Kiểm tra cache file avatar trên đĩa: nếu đã tải và trong vòng 24h thì dùng ngay (0ms)
+  if (!forceRefresh && fs.existsSync(filePath)) {
+    try {
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs < AVATAR_CACHE_TTL_MS && stat.size > 0) {
+        return `/uploads/${filename}`;
+      }
+    } catch {
+      // Bỏ qua lỗi stat
+    }
+  }
+
+  // 2. Nếu chưa có hoặc file đã quá 1 ngày (24h): gọi Meta để lấy profile và tải avatar mới về
+  try {
+    const profile = await fetchWhatsAppBusinessProfile(phoneId, token);
+    if (profile?.profile_picture_url) {
+      const res = await fetch(profile.profile_picture_url, { signal: AbortSignal.timeout(10_000) });
+      if (res.ok) {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        fs.writeFileSync(filePath, buffer);
+        return `/uploads/${filename}`;
+      }
+    }
+  } catch (err) {
+    console.warn(`[WABA Avatar] Lỗi khi cập nhật avatar cho ${phoneId}:`, err);
+  }
+
+  if (fs.existsSync(filePath)) {
+    return `/uploads/${filename}`;
+  }
+  return undefined;
+}
+
 /**
  * Fetch all phone numbers associated with WABA ID
+ * (Danh sách số điện thoại KHÔNG lưu cache, luôn lấy danh sách mới nhất từ Meta.
+ *  Chỉ lưu cache avatar của từng số về máy và update 1 ngày 1 lần.)
  */
 export async function fetchPhoneNumbers(req: Request, res: Response) {
   try {
-    const { wabaId: inputWabaId } = req.body;
+    const { wabaId: inputWabaId, forceRefreshAvatar } = req.body;
 
     const setting = await getIntegrationSetting();
     const wabaId = (inputWabaId && inputWabaId.trim().length > 0) ? inputWabaId.trim() : setting.whatsappWabaId;
@@ -115,15 +163,18 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
       return res.status(400).json({ error: 'Vui lòng nhập Permanent Access Token từ Meta.' });
     }
 
+    // LUÔN gọi Meta để lấy danh sách số điện thoại mới nhất (KHÔNG lưu cache danh sách số)
     const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, token);
     const phoneNumbersWithProfiles = await Promise.all(
       phoneNumbers.map(async (phone: any) => {
-        const profile = await fetchWhatsAppBusinessProfile(phone.id, token);
+        // Chỉ avatar được lưu về máy và cache 1 ngày 1 lần
+        const avatarUrl = await getOrUpdateWabaAvatar(phone.id, token, Boolean(forceRefreshAvatar));
+
         return {
           id: phone.id,
           verifiedName: phone.verified_name || phone.display_phone_number || 'Chưa đặt tên',
           displayPhoneNumber: phone.display_phone_number || phone.id,
-          profilePictureUrl: profile?.profile_picture_url || undefined,
+          profilePictureUrl: avatarUrl,
           qualityRating: phone.quality_rating || 'UNKNOWN',
           codeVerificationStatus: phone.code_verification_status || 'VERIFIED',
         };

@@ -16,13 +16,14 @@ interface PhoneNumbersResponse {
 }
 
 export function useBusinessPhones() {
-  const [businessPhones, setBusinessPhones] = useState(DEFAULT_BUSINESS_PHONES);
+  const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>(DEFAULT_BUSINESS_PHONES);
   const [selectedPhoneId, setSelectedPhoneId] = useState(() =>
     localStorage.getItem(SELECTED_PHONE_KEY) || DEFAULT_BUSINESS_PHONES[0].id
   );
 
   useEffect(() => {
     let isMounted = true;
+
     async function loadPhones() {
       try {
         const configResponse = await fetch('/api/meta/config');
@@ -30,15 +31,17 @@ export function useBusinessPhones() {
         const config = await configResponse.json() as MetaConfigResponse;
 
         if (config.whatsappWabaId && config.hasAccessToken) {
+          // Luôn lấy danh sách số mới nhất từ Meta (không cache danh sách số)
           const phonesResponse = await fetch('/api/meta/fetch-phone-numbers', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ wabaId: config.whatsappWabaId }),
           });
+
           if (phonesResponse.ok) {
             const payload = await phonesResponse.json() as PhoneNumbersResponse;
             if (payload.success && payload.phoneNumbers?.length && isMounted) {
-              const phones = payload.phoneNumbers.map((phone) => ({
+              const phones: BusinessPhoneNumber[] = payload.phoneNumbers.map((phone) => ({
                 id: phone.id,
                 verifiedName: phone.verifiedName || 'Yum Network WABA',
                 displayPhoneNumber: phone.displayPhoneNumber || phone.id,
@@ -46,6 +49,7 @@ export function useBusinessPhones() {
                 qualityRating: phone.qualityRating || 'GREEN',
               }));
               setBusinessPhones(phones);
+
               const saved = localStorage.getItem(SELECTED_PHONE_KEY);
               const selected = phones.find((phone) =>
                 phone.id === saved || phone.id === config.whatsappPhoneNumberId

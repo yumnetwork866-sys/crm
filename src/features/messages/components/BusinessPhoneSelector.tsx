@@ -9,8 +9,9 @@ interface BusinessPhoneSelectorProps {
 }
 
 function getFallbackPhoneAvatarUrl(phone: BusinessPhoneNumber): string {
-  const seed = encodeURIComponent(`${phone.verifiedName}-${phone.displayPhoneNumber}`);
-  return `https://api.dicebear.com/10.x/initials/svg?seed=${seed}&backgroundColor=1fa855&fontFamily=Arial&fontWeight=700`;
+  const initial = (phone.verifiedName || phone.displayPhoneNumber || 'Y').trim().charAt(0).toUpperCase();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40"><rect width="40" height="40" rx="20" fill="#1fa855"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#ffffff">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 function getPhoneAvatarUrl(phone: BusinessPhoneNumber): string {

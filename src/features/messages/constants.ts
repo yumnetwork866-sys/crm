@@ -2,9 +2,10 @@ import type { BusinessPhoneNumber, ConversationStatus } from './types';
 
 export const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
   {
-    id: 'phone_601110716895',
-    verifiedName: 'Yum Network WABA (Chính)',
+    id: '1311189322067725',
+    verifiedName: 'Yum Network',
     displayPhoneNumber: '+60 11-1071 6895',
+    profilePictureUrl: '/uploads/waba_avatar_1311189322067725.jpg',
     qualityRating: 'GREEN',
   },
   {

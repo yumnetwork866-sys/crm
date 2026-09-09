@@ -55,19 +55,6 @@ interface CustomerListProps {
 
 const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
 
-const parseDisplayDate = (value: string) => {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return null;
-  const [, day, month, year] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  if (
-    date.getFullYear() !== Number(year) ||
-    date.getMonth() !== Number(month) - 1 ||
-    date.getDate() !== Number(day)
-  ) return null;
-  return `${year}-${month}-${day}`;
-};
-
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
   centralMessages = [],
@@ -114,26 +101,10 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     setEndDate,
     filteredCustomers,
   } = filterModel;
-  const [startDateInput, setStartDateInput] = useState(startDate ? formatDate(startDate) : '');
-  const [endDateInput, setEndDateInput] = useState(endDate ? formatDate(endDate) : '');
-
-  const handleStartDateChange = (value: string) => {
-    setStartDateInput(value);
-    if (!value) setStartDate('');
-    else setStartDate(parseDisplayDate(value) || '');
-  };
-
-  const handleEndDateChange = (value: string) => {
-    setEndDateInput(value);
-    if (!value) setEndDate('');
-    else setEndDate(parseDisplayDate(value) || '');
-  };
 
   const clearDateFilters = () => {
     setStartDate('');
     setEndDate('');
-    setStartDateInput('');
-    setEndDateInput('');
   };
 
   const sources = useMemo(() => Array.from(new Set(customers.map((c) => c.source))).sort(), [customers]);
@@ -394,27 +365,23 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     <label className="text-xs font-semibold text-slate-600">
                       Tiếp cận từ ngày
                       <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={10}
-                        value={startDateInput}
-                        onChange={(event) => handleStartDateChange(event.target.value)}
-                        placeholder="dd/mm/yyyy"
-                        aria-label="Ngày bắt đầu, định dạng dd/mm/yyyy"
-                        className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400"
+                        type="date"
+                        value={startDate}
+                        max={endDate || undefined}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        aria-label="Ngày bắt đầu"
+                        className="mt-1 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs text-slate-800"
                       />
                     </label>
                     <label className="text-xs font-semibold text-slate-600">
                       Đến ngày
                       <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={10}
-                        value={endDateInput}
-                        onChange={(event) => handleEndDateChange(event.target.value)}
-                        placeholder="dd/mm/yyyy"
-                        aria-label="Ngày kết thúc, định dạng dd/mm/yyyy"
-                        className="mt-1 w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400"
+                        type="date"
+                        value={endDate}
+                        min={startDate || undefined}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        aria-label="Ngày kết thúc"
+                        className="mt-1 w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs text-slate-800"
                       />
                     </label>
                   </div>
