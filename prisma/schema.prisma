@@ -69,6 +69,9 @@ model Customer {
   @@index([owner])
   @@index([source])
   @@index([updatedAt(sort: Desc)])
+  @@index([status, updatedAt(sort: Desc)])
+  @@index([owner, updatedAt(sort: Desc)])
+  @@index([source, updatedAt(sort: Desc)])
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_name_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_phone_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_email_trgm_idx")
@@ -130,6 +133,8 @@ model Order {
   @@index([customerId])
   @@index([status])
   @@index([date(sort: Desc)])
+  @@index([status, date(sort: Desc)])
+  @@index([customerId, date(sort: Desc)])
 }
 
 model OrderItem {

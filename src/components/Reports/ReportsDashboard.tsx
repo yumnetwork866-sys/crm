@@ -21,8 +21,6 @@ import {
   Download,
   FileSpreadsheet,
   ChevronDown,
-  Calendar,
-  Filter,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Permission } from '../../lib/permissions';
@@ -136,9 +134,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             <BarChart3 className="w-5 h-5 text-indigo-400" />
             <span>Trung Tâm Báo Cáo & Analytics CRM</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Xuất dữ liệu lưu trữ ngoại tuyến sang file CSV/Excel hỗ trợ tiếng Việt có dấu.
-          </p>
         </div>
 
         {/* Global Export Button Group */}
@@ -244,98 +239,59 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         )}
       </div>
 
-      {/* Date Range Filter Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div className="flex items-center space-x-2 text-slate-300 font-semibold text-xs shrink-0">
-          <Calendar className="w-4 h-4 text-indigo-400" />
-          <span>Lọc Báo Cáo Theo Thời Gian:</span>
-        </div>
+      {/* Date Filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Quick Presets Dropdown */}
+        <select
+          value={datePreset}
+          onChange={(e) => handlePresetChange(e.target.value as 'all' | 'today' | '7days' | 'this_month' | 'custom')}
+          className="bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-100 min-w-[190px] focus:outline-none focus:border-indigo-500 shadow-sm cursor-pointer"
+        >
+          <option value="all">Tất cả thời gian</option>
+          <option value="today">Hôm nay</option>
+          <option value="7days">7 ngày qua</option>
+          <option value="this_month">Tháng này</option>
+          <option value="custom">Tùy chọn ngày</option>
+        </select>
 
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          {/* Quick Presets */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
-            <button
-              onClick={() => handlePresetChange('all')}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                datePreset === 'all'
-                  ? 'bg-indigo-600 text-white font-semibold shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Tất cả
-            </button>
-            <button
-              onClick={() => handlePresetChange('today')}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                datePreset === 'today'
-                  ? 'bg-indigo-600 text-white font-semibold shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Hôm nay
-            </button>
-            <button
-              onClick={() => handlePresetChange('7days')}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                datePreset === '7days'
-                  ? 'bg-indigo-600 text-white font-semibold shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              7 ngày qua
-            </button>
-            <button
-              onClick={() => handlePresetChange('this_month')}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                datePreset === 'this_month'
-                  ? 'bg-indigo-600 text-white font-semibold shadow'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Tháng này
-            </button>
-          </div>
-
-          {/* Custom Date Pickers */}
-          <div className="flex items-center space-x-2 text-xs">
-            <div className="flex items-center space-x-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-              <span className="text-slate-500 text-[11px]">Từ:</span>
+        {/* Custom Date Pickers - Chỉ hiện khi chọn dropdown Tùy chọn ngày */}
+        {datePreset === 'custom' && (
+          <div className="flex items-center space-x-2 text-sm">
+            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2">
+              <span className="text-slate-400 text-xs">Từ:</span>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setDatePreset('custom');
-                }}
-                className="bg-transparent text-slate-200 focus:outline-none text-xs cursor-pointer"
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-slate-100 focus:outline-none text-sm cursor-pointer"
               />
             </div>
 
-            <span className="text-slate-500 text-xs">-</span>
+            <span className="text-slate-500 text-sm">-</span>
 
-            <div className="flex items-center space-x-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-              <span className="text-slate-500 text-[11px]">Đến:</span>
+            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2">
+              <span className="text-slate-400 text-xs">Đến:</span>
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setDatePreset('custom');
-                }}
-                className="bg-transparent text-slate-200 focus:outline-none text-xs cursor-pointer"
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-slate-100 focus:outline-none text-sm cursor-pointer"
               />
             </div>
 
             {(startDate || endDate) && (
               <button
-                onClick={() => handlePresetChange('all')}
-                className="text-[11px] text-indigo-400 hover:text-indigo-300 underline ml-1 cursor-pointer"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className="text-xs text-indigo-400 hover:text-indigo-300 underline ml-1 cursor-pointer"
               >
-                Xóa bộ lọc
+                Xóa ngày đã chọn
               </button>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Sub-navigation tabs */}

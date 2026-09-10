@@ -99,11 +99,19 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
     const validSortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
     const orderBy = { [validSortBy]: validSortOrder };
 
-    const queryInclude = {
-      notes: { orderBy: { createdAt: 'desc' as const } },
-      orders: { include: { products: true }, orderBy: { date: 'desc' as const } },
-      automationLogs: { orderBy: { sentAt: 'desc' as const } }
-    };
+    const isDetailed = req.query.detailed === 'true';
+
+    const queryInclude = isDetailed
+      ? {
+          notes: { orderBy: { createdAt: 'desc' as const } },
+          orders: { include: { products: true }, orderBy: { date: 'desc' as const } },
+          automationLogs: { orderBy: { sentAt: 'desc' as const } }
+        }
+      : {
+          notes: { select: { id: true, content: true, author: true, createdAt: true, type: true }, take: 5, orderBy: { createdAt: 'desc' as const } },
+          orders: { select: { id: true, orderCode: true, totalAmount: true, status: true, date: true }, take: 10, orderBy: { date: 'desc' as const } },
+          automationLogs: { select: { id: true, step: true, stepName: true, sentAt: true, message: true, status: true }, take: 5, orderBy: { sentAt: 'desc' as const } }
+        };
 
     let total = 0;
     let customers: any[] = [];
@@ -125,7 +133,8 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       customers = await prisma.customer.findMany({
         where: whereClause,
         include: queryInclude,
-        orderBy
+        orderBy,
+        take: 300 // Giới hạn an toàn chống tràn bộ nhớ (OOM)
       });
       total = customers.length;
     }

@@ -39,15 +39,17 @@ router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: Authentic
       ];
     }
 
+    const orderInclude = {
+      products: true,
+      customer: { select: { id: true, name: true, phone: true, avatar: true, status: true } }
+    };
+
     if (isPaginationRequested) {
       const [total, orders] = await Promise.all([
         prisma.order.count({ where: whereClause }),
         prisma.order.findMany({
           where: whereClause,
-          include: {
-            products: true,
-            customer: true
-          },
+          include: orderInclude,
           orderBy: { date: 'desc' },
           skip,
           take: limit
@@ -69,14 +71,12 @@ router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: Authentic
       });
     }
 
-    // Default full query when pagination is not requested
+    // Default query when pagination is not requested (với giới hạn an toàn chống tràn RAM)
     const orders = await prisma.order.findMany({
       where: whereClause,
-      include: {
-        products: true,
-        customer: true
-      },
-      orderBy: { date: 'desc' }
+      include: orderInclude,
+      orderBy: { date: 'desc' },
+      take: 250
     });
 
     return res.json(orders);

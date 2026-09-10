@@ -66,6 +66,8 @@ import { LoadOlderMessagesButton } from '../../features/messages/components/Load
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
 import { UserInfoModal } from '../Common/UserInfoModal';
 import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
+import { ThreadListItem } from '../../features/messages/components/ThreadListItem';
+import { CustomerChatDrawer } from '../../features/messages/components/CustomerChatDrawer';
 
 interface SavedMessageList {
   id: string;
@@ -133,7 +135,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
   const [selectedInfoUser, setSelectedInfoUser] = useState<AppUser | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
   const {
     soundEnabled,
     internalNotes,
@@ -148,21 +149,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   // Media lightbox is view-only state; composer media state lives in useMessageComposer.
   const [previewLightboxImg, setPreviewLightboxImg] = useState<string | null>(null);
 
-  const [newNoteText, setNewNoteText] = useState('');
-
   const isAdmin = hasPermission(Permission.MESSAGES_MANAGE);
-
-  const handleAddInternalNote = (customerId: string) => {
-    if (!newNoteText.trim()) return;
-    const note: InternalNote = {
-      id: `note_${Date.now()}`,
-      author: effectiveCurrentUser?.name || 'Nguyễn Văn Ánh',
-      content: newNoteText.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    addInternalNote(customerId, note);
-    setNewNoteText('');
-  };
 
   const { threads, filteredThreads, activeThread, groupedMessagesByDate } = useMessageThreads({
     messages,
@@ -478,165 +465,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 Không tìm thấy đoạn chat nào phù hợp.
               </div>
             ) : (
-              filteredThreads.map((thread) => {
-                const isSelected = activeThread?.threadId === thread.threadId;
-                const hasUnread = thread.unreadCount > 0;
-                const isAgentLast = thread.lastMessage.sender === 'agent';
-                const threadTime = new Date(thread.lastMessage.timestamp);
-                const isToday = threadTime.toDateString() === new Date().toDateString();
-                const timeString = isToday
-                  ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                  : formatDate(threadTime);
-
-                const slaWarning = getSlaWarning(thread);
-                const currentStatusKey = threadStatuses[thread.threadId] || 'consulting';
-                const currentStatus = STATUS_CONFIG[currentStatusKey];
-
-                return (
-                  <div
-                    key={thread.threadId}
-                    onClick={() => onSelectCustomerThread(thread.threadId, thread.customerPhone, thread.messages.map((m) => m.id))}
-                    className={`group px-3 py-3 flex items-start space-x-3 cursor-pointer transition relative ${
-                      isSelected
-                        ? 'bg-[#f0f2f5] border-l-4 border-[#1fa855]'
-                        : 'hover:bg-[#f5f6f6]'
-                    }`}
-                  >
-                    {/* Avatar with Dicebear Adventurer / custom photo & online dot */}
-                    <div className="relative shrink-0 mt-0.5">
-                      <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center shadow-sm overflow-hidden">
-                        <img
-                          src={thread.customer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId)}`}
-                          alt="avatar"
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
-                    </div>
-
-                    {/* Thread Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs truncate ${hasUnread ? 'font-black text-slate-950' : 'font-bold text-slate-800'}`}>
-                          {thread.customerName}
-                        </span>
-                        <span className={`text-[10px] shrink-0 ml-1 ${hasUnread ? 'text-[#1fa855] font-bold' : 'text-slate-400'}`}>
-                          {timeString}
-                        </span>
-                      </div>
-
-                      {/* Phone & Status / Group Tags */}
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className="text-[10px] text-slate-500 truncate font-mono">
-                          {formatPhoneWithCountryCode(thread.customerPhone, thread.customer?.country) || thread.customerPhone || 'WhatsApp'}
-                        </span>
-
-                        {/* Pipeline Status Tag */}
-                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}>
-                          {currentStatus.label}
-                        </span>
-
-                        {/* CRM Group Tag */}
-                        {thread.customer && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {thread.customer.totalOrders >= 2 ? 'VIP' : (thread.customer.totalOrders === 1 ? '1 Đơn' : 'Mới')}
-                          </span>
-                        )}
-
-                        {/* SLA Waiting Warning */}
-                        {slaWarning && (
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold border flex items-center gap-0.5 ${
-                              slaWarning.isSevere
-                                ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
-                                : 'bg-amber-100 text-amber-800 border-amber-300'
-                            }`}
-                            title={`Khách đang chờ phản hồi (${slaWarning.minutes} phút)`}
-                          >
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            <span>{slaWarning.label}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Last Message Snippet */}
-                      <div className="flex items-center justify-between mt-1">
-                        <p className={`text-xs truncate pr-1 flex items-center gap-1 ${hasUnread ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
-                          {isAgentLast && (
-                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
-                          )}
-                          <span className="truncate">
-                            {(() => {
-                              const c = thread.lastMessage.content;
-                              if (c.startsWith('data:image/') || c.startsWith('/uploads/') || c.startsWith('/api/meta/media/') || c.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif|webp)/i)) {
-                                const parts = c.split('\n');
-                                const cap = parts.slice(1).join(' ');
-                                return cap ? `📷 ${cap}` : '📷 [Hình ảnh]';
-                              }
-                              if (c.toLowerCase().startsWith('[image') || c.toLowerCase().startsWith('[hình ảnh') || c.toLowerCase() === '[photo]') {
-                                return `📷 ${c.replace(/\[image message\]/gi, '[Hình ảnh]').replace(/\[image\]/gi, '[Hình ảnh]')}`;
-                              }
-                              return c;
-                            })()}
-                          </span>
-                        </p>
-
-                        <div className="flex items-center space-x-1.5 shrink-0">
-                          {thread.isPinned && (
-                            <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#1fa855" fill="#1fa855" strokeWidth={2.2} />
-                          )}
-                          {hasUnread && (
-                            <span className="min-w-4.5 h-4.5 px-1 bg-[#1fa855] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
-                              {thread.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pin & Admin Quick Action buttons on hover (Clean standalone circular buttons) */}
-                    <div className="absolute right-2.5 top-2.5 hidden group-hover:flex items-center space-x-1.5 z-10 animate-in fade-in duration-100">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinThread(thread.threadId);
-                        }}
-                        className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
-                          thread.isPinned
-                            ? 'bg-[#e6f7f2] border-[#1fa855] hover:bg-[#d1f2e8]'
-                            : 'bg-white hover:bg-[#f1f5f9] border-[#cbd5e1]'
-                        }`}
-                        title={thread.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại lên đầu'}
-                      >
-                        <Pin
-                          className="w-3.5 h-3.5 rotate-45"
-                          stroke={thread.isPinned ? '#1fa855' : '#334155'}
-                          fill={thread.isPinned ? '#1fa855' : 'none'}
-                          strokeWidth={2.2}
-                        />
-                      </button>
-
-                      {isAdmin && onDeleteThread && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`[ADMIN] Xóa toàn bộ hội thoại với ${thread.customerName}?`)) {
-                              onDeleteThread(thread.customer?.id || thread.threadId || thread.lastMessage.customerId);
-                            }
-                          }}
-                          className="w-7 h-7 rounded-full bg-white hover:bg-[#ffe4e6] border border-[#cbd5e1] hover:border-[#e11d48] shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110"
-                          title="Xóa hội thoại"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" stroke="#64748b" strokeWidth={2} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              filteredThreads.map((thread) => (
+                <ThreadListItem
+                  key={thread.threadId}
+                  thread={thread}
+                  isSelected={activeThread?.threadId === thread.threadId}
+                  threadStatuses={threadStatuses}
+                  onSelectThread={onSelectCustomerThread}
+                  togglePinThread={togglePinThread}
+                  onDeleteThread={onDeleteThread}
+                  isAdmin={isAdmin}
+                  slaWarning={getSlaWarning(thread)}
+                />
+              ))
             )}
           </div>
         </div>
@@ -1617,299 +1458,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         {/* ========================================================
             COLUMN 3: COLLAPSIBLE CRM CUSTOMER PROFILE & QUICK ORDER DRAWER
            ======================================================== */}
-        {isDrawerOpen && activeThread && (
-          <div className="w-full lg:w-[320px] xl:w-90 bg-white border-l border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0">
-
-            {/* Drawer Header */}
-            <div className="p-3.5 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <User className="w-4 h-4 text-[#1fa855]" />
-                <span>Hồ Sơ Khách Hàng</span>
-              </h3>
-              <button
-                onClick={() => setIsDrawerOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
-                title="Thu gọn"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Tab Switcher: Overview vs Internal Notes */}
-            <div className="p-1.5 bg-slate-100 border-b border-slate-200 grid grid-cols-2 gap-1 shrink-0">
-              <button
-                onClick={() => setDrawerTab('overview')}
-                className={`py-1 px-2 rounded-md text-[11px] font-bold text-center transition cursor-pointer ${
-                  drawerTab === 'overview'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                👤 Tổng Quan
-              </button>
-              <button
-                onClick={() => setDrawerTab('notes')}
-                className={`py-1 px-2 rounded-md text-[11px] font-bold text-center transition cursor-pointer flex items-center justify-center gap-1 ${
-                  drawerTab === 'notes'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Edit3 className="w-3 h-3 text-amber-600" />
-                <span>Ghi Chú ({internalNotes[activeCustomer?.id || activeThread.threadId]?.length || 0})</span>
-              </button>
-            </div>
-
-            {/* Drawer Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs whatsapp-scrollbar">
-
-              {drawerTab === 'overview' ? (
-                <>
-                  {/* Profile Card */}
-                  <div className="text-center pb-3 border-b border-slate-200">
-                    <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
-                      <img
-                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
-                        alt="avatar"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <h4 className="text-sm font-extrabold text-slate-900">{activeThread.customerName}</h4>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</p>
-
-                    {/* Group Badge */}
-                    <div className="mt-2 inline-block">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${groupInfo.badgeColor}`}>
-                        {groupInfo.name}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons: Chốt Đơn & Xem Profile */}
-                  <div className="space-y-2">
-                    {activeCustomer ? (
-                      <>
-                        <button
-                          onClick={() => onOpenAddOrder(activeCustomer)}
-                          className="w-full py-2.5 px-3 bg-[#1fa855] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
-                        >
-                          <ShoppingBag className="chat-primary-action-icon w-4 h-4" />
-                          <span>+ Lên Đơn Hàng Mới</span>
-                        </button>
-
-                        <button
-                          onClick={() => onSelectCustomerDetail(activeCustomer)}
-                          className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-indigo-200 hover:border-indigo-300 shadow-2xs"
-                        >
-                          <span>Xem Hồ Sơ Chi Tiết</span>
-                          <ArrowUpRight className="w-4 h-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
-                        Khách hàng này đến từ tin nhắn Webhook mới và chưa tạo hồ sơ khách hàng đầy đủ trong CRM.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Financial Summary */}
-                  {activeCustomer && (
-                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Tổng số đơn:</span>
-                        <strong className="text-slate-900 font-extrabold">{activeCustomer.totalOrders} đơn</strong>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Tổng chi tiêu:</span>
-                        <strong className="text-emerald-700 font-extrabold">{formatVND(activeCustomer.totalSpent)}</strong>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Thị trường:</span>
-                        <span className="font-semibold text-slate-800">Malaysia (MY)</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Phụ trách:</span>
-                        <div className="flex items-center gap-1.5">
-                          {activeCustomer.owner && !['chưa phân công', 'unassigned', ''].includes(activeCustomer.owner.trim().toLowerCase()) ? (
-                            <>
-                              <img
-                                src={getOwnerAvatar(activeCustomer.owner)}
-                                alt={activeCustomer.owner}
-                                className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
-                                onError={(e) => {
-                                  e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const ownerUser = findUserByName(users, activeCustomer.owner);
-                                  if (ownerUser) setSelectedInfoUser(ownerUser);
-                                }}
-                                disabled={!findUserByName(users, activeCustomer.owner)}
-                                className="font-semibold hover:underline disabled:cursor-default disabled:no-underline"
-                                style={getUserRoleTextStyle(findUserByName(users, activeCustomer.owner))}
-                              >
-                                {activeCustomer.owner}
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-slate-400">Chưa phân công</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Customer Journey Timeline */}
-                  <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
-                    <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#1fa855]" />
-                      <span>Timeline</span>
-                    </span>
-
-                    <div className="space-y-2 pl-2 border-l-2 border-slate-300 ml-1.5 pt-1">
-                      <div className="relative pl-3 text-[11px]">
-                        <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
-                        <p className="font-bold text-slate-900">Đang trò chuyện trực tiếp</p>
-                        <p className="text-[10px] text-slate-500">Phiên chat WhatsApp Webhook</p>
-                      </div>
-
-                      {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
-                        <div className="relative pl-3 text-[11px]">
-                          <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white"></span>
-                          <p className="font-bold text-slate-900">Đã mua {activeCustomer.orders.length} đơn hàng</p>
-                          <p className="text-[10px] text-slate-500">Đơn gần nhất: {activeCustomer.orders[0].orderCode}</p>
-                        </div>
-                      )}
-
-                    </div>
-                  </div>
-
-                  {/* Automation Sequence Progress */}
-                  {activeCustomer?.automationSequence && (
-                    <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          Tiến Trình Chăm Sóc
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-700">
-                          Bước {activeCustomer.automationSequence.currentStep}/4
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-1 pt-1">
-                        {['+3', '+5', '+7', '+15'].map((step, idx) => {
-                          const isDone = (activeCustomer.automationSequence?.currentStep || 0) > idx;
-                          const isCurrent = (activeCustomer.automationSequence?.currentStep || 0) === idx + 1;
-
-                          return (
-                            <div
-                              key={step}
-                              className={`p-1.5 rounded-lg text-center font-bold text-[10px] border ${
-                                isDone
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                  : isCurrent
-                                  ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                                  : 'bg-white text-slate-400 border-slate-200'
-                              }`}
-                            >
-                              Ngày {step}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Recent Orders List */}
-                  {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between font-bold text-slate-800 text-[11px]">
-                        <span>Đơn hàng ({activeCustomer.orders.length})</span>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {activeCustomer.orders.slice(0, 3).map((ord) => (
-                          <div key={ord.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5">
-                            <div className="flex items-center justify-between font-bold text-slate-900">
-                              <span>{ord.orderCode}</span>
-                              <span className="text-emerald-700">{formatVND(ord.totalAmount)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-500">
-                              <span>{formatDate(ord.date)}</span>
-                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                                {ord.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* Internal Notes Tab */
-                <div className="space-y-3">
-                  {/* Add Note Form */}
-                  <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                    <textarea
-                      rows={2}
-                      value={newNoteText}
-                      onChange={(e) => setNewNoteText(e.target.value)}
-                      placeholder="Thêm ghi chú cho khách hàng này"
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#1fa855]"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => handleAddInternalNote(activeCustomer?.id || activeThread.threadId)}
-                        disabled={!newNoteText.trim()}
-                        className="px-3 py-1.5 bg-[#1fa855] hover:bg-[#006a57] disabled:opacity-50 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Lưu Ghi Chú</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Notes List */}
-                  <div className="space-y-2">
-                    {(() => {
-                      const notes = internalNotes[activeCustomer?.id || activeThread.threadId] || [];
-                      if (notes.length === 0) {
-                        return (
-                          <div className="p-6 text-center text-slate-400 text-xs">
-                            Chưa có ghi chú nội bộ nào cho khách hàng này.
-                          </div>
-                        );
-                      }
-
-                      return notes.map((note) => (
-                        <div key={note.id} className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative group">
-                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pr-5 text-[10px] text-slate-500">
-                            <span className="truncate font-bold text-slate-800">{note.author}</span>
-                            <span className="whitespace-nowrap">{formatDate(note.timestamp)} {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                          <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
-
-                          <button
-                            onClick={() => handleDeleteInternalNote(activeCustomer?.id || activeThread.threadId, note.id)}
-                            className="absolute top-2 right-2 hidden group-hover:block text-slate-400 hover:text-rose-600 transition"
-                            title="Xóa ghi chú"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-        )}
+        <CustomerChatDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          activeThread={activeThread}
+          activeCustomer={activeCustomer}
+          users={users}
+          internalNotes={internalNotes}
+          onOpenAddOrder={onOpenAddOrder}
+          onSelectCustomerDetail={onSelectCustomerDetail}
+          onAddInternalNote={addInternalNote}
+          onDeleteInternalNote={handleDeleteInternalNote}
+          onSelectUserForInfo={setSelectedInfoUser}
+          currentUserName={effectiveCurrentUser?.name || 'Tư vấn viên'}
+        />
 
       </div>
 
