@@ -232,7 +232,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
 
           <button
             onClick={() => setIsImportCsvOpen(true)}
-            className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-700/80 hover:bg-emerald-600 text-white border border-emerald-600/40 shadow-md transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
             title="Nhập danh sách sản phẩm hàng loạt bằng file CSV"
           >
             <Upload className="w-4 h-4" />

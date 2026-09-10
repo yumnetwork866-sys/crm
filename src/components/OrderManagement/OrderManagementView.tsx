@@ -270,7 +270,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
 
           <button
             onClick={() => setIsImportCsvOpen(true)}
-            className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-700/80 hover:bg-indigo-600 text-white border border-indigo-500/40 shadow-md transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-500/40 shadow-md transition active:scale-95 cursor-pointer"
             title="Nhập danh sách đơn hàng hàng loạt bằng file CSV"
           >
             <Upload className="w-4 h-4" />

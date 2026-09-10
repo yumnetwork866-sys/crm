@@ -32,70 +32,59 @@ export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({
 }) => {
   const [searchParams] = useSearchParams();
   const activeSection = searchParams.get('tab') === 'products' ? 'products' : 'orders';
-  const ordersCount = customers.reduce((total, customer) => total + (customer.orders?.length ?? 0), 0);
 
   const tabs = [
     {
       id: 'orders' as const,
       label: 'Đơn hàng',
-      count: ordersCount,
       icon: ShoppingBag,
       to: '/orders',
     },
     {
       id: 'products' as const,
       label: 'Sản phẩm',
-      count: products.length,
       icon: Package,
       to: '/orders?tab=products',
     },
   ];
 
   return (
-    <div className="space-y-5">
-      <div
-        className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1.5 shadow-sm"
-        role="tablist"
-        aria-label="Quản lý bán hàng"
-      >
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSection === tab.id;
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+          role="tablist"
+          aria-label="Quản lý bán hàng"
+        >
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSection === tab.id;
 
-          return (
-            <NavLink
-              key={tab.id}
-              to={tab.to}
-              role="tab"
-              aria-selected={isActive}
-              data-state={isActive ? 'active' : 'inactive'}
-              aria-controls={`${tab.id}-panel`}
-              className={`commerce-section-tab group flex min-w-0 items-center justify-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${
-                isActive
-                  ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
-              }`}
-            >
-              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors ${
-                isActive ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:text-slate-700'
-              }`}>
-                <Icon
-                  className="commerce-section-tab-icon h-4.5 w-4.5"
-                  aria-hidden="true"
-                  style={{ color: isActive ? '#ffffff' : '#000000', stroke: isActive ? '#ffffff' : '#000000' }}
-                />
-              </span>
-              <span className="min-w-0 flex items-center gap-2 text-left">
-                <span className="text-sm font-extrabold">{tab.label}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                  isActive ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
-                }`}>
-                  {tab.count}
+            return (
+              <NavLink
+                key={tab.id}
+                to={tab.to}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`${tab.id}-panel`}
+                className={`commerce-section-tab flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  isActive
+                    ? 'border-indigo-200 bg-indigo-50 text-indigo-900 shadow-sm'
+                    : 'border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <Icon aria-hidden="true" className="commerce-section-tab-icon h-4 w-4" />
                 </span>
-              </span>
-            </NavLink>
-          );
-        })}
+                <span className="min-w-0 text-sm font-bold">{tab.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
       </div>
 
       <section id="orders-panel" role="tabpanel" hidden={activeSection !== 'orders'}>
