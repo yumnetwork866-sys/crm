@@ -255,6 +255,9 @@ model IntegrationSetting {
   id                    String    @id @default("default")
   whatsappPhoneNumberId String?
   whatsappWabaId        String?
+  metaBusinessId        String?
+  whatsappAccessTokenEncrypted String?
+  whatsappTokenExpiresAt DateTime?
   whatsappVerifyToken   String?   @default("YUMNETWORK_CRM_META_VERIFY_TOKEN_2026")
   whatsappAppId         String?
   status                String    @default("disconnected") // 'connected' | 'disconnected' | 'error'

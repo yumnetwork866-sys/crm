@@ -17,10 +17,6 @@ export function getStatusColorClass(status: CustomerStatus | string): string {
   }
 }
 
-export function getOwnerBadgeClass(_ownerName?: string): string {
-  return 'text-slate-800 font-medium';
-}
-
 export function getOwnerAvatar(ownerName?: string): string {
   if (!ownerName) return '';
   const trimmed = ownerName.trim();
@@ -106,14 +102,6 @@ export function getGlobalCurrency(): CurrencyUnit {
     // fallback
   }
   return 'RM'; // Default to RM
-}
-
-export function setGlobalCurrency(unit: CurrencyUnit) {
-  try {
-    localStorage.setItem('vietcrm_currency_unit', unit);
-  } catch (e) {
-    console.error('Error saving currency unit:', e);
-  }
 }
 
 export function formatVND(amount: number, overrideUnit?: CurrencyUnit): string {

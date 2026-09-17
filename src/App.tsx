@@ -110,7 +110,6 @@ export default function App() {
     saveUser: handleSaveUser,
     deleteUser: handleDeleteUser,
     toggleUserStatus: handleToggleUserStatus,
-    resetAuth,
   } = useAuth();
 
   const { marketingReports, saveReports: setMarketingReports } = useMarketingReports(currentUser);
@@ -125,7 +124,6 @@ export default function App() {
     updateGroup: handleUpdateGroup,
     addNote: handleAddNote,
     runAutomationSimulation,
-    resetCustomers,
     buildFilterModel,
     isError: isCustomersError,
   } = useCustomers(currentUser);
@@ -135,7 +133,6 @@ export default function App() {
     editProduct: handleEditProduct,
     deleteProduct: handleDeleteProduct,
     importProducts: handleImportProducts,
-    resetProducts,
     isError: isProductsError,
   } = useProducts(currentUser);
   const {
@@ -151,7 +148,6 @@ export default function App() {
     resetCreateTemplateError,
     previewCampaign: handlePreviewCampaign,
     launchCampaign: handleLaunchCampaign,
-    resetCampaigns,
     isError: isCampaignsError,
     isLaunchPending: isCampaignLaunchPending,
     launchError: campaignLaunchError,
@@ -187,11 +183,6 @@ export default function App() {
   const hasDataError = isCustomersError || isProductsError || isCampaignsError
     || isMessagesError || isOrdersError;
 
-  const [autoSimCounter, setAutoSimCounter] = useState(1);
-  const [, setCurrencyTick] = useState(0);
-
-
-  // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -242,18 +233,7 @@ export default function App() {
 
   const handleRunAutomationSim = async () => {
     await runAutomationSimulation();
-    setAutoSimCounter((previous) => previous + 1);
     alert('Đã kích hoạt mô phỏng chạy gửi tin nhắn Automation Ngày +3, +5, +7, +15 thành công cho tất cả khách hàng!');
-  };
-
-  const handleResetData = () => {
-    if (confirm('Khôi phục lại dữ liệu CRM ban đầu?')) {
-      resetCustomers();
-      resetProducts();
-      resetCampaigns();
-      resetAuth();
-      alert('Đã khôi phục dữ liệu mẫu VietCRM!');
-    }
   };
 
   const handleNavigateToBroadcastGroup = (groupName: string) => {
@@ -290,7 +270,8 @@ export default function App() {
         <Route
           path="/meta-verification"
           element={
-            <div className="min-h-screen bg-slate-950 p-4 sm:p-8">
+            currentUser && hasPermission(Permission.ADMINISTRATOR) ? (
+              <div className="min-h-screen bg-slate-950 p-4 sm:p-8">
               <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="text-white font-bold text-lg">YumNetwork CRM Meta Review Portal</span>
@@ -305,7 +286,10 @@ export default function App() {
               <MetaVerificationView
                 onNavigateLegal={(page) => { void navigate(`/${page === 'deletion' ? 'data-deletion' : page}`); }}
               />
-            </div>
+              </div>
+            ) : (
+              <Navigate to={currentUser ? "/crm" : "/"} replace />
+            )
           }
         />
 
@@ -339,20 +323,9 @@ export default function App() {
               >
                 <Header
                   onChangeTab={handleTabChange}
-                  customers={customers}
                   currentUser={currentUser}
                   unreadMessagesCount={unreadMessagesCount}
                   onOpenLoginModal={() => setIsLoginOpen(true)}
-                  onOpenUsersTab={() => handleTabChange('users')}
-                  onAddCustomer={() => {
-                    setEditingCustomer(null);
-                    setIsFormOpen(true);
-                  }}
-                  onRunAutomationSim={handleRunAutomationSim}
-                  onResetData={handleResetData}
-                  usersCount={users.length}
-                  autoSimCount={autoSimCounter}
-                  onCurrencyChange={() => setCurrencyTick((t) => t + 1)}
                 />
 
                 {hasDataError && (

@@ -1,26 +1,4 @@
-import type { BusinessPhoneNumber, ConversationStatus } from './types';
-
-export const DEFAULT_BUSINESS_PHONES: BusinessPhoneNumber[] = [
-  {
-    id: '1311189322067725',
-    verifiedName: 'Yum Network',
-    displayPhoneNumber: '+60 11-1071 6895',
-    profilePictureUrl: '/uploads/waba_avatar_1311189322067725.jpg',
-    qualityRating: 'GREEN',
-  },
-  {
-    id: 'phone_60123456789',
-    verifiedName: 'Yum CSKH & Tư Vấn 01',
-    displayPhoneNumber: '+60 12 345 6789',
-    qualityRating: 'GREEN',
-  },
-  {
-    id: 'phone_84988123456',
-    verifiedName: 'Yum Hotline Việt Nam',
-    displayPhoneNumber: '+84 988 123 456',
-    qualityRating: 'GREEN',
-  },
-];
+import type { ConversationStatus } from './types';
 
 export const STATUS_CONFIG: Record<
   ConversationStatus,

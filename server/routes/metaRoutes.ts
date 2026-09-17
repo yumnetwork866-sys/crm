@@ -2,7 +2,9 @@ import { Router } from 'express';
 import {
   getConfig,
   saveConfig,
+  completeEmbeddedSignup,
   fetchPhoneNumbers,
+  getBusinessPhones,
   testConnection,
   handleDataDeletion,
   handleWebhookGet,
@@ -35,10 +37,12 @@ router.get('/stream', getRealtimeStream);
 // ==========================================
 // 2. Meta Integration & Configuration Routes
 // ==========================================
-router.get('/config', getConfig);
-router.post('/config', saveConfig);
-router.post('/fetch-phone-numbers', fetchPhoneNumbers);
-router.post('/test-connection', testConnection);
+router.get('/config', authenticateToken, requirePermission(Permission.ADMINISTRATOR), getConfig);
+router.post('/config', authenticateToken, requirePermission(Permission.ADMINISTRATOR), saveConfig);
+router.post('/embedded-signup/complete', authenticateToken, requirePermission(Permission.ADMINISTRATOR), completeEmbeddedSignup);
+router.post('/fetch-phone-numbers', authenticateToken, requirePermission(Permission.ADMINISTRATOR), fetchPhoneNumbers);
+router.get('/business-phones', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getBusinessPhones);
+router.post('/test-connection', authenticateToken, requirePermission(Permission.ADMINISTRATOR), testConnection);
 router.post('/data-deletion', handleDataDeletion);
 
 // ==========================================

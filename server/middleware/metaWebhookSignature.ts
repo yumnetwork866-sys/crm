@@ -32,9 +32,9 @@ export function verifyMetaWebhookSignature(
   res: Response,
   next: NextFunction
 ) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET?.trim();
+  const appSecret = process.env.META_APP_SECRET?.trim() || process.env.WHATSAPP_APP_SECRET?.trim();
   if (!appSecret) {
-    console.error('Meta webhook rejected: WHATSAPP_APP_SECRET is not configured.');
+    console.error('Meta webhook rejected: META_APP_SECRET is not configured.');
     return res.status(503).json({ error: 'Webhook signature verification is not configured.' });
   }
 

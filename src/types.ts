@@ -124,14 +124,6 @@ export interface CustomerGroupInfo {
   badgeColor: string;
 }
 
-export interface AutomationStepConfig {
-  stepNumber: number;
-  dayOffset: number; // +3, +5, +7, +15
-  title: string;
-  defaultTemplate: string;
-  iconName: string;
-}
-
 export type AutomationParameterSource =
   | 'customer_name'
   | 'customer_phone'
@@ -356,14 +348,6 @@ export interface MarketingCampaignReport {
   revenue: number; // VND
   cpl: number; // Cost Per Lead
   roas: number; // Return on Ad Spend (revenue / adSpend)
-}
-
-export interface SalesRepPerformance {
-  ownerName: string;
-  assignedLeads: number;
-  wonCustomers: number;
-  conversionRate: number; // %
-  totalRevenue: number;
 }
 
 export type UserRole = string;

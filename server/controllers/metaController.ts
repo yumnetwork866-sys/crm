@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import {
   getIntegrationSetting,
+  getMetaAccessToken,
   updateIntegrationSetting,
   resolvePhoneNumberId,
   ensureWabaSubscribed,
@@ -8,6 +9,7 @@ import {
   fetchWhatsAppBusinessProfile,
   dispatchMetaMessage
 } from '../services/metaApiClient';
+import { encryptMetaToken } from '../services/metaTokenCrypto';
 import type { InMemoryMessage } from '../services/messageStore';
 import { messageStore } from '../services/messageStore';
 import { verifyWebhookChallenge, processWebhookPayload } from '../services/webhookService';
@@ -23,7 +25,7 @@ export async function getConfig(req: Request, res: Response) {
     const setting = await getIntegrationSetting();
     const effectivePhoneId = await resolvePhoneNumberId(setting);
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const accessToken = await getMetaAccessToken(setting);
     const maskedToken = accessToken
       ? `${accessToken.substring(0, 8)}...${accessToken.substring(accessToken.length - 6)}`
       : '';
@@ -38,6 +40,11 @@ export async function getConfig(req: Request, res: Response) {
       lastConnectedAt: setting.lastConnectedAt,
       hasAccessToken: Boolean(accessToken),
       maskedAccessToken: maskedToken,
+      embeddedSignup: {
+        appId: process.env.META_APP_ID?.trim() || process.env.WHATSAPP_APP_ID?.trim() || '',
+        configurationId: process.env.META_EMBEDDED_SIGNUP_CONFIG_ID?.trim() || '',
+        graphVersion: process.env.META_GRAPH_VERSION?.trim() || 'v26.0',
+      },
       appUrl: process.env.APP_URL || '',
       webhookUrl: `${(process.env.APP_URL || '').replace(/\/$/, '')}/webhook`,
       updatedAt: setting.updatedAt
@@ -45,6 +52,87 @@ export async function getConfig(req: Request, res: Response) {
   } catch (error) {
     console.error('Lỗi khi đọc cấu hình Meta Integration:', error);
     return res.status(500).json({ error: 'Lỗi khi lấy cấu hình tích hợp Meta' });
+  }
+}
+
+/**
+ * Finish Facebook Login for Business by exchanging its one-time code server-side.
+ * WABA and phone IDs from the browser are verified against the returned token.
+ */
+export async function completeEmbeddedSignup(req: Request, res: Response) {
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const wabaId = typeof req.body?.wabaId === 'string' ? req.body.wabaId.trim() : '';
+  const phoneNumberId = typeof req.body?.phoneNumberId === 'string' ? req.body.phoneNumberId.trim() : '';
+  const businessId = typeof req.body?.businessId === 'string' ? req.body.businessId.trim() : '';
+
+  if (!code || code.length > 4_096 || !/^\d+$/.test(wabaId) || !/^\d+$/.test(phoneNumberId)) {
+    return res.status(400).json({ error: 'Kết quả Embedded Signup không đầy đủ hoặc không hợp lệ.' });
+  }
+  if (businessId && !/^\d+$/.test(businessId)) {
+    return res.status(400).json({ error: 'Meta Business ID không hợp lệ.' });
+  }
+
+  const appId = process.env.META_APP_ID?.trim() || process.env.WHATSAPP_APP_ID?.trim() || '';
+  const appSecret = process.env.META_APP_SECRET?.trim() || process.env.WHATSAPP_APP_SECRET?.trim() || '';
+  const graphVersion = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
+  if (!appId || !appSecret) {
+    return res.status(503).json({ error: 'Backend chưa cấu hình META_APP_ID và META_APP_SECRET.' });
+  }
+
+  try {
+    const exchangeQuery = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
+    const exchangeResponse = await fetch(
+      `https://graph.facebook.com/${graphVersion}/oauth/access_token?${exchangeQuery.toString()}`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    const exchangeResult: any = await exchangeResponse.json().catch(() => ({}));
+    const accessToken = typeof exchangeResult?.access_token === 'string' ? exchangeResult.access_token.trim() : '';
+    if (!exchangeResponse.ok || !accessToken) {
+      return res.status(502).json({
+        error: exchangeResult?.error?.message || 'Meta không thể đổi authorization code thành access token.',
+      });
+    }
+
+    const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
+    const selectedPhone = phoneNumbers.find((phone: any) => String(phone?.id || '') === phoneNumberId);
+    if (!selectedPhone) {
+      return res.status(403).json({ error: 'Phone Number ID không thuộc WABA mà Meta vừa cấp quyền.' });
+    }
+
+    const subscribed = await ensureWabaSubscribed(wabaId, accessToken);
+    if (!subscribed) {
+      return res.status(502).json({ error: 'Đã nhận quyền WABA nhưng chưa thể đăng ký webhook cho tài khoản này.' });
+    }
+
+    const expiresIn = Number(exchangeResult?.expires_in);
+    const tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0
+      ? new Date(Date.now() + expiresIn * 1_000)
+      : null;
+    const now = new Date();
+    await updateIntegrationSetting({
+      whatsappPhoneNumberId: phoneNumberId,
+      whatsappWabaId: wabaId,
+      metaBusinessId: businessId || null,
+      whatsappAppId: appId,
+      whatsappAccessTokenEncrypted: encryptMetaToken(accessToken),
+      whatsappTokenExpiresAt: tokenExpiresAt,
+      status: 'connected',
+      lastConnectedAt: now,
+    }, { requirePersistence: true });
+
+    return res.json({
+      success: true,
+      status: 'connected',
+      wabaId,
+      phoneNumberId,
+      businessId: businessId || null,
+      displayPhoneNumber: selectedPhone.display_phone_number || '',
+      verifiedName: selectedPhone.verified_name || '',
+      lastConnectedAt: now,
+    });
+  } catch (error: any) {
+    console.error('[META EMBEDDED SIGNUP] Không thể hoàn tất kết nối:', error?.message || error);
+    return res.status(502).json({ error: error?.message || 'Không thể hoàn tất Embedded Signup với Meta.' });
   }
 }
 
@@ -62,7 +150,7 @@ export async function saveConfig(req: Request, res: Response) {
 
     const existing = await getIntegrationSetting();
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const accessToken = await getMetaAccessToken(existing);
 
     const finalPhoneId = whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId;
     const isFullyConfigured = Boolean(accessToken && finalPhoneId);
@@ -154,7 +242,7 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
 
     const setting = await getIntegrationSetting();
     const wabaId = (inputWabaId && inputWabaId.trim().length > 0) ? inputWabaId.trim() : setting.whatsappWabaId;
-    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = await getMetaAccessToken(setting);
 
     if (!wabaId) {
       return res.status(400).json({ error: 'Vui lòng nhập WhatsApp Business Account ID (WABA ID).' });
@@ -192,6 +280,37 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
   }
 }
 
+/** Read-only phone list for authenticated messaging users. */
+export async function getBusinessPhones(req: Request, res: Response) {
+  try {
+    const setting = await getIntegrationSetting();
+    const wabaId = setting.whatsappWabaId?.trim() || '';
+    const token = await getMetaAccessToken(setting);
+    if (!wabaId || !token) {
+      return res.json({ success: true, phoneNumbers: [], selectedPhoneNumberId: '' });
+    }
+
+    const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, token);
+    const normalized = await Promise.all(phoneNumbers.map(async (phone: any) => ({
+      id: String(phone.id),
+      verifiedName: phone.verified_name || phone.display_phone_number || 'WhatsApp Business',
+      displayPhoneNumber: phone.display_phone_number || String(phone.id),
+      profilePictureUrl: await getOrUpdateWabaAvatar(String(phone.id), token),
+      qualityRating: phone.quality_rating || 'UNKNOWN',
+      codeVerificationStatus: phone.code_verification_status || 'VERIFIED',
+    })));
+
+    return res.json({
+      success: true,
+      phoneNumbers: normalized,
+      selectedPhoneNumberId: setting.whatsappPhoneNumberId || normalized[0]?.id || '',
+    });
+  } catch (error: any) {
+    console.error('[META BUSINESS PHONES]', error?.message || error);
+    return res.status(502).json({ error: error?.message || 'Không thể tải số WhatsApp Business từ Meta.' });
+  }
+}
+
 /**
  * Test WhatsApp Cloud API connection by sending a message
  */
@@ -201,7 +320,7 @@ export async function testConnection(req: Request, res: Response) {
 
     const setting = await getIntegrationSetting();
     const phoneId = overridePhoneId || (await resolvePhoneNumberId(setting));
-    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = await getMetaAccessToken(setting);
 
     if (!phoneId) {
       return res.status(400).json({ error: 'Chưa cấu hình Phone Number ID. Vui lòng nhập Phone Number ID trước khi test.' });

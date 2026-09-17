@@ -11,7 +11,7 @@ import {
   Camera,
   KeyRound,
 } from 'lucide-react';
-import type { Customer, AppUser } from '../types';
+import type { AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
 import type { ActiveTab } from './Navigation';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,17 +26,9 @@ const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props
 
 interface HeaderProps {
   onChangeTab: (tab: ActiveTab) => void;
-  customers: Customer[];
   currentUser: AppUser | null;
   unreadMessagesCount?: number;
   onOpenLoginModal: () => void;
-  onOpenUsersTab?: () => void;
-  onAddCustomer?: () => void;
-  onRunAutomationSim?: () => void;
-  onResetData?: () => void;
-  usersCount?: number;
-  autoSimCount?: number;
-  onCurrencyChange?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({

@@ -3,6 +3,7 @@ import {
   dispatchMetaTemplateMessage,
   dispatchMetaTextMessage,
   getIntegrationSetting,
+  getMetaAccessToken,
   resolvePhoneNumberId,
 } from './metaApiClient';
 import { getLatestCustomerInboundAt, isWhatsAppSessionOpen } from './whatsappSessionWindow';
@@ -170,7 +171,7 @@ async function processRecipient() {
 
     const setting = await getIntegrationSetting();
     const phoneId = await resolvePhoneNumberId(setting);
-    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = await getMetaAccessToken(setting);
     if (!phoneId || !token) {
       await failRecipient(recipient.id, recipient.attemptCount + 1, true, 'NOT_CONFIGURED', 'Chưa cấu hình WhatsApp Phone Number ID hoặc access token.');
       await aggregateCampaign(campaign.id);

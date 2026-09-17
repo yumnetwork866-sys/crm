@@ -7,6 +7,7 @@ import { realtimeHub } from '../services/realtimeHub';
 import { getRouteParam } from '../utils/requestParams';
 import {
   getIntegrationSetting,
+  getMetaAccessToken,
   resolvePhoneNumberId,
   dispatchMetaMessage,
   dispatchMetaReaction,
@@ -281,7 +282,7 @@ export async function sendMessage(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = await getMetaAccessToken(setting);
 
     let metaResult: any = null;
     let isRealSent = false;
@@ -391,7 +392,7 @@ export async function sendReaction(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    const token = await getMetaAccessToken(setting);
 
     let isRealSent = false;
     let metaResult: any = null;

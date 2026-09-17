@@ -1,12 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/prisma';
+import { decryptMetaToken } from './metaTokenCrypto';
 
 export interface IntegrationSettingData {
   id: string;
   whatsappVerifyToken: string;
   whatsappPhoneNumberId?: string | null;
   whatsappWabaId?: string | null;
+  metaBusinessId?: string | null;
+  whatsappAccessTokenEncrypted?: string | null;
+  whatsappTokenExpiresAt?: Date | null;
   whatsappAppId?: string | null;
   status: string;
   lastConnectedAt?: Date | null;
@@ -20,7 +24,7 @@ let inMemorySetting: IntegrationSettingData = {
   whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
   whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-  whatsappAppId: process.env.WHATSAPP_APP_ID || '',
+  whatsappAppId: process.env.META_APP_ID || process.env.WHATSAPP_APP_ID || '',
   status: process.env.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'disconnected',
   lastConnectedAt: null,
   createdAt: new Date(),
@@ -43,20 +47,22 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
         }
       });
     }
-    // Environment variables take precedence over DB values if provided
+    // An Embedded Signup connection is authoritative. Legacy environment values
+    // remain as a backwards-compatible fallback for installations not onboarded yet.
+    const hasEmbeddedConnection = Boolean(setting.whatsappAccessTokenEncrypted);
     const envWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim();
     const envToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
     const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
     const envVerifyToken = process.env.META_VERIFY_TOKEN?.trim();
-    const envAppId = process.env.WHATSAPP_APP_ID?.trim();
+    const envAppId = process.env.META_APP_ID?.trim() || process.env.WHATSAPP_APP_ID?.trim();
 
     const mergedSetting: IntegrationSettingData = {
       ...setting,
-      whatsappWabaId: envWabaId || setting.whatsappWabaId || '',
-      whatsappPhoneNumberId: envPhoneId || setting.whatsappPhoneNumberId || '',
+      whatsappWabaId: hasEmbeddedConnection ? (setting.whatsappWabaId || '') : (envWabaId || setting.whatsappWabaId || ''),
+      whatsappPhoneNumberId: hasEmbeddedConnection ? (setting.whatsappPhoneNumberId || '') : (envPhoneId || setting.whatsappPhoneNumberId || ''),
       whatsappVerifyToken: envVerifyToken || setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: envAppId || setting.whatsappAppId || '',
-      status: envToken ? 'connected' : (setting.status || 'disconnected')
+      status: hasEmbeddedConnection || envToken ? 'connected' : (setting.status || 'disconnected')
     };
     // Sync in-memory store with DB & env
     inMemorySetting = { ...mergedSetting };
@@ -70,11 +76,19 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
 /**
  * Update integration settings in DB and memory
  */
-export async function updateIntegrationSetting(data: Partial<IntegrationSettingData>): Promise<IntegrationSettingData> {
+export async function updateIntegrationSetting(
+  data: Partial<IntegrationSettingData>,
+  options: { requirePersistence?: boolean } = {},
+): Promise<IntegrationSettingData> {
   try {
-    const updated = await prisma.integrationSetting.update({
+    const updated = await prisma.integrationSetting.upsert({
       where: { id: 'default' },
-      data
+      update: data,
+      create: {
+        id: 'default',
+        whatsappVerifyToken: process.env.META_VERIFY_TOKEN || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
+        ...data,
+      },
     });
     inMemorySetting = {
       ...updated,
@@ -84,9 +98,24 @@ export async function updateIntegrationSetting(data: Partial<IntegrationSettingD
     };
     return inMemorySetting;
   } catch (dbErr) {
+    if (options.requirePersistence) throw dbErr;
     inMemorySetting = { ...inMemorySetting, ...data, updatedAt: new Date() };
     return inMemorySetting;
   }
+}
+
+/** Resolve the active token without exposing it through an HTTP response. */
+export async function getMetaAccessToken(setting?: IntegrationSettingData): Promise<string> {
+  const resolvedSetting = setting || await getIntegrationSetting();
+  if (resolvedSetting.whatsappAccessTokenEncrypted) {
+    try {
+      return decryptMetaToken(resolvedSetting.whatsappAccessTokenEncrypted);
+    } catch (error) {
+      console.error('[META TOKEN] Không thể giải mã access token đã lưu:', error instanceof Error ? error.message : error);
+      return '';
+    }
+  }
+  return process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 }
 
 /**
@@ -97,7 +126,7 @@ export async function resolvePhoneNumberId(setting: IntegrationSettingData): Pro
     return setting.whatsappPhoneNumberId.trim();
   }
   const wabaId = setting.whatsappWabaId?.trim();
-  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+  const token = await getMetaAccessToken(setting);
   if (!wabaId || !token) {
     return '';
   }
@@ -1316,7 +1345,7 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
 
   // 2. Query Meta API
   const setting = await getIntegrationSetting();
-  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+  const token = await getMetaAccessToken(setting);
 
   if (!token) {
     throw new Error('Meta Access Token not configured');
