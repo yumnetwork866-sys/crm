@@ -10,6 +10,7 @@ import {
   LogOut,
   Camera,
   KeyRound,
+  Link2,
 } from 'lucide-react';
 import type { AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
@@ -148,6 +149,13 @@ export const Header: React.FC<HeaderProps> = ({
       icon: WhatsAppIcon,
       badge: unreadMessagesCount,
       permission: Permission.MESSAGES_VIEW,
+    },
+    {
+      id: 'meta-verification' as ActiveTab,
+      label: 'Kết nối Meta',
+      subtitle: 'Quản lý số WhatsApp',
+      icon: Link2,
+      permission: Permission.ADMINISTRATOR,
     },
   ];
 

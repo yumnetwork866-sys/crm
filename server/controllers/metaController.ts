@@ -61,11 +61,18 @@ export async function getConfig(req: Request, res: Response) {
  */
 export async function completeEmbeddedSignup(req: Request, res: Response) {
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const providedAccessToken = typeof req.body?.accessToken === 'string' ? req.body.accessToken.trim() : '';
   const wabaId = typeof req.body?.wabaId === 'string' ? req.body.wabaId.trim() : '';
   const phoneNumberId = typeof req.body?.phoneNumberId === 'string' ? req.body.phoneNumberId.trim() : '';
   const businessId = typeof req.body?.businessId === 'string' ? req.body.businessId.trim() : '';
 
-  if (!code || code.length > 4_096 || !/^\d+$/.test(wabaId) || !/^\d+$/.test(phoneNumberId)) {
+  if (
+    (!code && !providedAccessToken)
+    || code.length > 4_096
+    || providedAccessToken.length > 8_192
+    || !/^\d+$/.test(wabaId)
+    || !/^\d+$/.test(phoneNumberId)
+  ) {
     return res.status(400).json({ error: 'Kết quả Embedded Signup không đầy đủ hoặc không hợp lệ.' });
   }
   if (businessId && !/^\d+$/.test(businessId)) {
@@ -80,17 +87,22 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
   }
 
   try {
-    const exchangeQuery = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
-    const exchangeResponse = await fetch(
-      `https://graph.facebook.com/${graphVersion}/oauth/access_token?${exchangeQuery.toString()}`,
-      { signal: AbortSignal.timeout(15_000) },
-    );
-    const exchangeResult: any = await exchangeResponse.json().catch(() => ({}));
-    const accessToken = typeof exchangeResult?.access_token === 'string' ? exchangeResult.access_token.trim() : '';
-    if (!exchangeResponse.ok || !accessToken) {
-      return res.status(502).json({
-        error: exchangeResult?.error?.message || 'Meta không thể đổi authorization code thành access token.',
-      });
+    let accessToken = providedAccessToken;
+    let expiresIn = 0;
+    if (!accessToken) {
+      const exchangeQuery = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
+      const exchangeResponse = await fetch(
+        `https://graph.facebook.com/${graphVersion}/oauth/access_token?${exchangeQuery.toString()}`,
+        { signal: AbortSignal.timeout(15_000) },
+      );
+      const exchangeResult: any = await exchangeResponse.json().catch(() => ({}));
+      accessToken = typeof exchangeResult?.access_token === 'string' ? exchangeResult.access_token.trim() : '';
+      expiresIn = Number(exchangeResult?.expires_in);
+      if (!exchangeResponse.ok || !accessToken) {
+        return res.status(502).json({
+          error: exchangeResult?.error?.message || 'Meta không thể đổi authorization code thành access token.',
+        });
+      }
     }
 
     const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
@@ -104,7 +116,6 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       return res.status(502).json({ error: 'Đã nhận quyền WABA nhưng chưa thể đăng ký webhook cho tài khoản này.' });
     }
 
-    const expiresIn = Number(exchangeResult?.expires_in);
     const tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0
       ? new Date(Date.now() + expiresIn * 1_000)
       : null;

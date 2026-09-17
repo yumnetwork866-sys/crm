@@ -318,7 +318,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               selectedPhoneId={selectedPhoneId}
               onSelect={handleSelectBusinessPhone}
             />
-
           </div>
 
           {/* Search Box */}

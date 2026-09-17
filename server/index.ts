@@ -223,12 +223,21 @@ async function setupFrontend() {
     });
   } else {
     const distPath = path.resolve(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    }));
 
     app.get('/{*splat}', (req, res, next) => {
       if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
         return next();
       }
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'), (err) => {
         if (err) {
           next(err);

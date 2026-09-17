@@ -267,32 +267,6 @@ export default function App() {
           path="/data-deletion"
           element={<DataDeletionView onBackToApp={() => { void navigate(currentUser ? '/crm' : '/'); }} />}
         />
-        <Route
-          path="/meta-verification"
-          element={
-            currentUser && hasPermission(Permission.ADMINISTRATOR) ? (
-              <div className="min-h-screen bg-slate-950 p-4 sm:p-8">
-              <div className="max-w-7xl mx-auto mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-white font-bold text-lg">YumNetwork CRM Meta Review Portal</span>
-                </div>
-                <button
-                  onClick={() => { void navigate(currentUser ? '/crm' : '/'); }}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer"
-                >
-                  {currentUser ? 'Quay lại CRM' : 'Quay lại Đăng Nhập'}
-                </button>
-              </div>
-              <MetaVerificationView
-                onNavigateLegal={(page) => { void navigate(`/${page === 'deletion' ? 'data-deletion' : page}`); }}
-              />
-              </div>
-            ) : (
-              <Navigate to={currentUser ? "/crm" : "/"} replace />
-            )
-          }
-        />
-
         {/* Public Landing & Login flow for unauthenticated users */}
         {!currentUser ? (
           <Route
@@ -589,6 +563,18 @@ export default function App() {
                   isLoadingOlderMessages={isLoadingOlderMessages}
                   onLoadOlderMessages={loadOlderMessages}
                 />
+              }
+            />
+            <Route
+              path="/meta-verification"
+              element={
+                hasPermission(Permission.ADMINISTRATOR) ? (
+                  <MetaVerificationView
+                    onNavigateLegal={(page) => { void navigate(`/${page === 'deletion' ? 'data-deletion' : page}`); }}
+                  />
+                ) : (
+                  <Navigate to="/crm" replace />
+                )
               }
             />
             <Route path="*" element={<Navigate to="/crm" replace />} />

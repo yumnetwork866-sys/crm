@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { 
   RefreshCw, 
   AlertTriangle, 
@@ -8,6 +9,7 @@ import {
   Building2,
   Link2,
   LoaderCircle,
+  Plus,
 } from 'lucide-react';
 import { getStoredToken } from '../../utils/apiClient';
 
@@ -18,8 +20,13 @@ type EmbeddedSignupSession = {
 };
 
 type FacebookLoginResponse = {
-  authResponse?: { code?: string };
+  authResponse?: { code?: string; accessToken?: string };
   status?: string;
+};
+
+type EmbeddedSignupCredential = {
+  code?: string;
+  accessToken?: string;
 };
 
 declare global {
@@ -87,10 +94,12 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   );
   const [graphVersion, setGraphVersion] = useState(import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [activeSection, setActiveSection] = useState<'numbers' | 'add'>('numbers');
   const [signupAlert, setSignupAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const signupCodeRef = useRef('');
+  const signupCredentialRef = useRef<EmbeddedSignupCredential | null>(null);
   const signupSessionRef = useRef<EmbeddedSignupSession | null>(null);
   const isCompletingRef = useRef(false);
+  const credentialWaitTimerRef = useRef<number | null>(null);
 
   // Phone Numbers List State
   const [phoneNumbersList, setPhoneNumbersList] = useState<PhoneItem[]>([]);
@@ -182,7 +191,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     void fetchConfig();
   }, [fetchConfig]);
 
-  const completeEmbeddedSignup = useCallback(async (code: string, session: EmbeddedSignupSession) => {
+  const completeEmbeddedSignup = useCallback(async (credential: EmbeddedSignupCredential, session: EmbeddedSignupSession) => {
     if (isCompletingRef.current) return;
     isCompletingRef.current = true;
     setIsConnecting(true);
@@ -190,7 +199,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     try {
       const { ok, data } = await safeJsonFetch('/api/meta/embedded-signup/complete', {
         method: 'POST',
-        body: JSON.stringify({ code, ...session }),
+        body: JSON.stringify({ ...credential, ...session }),
       });
       if (!ok) throw new Error(data.error || 'Không thể hoàn tất kết nối WhatsApp.');
       setSignupAlert({
@@ -201,10 +210,11 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       setPhoneId(data.phoneNumberId || session.phoneNumberId);
       setConnectionStatus('connected');
       await fetchPhoneNumbersList(data.wabaId || session.wabaId);
+      setActiveSection('numbers');
     } catch (error) {
       setSignupAlert({ type: 'error', message: error instanceof Error ? error.message : 'Không thể kết nối Meta.' });
     } finally {
-      signupCodeRef.current = '';
+      signupCredentialRef.current = null;
       signupSessionRef.current = null;
       isCompletingRef.current = false;
       setIsConnecting(false);
@@ -220,11 +230,13 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       }
       if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return;
       if (payload.event === 'CANCEL') {
+        if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
         setIsConnecting(false);
         setSignupAlert({ type: 'error', message: 'Bạn đã đóng hoặc hủy quy trình kết nối WhatsApp.' });
         return;
       }
       if (payload.event === 'ERROR') {
+        if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
         setIsConnecting(false);
         setSignupAlert({ type: 'error', message: payload?.data?.error_message || 'Meta báo lỗi trong Embedded Signup.' });
         return;
@@ -240,12 +252,26 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         phoneNumberId: String(data.phone_number_id),
         businessId: data.business_id ? String(data.business_id) : undefined,
       };
-      if (signupCodeRef.current) {
-        void completeEmbeddedSignup(signupCodeRef.current, signupSessionRef.current);
+      if (signupCredentialRef.current) {
+        void completeEmbeddedSignup(signupCredentialRef.current, signupSessionRef.current);
+      } else {
+        if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+        credentialWaitTimerRef.current = window.setTimeout(() => {
+          if (!signupCredentialRef.current && signupSessionRef.current && !isCompletingRef.current) {
+            setIsConnecting(false);
+            setSignupAlert({
+              type: 'error',
+              message: 'Meta đã hoàn tất chọn WABA nhưng không trả thông tin xác thực. Hãy kiểm tra loại token trong Facebook Login for Business Configuration.',
+            });
+          }
+        }, 3_000);
       }
     };
     window.addEventListener('message', receiveMessage);
-    return () => window.removeEventListener('message', receiveMessage);
+    return () => {
+      window.removeEventListener('message', receiveMessage);
+      if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+    };
   }, [completeEmbeddedSignup]);
 
   const startEmbeddedSignup = useCallback(async () => {
@@ -253,29 +279,42 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       setSignupAlert({ type: 'error', message: 'Thiếu Meta App ID hoặc Embedded Signup Configuration ID.' });
       return;
     }
-    setIsConnecting(true);
-    setSignupAlert(null);
-    signupCodeRef.current = '';
+    flushSync(() => {
+      setIsConnecting(true);
+      setSignupAlert(null);
+    });
+    signupCredentialRef.current = null;
     signupSessionRef.current = null;
+    if (credentialWaitTimerRef.current !== null) {
+      window.clearTimeout(credentialWaitTimerRef.current);
+      credentialWaitTimerRef.current = null;
+    }
     try {
       await loadFacebookSdk(metaAppId, graphVersion);
       if (!window.FB) throw new Error('Facebook SDK chưa sẵn sàng.');
       window.FB.login((response) => {
         const code = response.authResponse?.code?.trim() || '';
-        if (!code) {
-          setIsConnecting(false);
-          setSignupAlert({ type: 'error', message: 'Meta không trả về authorization code hoặc người dùng đã hủy.' });
+        const accessToken = response.authResponse?.accessToken?.trim() || '';
+        if (!code && !accessToken) {
+          // Meta can emit an interim `unknown` response as soon as the popup opens.
+          // The authoritative outcome arrives through WA_EMBEDDED_SIGNUP postMessage.
+          console.info('[META EMBEDDED SIGNUP] Đang chờ người dùng hoàn tất popup.', response.status || 'pending');
           return;
         }
-        signupCodeRef.current = code;
+        const credential: EmbeddedSignupCredential = code ? { code } : { accessToken };
+        signupCredentialRef.current = credential;
+        if (credentialWaitTimerRef.current !== null) {
+          window.clearTimeout(credentialWaitTimerRef.current);
+          credentialWaitTimerRef.current = null;
+        }
         if (signupSessionRef.current) {
-          void completeEmbeddedSignup(code, signupSessionRef.current);
+          void completeEmbeddedSignup(credential, signupSessionRef.current);
         }
       }, {
         config_id: configurationId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: '3' },
+        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
       });
     } catch (error) {
       setIsConnecting(false);
@@ -327,8 +366,37 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         </button>
       </div>
 
-      {/* 2. Embedded Signup */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
+      {/* 2. Quản lý số tabs */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setActiveSection('numbers')}
+          className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
+            activeSection === 'numbers'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Smartphone className="w-4 h-4" />
+          Danh sách số
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSection('add')}
+          style={activeSection === 'add' ? { color: '#ffffff', WebkitTextFillColor: '#ffffff' } : undefined}
+          className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
+            activeSection === 'add'
+              ? 'bg-[#1877F2] text-white! shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Plus className="w-4 h-4" />
+          Thêm số mới
+        </button>
+      </div>
+
+      {/* 3. Embedded Signup */}
+      {activeSection === 'add' && <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -346,7 +414,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Kết nối hoặc thay đổi WhatsApp Business Account qua quy trình chính thức của Meta.
+                Thêm số mới hoặc thay đổi WhatsApp Business Account qua quy trình chính thức của Meta.
               </p>
               <p className="text-[10px] font-mono text-slate-400 mt-1">
                 App {metaAppId || '—'} · Config {configurationId || '—'} · {graphVersion}
@@ -358,13 +426,14 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             type="button"
             onClick={() => void startEmbeddedSignup()}
             disabled={isConnecting || !metaAppId || !configurationId}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white! text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {isConnecting ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
             {isConnecting
               ? 'Đang kết nối...'
               : connectionStatus === 'connected'
-                ? 'Kết nối WABA khác'
+                ? 'Thêm / kết nối số'
                 : 'Kết nối với Meta'}
           </button>
         </div>
@@ -381,10 +450,10 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             <span>{signupAlert.message}</span>
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* 3. Danh Sách Số Điện Thoại */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
+      {/* 4. Danh Sách Số Điện Thoại */}
+      {activeSection === 'numbers' && <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -471,7 +540,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             )}
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 };
