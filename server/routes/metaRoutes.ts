@@ -10,6 +10,7 @@ import {
 } from '../controllers/metaController';
 import {
   getMessages,
+  getConversations,
   markMessagesAsRead,
   sendMessage,
   sendReaction,
@@ -49,6 +50,8 @@ router.post(['/', '/webhook', '/webhooks'], verifyMetaWebhookSignature, handleWe
 // ==========================================
 // 3. Centralized Chat & Messaging Routes
 // ==========================================
+router.get('/conversations', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getConversations);
+router.get('/messages/conversations', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getConversations);
 router.get('/messages', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
 router.get('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
 router.post('/messages/read', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), markMessagesAsRead);

@@ -4,6 +4,7 @@ import type { CentralMessage, MessageChannel } from '../../../types';
 import { QUICK_TEMPLATES } from '../constants';
 import type { MessageThread } from '../types';
 import { playPopSound } from '../utils/playPopSound';
+import { api } from '../../../utils/apiClient';
 
 interface UseMessageComposerOptions {
   activeThread: MessageThread | null;
@@ -114,11 +115,7 @@ export function useMessageComposer({
     if (soundEnabled) playPopSound();
 
     if (pendingImage?.startsWith('data:image/')) {
-      void fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: pendingImage, folder: 'chat' }),
-      }).catch(() => undefined);
+      void api.post('/upload', { imageBase64: pendingImage, folder: 'chat' }).catch(() => undefined);
     }
 
     setInputText('');

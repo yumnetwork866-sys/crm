@@ -75,11 +75,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <h2 className="text-lg font-black text-slate-950 tracking-tight">
               {isMandatory ? 'Đăng Nhập Hệ Thống YumNetwork CRM' : 'Đăng Nhập Tài Khoản'}
             </h2>
-            <p className="text-xs font-black text-slate-900 mt-1">
-              {currentUser
-                ? `Đang đăng nhập với vai trò ${currentUser.role}`
-                : 'Vui lòng nhập Email & Mật khẩu để truy cập dữ liệu'}
-            </p>
+            {currentUser && (
+              <p className="text-xs font-black text-slate-900 mt-1">
+                Đang đăng nhập với vai trò {currentUser.role}
+              </p>
+            )}
           </div>
         </div>
 

@@ -14,10 +14,12 @@ import automationStepRoutes from './routes/automationSteps';
 import metaRoutes from './routes/metaRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import permissionRoutes from './routes/permissions';
+import marketingReportRoutes from './routes/marketingReports';
 import { startCampaignWorker } from './services/campaignWorker';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { prisma } from './lib/prisma';
 
 dotenv.config({ quiet: true });
 
@@ -143,13 +145,30 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
-// 5. Healthcheck Route
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    system: 'YumNetwork CRM Backend API',
-    timestamp: new Date().toISOString()
-  });
+// 5. Healthcheck Route (Active Database Connection Check)
+app.get('/api/health', async (_req, res) => {
+  try {
+    const startedAt = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const dbLatencyMs = Date.now() - startedAt;
+
+    res.json({
+      status: 'ok',
+      system: 'YumNetwork CRM Backend API',
+      database: 'connected',
+      dbLatencyMs,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('[HEALTHCHECK ERROR] Database disconnected:', err);
+    res.status(503).json({
+      status: 'error',
+      system: 'YumNetwork CRM Backend API',
+      database: 'disconnected',
+      error: err?.message || 'Không thể kết nối cơ sở dữ liệu PostgreSQL.',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // 6. Other API Route Handlers
@@ -162,6 +181,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/automation-steps', automationStepRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/reports/marketing', marketingReportRoutes);
 
 const httpServer = http.createServer(app);
 

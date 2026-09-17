@@ -8,6 +8,7 @@ import { useCentralMessages } from './hooks/useCentralMessages';
 import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
 import { useCampaigns } from './hooks/useCampaigns';
+import { useMarketingReports } from './hooks/useMarketingReports';
 
 import { Header } from './components/Header';
 import type { ActiveTab } from './components/Navigation';
@@ -59,8 +60,6 @@ const TermsOfServiceView = React.lazy(() =>
 const DataDeletionView = React.lazy(() =>
   import('./components/Legal/DataDeletionView').then((m) => ({ default: m.DataDeletionView }))
 );
-
-const STORAGE_KEY_MARKETING_REPORTS = 'yumcrm_marketing_reports_v2';
 
 const RouteLoading: React.FC = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-100 py-12">
@@ -114,14 +113,7 @@ export default function App() {
     resetAuth,
   } = useAuth();
 
-  const [marketingReports, setMarketingReports] = useState<MarketingCampaignReport[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_MARKETING_REPORTS);
-      return saved ? JSON.parse(saved) : INITIAL_MARKETING_REPORTS;
-    } catch {
-      return INITIAL_MARKETING_REPORTS;
-    }
-  });
+  const { marketingReports, saveReports: setMarketingReports } = useMarketingReports(currentUser);
 
   const {
     customers,
@@ -194,14 +186,6 @@ export default function App() {
   );
   const hasDataError = isCustomersError || isProductsError || isCampaignsError
     || isMessagesError || isOrdersError;
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_MARKETING_REPORTS, JSON.stringify(marketingReports));
-    } catch (error) {
-      console.error('Error saving marketing reports to localStorage', error);
-    }
-  }, [marketingReports]);
 
   const [autoSimCounter, setAutoSimCounter] = useState(1);
   const [, setCurrencyTick] = useState(0);

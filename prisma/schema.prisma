@@ -301,3 +301,19 @@ model WhatsAppMessage {
   @@index([customerId, sender, channel, timestamp(sort: Desc)])
   @@index([isRead, sender])
 }
+
+model MarketingReport {
+  id           String   @id @default(uuid())
+  campaignName String
+  source       String
+  leadsCount   Int      @default(0)
+  adSpend      Float    @default(0)
+  revenue      Float    @default(0)
+  cpl          Float    @default(0)
+  roas         Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([campaignName])
+  @@index([source])
+}

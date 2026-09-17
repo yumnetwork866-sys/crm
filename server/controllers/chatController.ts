@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from '../services/messageStore';
 import { messageStore } from '../services/messageStore';
@@ -532,4 +533,99 @@ export function getRealtimeStream(req: Request, res: Response) {
   req.on('close', () => {
     realtimeHub.removeClient(clientId);
   });
+}
+
+/**
+ * GET /api/meta/conversations
+ * Aggregated conversation threads with unread count and latest message
+ */
+export async function getConversations(req: Request, res: Response) {
+  try {
+    const { search, limit: limitQuery, page: pageQuery } = req.query;
+    const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '50'), 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const searchFilter = search && typeof search === 'string' && search.trim() ? search.trim() : null;
+    const filterSql = searchFilter
+      ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+      : Prisma.empty;
+
+    const rawThreads: Array<{
+      customerId: string | null;
+      customerName: string;
+      customerPhone: string;
+      unreadCount: bigint;
+      lastMsgId: string;
+      lastMsgContent: string;
+      lastMsgSender: string;
+      lastMsgTimestamp: Date;
+      lastMsgChannel: string;
+    }> = await prisma.$queryRaw`
+      WITH RankedMessages AS (
+        SELECT 
+          "id",
+          "customerId",
+          "customerName",
+          "customerPhone",
+          "content",
+          "sender",
+          "timestamp",
+          "channel",
+          "isRead",
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE("customerPhone", "customerId", "id") 
+            ORDER BY "timestamp" DESC, "id" DESC
+          ) as rn
+        FROM "WhatsAppMessage"
+        ${filterSql}
+      ),
+      UnreadStats AS (
+        SELECT 
+          COALESCE("customerPhone", "customerId", "id") as thread_key,
+          COUNT(*) FILTER (WHERE "sender" = 'customer' AND "isRead" = false) as unread_count
+        FROM "WhatsAppMessage"
+        GROUP BY COALESCE("customerPhone", "customerId", "id")
+      )
+      SELECT 
+        rm."customerId",
+        rm."customerName",
+        rm."customerPhone",
+        COALESCE(us.unread_count, 0) as "unreadCount",
+        rm."id" as "lastMsgId",
+        rm."content" as "lastMsgContent",
+        rm."sender" as "lastMsgSender",
+        rm."timestamp" as "lastMsgTimestamp",
+        rm."channel" as "lastMsgChannel"
+      FROM RankedMessages rm
+      LEFT JOIN UnreadStats us ON us.thread_key = COALESCE(rm."customerPhone", rm."customerId", rm."id")
+      WHERE rm.rn = 1
+      ORDER BY rm."timestamp" DESC
+      LIMIT ${limit} OFFSET ${skip}
+    `;
+
+    const conversations = rawThreads.map((t) => ({
+      customerId: t.customerId || `phone_${t.customerPhone}`,
+      customerName: t.customerName,
+      customerPhone: t.customerPhone,
+      unreadCount: Number(t.unreadCount),
+      lastMessage: {
+        id: t.lastMsgId,
+        content: t.lastMsgContent,
+        sender: t.lastMsgSender,
+        timestamp: t.lastMsgTimestamp,
+        channel: t.lastMsgChannel,
+      }
+    }));
+
+    return res.json({
+      data: conversations,
+      page,
+      limit,
+      count: conversations.length,
+    });
+  } catch (error) {
+    console.error('[CHAT CONTROLLER] getConversations error:', error);
+    return res.status(500).json({ error: 'Không thể tải danh sách cuộc hội thoại.' });
+  }
 }

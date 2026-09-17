@@ -60,10 +60,14 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       status,
       source,
       owner,
+      gender,
+      group,
+      startDate,
+      endDate,
       page: pageQuery,
       limit: limitQuery,
-      sortBy = 'name',
-      sortOrder = 'asc',
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
       paginate
     } = req.query;
 
@@ -74,14 +78,42 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 
     const whereClause: any = {};
 
-    if (status && typeof status === 'string' && status !== 'all') {
+    if (status && typeof status === 'string' && status !== 'all' && status !== 'ALL') {
       whereClause.status = status;
     }
-    if (source && typeof source === 'string' && source !== 'all') {
+    if (source && typeof source === 'string' && source !== 'all' && source !== 'ALL') {
       whereClause.source = source;
     }
-    if (owner && typeof owner === 'string' && owner !== 'all') {
-      whereClause.owner = owner;
+    if (owner && typeof owner === 'string' && owner !== 'all' && owner !== 'ALL') {
+      if (owner === 'Chưa phân công' || owner === 'unassigned') {
+        whereClause.owner = { in: ['', 'Chưa phân công', 'Unassigned'] };
+      } else {
+        whereClause.owner = owner;
+      }
+    }
+    if (gender && typeof gender === 'string' && gender !== 'ALL') {
+      const lower = gender.toLowerCase();
+      if (lower === 'nam') whereClause.gender = 'Nam';
+      else if (lower === 'nữ' || lower === 'nu') whereClause.gender = 'Nữ';
+      else if (lower === 'khác' || lower === 'khac') whereClause.gender = 'Khác';
+      else whereClause.gender = gender;
+    }
+    if (group && typeof group === 'string' && group !== 'ALL') {
+      whereClause.group = group;
+    }
+
+    if (startDate && typeof startDate === 'string') {
+      const start = new Date(startDate);
+      if (!isNaN(start.getTime())) {
+        whereClause.createdAt = { ...(whereClause.createdAt || {}), gte: start };
+      }
+    }
+    if (endDate && typeof endDate === 'string') {
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime())) {
+        end.setHours(23, 59, 59, 999);
+        whereClause.createdAt = { ...(whereClause.createdAt || {}), lte: end };
+      }
     }
 
     if (search && typeof search === 'string') {
@@ -90,13 +122,15 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
         { name: { contains: cleanSearch, mode: 'insensitive' } },
         { phone: { contains: cleanSearch } },
         { email: { contains: cleanSearch, mode: 'insensitive' } },
-        { campaign: { contains: cleanSearch, mode: 'insensitive' } }
+        { campaign: { contains: cleanSearch, mode: 'insensitive' } },
+        { address: { contains: cleanSearch, mode: 'insensitive' } },
+        { note: { contains: cleanSearch, mode: 'insensitive' } },
       ];
     }
 
     const allowedSortFields = ['updatedAt', 'createdAt', 'name', 'totalSpent', 'totalOrders'];
-    const validSortBy = allowedSortFields.includes(String(sortBy)) ? String(sortBy) : 'name';
-    const validSortOrder = sortOrder === 'desc' ? 'desc' : 'asc';
+    const validSortBy = allowedSortFields.includes(String(sortBy)) ? String(sortBy) : 'createdAt';
+    const validSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
     const orderBy = { [validSortBy]: validSortOrder };
 
     const isDetailed = req.query.detailed === 'true';
@@ -139,7 +173,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       total = customers.length;
     }
 
-    if (validSortBy === 'name') {
+    if (validSortBy === 'name' && !isPaginationRequested) {
       customers.sort((a, b) => {
         const cmp = compareVietnameseNames(a.name, b.name);
         return validSortOrder === 'desc' ? -cmp : cmp;

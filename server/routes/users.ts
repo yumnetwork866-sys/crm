@@ -4,7 +4,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission, invalidateAuthCache } from '../middleware/authMiddleware';
 import { Permission, getEffectivePermissions, parsePermissionMask } from '../auth/permissions';
 import { getRoleColor } from '../auth/roleColors';
 import { prisma } from '../lib/prisma';
@@ -156,6 +156,7 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
       },
     });
 
+    invalidateAuthCache(target.id);
     return res.json(await serializeUser(updated));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi cập nhật người dùng';
@@ -176,6 +177,7 @@ router.delete('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Au
       return res.status(400).json({ error: 'Hệ thống phải còn ít nhất một tài khoản Admin đang hoạt động.' });
     }
     await prisma.user.delete({ where: { id: target.id } });
+    invalidateAuthCache(target.id);
     return res.json({ message: 'Xóa tài khoản thành công.' });
   } catch (error) {
     console.error('Lỗi khi xóa người dùng:', error);

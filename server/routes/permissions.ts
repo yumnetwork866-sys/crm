@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission, invalidateAuthCache } from '../middleware/authMiddleware';
 import {
   ALL_PERMISSIONS,
   PERMISSION_DEFINITIONS,
@@ -106,6 +106,7 @@ router.put('/roles/:role', async (req: AuthenticatedRequest, res: Response) => {
       where: { role },
       data: { permissions, color: parsedColor.data },
     });
+    invalidateAuthCache();
     const userCount = await prisma.user.count({ where: { role } });
     return res.json({
       role: policy.role,
@@ -142,6 +143,7 @@ router.patch('/roles/:role', async (req: AuthenticatedRequest, res: Response) =>
       prisma.rolePermission.update({ where: { role: currentRole }, data: { role: nextRole } }),
     ]);
     const userCount = await prisma.user.count({ where: { role: nextRole } });
+    invalidateAuthCache();
     return res.json({
       role: policy.role,
       permissions: policy.permissions.toString(),
@@ -169,6 +171,7 @@ router.delete('/roles/:role', async (req: AuthenticatedRequest, res: Response) =
       });
     }
     await prisma.rolePermission.delete({ where: { role } });
+    invalidateAuthCache();
     return res.json({ message: 'Đã xóa vai trò.' });
   } catch (error) {
     console.error('[Permissions] Không thể xóa vai trò:', error);

@@ -15,6 +15,27 @@ export interface AuthenticatedRequest extends Request {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
 
+interface CachedAuthUser {
+  id: string;
+  email: string;
+  role: string;
+  name: string;
+  status: string;
+  permissions: bigint;
+  cachedAt: number;
+}
+
+const AUTH_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const authUserCache = new Map<string, CachedAuthUser>();
+
+export function invalidateAuthCache(userId?: string): void {
+  if (userId) {
+    authUserCache.delete(userId);
+  } else {
+    authUserCache.clear();
+  }
+}
+
 export async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -25,6 +46,25 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    const now = Date.now();
+    const cached = authUserCache.get(decoded.id);
+
+    if (cached && now - cached.cachedAt < AUTH_CACHE_TTL_MS) {
+      if (cached.status !== 'active') {
+        authUserCache.delete(decoded.id);
+        return res.status(401).json({ error: 'Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.' });
+      }
+
+      req.user = {
+        id: cached.id,
+        email: cached.email,
+        role: cached.role,
+        name: cached.name,
+        permissions: cached.permissions,
+      };
+      return next();
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
@@ -39,15 +79,27 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
     });
 
     if (!user || user.status !== 'active') {
+      authUserCache.delete(decoded.id);
       return res.status(401).json({ error: 'Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.' });
     }
+
+    const permissions = await getEffectivePermissions(user.role, user.permissionAllow, user.permissionDeny);
+    authUserCache.set(user.id, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      status: user.status,
+      permissions,
+      cachedAt: now,
+    });
 
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
       name: user.name,
-      permissions: await getEffectivePermissions(user.role, user.permissionAllow, user.permissionDeny),
+      permissions,
     };
     next();
   } catch (error) {

@@ -71,7 +71,7 @@ export const PublicLandingView: React.FC<PublicLandingViewProps> = ({
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-extrabold shadow-md shadow-red-600/30 transition cursor-pointer"
             >
               <LogIn className="w-4 h-4 text-white" />
-              <span className="text-white">Đăng Nhập CRM</span>
+              <span className="text-white">Đăng Nhập</span>
             </button>
           </div>
         </div>

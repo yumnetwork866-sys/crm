@@ -7,6 +7,7 @@ export const queryKeys = {
   whatsappTemplates: ['whatsapp-templates'] as const,
   automationSteps: ['automation-steps'] as const,
   centralMessages: ['central-messages'] as const,
+  marketingReports: ['marketing-reports'] as const,
 };
 
 export const queryClient = new QueryClient({

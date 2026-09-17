@@ -7,15 +7,6 @@ import { api } from '../utils/apiClient';
 
 const STORAGE_KEY_PRODUCTS = 'yumcrm_products_v2';
 
-const loadProducts = (): Product[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCT_LIST;
-  } catch {
-    return INITIAL_PRODUCT_LIST;
-  }
-};
-
 const createLocalProduct = (input: Partial<Product>): Product => ({
   id: input.id || `prd_${Date.now()}`,
   code: input.code || `SP-${Math.floor(100 + Math.random() * 900)}`,
@@ -36,18 +27,14 @@ export function useProducts(currentUser: AppUser | null) {
     queryKey: queryKeys.products,
     queryFn: () => api.get<Product[]>('/products'),
     enabled: Boolean(currentUser),
-    initialData: loadProducts,
+    initialData: INITIAL_PRODUCT_LIST,
     initialDataUpdatedAt: 0,
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
-    } catch (error) {
-      console.error('Error saving products to localStorage', error);
-    }
-  }, [products]);
+    localStorage.removeItem(STORAGE_KEY_PRODUCTS);
+  }, []);
 
   const addMutation = useMutation({
     mutationFn: (input: Partial<Product>) => api.post<Product>('/products', input),

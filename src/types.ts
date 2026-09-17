@@ -348,6 +348,7 @@ export interface BroadcastCampaign {
 }
 
 export interface MarketingCampaignReport {
+  id?: string;
   campaignName: string;
   source: LeadSource;
   leadsCount: number;
