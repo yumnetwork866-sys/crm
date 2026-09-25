@@ -197,19 +197,29 @@ export const Header: React.FC<HeaderProps> = ({
                       if (item.id === 'automation') onChangeTab(item.id);
                     }}
                     title={item.subtitle}
-                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 rounded-xl text-left whitespace-nowrap transition-[background-color,background-image,color,box-shadow,transform] duration-200 ease-out cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 text-left whitespace-nowrap transition-colors duration-200 ease-out cursor-pointer bg-transparent! shadow-none! border-0! ${
                       isActive
-                        ? 'bg-indigo-600 text-white shadow-[0_6px_16px_rgba(79,70,229,0.3)] ring-1 ring-white/15 font-extrabold'
-                        : 'text-slate-300 hover:-translate-y-px hover:bg-white/[0.07] hover:text-white font-semibold'
+                        ? 'text-indigo-600 font-black'
+                        : 'text-slate-500 hover:text-indigo-600 font-medium'
                     }`}
                   >
                     {({ isActive }) => (
                       <>
-                        <Icon
-                          aria-hidden="true"
-                          className={`topbar-nav-icon h-4.5 w-4.5 shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-indigo-300'}`}
-                        />
-                        <span className="text-sm font-bold tracking-tight">{item.label}</span>
+                        <span className="relative inline-flex items-center gap-2">
+                          <Icon
+                            aria-hidden="true"
+                            className={`topbar-nav-icon h-4.5 w-4.5 shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'}`}
+                          />
+                          <span className={`topbar-nav-label text-sm tracking-tight transition-colors ${isActive ? 'text-indigo-600 font-black' : 'text-slate-500 group-hover:text-indigo-600 font-medium'}`}>
+                            {item.label}
+                          </span>
+                          {isActive && (
+                            <span
+                              aria-hidden="true"
+                              className="topbar-active-indicator absolute -bottom-2.5 left-0 right-0 h-[2.5px] bg-indigo-600 rounded-full pointer-events-none"
+                            />
+                          )}
+                        </span>
                         {badge && badge > 0 ? (
                           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-black leading-none text-white shadow-sm ring-2 ring-slate-900/60">
                             {badge}

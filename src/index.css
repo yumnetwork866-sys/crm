@@ -62,21 +62,66 @@ html, body {
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
-/* NavLink renders an anchor, so keep inactive topbar icons visible in light mode. */
+/* Topbar navigation links */
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]) {
+  color: #64748b !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
+}
+
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]) span.topbar-nav-label {
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
 .light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]) .topbar-nav-icon {
-  color: #475569 !important;
-  stroke: #475569 !important;
+  color: #94a3b8 !important;
+  stroke: #94a3b8 !important;
   opacity: 1 !important;
 }
 
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]):hover {
+  color: #4f46e5 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
+}
+
+.light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]):hover span.topbar-nav-label {
+  color: #4f46e5 !important;
+}
+
 .light-mode .app-topbar .topbar-nav-link:not([aria-current="page"]):hover .topbar-nav-icon {
-  color: #0f172a !important;
-  stroke: #0f172a !important;
+  color: #4f46e5 !important;
+  stroke: #4f46e5 !important;
+}
+
+/* Active tab: nổi bật với chữ màu tím xanh đậm và gạch chân ngắn bằng đúng chữ */
+.light-mode .app-topbar .topbar-nav-link[aria-current="page"] {
+  color: #4f46e5 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-bottom: none !important;
+}
+
+.light-mode .app-topbar .topbar-nav-link[aria-current="page"] span.topbar-nav-label {
+  color: #4f46e5 !important;
+  font-weight: 800 !important;
 }
 
 .light-mode .app-topbar .topbar-nav-link[aria-current="page"] .topbar-nav-icon {
-  color: #ffffff !important;
-  stroke: #ffffff !important;
+  color: #4f46e5 !important;
+  stroke: #4f46e5 !important;
+}
+
+.light-mode .app-topbar .topbar-active-indicator {
+  background-color: #4f46e5 !important;
+  height: 2.5px !important;
+  border-radius: 9999px !important;
 }
 
 .light-mode .app-topbar nav,
@@ -87,10 +132,6 @@ html, body {
   background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
-}
-
-.light-mode .app-topbar .topbar-nav-link[aria-current="page"] {
-  box-shadow: 0 6px 16px rgb(79 70 229 / 0.2);
 }
 
 /* Keep the selected Automation section icon white on its indigo background. */
