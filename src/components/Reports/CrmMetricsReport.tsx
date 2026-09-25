@@ -141,7 +141,9 @@ export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers, i
                   <div key={c.id} className="bg-slate-800/80 p-3 rounded-xl flex items-center justify-between text-xs">
                     <div>
                       <div className="font-bold text-white">#{i + 1} {c.name}</div>
-                      <div className="text-[10px] text-slate-400">{c.phone} • {c.country} ({c.totalOrders} đơn)</div>
+                      <div className="text-[10px] text-slate-400">
+                        {c.phone}{c.country ? ` • ${c.country}` : ''} ({c.totalOrders} đơn)
+                      </div>
                     </div>
                     <div className="text-right font-bold text-emerald-400 text-sm">
                       {formatVND(c.totalSpent)}

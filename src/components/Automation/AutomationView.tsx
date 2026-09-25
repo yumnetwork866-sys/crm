@@ -295,7 +295,8 @@ export const AutomationView: React.FC<AutomationViewProps> = ({
                     <tr key={c.id} className="transition hover:bg-slate-50">
                       <td className="py-3 px-4 font-bold text-slate-900">{c.name}</td>
                       <td className="py-3 px-3 text-slate-500">
-                        {c.phone} ({c.country})
+                        {c.phone}
+                        {c.country ? ` (${c.country})` : ''}
                       </td>
 
                       {activeSteps.map((step, idx) => {

@@ -157,7 +157,8 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
                   <tr key={cust.id} className="transition">
                     <td className="py-3 px-4 font-bold text-slate-900">{cust.name}</td>
                     <td className="py-3 px-3 text-slate-400">
-                      {cust.phone} ({cust.country})
+                      {cust.phone}
+                      {cust.country ? ` (${cust.country})` : ''}
                     </td>
                     <td className="py-3 px-3 text-indigo-300">{cust.source}</td>
                     <td className="py-3 px-3 font-semibold text-slate-200">{cust.status}</td>
