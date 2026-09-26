@@ -4,6 +4,7 @@ import { messageStore } from './messageStore';
 import { getIntegrationSetting } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 import { aggregateCampaign } from './campaignWorker';
+import { autoReplyWithDify } from './difyService';
 
 /**
  * Verifies webhook subscription request from Meta
@@ -326,6 +327,20 @@ export async function processWebhookPayload(body: any): Promise<number> {
     // Broadcast instant real-time event to all connected clients
     realtimeHub.broadcast('message:new', newIncoming);
     processedCount++;
+
+    // Trigger Dify AI Auto-reply asynchronously (completely non-blocking)
+    if (textBody && fromPhone) {
+      autoReplyWithDify({
+        fromPhone,
+        customerName,
+        customerId,
+        incomingText: textBody,
+        isCrmCustomer,
+        incomingMsgId: msgData?.id,
+      }).catch((aiErr) => {
+        console.warn('[Dify Auto-reply Hook Error]', aiErr?.message || aiErr);
+      });
+    }
   }
 
   return processedCount;

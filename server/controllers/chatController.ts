@@ -13,6 +13,11 @@ import {
   dispatchMetaReaction,
   fetchAndCacheMetaMedia
 } from '../services/metaApiClient';
+import {
+  pauseAiForCustomer,
+  resumeAiForCustomer,
+  isAiActiveForCustomer,
+} from '../services/difyService';
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -358,6 +363,11 @@ export async function sendMessage(req: Request, res: Response) {
     // Broadcast instant real-time event
     realtimeHub.broadcast('message:new', newMsg);
 
+    // Pause AI auto-reply for this customer so staff can chat without bot interruption
+    if (resolvedCustomerPhone) {
+      pauseAiForCustomer(resolvedCustomerPhone, 30);
+    }
+
     return res.json({
       success: true,
       isRealSent,
@@ -630,3 +640,54 @@ export async function getConversations(req: Request, res: Response) {
     return res.status(500).json({ error: 'Không thể tải danh sách cuộc hội thoại.' });
   }
 }
+
+/**
+ * Toggle AI auto-reply on/off for a specific customer
+ */
+export async function toggleCustomerAi(req: Request, res: Response) {
+  try {
+    const { phone, enabled, minutes } = req.body;
+    if (!phone) {
+      return res.status(400).json({ error: 'Thiếu số điện thoại khách hàng.' });
+    }
+
+    if (enabled) {
+      resumeAiForCustomer(phone);
+    } else {
+      pauseAiForCustomer(phone, typeof minutes === 'number' ? minutes : 60);
+    }
+
+    const isActive = isAiActiveForCustomer(phone);
+    return res.json({
+      success: true,
+      phone,
+      isAiActive: isActive,
+      message: isActive ? 'Đã bật phản hồi AI cho khách hàng.' : 'Đã tạm dừng phản hồi AI cho khách hàng.'
+    });
+  } catch (error: any) {
+    console.error('Error toggling customer AI:', error);
+    return res.status(500).json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI.' });
+  }
+}
+
+/**
+ * Get AI auto-reply status for a specific customer
+ */
+export async function getCustomerAiStatus(req: Request, res: Response) {
+  try {
+    const phone = req.params.phone || req.query.phone;
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'Thiếu số điện thoại khách hàng.' });
+    }
+
+    const isActive = isAiActiveForCustomer(phone);
+    return res.json({
+      phone,
+      isAiActive: isActive
+    });
+  } catch (error: any) {
+    console.error('Error getting customer AI status:', error);
+    return res.status(500).json({ error: error.message || 'Lỗi khi kiểm tra trạng thái AI.' });
+  }
+}
+

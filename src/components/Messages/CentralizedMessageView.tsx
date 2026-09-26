@@ -60,6 +60,7 @@ import { useMessageViewport } from '../../features/messages/hooks/useMessageView
 import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
+import { api } from '../../utils/apiClient';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
@@ -233,6 +234,43 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     selectedPhoneId,
     onReplyMessage: startReplyMessage,
   });
+
+  // Dify AI Auto-reply state per active customer thread
+  const [isCustomerAiActive, setIsCustomerAiActive] = useState<boolean>(true);
+  const [isTogglingAi, setIsTogglingAi] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!activeThread?.customerPhone) return;
+    let isCancelled = false;
+    api.get<{ phone: string; isAiActive: boolean }>(`/meta/messages/ai-status/${encodeURIComponent(activeThread.customerPhone)}`)
+      .then((res) => {
+        if (!isCancelled && typeof res.isAiActive === 'boolean') {
+          setIsCustomerAiActive(res.isAiActive);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeThread?.customerPhone]);
+
+  const handleToggleAi = async () => {
+    if (!activeThread?.customerPhone || isTogglingAi) return;
+    setIsTogglingAi(true);
+    try {
+      const nextState = !isCustomerAiActive;
+      const res = await api.post<{ success: boolean; isAiActive: boolean }>(`/meta/messages/ai-toggle`, {
+        phone: activeThread.customerPhone,
+        enabled: nextState,
+        minutes: 60,
+      });
+      setIsCustomerAiActive(res.isAiActive);
+    } catch (err) {
+      console.error('Lỗi khi bật/tắt AI:', err);
+    } finally {
+      setIsTogglingAi(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -559,6 +597,28 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         </select>
                         <ChevronDown className="w-2.5 h-2.5 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500" />
                       </div>
+
+                      {/* Dify AI Auto-reply Status & Toggle */}
+                      {activeThread?.customerPhone && (
+                        <button
+                          type="button"
+                          onClick={handleToggleAi}
+                          disabled={isTogglingAi}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all flex items-center gap-1 shadow-2xs cursor-pointer ${
+                            isCustomerAiActive
+                              ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                              : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+                          }`}
+                          title={
+                            isCustomerAiActive
+                              ? 'AI Bot Dify đang BẬT: Đang tự động trả lời khách hàng. Nhấp để tạm dừng khi nhân viên tư vấn.'
+                              : 'AI Bot Dify đang TẮT/DỪNG: Nhấp để bật lại tự động trả lời.'
+                          }
+                        >
+                          <Sparkles className={`w-2.5 h-2.5 ${isCustomerAiActive ? 'text-purple-600 animate-pulse' : 'text-slate-400'}`} />
+                          <span>{isCustomerAiActive ? 'AI: Bật' : 'AI: Tắt'}</span>
+                        </button>
+                      )}
                     </div>
 
                     <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">
