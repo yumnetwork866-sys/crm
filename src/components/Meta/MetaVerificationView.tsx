@@ -387,7 +387,11 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         response_type: 'code',
         override_default_response_type: true,
         extras: mode === 'coexistence'
-          ? { featureType: 'whatsapp_business_app_onboarding' }
+          ? {
+              setup: {},
+              featureType: 'whatsapp_business_app_onboarding',
+              sessionInfoVersion: '3',
+            }
           : {},
       });
     } catch (error) {
