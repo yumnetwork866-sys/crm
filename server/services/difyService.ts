@@ -235,23 +235,26 @@ export async function autoReplyWithDify(params: {
     }
 
     // Auto-detect Human Handover, Escalation or Opt-out to silence bot
-    const isEscalation =
-      /chuyên viên|quản lý|senior manager|pengurus|liên hệ hỗ trợ|nhân viên bên em/i.test(answer) ||
-      /^(stop|huy|dung|unsubscribe|tam dung)$/i.test(trimmed);
+    const isExplicitCustomerOptOut = /^(stop|huy|dung|unsubscribe|tam dung)$/i.test(trimmed);
+    const isHandoverTransfer =
+      /(đang chuyển|đã chuyển|bàn giao|kết nối).*(nhân viên|quản lý|người thật|cấp trên|senior)/i.test(answer) ||
+      /(chuyên viên|quản lý|nhân viên).*(sẽ liên hệ|gọi lại|tiếp nhận xử lý)/i.test(answer) ||
+      /(hubungi pegawai|sambungkan ke ejen|pegawai akan hubungi)/i.test(answer);
 
-    if (isEscalation) {
-      pauseAiForCustomer(fromPhone, 120);
-      console.log(`[Dify AI] Tự động chuyển giao nhân viên & tạm dừng bot 2h cho khách: ${fromPhone}`);
+    if (isExplicitCustomerOptOut || isHandoverTransfer) {
+      pauseAiForCustomer(fromPhone, 60);
+      console.log(`[Dify AI] Tự động chuyển giao nhân viên & tạm dừng bot cho khách: ${fromPhone}`);
     }
 
     // 5. Create in-memory message for CRM UI
+    const configuredAgentName = process.env.DIFY_AGENT_NAME?.trim() || '🤖 Trợ lý AI';
     const aiMsg: InMemoryMessage = {
       id: metaSentId || `msg_dify_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId,
       customerName,
       customerPhone: fromPhone,
       sender: 'agent',
-      agentName: '🤖 Trợ lý AI (Dify)',
+      agentName: configuredAgentName,
       channel: 'WhatsApp',
       content: answer,
       timestamp: new Date().toISOString(),
