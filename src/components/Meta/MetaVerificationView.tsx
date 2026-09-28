@@ -100,11 +100,9 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [wabaId, setWabaId] = useState('');
   const [phoneId, setPhoneId] = useState('');
   const [verifyToken, setVerifyToken] = useState('YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-  const [metaAppId, setMetaAppId] = useState(import.meta.env.VITE_META_APP_ID || '');
-  const [configurationId, setConfigurationId] = useState(
-    import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '',
-  );
-  const [graphVersion, setGraphVersion] = useState(import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
+  const [metaAppId, setMetaAppId] = useState('');
+  const [configurationId, setConfigurationId] = useState('');
+  const [graphVersion, setGraphVersion] = useState('v26.0');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectingMode, setConnectingMode] = useState<EmbeddedSignupMode | null>(null);
   const [signupAlert, setSignupAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -114,9 +112,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const credentialWaitTimerRef = useRef<number | null>(null);
   const signupModeRef = useRef<EmbeddedSignupMode>('cloud_api');
   const isAwaitingPopupRef = useRef(false);
-  const popupOpenedAtRef = useRef(0);
-  const popupBlurredRef = useRef(false);
-  const popupFocusTimerRef = useRef<number | null>(null);
 
   // Phone Numbers List State
   const [phoneNumbersList, setPhoneNumbersList] = useState<PhoneItem[]>([]);
@@ -190,9 +185,9 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setMetaAppId(data.embeddedSignup?.appId || import.meta.env.VITE_META_APP_ID || '');
-        setConfigurationId(data.embeddedSignup?.configurationId || import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '');
-        setGraphVersion(data.embeddedSignup?.graphVersion || import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
+        setMetaAppId(data.embeddedSignup?.appId || '');
+        setConfigurationId(data.embeddedSignup?.configurationId || '');
+        setGraphVersion(data.embeddedSignup?.graphVersion || 'v26.0');
 
         if (data.whatsappWabaId && data.hasAccessToken) {
           await fetchPhoneNumbersList(data.whatsappWabaId);
@@ -340,38 +335,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     };
   }, [completeEmbeddedSignup]);
 
-  useEffect(() => {
-    const handleWindowBlur = () => {
-      if (isAwaitingPopupRef.current) popupBlurredRef.current = true;
-    };
-    const handleWindowFocus = () => {
-      if (!isAwaitingPopupRef.current || !popupBlurredRef.current || Date.now() - popupOpenedAtRef.current < 800) return;
-      if (popupFocusTimerRef.current !== null) window.clearTimeout(popupFocusTimerRef.current);
-      // Meta does not always emit WA_EMBEDDED_SIGNUP/CANCEL when its popup is
-      // closed with the browser X button. Give successful postMessage events a
-      // moment to arrive, then release the UI if no completion has started.
-      popupFocusTimerRef.current = window.setTimeout(() => {
-        if (!isAwaitingPopupRef.current || isCompletingRef.current) return;
-        if (signupCredentialRef.current || signupSessionRef.current) return;
-        isAwaitingPopupRef.current = false;
-        popupBlurredRef.current = false;
-        signupCredentialRef.current = null;
-        signupSessionRef.current = null;
-        if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
-        setIsConnecting(false);
-        setConnectingMode(null);
-        setSignupAlert({ type: 'error', message: 'Cửa sổ kết nối Meta đã được đóng trước khi hoàn tất.' });
-      }, 2_500);
-    };
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
-    return () => {
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
-      if (popupFocusTimerRef.current !== null) window.clearTimeout(popupFocusTimerRef.current);
-    };
-  }, []);
-
   const startEmbeddedSignup = useCallback(async (mode: EmbeddedSignupMode) => {
     if (!metaAppId || !configurationId) {
       setSignupAlert({ type: 'error', message: 'Thiếu Meta App ID hoặc Embedded Signup Configuration ID.' });
@@ -384,8 +347,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
     });
     signupModeRef.current = mode;
     isAwaitingPopupRef.current = true;
-    popupOpenedAtRef.current = Date.now();
-    popupBlurredRef.current = false;
     signupCredentialRef.current = null;
     signupSessionRef.current = null;
     if (credentialWaitTimerRef.current !== null) {
@@ -401,9 +362,9 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       setConnectingMode(null);
       setSignupAlert({
         type: 'error',
-        message: 'Meta không trả về đầy đủ thông tin kết nối trong thời gian cho phép. Hãy thử lại.',
+        message: 'Phiên kết nối Meta đã hết thời gian chờ. Hãy mở lại và thử lần nữa.',
       });
-    }, 28_000);
+    }, 10 * 60_000);
     try {
       await loadFacebookSdk(metaAppId, graphVersion);
       if (!window.FB) throw new Error('Facebook SDK chưa sẵn sàng.');
