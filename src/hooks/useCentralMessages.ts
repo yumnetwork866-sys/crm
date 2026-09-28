@@ -275,6 +275,13 @@ export function useCentralMessages({
         setMessages([]);
         void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
       });
+      eventSource.addEventListener('messages:sync', () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.centralMessages });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+      });
+      eventSource.addEventListener('customers:sync', () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
+      });
 
       eventSource.onerror = (error) => {
         console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', error);

@@ -257,6 +257,7 @@ model IntegrationSetting {
   whatsappWabaId        String?
   metaBusinessId        String?
   whatsappAccessTokenEncrypted String?
+  whatsappRegistrationPinEncrypted String?
   whatsappTokenExpiresAt DateTime?
   whatsappVerifyToken   String?   @default("YUMNETWORK_CRM_META_VERIFY_TOKEN_2026")
   whatsappAppId         String?

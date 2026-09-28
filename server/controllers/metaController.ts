@@ -8,6 +8,8 @@ import {
   fetchWabaPhoneNumbers,
   fetchWhatsAppPhoneDetails,
   fetchWhatsAppBusinessProfile,
+  registerWhatsAppPhoneNumber,
+  requestSmbAppDataSync,
   dispatchMetaMessage
 } from '../services/metaApiClient';
 import { encryptMetaToken } from '../services/metaTokenCrypto';
@@ -17,6 +19,7 @@ import { verifyWebhookChallenge, processWebhookPayload } from '../services/webho
 import { prisma } from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 /**
  * Read current integration configuration
@@ -37,7 +40,7 @@ export async function getConfig(req: Request, res: Response) {
       whatsappWabaId: setting.whatsappWabaId || '',
       whatsappVerifyToken: setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: setting.whatsappAppId || '',
-      status: setting.status,
+      status: setting.status === 'connected' && !accessToken ? 'error' : setting.status,
       lastConnectedAt: setting.lastConnectedAt,
       hasAccessToken: Boolean(accessToken),
       maskedAccessToken: maskedToken,
@@ -145,6 +148,20 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       return res.status(502).json({ error: 'Đã nhận quyền WABA nhưng chưa thể đăng ký webhook cho tài khoản này.' });
     }
 
+    let encryptedRegistrationPin: string | undefined;
+    if (mode === 'cloud_api') {
+      const registrationPin = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+      try {
+        await registerWhatsAppPhoneNumber(resolvedPhoneNumberId, accessToken, registrationPin);
+        encryptedRegistrationPin = encryptMetaToken(registrationPin);
+      } catch (registrationError) {
+        const phoneDetails = await fetchWhatsAppPhoneDetails(resolvedPhoneNumberId, accessToken).catch(() => null);
+        if (String(phoneDetails?.platform_type || '').toUpperCase() !== 'CLOUD_API') {
+          throw registrationError;
+        }
+      }
+    }
+
     const tokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0
       ? new Date(Date.now() + expiresIn * 1_000)
       : null;
@@ -156,9 +173,37 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       whatsappAppId: appId,
       whatsappAccessTokenEncrypted: encryptMetaToken(accessToken),
       whatsappTokenExpiresAt: tokenExpiresAt,
+      ...(mode === 'coexistence'
+        ? { whatsappRegistrationPinEncrypted: null }
+        : encryptedRegistrationPin
+          ? { whatsappRegistrationPinEncrypted: encryptedRegistrationPin }
+          : {}),
       status: 'connected',
       lastConnectedAt: now,
     }, { requirePersistence: true });
+
+    const syncRequestIds: { contacts?: string; history?: string } = {};
+    const syncWarnings: string[] = [];
+    if (mode === 'coexistence') {
+      try {
+        syncRequestIds.contacts = await requestSmbAppDataSync(
+          resolvedPhoneNumberId,
+          accessToken,
+          'smb_app_state_sync',
+        );
+      } catch (error) {
+        syncWarnings.push(error instanceof Error ? error.message : 'Không thể đồng bộ danh bạ WhatsApp Business.');
+      }
+      try {
+        syncRequestIds.history = await requestSmbAppDataSync(
+          resolvedPhoneNumberId,
+          accessToken,
+          'history',
+        );
+      } catch (error) {
+        syncWarnings.push(error instanceof Error ? error.message : 'Không thể đồng bộ lịch sử WhatsApp Business.');
+      }
+    }
 
     return res.json({
       success: true,
@@ -170,6 +215,8 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       displayPhoneNumber: selectedPhone.display_phone_number || '',
       verifiedName: selectedPhone.verified_name || '',
       lastConnectedAt: now,
+      syncRequestIds,
+      syncWarnings,
     });
   } catch (error: any) {
     console.error('[META EMBEDDED SIGNUP] Không thể hoàn tất kết nối:', error?.message || error);

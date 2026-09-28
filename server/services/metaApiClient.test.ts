@@ -6,11 +6,57 @@ import {
   deleteMessageTemplate,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
+  registerWhatsAppPhoneNumber,
+  requestSmbAppDataSync,
   uploadTemplateSampleMedia,
 } from './metaApiClient';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('Embedded Signup onboarding helpers', () => {
+  it('registers a Cloud API phone number with the selected six-digit PIN', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(registerWhatsAppPhoneNumber('123456', 'access-token', '482901')).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.facebook.com/v26.0/123456/register',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer access-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messaging_product: 'whatsapp', pin: '482901' }),
+      }),
+    );
+  });
+
+  it('starts both supported WhatsApp Business app sync types', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: 'contacts-request' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: 'history-request' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(requestSmbAppDataSync('123456', 'access-token', 'smb_app_state_sync'))
+      .resolves.toBe('contacts-request');
+    await expect(requestSmbAppDataSync('123456', 'access-token', 'history'))
+      .resolves.toBe('history-request');
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: 'smb_app_state_sync' }),
+    });
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: 'history' }),
+    });
+  });
 });
 
 describe('buildMessageTemplatePayload', () => {

@@ -10,6 +10,7 @@ export interface IntegrationSettingData {
   whatsappWabaId?: string | null;
   metaBusinessId?: string | null;
   whatsappAccessTokenEncrypted?: string | null;
+  whatsappRegistrationPinEncrypted?: string | null;
   whatsappTokenExpiresAt?: Date | null;
   whatsappAppId?: string | null;
   status: string;
@@ -62,7 +63,11 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
       whatsappPhoneNumberId: hasEmbeddedConnection ? (setting.whatsappPhoneNumberId || '') : (envPhoneId || setting.whatsappPhoneNumberId || ''),
       whatsappVerifyToken: envVerifyToken || setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: envAppId || setting.whatsappAppId || '',
-      status: hasEmbeddedConnection || envToken ? 'connected' : (setting.status || 'disconnected')
+      status: hasEmbeddedConnection
+        ? (setting.status || 'connected')
+        : envToken
+          ? 'connected'
+          : (setting.status || 'disconnected')
     };
     // Sync in-memory store with DB & env
     inMemorySetting = { ...mergedSetting };
@@ -107,6 +112,13 @@ export async function updateIntegrationSetting(
 /** Resolve the active token without exposing it through an HTTP response. */
 export async function getMetaAccessToken(setting?: IntegrationSettingData): Promise<string> {
   const resolvedSetting = setting || await getIntegrationSetting();
+  if (
+    resolvedSetting.whatsappTokenExpiresAt
+    && new Date(resolvedSetting.whatsappTokenExpiresAt).getTime() <= Date.now()
+  ) {
+    console.warn('[META TOKEN] Access token đã hết hạn; cần chạy lại Embedded Signup.');
+    return '';
+  }
   if (resolvedSetting.whatsappAccessTokenEncrypted) {
     try {
       return decryptMetaToken(resolvedSetting.whatsappAccessTokenEncrypted);
@@ -182,6 +194,57 @@ export async function ensureWabaSubscribed(wabaId: string, token: string): Promi
     console.error(`[META WABA SUBSCRIPTION ERROR]`, e.message || e);
   }
   return false;
+}
+
+/** Register a newly onboarded business phone number for Cloud API use. */
+export async function registerWhatsAppPhoneNumber(
+  phoneNumberId: string,
+  token: string,
+  pin: string,
+): Promise<void> {
+  const graphVersion = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
+  const response = await fetch(
+    `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/register`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  const payload: any = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.success !== true) {
+    throw new Error(payload?.error?.message || 'Meta không thể đăng ký số điện thoại cho Cloud API.');
+  }
+}
+
+/** Start the one-time WhatsApp Business app contact/history synchronization. */
+export async function requestSmbAppDataSync(
+  phoneNumberId: string,
+  token: string,
+  syncType: 'smb_app_state_sync' | 'history',
+): Promise<string> {
+  const graphVersion = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
+  const response = await fetch(
+    `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/smb_app_data`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: syncType }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  const payload: any = await response.json().catch(() => ({}));
+  if (!response.ok || typeof payload?.request_id !== 'string') {
+    throw new Error(payload?.error?.message || `Meta không thể khởi tạo đồng bộ ${syncType}.`);
+  }
+  return payload.request_id;
 }
 
 /**

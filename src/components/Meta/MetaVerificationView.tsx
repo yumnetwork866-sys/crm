@@ -44,6 +44,16 @@ declare global {
 
 let facebookSdkPromise: Promise<void> | null = null;
 
+function isTrustedFacebookOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:'
+      && (url.hostname === 'facebook.com' || url.hostname.endsWith('.facebook.com'));
+  } catch {
+    return false;
+  }
+}
+
 function loadFacebookSdk(appId: string, version: string): Promise<void> {
   if (window.FB) {
     window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version });
@@ -90,9 +100,9 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [wabaId, setWabaId] = useState('');
   const [phoneId, setPhoneId] = useState('');
   const [verifyToken, setVerifyToken] = useState('YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-  const [metaAppId, setMetaAppId] = useState(import.meta.env.VITE_META_APP_ID || '2066680650914544');
+  const [metaAppId, setMetaAppId] = useState(import.meta.env.VITE_META_APP_ID || '');
   const [configurationId, setConfigurationId] = useState(
-    import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '1980841189284400',
+    import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '',
   );
   const [graphVersion, setGraphVersion] = useState(import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -180,8 +190,8 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setMetaAppId(data.embeddedSignup?.appId || import.meta.env.VITE_META_APP_ID || '2066680650914544');
-        setConfigurationId(data.embeddedSignup?.configurationId || import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '1980841189284400');
+        setMetaAppId(data.embeddedSignup?.appId || import.meta.env.VITE_META_APP_ID || '');
+        setConfigurationId(data.embeddedSignup?.configurationId || import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '');
         setGraphVersion(data.embeddedSignup?.graphVersion || import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
 
         if (data.whatsappWabaId && data.hasAccessToken) {
@@ -200,6 +210,10 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const completeEmbeddedSignup = useCallback(async (credential: EmbeddedSignupCredential, session: EmbeddedSignupSession) => {
     if (isCompletingRef.current) return;
     isCompletingRef.current = true;
+    if (credentialWaitTimerRef.current !== null) {
+      window.clearTimeout(credentialWaitTimerRef.current);
+      credentialWaitTimerRef.current = null;
+    }
     setIsConnecting(true);
     setSignupAlert(null);
     try {
@@ -210,7 +224,11 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       if (!ok) throw new Error(data.error || 'Không thể hoàn tất kết nối WhatsApp.');
       setSignupAlert({
         type: 'success',
-        message: `Đã kết nối ${data.verifiedName || 'WhatsApp Business'}${data.displayPhoneNumber ? ` (${data.displayPhoneNumber})` : ''}.`,
+        message: `Đã kết nối ${data.verifiedName || 'WhatsApp Business'}${data.displayPhoneNumber ? ` (${data.displayPhoneNumber})` : ''}.${
+          Array.isArray(data.syncWarnings) && data.syncWarnings.length > 0
+            ? ' Kết nối đã lưu nhưng đồng bộ dữ liệu cũ chưa khởi tạo đầy đủ; hãy kiểm tra cấu hình webhook.'
+            : ''
+        }`,
       });
       setWabaId(data.wabaId || session.wabaId);
       setPhoneId(data.phoneNumberId || session.phoneNumberId || '');
@@ -229,7 +247,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
 
   useEffect(() => {
     const receiveMessage = (event: MessageEvent) => {
-      if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return;
+      if (!isTrustedFacebookOrigin(event.origin)) return;
       let payload: any = event.data;
       if (typeof payload === 'string') {
         try { payload = JSON.parse(payload); } catch { return; }
@@ -237,15 +255,24 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return;
       if (payload.event === 'CANCEL') {
         if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+        credentialWaitTimerRef.current = null;
         isAwaitingPopupRef.current = false;
+        signupCredentialRef.current = null;
+        signupSessionRef.current = null;
         setIsConnecting(false);
         setConnectingMode(null);
-        setSignupAlert({ type: 'error', message: 'Bạn đã đóng hoặc hủy quy trình kết nối WhatsApp.' });
+        setSignupAlert({
+          type: 'error',
+          message: payload?.data?.error_message || 'Bạn đã đóng hoặc hủy quy trình kết nối WhatsApp.',
+        });
         return;
       }
       if (payload.event === 'ERROR') {
         if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+        credentialWaitTimerRef.current = null;
         isAwaitingPopupRef.current = false;
+        signupCredentialRef.current = null;
+        signupSessionRef.current = null;
         setIsConnecting(false);
         setConnectingMode(null);
         setSignupAlert({ type: 'error', message: payload?.data?.error_message || 'Meta báo lỗi trong Embedded Signup.' });
@@ -253,11 +280,30 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       }
       const isCloudApiFinish = payload.event === 'FINISH';
       const isCoexistenceFinish = payload.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
-      if (!isCloudApiFinish && !isCoexistenceFinish) return;
+      if (!isCloudApiFinish && !isCoexistenceFinish) {
+        if (String(payload.event || '').startsWith('FINISH')) {
+          if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+          credentialWaitTimerRef.current = null;
+          isAwaitingPopupRef.current = false;
+          signupCredentialRef.current = null;
+          signupSessionRef.current = null;
+          setIsConnecting(false);
+          setConnectingMode(null);
+          setSignupAlert({
+            type: 'error',
+            message: 'Luồng Meta đã hoàn tất nhưng chưa có số điện thoại. Hãy chạy lại và chọn hoặc thêm một số WhatsApp.',
+          });
+        }
+        return;
+      }
       const data = payload.data || {};
       const mode: EmbeddedSignupMode = isCoexistenceFinish ? 'coexistence' : signupModeRef.current;
       if (!data.waba_id || (mode === 'cloud_api' && !data.phone_number_id)) {
+        if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
+        credentialWaitTimerRef.current = null;
         isAwaitingPopupRef.current = false;
+        signupCredentialRef.current = null;
+        signupSessionRef.current = null;
         setIsConnecting(false);
         setConnectingMode(null);
         setSignupAlert({ type: 'error', message: 'Meta không trả về đủ WABA ID hoặc Phone Number ID.' });
@@ -275,6 +321,8 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         if (credentialWaitTimerRef.current !== null) window.clearTimeout(credentialWaitTimerRef.current);
         credentialWaitTimerRef.current = window.setTimeout(() => {
           if (!signupCredentialRef.current && signupSessionRef.current && !isCompletingRef.current) {
+            isAwaitingPopupRef.current = false;
+            signupSessionRef.current = null;
             setIsConnecting(false);
             setConnectingMode(null);
             setSignupAlert({
@@ -282,7 +330,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
               message: 'Meta đã hoàn tất chọn WABA nhưng không trả thông tin xác thực. Hãy kiểm tra loại token trong Facebook Login for Business Configuration.',
             });
           }
-        }, 3_000);
+        }, 20_000);
       }
     };
     window.addEventListener('message', receiveMessage);
@@ -304,7 +352,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       // moment to arrive, then release the UI if no completion has started.
       popupFocusTimerRef.current = window.setTimeout(() => {
         if (!isAwaitingPopupRef.current || isCompletingRef.current) return;
-        if (signupCredentialRef.current && signupSessionRef.current) return;
+        if (signupCredentialRef.current || signupSessionRef.current) return;
         isAwaitingPopupRef.current = false;
         popupBlurredRef.current = false;
         signupCredentialRef.current = null;
@@ -313,7 +361,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setIsConnecting(false);
         setConnectingMode(null);
         setSignupAlert({ type: 'error', message: 'Cửa sổ kết nối Meta đã được đóng trước khi hoàn tất.' });
-      }, 800);
+      }, 2_500);
     };
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus);
@@ -344,6 +392,18 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       window.clearTimeout(credentialWaitTimerRef.current);
       credentialWaitTimerRef.current = null;
     }
+    credentialWaitTimerRef.current = window.setTimeout(() => {
+      if (!isAwaitingPopupRef.current || isCompletingRef.current) return;
+      isAwaitingPopupRef.current = false;
+      signupCredentialRef.current = null;
+      signupSessionRef.current = null;
+      setIsConnecting(false);
+      setConnectingMode(null);
+      setSignupAlert({
+        type: 'error',
+        message: 'Meta không trả về đầy đủ thông tin kết nối trong thời gian cho phép. Hãy thử lại.',
+      });
+    }, 28_000);
     try {
       await loadFacebookSdk(metaAppId, graphVersion);
       if (!window.FB) throw new Error('Facebook SDK chưa sẵn sàng.');
@@ -358,10 +418,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         }
         const credential: EmbeddedSignupCredential = code ? { code } : { accessToken };
         signupCredentialRef.current = credential;
-        if (credentialWaitTimerRef.current !== null) {
-          window.clearTimeout(credentialWaitTimerRef.current);
-          credentialWaitTimerRef.current = null;
-        }
         if (signupSessionRef.current) {
           void completeEmbeddedSignup(credential, signupSessionRef.current);
         }
@@ -369,13 +425,15 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         config_id: configurationId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: {
-          setup: {},
-          featureType: mode === 'coexistence' ? 'whatsapp_business_app_onboarding' : '',
-          sessionInfoVersion: '3',
-        },
+        extras: mode === 'coexistence'
+          ? { featureType: 'whatsapp_business_app_onboarding' }
+          : {},
       });
     } catch (error) {
+      if (credentialWaitTimerRef.current !== null) {
+        window.clearTimeout(credentialWaitTimerRef.current);
+        credentialWaitTimerRef.current = null;
+      }
       isAwaitingPopupRef.current = false;
       setIsConnecting(false);
       setConnectingMode(null);

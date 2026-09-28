@@ -12,9 +12,11 @@ The Meta connection page is available to CRM administrators at `/meta-verificati
 Before using it:
 
 1. Allowlist the production origin (`https://crm.yumnetwork.vn`) in Meta's Embedded Signup Builder.
-2. Set `META_APP_SECRET` and a unique `META_TOKEN_ENCRYPTION_KEY` of at least 32 characters in the backend environment.
-3. Apply database migrations with `npx prisma migrate deploy`.
-4. Restart the backend after changing environment variables.
+2. Create a Facebook Login for Business configuration from the current WhatsApp Embedded Signup v4 template and set `META_EMBEDDED_SIGNUP_CONFIG_ID`.
+3. Set `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION`, `META_VERIFY_TOKEN`, and a unique `META_TOKEN_ENCRYPTION_KEY` of at least 32 characters in the backend environment.
+4. Subscribe the WhatsApp Business Account webhook product to `messages` and `account_update`. If Coexistence is enabled, also subscribe to `history`, `smb_app_state_sync`, `smb_message_echoes`, and `account_offboarded`.
+5. Apply database migrations with `npx prisma migrate deploy`.
+6. Restart the backend after changing environment variables.
 
 Never expose `META_APP_SECRET`, `META_TOKEN_ENCRYPTION_KEY`, or a Meta access token through a `VITE_` variable.
 

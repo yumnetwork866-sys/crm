@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from './messageStore';
 import { messageStore } from './messageStore';
-import { getIntegrationSetting } from './metaApiClient';
+import { getIntegrationSetting, updateIntegrationSetting } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 import { aggregateCampaign } from './campaignWorker';
 import { autoReplyWithDify } from './difyService';
@@ -18,8 +18,6 @@ export async function verifyWebhookChallenge(query: any): Promise<{ isValid: boo
   const validTokens = [
     setting.whatsappVerifyToken,
     process.env.META_VERIFY_TOKEN,
-    '123456',
-    'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026'
   ].filter(Boolean).map((t) => String(t).trim());
 
   console.log(`[META WEBHOOK VERIFY REQUEST] Received mode: "${mode}", token: "${token}"`);
@@ -139,6 +137,172 @@ function extractWebhookStatuses(body: any): any[] {
   return statuses;
 }
 
+function extractWebhookChanges(body: any): Array<{ field: string; value: any; entryId?: string }> {
+  const changes: Array<{ field: string; value: any; entryId?: string }> = [];
+  for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      changes.push({
+        field: String(change?.field || ''),
+        value: change?.value || {},
+        entryId: entry?.id ? String(entry.id) : undefined,
+      });
+    }
+  }
+  return changes;
+}
+
+function getMessageText(msgData: any): string {
+  const directText = msgData?.text?.body;
+  if (directText) return directText;
+  if (msgData?.type === 'image') {
+    const mediaId = msgData.image?.id;
+    const caption = msgData.image?.caption || '';
+    return mediaId
+      ? `/api/meta/media/${mediaId}${caption ? `\n${caption}` : ''}`
+      : caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
+  }
+  if (msgData?.type === 'sticker') return '[Sticker WhatsApp]';
+  if (msgData?.type === 'document') return `[Tài liệu] ${msgData.document?.filename || 'Tập tin đính kèm'}`;
+  if (msgData?.type === 'audio') return '[Tin nhắn thoại (Audio)]';
+  if (msgData?.type === 'video') return '[Video]';
+  if (msgData?.type === 'location') {
+    return `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();
+  }
+  return msgData?.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp';
+}
+
+async function processIntegrationLifecycle(body: any): Promise<void> {
+  for (const change of extractWebhookChanges(body)) {
+    const eventName = String(change.value?.event || change.value?.type || '').toUpperCase();
+    const isDisconnected = (change.field === 'account_update' && eventName === 'PARTNER_REMOVED')
+      || change.field === 'account_offboarded';
+    if (!isDisconnected) continue;
+
+    const setting = await getIntegrationSetting();
+    const eventWabaId = String(change.value?.waba_info?.waba_id || change.value?.waba_id || change.entryId || '');
+    if (setting.whatsappWabaId && eventWabaId && setting.whatsappWabaId !== eventWabaId) continue;
+
+    await updateIntegrationSetting({
+      whatsappPhoneNumberId: null,
+      whatsappWabaId: null,
+      metaBusinessId: null,
+      whatsappAccessTokenEncrypted: null,
+      whatsappTokenExpiresAt: null,
+      status: 'disconnected',
+      lastConnectedAt: null,
+    }, { requirePersistence: true });
+    realtimeHub.broadcast('integration:status', { status: 'disconnected', reason: eventName || change.field });
+  }
+}
+
+async function processSmbContacts(body: any): Promise<number> {
+  let processed = 0;
+  for (const change of extractWebhookChanges(body)) {
+    if (change.field !== 'smb_app_state_sync') continue;
+    for (const state of Array.isArray(change.value?.state_sync) ? change.value.state_sync : []) {
+      if (state?.type !== 'contact' || state?.contact?.action === 'remove') continue;
+      const phone = String(state?.contact?.phone_number || '').replace(/\D/g, '');
+      if (phone.length < 7) continue;
+      const phoneSuffix = phone.slice(-9);
+      const existing = await prisma.customer.findFirst({ where: { phone: { contains: phoneSuffix } } });
+      if (!existing) {
+        await prisma.customer.create({
+          data: {
+            phone: `+${phone}`,
+            name: state.contact.full_name || state.contact.first_name || `Liên hệ WhatsApp ${phoneSuffix}`,
+            source: 'WhatsApp',
+          },
+        });
+      }
+      processed++;
+    }
+  }
+  if (processed > 0) realtimeHub.broadcast('customers:sync', { source: 'whatsapp-contacts' });
+  return processed;
+}
+
+async function saveMirroredMessage(input: {
+  msgData: any;
+  customerPhone: string;
+  sender: 'agent' | 'customer';
+  customerName?: string;
+  broadcast?: boolean;
+}): Promise<boolean> {
+  const { msgData, customerPhone, sender, broadcast = false } = input;
+  if (!msgData?.id || !customerPhone) return false;
+  const matched = await matchCustomerByPhone(customerPhone, input.customerName || `Khách WhatsApp (${customerPhone})`);
+  const mirrored: InMemoryMessage = {
+    id: String(msgData.id),
+    customerId: matched.customerId,
+    customerName: matched.customerName,
+    customerPhone,
+    sender,
+    agentName: sender === 'agent' ? 'WhatsApp Business App' : undefined,
+    channel: 'WhatsApp',
+    content: getMessageText(msgData),
+    timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
+    isRead: true,
+  };
+  messageStore.add(mirrored);
+  await prisma.whatsAppMessage.upsert({
+    where: { id: mirrored.id },
+    update: {},
+    create: {
+      id: mirrored.id,
+      ...(matched.isCrmCustomer ? { customerId: matched.customerId } : {}),
+      customerName: matched.customerName,
+      customerPhone,
+      sender: mirrored.sender,
+      agentName: mirrored.agentName,
+      channel: mirrored.channel,
+      content: mirrored.content,
+      isRead: true,
+      timestamp: new Date(mirrored.timestamp),
+    },
+  });
+  if (broadcast) realtimeHub.broadcast('message:new', mirrored);
+  return true;
+}
+
+async function processSmbMessages(body: any): Promise<number> {
+  let processed = 0;
+  let historyChanged = false;
+  for (const change of extractWebhookChanges(body)) {
+    if (change.field === 'smb_message_echoes') {
+      for (const message of Array.isArray(change.value?.message_echoes) ? change.value.message_echoes : []) {
+        if (await saveMirroredMessage({
+          msgData: message,
+          customerPhone: String(message?.to || ''),
+          sender: 'agent',
+          broadcast: true,
+        })) processed++;
+      }
+    }
+    if (change.field === 'history') {
+      const businessPhone = String(change.value?.metadata?.display_phone_number || '').replace(/\D/g, '');
+      for (const batch of Array.isArray(change.value?.history) ? change.value.history : []) {
+        for (const thread of Array.isArray(batch?.threads) ? batch.threads : []) {
+          for (const message of Array.isArray(thread?.messages) ? thread.messages : []) {
+            const from = String(message?.from || '').replace(/\D/g, '');
+            const isAgent = Boolean(businessPhone && from === businessPhone);
+            const customerPhone = isAgent ? String(message?.to || thread?.id || '') : String(message?.from || thread?.id || '');
+            if (await saveMirroredMessage({
+              msgData: message,
+              customerPhone,
+              sender: isAgent ? 'agent' : 'customer',
+            })) {
+              processed++;
+              historyChanged = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  if (historyChanged) realtimeHub.broadcast('messages:sync', { source: 'whatsapp-history' });
+  return processed;
+}
+
 async function processCampaignStatuses(body: any) {
   const affectedCampaigns = new Set<string>();
   for (const item of extractWebhookStatuses(body)) {
@@ -189,9 +353,12 @@ export async function processWebhookPayload(body: any): Promise<number> {
 
   console.log('[META WEBHOOK POST RECEIVED]', JSON.stringify(parsedBody, null, 2));
 
+  await processIntegrationLifecycle(parsedBody);
   await processCampaignStatuses(parsedBody);
+  const smbContactCount = await processSmbContacts(parsedBody);
+  const smbMessageCount = await processSmbMessages(parsedBody);
   const extractedItems = extractWebhookItems(parsedBody);
-  let processedCount = 0;
+  let processedCount = smbContactCount + smbMessageCount;
 
   for (const { msgData, valueObj } of extractedItems) {
     const contactData = valueObj?.contacts?.find((c: any) => c.wa_id === msgData.from) || valueObj?.contacts?.[0];
@@ -199,30 +366,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
 
     // Determine message text body based on message type
-    let textBody = msgData.text?.body;
-    if (!textBody) {
-      if (msgData.type === 'image') {
-        const mediaId = msgData.image?.id;
-        const caption = msgData.image?.caption || '';
-        if (mediaId) {
-          textBody = `/api/meta/media/${mediaId}${caption ? `\n${caption}` : ''}`;
-        } else {
-          textBody = caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
-        }
-      } else if (msgData.type === 'sticker') {
-        textBody = '[Sticker WhatsApp]';
-      } else if (msgData.type === 'document') {
-        textBody = `[Tài liệu] ${msgData.document?.filename || 'Tập tin đính kèm'}`;
-      } else if (msgData.type === 'audio') {
-        textBody = '[Tin nhắn thoại (Audio)]';
-      } else if (msgData.type === 'video') {
-        textBody = '[Video]';
-      } else if (msgData.type === 'location') {
-        textBody = `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();
-      } else {
-        textBody = msgData.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp';
-      }
-    }
+    const textBody = getMessageText(msgData);
 
     // Match customer in CRM
     const { customerId, customerName, isCrmCustomer } = await matchCustomerByPhone(fromPhone, senderName);
