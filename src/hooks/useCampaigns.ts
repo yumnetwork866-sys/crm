@@ -12,7 +12,7 @@ import { queryKeys } from '../lib/queryClient';
 import { api } from '../utils/apiClient';
 import { mapApiCampaignToFrontend } from '../utils/apiMappers';
 
-export function useCampaigns(currentUser: AppUser | null) {
+export function useCampaigns(currentUser: AppUser | null, enabled = true) {
   const queryClient = useQueryClient();
   const campaignsQuery = useQuery({
     queryKey: queryKeys.campaigns,
@@ -20,7 +20,7 @@ export function useCampaigns(currentUser: AppUser | null) {
       const response = await api.get<any[]>('/campaigns');
       return response.map(mapApiCampaignToFrontend);
     },
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && enabled,
     refetchInterval: (query) => {
       const campaigns = query.state.data as BroadcastCampaign[] | undefined;
       return campaigns?.some((campaign) =>
@@ -35,7 +35,7 @@ export function useCampaigns(currentUser: AppUser | null) {
   const templatesQuery = useQuery({
     queryKey: queryKeys.whatsappTemplates,
     queryFn: () => api.get<WhatsAppApprovedTemplate[]>('/campaigns/templates'),
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && enabled,
     staleTime: 60_000,
     retry: false,
     refetchInterval: (query) => {

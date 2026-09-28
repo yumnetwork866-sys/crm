@@ -21,12 +21,12 @@ const createLocalProduct = (input: Partial<Product>): Product => ({
   image: input.image || '',
 });
 
-export function useProducts(currentUser: AppUser | null) {
+export function useProducts(currentUser: AppUser | null, enabled = true) {
   const queryClient = useQueryClient();
   const productsQuery = useQuery({
     queryKey: queryKeys.products,
     queryFn: () => api.get<Product[]>('/products'),
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && enabled,
     initialData: INITIAL_PRODUCT_LIST,
     initialDataUpdatedAt: 0,
   });

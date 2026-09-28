@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { AppUser, CentralMessage, Customer, MessageChannel } from '../types';
 import { api } from '../utils/apiClient';
@@ -28,12 +28,18 @@ interface UseCentralMessagesOptions {
   customers: Customer[];
   setCustomers: Dispatch<SetStateAction<Customer[]>>;
   currentUser: AppUser | null;
+  loadMessages?: boolean;
+}
+
+interface ConversationSummaryResponse {
+  data: Array<{ unreadCount: number }>;
 }
 
 export function useCentralMessages({
   customers,
   setCustomers,
   currentUser,
+  loadMessages = true,
 }: UseCentralMessagesOptions) {
   const queryClient = useQueryClient();
   const messagesQuery = useInfiniteQuery<
@@ -49,9 +55,15 @@ export function useCentralMessages({
     ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && loadMessages,
   });
   const messages = useMemo(() => flattenMessagePages(messagesQuery.data), [messagesQuery.data]);
+  const unreadSummaryQuery = useQuery({
+    queryKey: queryKeys.messageUnreadSummary,
+    queryFn: () => api.get<ConversationSummaryResponse>('/meta/messages/conversations?limit=100'),
+    enabled: Boolean(currentUser) && !loadMessages,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     // Remove the legacy full-message cache once. PostgreSQL + TanStack Query are now the source of truth.
@@ -108,10 +120,12 @@ export function useCentralMessages({
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  const unreadCount = useMemo(
-    () => messages.filter((message) => !message.isRead && message.sender === 'customer').length,
-    [messages]
-  );
+  const unreadCount = useMemo(() => {
+    if (loadMessages) {
+      return messages.filter((message) => !message.isRead && message.sender === 'customer').length;
+    }
+    return unreadSummaryQuery.data?.data.reduce((total, thread) => total + thread.unreadCount, 0) ?? 0;
+  }, [loadMessages, messages, unreadSummaryQuery.data]);
 
   const readMutation = useMutation({
     mutationFn: (variables: { customerId: string; customerPhone: string; messageIds?: string[]; readBy: string }) =>
@@ -155,7 +169,8 @@ export function useCentralMessages({
       messageIds,
       readBy: reader,
     });
-  }, [readMutation, setMessages]);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+  }, [queryClient, readMutation, setMessages]);
 
   useEffect(() => {
     const knownMessageIds = new Set<string>();
@@ -205,6 +220,7 @@ export function useCentralMessages({
             playNotificationSound();
             setToastNotification({ message: newMessage, show: true });
           }
+          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:new event:', error);
         }
@@ -227,6 +243,7 @@ export function useCentralMessages({
                 : message;
             })
           );
+          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:read event:', error);
         }
@@ -240,6 +257,7 @@ export function useCentralMessages({
                 && !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone))
             )
           );
+          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
         } catch {
           // Ignore malformed realtime events.
         }
@@ -248,11 +266,15 @@ export function useCentralMessages({
         try {
           const { messageId } = JSON.parse(event.data);
           setMessages((previous) => previous.filter((message) => message.id !== messageId));
+          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
         } catch {
           // Ignore malformed realtime events.
         }
       });
-      eventSource.addEventListener('message:cleared', () => setMessages([]));
+      eventSource.addEventListener('message:cleared', () => {
+        setMessages([]);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+      });
 
       eventSource.onerror = (error) => {
         console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', error);
