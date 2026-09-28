@@ -9,11 +9,15 @@ export function useWhatsAppSessionWindow(activeThread: MessageThread | null) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const session24hInfo = useMemo(() => {
+  const expiresAtMs = useMemo(() => {
     if (!activeThread?.messages.length) return null;
     const customerMessages = activeThread.messages.filter((message) => message.sender === 'customer');
     const referenceTimestamp = customerMessages.at(-1)?.timestamp || activeThread.lastMessage.timestamp;
-    const expiresAtMs = new Date(referenceTimestamp).getTime() + 24 * 60 * 60 * 1000;
+    return new Date(referenceTimestamp).getTime() + 24 * 60 * 60 * 1000;
+  }, [activeThread]);
+
+  const session24hInfo = useMemo(() => {
+    if (expiresAtMs === null) return null;
     const remainingMs = Math.max(0, expiresAtMs - currentTime);
     const isExpired = remainingMs <= 0;
     const hours = Math.floor(remainingMs / (1000 * 60 * 60));
@@ -31,7 +35,7 @@ export function useWhatsAppSessionWindow(activeThread: MessageThread | null) {
         ? 'Hết hạn'
         : `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
     };
-  }, [activeThread, currentTime]);
+  }, [currentTime, expiresAtMs]);
 
-  return { currentTime, session24hInfo };
+  return session24hInfo;
 }

@@ -93,6 +93,12 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const activeTab = useMemo(() => getActiveTabFromPath(location.pathname), [location.pathname]);
+  const routeSegment = location.pathname.replace(/^\//, '').split('/')[0];
+  const shouldLoadCustomers = ['crm', 'orders', 'segmentation', 'automation', 'reports', 'messages'].includes(routeSegment);
+  const shouldLoadProducts = routeSegment === 'orders';
+  const shouldLoadCampaigns = routeSegment === 'automation' || routeSegment === 'reports';
+  const shouldLoadReports = routeSegment === 'reports';
+  const shouldLoadFullMessages = routeSegment === 'crm' || routeSegment === 'messages';
 
   // Backward compatibility with previous hash routes
   useEffect(() => {
@@ -112,7 +118,7 @@ export default function App() {
     toggleUserStatus: handleToggleUserStatus,
   } = useAuth();
 
-  const { marketingReports, saveReports: setMarketingReports } = useMarketingReports(currentUser);
+  const { marketingReports, saveReports: setMarketingReports } = useMarketingReports(currentUser, shouldLoadReports);
 
   const {
     customers,
@@ -126,7 +132,7 @@ export default function App() {
     runAutomationSimulation,
     buildFilterModel,
     isError: isCustomersError,
-  } = useCustomers(currentUser);
+  } = useCustomers(currentUser, shouldLoadCustomers);
   const {
     products,
     addProduct: handleAddProduct,
@@ -134,7 +140,7 @@ export default function App() {
     deleteProduct: handleDeleteProduct,
     importProducts: handleImportProducts,
     isError: isProductsError,
-  } = useProducts(currentUser);
+  } = useProducts(currentUser, shouldLoadProducts);
   const {
     campaigns,
     whatsappTemplates,
@@ -152,7 +158,7 @@ export default function App() {
     isLaunchPending: isCampaignLaunchPending,
     launchError: campaignLaunchError,
     resetLaunchError: resetCampaignLaunchError,
-  } = useCampaigns(currentUser);
+  } = useCampaigns(currentUser, shouldLoadCampaigns);
   const {
     addOrder: handleAddOrder,
     createOrder: handleCreateOrderCentral,
@@ -175,7 +181,12 @@ export default function App() {
     isLoadingOlderMessages,
     loadOlderMessages,
     isError: isMessagesError,
-  } = useCentralMessages({ customers, setCustomers, currentUser });
+  } = useCentralMessages({
+    customers,
+    setCustomers,
+    currentUser,
+    loadMessages: shouldLoadFullMessages,
+  });
   const customerFilterModel = useMemo(
     () => buildFilterModel(),
     [buildFilterModel]

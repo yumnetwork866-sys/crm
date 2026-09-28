@@ -4,7 +4,7 @@ import { api } from '../utils/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { INITIAL_MARKETING_REPORTS } from '../data/mockData';
 
-export function useMarketingReports(currentUser: AppUser | null) {
+export function useMarketingReports(currentUser: AppUser | null, enabled = true) {
   const queryClient = useQueryClient();
 
   const reportsQuery = useQuery<MarketingCampaignReport[]>({
@@ -18,7 +18,7 @@ export function useMarketingReports(currentUser: AppUser | null) {
         return INITIAL_MARKETING_REPORTS;
       }
     },
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && enabled,
     staleTime: 60_000,
   });
 

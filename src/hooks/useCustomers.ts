@@ -59,7 +59,7 @@ const matchesGender = (customerGender: string | undefined, filterGender: string)
   return customerValue === filterValue;
 };
 
-export function useCustomers(currentUser: AppUser | null) {
+export function useCustomers(currentUser: AppUser | null, enabled = true) {
   const queryClient = useQueryClient();
   const customersQuery = useQuery<Customer[]>({
     queryKey: queryKeys.customers,
@@ -73,7 +73,7 @@ export function useCustomers(currentUser: AppUser | null) {
           : [];
       return sortCustomersByName(customerList.map(mapApiCustomerToFrontend));
     },
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && enabled,
     initialData: loadCustomers,
     initialDataUpdatedAt: 0,
   });

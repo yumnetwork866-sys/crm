@@ -21,8 +21,20 @@ import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 import { Permission } from '../lib/permissions';
 import { getUserRoleColor, getUserRoleTextStyle } from '../utils/roleColors';
 
-const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
-  <i className={`fa-brands fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
+const WhatsAppIcon: React.FC<React.ComponentProps<'svg'>> = ({ className, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <path d="M20.5 11.8a8.5 8.5 0 0 1-12.6 7.4L3 20.8l1.6-4.7a8.5 8.5 0 1 1 15.9-4.3Z" />
+    <path d="m8.2 7.2 1.8-.6 1.3 3-1.2 1.1c.7 1.6 1.9 2.8 3.5 3.5l1.1-1.2 3 1.3-.6 1.8c-.2.6-.8.9-1.4.8-4.1-.6-7.4-3.9-8-8-.1-.6.2-1.2.8-1.4" />
+  </svg>
 );
 
 interface HeaderProps {

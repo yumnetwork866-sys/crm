@@ -13,7 +13,7 @@ export interface SlaWarning {
 interface ThreadListItemProps {
   thread: MessageThread;
   isSelected: boolean;
-  threadStatuses: Record<string, ConversationStatus>;
+  status?: ConversationStatus;
   onSelectThread: (threadId: string, phone: string, messageIds: string[]) => void;
   togglePinThread: (threadId: string) => void;
   onDeleteThread?: (id: string) => void;
@@ -21,10 +21,10 @@ interface ThreadListItemProps {
   slaWarning: SlaWarning | null;
 }
 
-export const ThreadListItem: React.FC<ThreadListItemProps> = ({
+const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   thread,
   isSelected,
-  threadStatuses,
+  status,
   onSelectThread,
   togglePinThread,
   onDeleteThread,
@@ -39,7 +39,7 @@ export const ThreadListItem: React.FC<ThreadListItemProps> = ({
     ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     : formatDate(threadTime);
 
-  const currentStatusKey = threadStatuses[thread.threadId] || 'consulting';
+  const currentStatusKey = status || 'consulting';
   const currentStatus = STATUS_CONFIG[currentStatusKey];
 
   return (
@@ -196,3 +196,16 @@ export const ThreadListItem: React.FC<ThreadListItemProps> = ({
     </div>
   );
 };
+
+export const ThreadListItem = React.memo(ThreadListItemComponent, (previous, next) =>
+  previous.thread === next.thread
+  && previous.isSelected === next.isSelected
+  && previous.status === next.status
+  && previous.onSelectThread === next.onSelectThread
+  && previous.togglePinThread === next.togglePinThread
+  && previous.onDeleteThread === next.onDeleteThread
+  && previous.isAdmin === next.isAdmin
+  && previous.slaWarning?.label === next.slaWarning?.label
+  && previous.slaWarning?.minutes === next.slaWarning?.minutes
+  && previous.slaWarning?.isSevere === next.slaWarning?.isSevere
+);

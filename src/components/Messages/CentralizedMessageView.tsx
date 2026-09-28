@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   MessageSquare,
   Search,
@@ -57,7 +58,6 @@ import { useMessageInteractions } from '../../features/messages/hooks/useMessage
 import { useMessagePreferences } from '../../features/messages/hooks/useMessagePreferences';
 import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
-import { useWhatsAppSessionWindow } from '../../features/messages/hooks/useWhatsAppSessionWindow';
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { api } from '../../utils/apiClient';
@@ -69,6 +69,7 @@ import { UserInfoModal } from '../Common/UserInfoModal';
 import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
 import { ThreadListItem } from '../../features/messages/components/ThreadListItem';
 import { CustomerChatDrawer } from '../../features/messages/components/CustomerChatDrawer';
+import { WhatsAppSessionCountdown } from '../../features/messages/components/WhatsAppSessionCountdown';
 
 interface SavedMessageList {
   id: string;
@@ -177,6 +178,50 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     isLoadingOlderMessages,
     onLoadOlderMessages,
   });
+  const displayedMessages = useMemo(
+    () => groupedMessagesByDate.flatMap((group) => group.msgs),
+    [groupedMessagesByDate],
+  );
+  const virtualMessageRows = useMemo(() => {
+    const rows: Array<{
+      key: string;
+      dateLabel: string;
+      showDateDivider: boolean;
+      messages: CentralMessage[];
+      startIndex: number;
+    }> = [];
+    let messageOffset = 0;
+
+    groupedMessagesByDate.forEach((group) => {
+      for (let chunkStart = 0; chunkStart < group.msgs.length; chunkStart += 25) {
+        const chunk = group.msgs.slice(chunkStart, chunkStart + 25);
+        rows.push({
+          key: `${group.dateLabel}-${chunk[0]?.id || chunkStart}`,
+          dateLabel: group.dateLabel,
+          showDateDivider: chunkStart === 0,
+          messages: chunk,
+          startIndex: messageOffset + chunkStart,
+        });
+      }
+      messageOffset += group.msgs.length;
+    });
+
+    return rows;
+  }, [groupedMessagesByDate]);
+  const messageVirtualizer = useVirtualizer({
+    count: virtualMessageRows.length,
+    getScrollElement: () => chatContainerRef.current,
+    estimateSize: (index) => Math.max(120, virtualMessageRows[index].messages.length * 78),
+    getItemKey: (index) => virtualMessageRows[index]?.key || index,
+    overscan: 2,
+  });
+  const messageRowIndexById = useMemo(() => {
+    const lookup = new Map<string, number>();
+    virtualMessageRows.forEach((row, rowIndex) => {
+      row.messages.forEach((message) => lookup.set(message.id, rowIndex));
+    });
+    return lookup;
+  }, [virtualMessageRows]);
 
   // Auto-mark active thread as read
   useEffect(() => {
@@ -185,7 +230,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     }
   }, [activeThread, onSelectCustomerThread]);
 
-  const { currentTime, session24hInfo } = useWhatsAppSessionWindow(activeThread);
+  const [slaCurrentTime, setSlaCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSlaCurrentTime(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const {
     businessPhones,
@@ -225,7 +275,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     setShowExpandedReactionPickerMsgId,
     highlightedMessageId,
     copiedMsgId,
-    handleJumpToQuotedMessage,
+    handleJumpToQuotedMessage: jumpToQuotedMessage,
     handleCopyMessage,
     handleReactMessage,
     handleReplyMessage,
@@ -234,6 +284,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     selectedPhoneId,
     onReplyMessage: startReplyMessage,
   });
+  const handleJumpToQuotedMessage = useCallback((messageId: string) => {
+    const rowIndex = messageRowIndexById.get(messageId);
+    if (rowIndex !== undefined) {
+      messageVirtualizer.scrollToIndex(rowIndex, { align: 'center' });
+    }
+    window.setTimeout(() => jumpToQuotedMessage(messageId), 50);
+  }, [jumpToQuotedMessage, messageRowIndexById, messageVirtualizer]);
 
   // Dify AI Auto-reply state per active customer thread
   const [isCustomerAiActive, setIsCustomerAiActive] = useState<boolean>(true);
@@ -308,6 +365,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         ...filterOptions.filter((filterOption) => filterOption.id !== 'all' && filterOption.id !== activeFilter),
       ];
 
+  const threadListRef = useRef<HTMLDivElement>(null);
+  const threadVirtualizer = useVirtualizer({
+    count: filteredThreads.length,
+    getScrollElement: () => threadListRef.current,
+    estimateSize: () => 92,
+    getItemKey: (index) => filteredThreads[index]?.threadId || index,
+    overscan: 8,
+  });
+
   const selectBuiltInFilter = (filter: ActiveMessageFilter) => {
     setActiveFilter(filter);
     setActiveSavedListId(null);
@@ -329,7 +395,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const getSlaWarning = (thread: { messages: CentralMessage[]; lastMessage: CentralMessage }) => {
     if (thread.lastMessage.sender !== 'customer') return null;
-    const elapsedMs = currentTime - new Date(thread.lastMessage.timestamp).getTime();
+    const elapsedMs = slaCurrentTime - new Date(thread.lastMessage.timestamp).getTime();
     const minutes = Math.floor(elapsedMs / (1000 * 60));
     if (minutes < 15) return null;
     if (minutes >= 60) {
@@ -496,25 +562,40 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           </div>
 
           {/* Thread List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 bg-white whatsapp-scrollbar">
+          <div ref={threadListRef} className="flex-1 overflow-y-auto bg-white whatsapp-scrollbar">
             {filteredThreads.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
                 Không tìm thấy đoạn chat nào phù hợp.
               </div>
             ) : (
-              filteredThreads.map((thread) => (
-                <ThreadListItem
-                  key={thread.threadId}
-                  thread={thread}
-                  isSelected={activeThread?.threadId === thread.threadId}
-                  threadStatuses={threadStatuses}
-                  onSelectThread={onSelectCustomerThread}
-                  togglePinThread={togglePinThread}
-                  onDeleteThread={onDeleteThread}
-                  isAdmin={isAdmin}
-                  slaWarning={getSlaWarning(thread)}
-                />
-              ))
+              <div
+                className="relative w-full"
+                style={{ height: `${threadVirtualizer.getTotalSize()}px` }}
+              >
+                {threadVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const thread = filteredThreads[virtualRow.index];
+                  return (
+                    <div
+                      key={thread.threadId}
+                      data-index={virtualRow.index}
+                      ref={threadVirtualizer.measureElement}
+                      className="absolute left-0 top-0 w-full border-b border-slate-100"
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      <ThreadListItem
+                        thread={thread}
+                        isSelected={activeThread?.threadId === thread.threadId}
+                        status={threadStatuses[thread.threadId]}
+                        onSelectThread={onSelectCustomerThread}
+                        togglePinThread={togglePinThread}
+                        onDeleteThread={onDeleteThread}
+                        isAdmin={isAdmin}
+                        slaWarning={getSlaWarning(thread)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -546,37 +627,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       </h2>
 
                       {/* 24h Countdown Chip */}
-                      {session24hInfo && (
-                        <div
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 select-none shadow-2xs ${
-                            session24hInfo.isExpired
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : session24hInfo.hours < 2
-                              ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                              : session24hInfo.hours < 12
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : 'bg-emerald-50 text-emerald-600 border-emerald-300'
-                          }`}
-                          title={`Cửa sổ 24h phản hồi miễn phí Meta WhatsApp Business. ${
-                            session24hInfo.isExpired
-                              ? 'Đã hết hạn 24h - Cần gửi Template có phí để tiếp tục nhắn tin'
-                              : `Hết hạn lúc ${session24hInfo.expiresAt}. Nhắn tin tự do không mất phí template.`
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              session24hInfo.isExpired
-                                ? 'bg-rose-500'
-                                : session24hInfo.hours < 2
-                                ? 'bg-rose-500 animate-ping'
-                                : session24hInfo.hours < 12
-                                ? 'bg-amber-500'
-                                : 'bg-emerald-500'
-                            }`}
-                          ></span>
-                          <span>{session24hInfo.formattedTime}</span>
-                        </div>
-                      )}
+                      <WhatsAppSessionCountdown activeThread={activeThread} />
 
                       {/* Pipeline Status Selector Dropdown */}
                       <div className="relative">
@@ -729,25 +780,40 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 />
                 <MessageSecurityBanner />
 
-                {groupedMessagesByDate.map((group, groupIndex) => (
-                  <div key={groupIndex} className="space-y-2">
+                <div
+                  className="relative w-full"
+                  style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
+                >
+                  {messageVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = virtualMessageRows[virtualRow.index];
+                    return (
+                  <div
+                    key={row.key}
+                    data-index={virtualRow.index}
+                    ref={messageVirtualizer.measureElement}
+                    className="absolute left-0 top-0 w-full space-y-2"
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  >
 
                     {/* Date Divider Pill */}
-                    <div className="flex justify-center my-3 sticky top-1 z-10">
-                      <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm border border-slate-200/80">
-                        {group.dateLabel}
-                      </span>
-                    </div>
+                    {row.showDateDivider && (
+                      <div className="flex justify-center my-3 sticky top-1 z-10">
+                        <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm border border-slate-200/80">
+                          {row.dateLabel}
+                        </span>
+                      </div>
+                    )}
 
-                    {group.msgs.map((msg, msgIdx) => {
+                    {row.messages.map((msg, msgIdx) => {
                       const isAgent = msg.sender === 'agent';
                       const senderName = isAgent ? (msg.agentName || effectiveCurrentUser?.name || 'Nguyễn Văn Ánh') : (msg.customerName || 'Khách Hàng');
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
 
                       // Check if speaker changed from previous and next messages
-                      const prevMsg = msgIdx > 0 ? group.msgs[msgIdx - 1] : null;
-                      const nextMsg = msgIdx < group.msgs.length - 1 ? group.msgs[msgIdx + 1] : null;
+                      const absoluteMessageIndex = row.startIndex + msgIdx;
+                      const prevMsg = displayedMessages[absoluteMessageIndex - 1] || null;
+                      const nextMsg = displayedMessages[absoluteMessageIndex + 1] || null;
 
                       const isSpeakerChangedFromPrev = !prevMsg || prevMsg.sender !== msg.sender || (isAgent && (prevMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (prevMsg.customerName || '') !== (msg.customerName || ''));
                       const isSpeakerChangedToNext = !nextMsg || nextMsg.sender !== msg.sender || (isAgent && (nextMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (nextMsg.customerName || '') !== (msg.customerName || ''));
@@ -1200,7 +1266,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     })}
 
                   </div>
-                ))}
+                    );
+                  })}
+                </div>
 
                 <div ref={chatEndRef} />
               </div>

@@ -6,6 +6,7 @@ import {
   resolvePhoneNumberId,
   ensureWabaSubscribed,
   fetchWabaPhoneNumbers,
+  fetchWhatsAppPhoneDetails,
   fetchWhatsAppBusinessProfile,
   dispatchMetaMessage
 } from '../services/metaApiClient';
@@ -65,13 +66,15 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
   const wabaId = typeof req.body?.wabaId === 'string' ? req.body.wabaId.trim() : '';
   const phoneNumberId = typeof req.body?.phoneNumberId === 'string' ? req.body.phoneNumberId.trim() : '';
   const businessId = typeof req.body?.businessId === 'string' ? req.body.businessId.trim() : '';
+  const mode = req.body?.mode === 'coexistence' ? 'coexistence' : 'cloud_api';
 
   if (
     (!code && !providedAccessToken)
     || code.length > 4_096
     || providedAccessToken.length > 8_192
     || !/^\d+$/.test(wabaId)
-    || !/^\d+$/.test(phoneNumberId)
+    || (mode === 'cloud_api' && !/^\d+$/.test(phoneNumberId))
+    || (phoneNumberId && !/^\d+$/.test(phoneNumberId))
   ) {
     return res.status(400).json({ error: 'Kết quả Embedded Signup không đầy đủ hoặc không hợp lệ.' });
   }
@@ -106,10 +109,36 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
     }
 
     const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, accessToken);
-    const selectedPhone = phoneNumbers.find((phone: any) => String(phone?.id || '') === phoneNumberId);
-    if (!selectedPhone) {
-      return res.status(403).json({ error: 'Phone Number ID không thuộc WABA mà Meta vừa cấp quyền.' });
+    let selectedPhone = phoneNumberId
+      ? phoneNumbers.find((phone: any) => String(phone?.id || '') === phoneNumberId)
+      : undefined;
+
+    if (!selectedPhone && mode === 'coexistence' && !phoneNumberId) {
+      const enrichedPhones = await Promise.all(phoneNumbers.map(async (phone: any) => {
+        try {
+          const details = await fetchWhatsAppPhoneDetails(String(phone?.id || ''), accessToken);
+          return { ...phone, ...details };
+        } catch {
+          return phone;
+        }
+      }));
+      const coexistencePhones = enrichedPhones.filter((phone: any) => (
+        phone?.is_on_biz_app === true || String(phone?.is_on_biz_app).toLowerCase() === 'true'
+      ));
+      selectedPhone = coexistencePhones.length === 1
+        ? coexistencePhones[0]
+        : enrichedPhones.length === 1
+          ? enrichedPhones[0]
+          : undefined;
     }
+    if (!selectedPhone) {
+      return res.status(403).json({
+        error: mode === 'coexistence'
+          ? 'Không xác định được số WhatsApp Business App vừa kết nối. Hãy kiểm tra số Coexistence trong WABA trên Meta.'
+          : 'Phone Number ID không thuộc WABA mà Meta vừa cấp quyền.',
+      });
+    }
+    const resolvedPhoneNumberId = String(selectedPhone.id);
 
     const subscribed = await ensureWabaSubscribed(wabaId, accessToken);
     if (!subscribed) {
@@ -121,7 +150,7 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       : null;
     const now = new Date();
     await updateIntegrationSetting({
-      whatsappPhoneNumberId: phoneNumberId,
+      whatsappPhoneNumberId: resolvedPhoneNumberId,
       whatsappWabaId: wabaId,
       metaBusinessId: businessId || null,
       whatsappAppId: appId,
@@ -135,8 +164,9 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       success: true,
       status: 'connected',
       wabaId,
-      phoneNumberId,
+      phoneNumberId: resolvedPhoneNumberId,
       businessId: businessId || null,
+      mode,
       displayPhoneNumber: selectedPhone.display_phone_number || '',
       verifiedName: selectedPhone.verified_name || '',
       lastConnectedAt: now,

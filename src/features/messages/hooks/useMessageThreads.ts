@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CentralMessage, Customer } from '../../../types';
-import { formatDate, isSamePhoneNumber } from '../../../utils/crmUtils';
+import { formatDate, isSamePhoneNumber, normalizePhone } from '../../../utils/crmUtils';
 import type { ActiveMessageFilter, MessageDateGroup, MessageThread } from '../types';
 
 interface UseMessageThreadsOptions {
@@ -13,6 +13,13 @@ interface UseMessageThreadsOptions {
   chatSearchQuery: string;
 }
 
+const getPhoneLookupKeys = (phone?: string | null) => {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return [];
+  return [normalized, normalized.slice(-8), normalized.slice(-7)]
+    .filter((key, index, keys) => key.length >= 7 && keys.indexOf(key) === index);
+};
+
 export function useMessageThreads({
   messages,
   customers,
@@ -22,6 +29,20 @@ export function useMessageThreads({
   selectedCustomerId,
   chatSearchQuery,
 }: UseMessageThreadsOptions) {
+  const customerLookup = useMemo(() => {
+    const byId = new Map<string, Customer>();
+    const byPhone = new Map<string, Customer>();
+
+    customers.forEach((customer) => {
+      byId.set(customer.id, customer);
+      getPhoneLookupKeys(customer.phone).forEach((phoneKey) => {
+        if (!byPhone.has(phoneKey)) byPhone.set(phoneKey, customer);
+      });
+    });
+
+    return { byId, byPhone };
+  }, [customers]);
+
   const threads = useMemo<MessageThread[]>(() => {
     const map = new Map<string, MessageThread>();
 
@@ -30,10 +51,12 @@ export function useMessageThreads({
         || (message.customerId?.startsWith('cust_') ? message.customerId.replace('cust_', '') : '');
       const cleanPhone = rawPhone.replace(/\D/g, '');
       const phoneKey = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : (message.customerId || 'unknown');
-      const customer = customers.find((item) =>
-        (message.customerId && item.id === message.customerId)
-        || isSamePhoneNumber(item.phone, rawPhone || message.customerId)
-      ) || null;
+      const customerByPhone = getPhoneLookupKeys(rawPhone || message.customerId)
+        .map((phoneKey) => customerLookup.byPhone.get(phoneKey))
+        .find(Boolean);
+      const customer = (message.customerId ? customerLookup.byId.get(message.customerId) : undefined)
+        || customerByPhone
+        || null;
       const threadKey = customer?.id || phoneKey;
       const existing = map.get(threadKey);
 
@@ -65,7 +88,7 @@ export function useMessageThreads({
       if (first.isPinned !== second.isPinned) return first.isPinned ? -1 : 1;
       return new Date(second.lastMessage.timestamp).getTime() - new Date(first.lastMessage.timestamp).getTime();
     });
-  }, [customers, messages, pinnedThreadIds]);
+  }, [customerLookup, messages, pinnedThreadIds]);
 
   const filteredThreads = useMemo(() => threads.filter((thread) => {
     if (activeFilter === 'unread' && thread.unreadCount === 0) return false;
