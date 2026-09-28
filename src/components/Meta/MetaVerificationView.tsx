@@ -90,7 +90,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [wabaId, setWabaId] = useState('');
   const [phoneId, setPhoneId] = useState('');
   const [verifyToken, setVerifyToken] = useState('YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [metaAppId, setMetaAppId] = useState(import.meta.env.VITE_META_APP_ID || '2066680650914544');
   const [configurationId, setConfigurationId] = useState(
     import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '1980841189284400',
@@ -98,7 +97,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [graphVersion, setGraphVersion] = useState(import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectingMode, setConnectingMode] = useState<EmbeddedSignupMode | null>(null);
-  const [activeSection, setActiveSection] = useState<'numbers' | 'add'>('numbers');
   const [signupAlert, setSignupAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const signupCredentialRef = useRef<EmbeddedSignupCredential | null>(null);
   const signupSessionRef = useRef<EmbeddedSignupSession | null>(null);
@@ -182,7 +180,6 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setPhoneId(data.whatsappPhoneNumberId || '');
         setWabaId(data.whatsappWabaId || '');
         setVerifyToken(data.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026');
-        setConnectionStatus(data.status || 'disconnected');
         setMetaAppId(data.embeddedSignup?.appId || import.meta.env.VITE_META_APP_ID || '2066680650914544');
         setConfigurationId(data.embeddedSignup?.configurationId || import.meta.env.VITE_META_EMBEDDED_SIGNUP_CONFIG_ID || '1980841189284400');
         setGraphVersion(data.embeddedSignup?.graphVersion || import.meta.env.VITE_META_GRAPH_VERSION || 'v26.0');
@@ -217,9 +214,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
       });
       setWabaId(data.wabaId || session.wabaId);
       setPhoneId(data.phoneNumberId || session.phoneNumberId || '');
-      setConnectionStatus('connected');
       await fetchPhoneNumbersList(data.wabaId || session.wabaId);
-      setActiveSection('numbers');
     } catch (error) {
       setSignupAlert({ type: 'error', message: error instanceof Error ? error.message : 'Không thể kết nối Meta.' });
     } finally {
@@ -432,104 +427,63 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         </button>
       </div>
 
-      {/* 2. Quản lý số tabs */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setActiveSection('numbers')}
-          className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
-            activeSection === 'numbers'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Smartphone className="w-4 h-4" />
-          Danh sách số
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSection('add')}
-          style={activeSection === 'add' ? { color: '#ffffff', WebkitTextFillColor: '#ffffff' } : undefined}
-          className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
-            activeSection === 'add'
-              ? 'bg-[#1877F2] text-white! shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm / kết nối số
-        </button>
-      </div>
-
-      {/* 3. Embedded Signup */}
-      {activeSection === 'add' && <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex items-start gap-3">
+      {/* 2. Thêm / kết nối số */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
               <Link2 className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-bold text-slate-900">Meta Embedded Signup</h3>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                  connectionStatus === 'connected'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {connectionStatus === 'connected' ? 'Đã kết nối' : 'Chưa kết nối'}
-                </span>
-              </div>
-              <p className="text-[10px] font-mono text-slate-400 mt-1">
-                App {metaAppId || '—'} · Config {configurationId || '—'} · {graphVersion}
-              </p>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900">Chọn cách kết nối</h3>
             </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-5">
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 flex flex-col">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                <Plus className="w-5 h-5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-5">
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 flex flex-col transition hover:border-blue-300 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Plus className="w-5 h-5" strokeWidth={2.2} />
+                </div>
+                <h4 className="truncate text-sm font-bold text-slate-900">Đăng ký Cloud API</h4>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Thêm số mới</h4>
-                <p className="text-xs text-slate-600 mt-1 leading-5">
-                  Dùng số chưa đăng ký WhatsApp để tạo mới trên WhatsApp Cloud API.
-                </p>
-              </div>
+              <span className="mt-2 shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black tracking-wide text-blue-700">SỐ MỚI</span>
             </div>
+            <p className="mt-3 text-xs text-slate-500">Dành cho số chưa có WhatsApp.</p>
             <button
               type="button"
               onClick={() => void startEmbeddedSignup('cloud_api')}
               disabled={isConnecting || !metaAppId || !configurationId}
               style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
-              className="mt-auto py-2.5 inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white! text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-4 py-2.5 inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white! text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {connectingMode === 'cloud_api' ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              {connectingMode === 'cloud_api' ? 'Đang mở Meta...' : 'Thêm số mới'}
+              {connectingMode === 'cloud_api' ? 'Đang mở Meta...' : 'Bắt đầu thiết lập'}
             </button>
           </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 flex flex-col">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <Smartphone className="w-5 h-5" />
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 flex flex-col transition hover:border-emerald-300 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5" strokeWidth={2.2} />
+                </div>
+                <h4 className="truncate text-sm font-bold text-slate-900">Kết nối số hiện tại</h4>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Kết nối số WhatsApp Business đang dùng</h4>
-                <p className="text-xs text-slate-600 mt-1 leading-5">
-                  Dùng Coexistence để giữ ứng dụng WhatsApp Business trên điện thoại và đồng thời kết nối CRM.
-                </p>
-              </div>
+              <span className="mt-2 shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black tracking-wide text-emerald-700">ĐANG DÙNG</span>
             </div>
+            <p className="mt-3 text-xs text-slate-500">Tiếp tục dùng app WhatsApp Business.</p>
             <button
               type="button"
               onClick={() => void startEmbeddedSignup('coexistence')}
               disabled={isConnecting || !metaAppId || !configurationId}
               style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
-              className="mt-auto py-2.5 inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white! text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-4 py-2.5 inline-flex items-center justify-center gap-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white! text-xs font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {connectingMode === 'coexistence' ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-              {connectingMode === 'coexistence' ? 'Đang mở Meta...' : 'Kết nối Coexistence'}
+              {connectingMode === 'coexistence' ? 'Đang mở Meta...' : 'Kết nối ngay'}
             </button>
           </div>
         </div>
@@ -546,10 +500,10 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             <span>{signupAlert.message}</span>
           </div>
         )}
-      </div>}
+      </div>
 
-      {/* 4. Danh Sách Số Điện Thoại */}
-      {activeSection === 'numbers' && <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
+      {/* 3. Danh Sách Số Điện Thoại */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -636,7 +590,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
             )}
           </div>
         </div>
-      </div>}
+      </div>
     </div>
   );
 };
