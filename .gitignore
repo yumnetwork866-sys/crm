@@ -7,3 +7,6 @@ coverage/
 *.tsbuildinfo
 .env*
 !.env.example
+dify_cskh_bot_dsl.yml
+dify_*.yml
+

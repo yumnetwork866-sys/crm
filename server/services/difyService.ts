@@ -75,7 +75,8 @@ export function resumeAiForCustomer(phone: string) {
  */
 export async function askDify(
   query: string,
-  userPhone: string
+  userPhone: string,
+  brandName?: string
 ): Promise<string | null> {
   const config = getDifyConfig();
   if (!config.enabled || !config.apiKey.trim()) {
@@ -90,7 +91,7 @@ export async function askDify(
 
   try {
     const endpoint = `${config.apiUrl}/chat-messages`;
-    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone}) sang Dify: "${query.slice(0, 80)}..."`);
+    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone}) [Brand: ${brandName || 'Chung'}] sang Dify: "${query.slice(0, 80)}..."`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -99,7 +100,9 @@ export async function askDify(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {},
+        inputs: {
+          brand_name: brandName || 'Hệ thống',
+        },
         query: query.trim(),
         response_mode: 'blocking',
         conversation_id: existingConvId,
@@ -149,8 +152,9 @@ export async function autoReplyWithDify(params: {
   incomingText: string;
   isCrmCustomer: boolean;
   incomingMsgId?: string;
+  brandName?: string;
 }): Promise<boolean> {
-  const { fromPhone, customerName, customerId, incomingText, isCrmCustomer, incomingMsgId } = params;
+  const { fromPhone, customerName, customerId, incomingText, isCrmCustomer, incomingMsgId, brandName } = params;
 
   // 1. Validate if AI is active for this customer
   if (!isAiActiveForCustomer(fromPhone)) {
@@ -172,8 +176,8 @@ export async function autoReplyWithDify(params: {
   }
 
   try {
-    // 3. Query Dify RAG
-    const answer = await askDify(trimmed, fromPhone);
+    // 3. Query Dify RAG with dynamic brand name
+    const answer = await askDify(trimmed, fromPhone, brandName);
     if (!answer) {
       return false;
     }
@@ -201,6 +205,16 @@ export async function autoReplyWithDify(params: {
       } catch (dispatchErr) {
         console.error('[Dify AI] Lỗi gửi tin nhắn WhatsApp phản hồi:', dispatchErr);
       }
+    }
+
+    // Auto-detect Human Handover, Escalation or Opt-out to silence bot
+    const isEscalation =
+      /chuyên viên|quản lý|senior manager|pengurus|liên hệ hỗ trợ|nhân viên bên em/i.test(answer) ||
+      /^(stop|huy|dung|unsubscribe|tam dung)$/i.test(trimmed);
+
+    if (isEscalation) {
+      pauseAiForCustomer(fromPhone, 120);
+      console.log(`[Dify AI] Tự động chuyển giao nhân viên & tạm dừng bot 2h cho khách: ${fromPhone}`);
     }
 
     // 5. Create in-memory message for CRM UI

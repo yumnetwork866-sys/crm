@@ -330,6 +330,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
 
     // Trigger Dify AI Auto-reply asynchronously (completely non-blocking)
     if (textBody && fromPhone) {
+      const brandName = valueObj?.metadata?.display_phone_number || undefined;
       autoReplyWithDify({
         fromPhone,
         customerName,
@@ -337,6 +338,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         incomingText: textBody,
         isCrmCustomer,
         incomingMsgId: msgData?.id,
+        brandName,
       }).catch((aiErr) => {
         console.warn('[Dify Auto-reply Hook Error]', aiErr?.message || aiErr);
       });
