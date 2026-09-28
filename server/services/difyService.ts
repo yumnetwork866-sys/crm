@@ -85,6 +85,17 @@ export function resumeAiForCustomer(phone: string) {
   console.log(`[Dify AI] Đã bật lại AI cho khách ${cleanPhone}`);
 }
 
+export function resolveBrandName(rawBrand?: string): string {
+  const defaultBrand = process.env.DIFY_DEFAULT_BRAND_NAME?.trim() || 'Yum Network';
+  if (!rawBrand) return defaultBrand;
+  const trimmed = rawBrand.trim();
+  // Nếu brandName là toàn chữ số điện thoại (ví dụ '601110716895'), tự động dùng tên thương hiệu chuẩn
+  if (/^\+?\d+$/.test(trimmed)) {
+    return defaultBrand;
+  }
+  return trimmed;
+}
+
 /**
  * Call Dify Chat Completion API with customer question
  */
@@ -100,13 +111,14 @@ export async function askDify(
 
   const cleanPhone = userPhone.replace(/\D/g, '') || 'guest_user';
   const existingConvId = phoneToConversationId.get(cleanPhone) || '';
+  const finalBrandName = resolveBrandName(brandName);
 
   const controller = new AbortController();
   const timeoutTimer = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
     const endpoint = `${config.apiUrl}/chat-messages`;
-    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone}) [Brand: ${brandName || 'Chung'}] sang Dify: "${query.slice(0, 80)}..."`);
+    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone}) [Brand: ${finalBrandName}] sang Dify: "${query.slice(0, 80)}..."`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -116,7 +128,7 @@ export async function askDify(
       },
       body: JSON.stringify({
         inputs: {
-          brand_name: brandName || 'Hệ thống',
+          brand_name: finalBrandName,
         },
         query: query.trim(),
         response_mode: 'blocking',
