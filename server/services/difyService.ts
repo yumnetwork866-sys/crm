@@ -9,6 +9,10 @@ import {
 } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+
 interface DifyChatResponse {
   answer: string;
   conversation_id?: string;
@@ -22,11 +26,27 @@ const phoneToConversationId = new Map<string, string>();
 const customerAiPausedUntil = new Map<string, number>();
 
 /**
- * Retrieve current Dify configuration from environment variables
+ * Retrieve current Dify configuration, reloading .env if needed
  */
 export function getDifyConfig() {
+  if (!process.env.DIFY_API_KEY) {
+    try {
+      const envPath = path.resolve(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        const envConfig = dotenv.parse(fs.readFileSync(envPath));
+        for (const k in envConfig) {
+          if (!process.env[k]) {
+            process.env[k] = envConfig[k];
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Dify AI] Không thể đọc động file .env:', e);
+    }
+  }
+
   return {
-    enabled: process.env.DIFY_AI_ENABLED === 'true',
+    enabled: process.env.DIFY_AI_ENABLED === 'true' || process.env.DIFY_AI_ENABLED === undefined,
     apiUrl: (process.env.DIFY_API_URL || 'https://dify.yumnetwork.vn/v1').replace(/\/+$/, ''),
     apiKey: process.env.DIFY_API_KEY || '',
     timeoutMs: Number(process.env.DIFY_TIMEOUT_MS) || 20000,
@@ -37,11 +57,6 @@ export function getDifyConfig() {
  * Check if AI auto-reply is currently active for a customer
  */
 export function isAiActiveForCustomer(phone: string): boolean {
-  const config = getDifyConfig();
-  if (!config.enabled || !config.apiKey.trim()) {
-    return false;
-  }
-
   const cleanPhone = phone.replace(/\D/g, '');
   const pauseExpiration = customerAiPausedUntil.get(cleanPhone);
   if (pauseExpiration && Date.now() < pauseExpiration) {

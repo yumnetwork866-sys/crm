@@ -313,17 +313,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const handleToggleAi = async () => {
     if (!activeThread?.customerPhone || isTogglingAi) return;
+    const nextState = !isCustomerAiActive;
+    // Cập nhật giao diện ngay lập tức (Optimistic UI) để người dùng thấy nút phản hồi tức thì
+    setIsCustomerAiActive(nextState);
     setIsTogglingAi(true);
     try {
-      const nextState = !isCustomerAiActive;
       const res = await api.post<{ success: boolean; isAiActive: boolean }>(`/meta/messages/ai-toggle`, {
         phone: activeThread.customerPhone,
         enabled: nextState,
         minutes: 60,
       });
-      setIsCustomerAiActive(res.isAiActive);
+      if (typeof res?.isAiActive === 'boolean') {
+        setIsCustomerAiActive(res.isAiActive);
+      }
     } catch (err) {
       console.error('Lỗi khi bật/tắt AI:', err);
+      // Nếu có lỗi mạng/quyền, khôi phục lại trạng thái cũ
+      setIsCustomerAiActive(!nextState);
     } finally {
       setIsTogglingAi(false);
     }
