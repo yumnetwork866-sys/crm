@@ -22,7 +22,10 @@ import { Permission } from '../lib/permissions';
 import { getUserRoleColor, getUserRoleTextStyle } from '../utils/roleColors';
 
 const WhatsAppIcon: React.FC<React.ComponentProps<'i'>> = ({ className, ...props }) => (
-  <i className={`fa-brands fa-whatsapp text-xl leading-none ${className || ''}`} {...props} />
+  <i
+    className={`fa-brands fa-whatsapp inline-flex items-center justify-center text-[17px] leading-none ${className || ''}`}
+    {...props}
+  />
 );
 
 interface HeaderProps {

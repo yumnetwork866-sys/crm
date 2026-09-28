@@ -214,6 +214,32 @@ export async function fetchWabaPhoneNumbers(wabaId: string, token: string) {
 }
 
 /**
+ * Fetch fields used to identify a WhatsApp Business App Coexistence number.
+ * This is kept separate from the WABA list request because Meta does not
+ * consistently return coexistence fields on the phone_numbers edge.
+ */
+export async function fetchWhatsAppPhoneDetails(phoneId: string, token: string) {
+  const query = new URLSearchParams({
+    fields: 'id,verified_name,display_phone_number,quality_rating,code_verification_status,platform_type,is_on_biz_app',
+  });
+  const response = await fetch(
+    `https://graph.facebook.com/v26.0/${encodeURIComponent(phoneId)}?${query.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  const responseData: any = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(responseData?.error?.message || `Meta API error HTTP ${response.status}`);
+  }
+  return responseData;
+}
+
+/**
  * Fetch the public business profile attached to a WhatsApp phone number.
  */
 export async function fetchWhatsAppBusinessProfile(phoneId: string, token: string) {
