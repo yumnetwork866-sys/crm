@@ -821,8 +821,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     {/* Date Divider Pill */}
                     {row.showDateDivider && (
-                      <div className="flex justify-center my-3 sticky top-1 z-10">
-                        <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm border border-slate-200/80">
+                      <div className="flex justify-center my-3 select-none">
+                        <span className="bg-white/95 px-3 py-1 rounded-lg text-[11px] font-bold text-slate-600 shadow-2xs border border-slate-200">
                           {row.dateLabel}
                         </span>
                       </div>
