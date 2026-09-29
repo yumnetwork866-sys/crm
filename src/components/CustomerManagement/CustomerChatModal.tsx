@@ -4,6 +4,7 @@ import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRoleTextStyle } from '../../utils/roleColors';
+import { renderFormattedMessage } from '../../utils/formatMessageText';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
@@ -137,7 +138,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                       <span className="text-slate-400 font-normal">{msg.time}</span>
                     </div>
                     <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-900">
-                      {msg.content}
+                      {renderFormattedMessage(msg.content)}
                     </p>
                     {msg.isAgent && (
                       <div className="flex items-center justify-end space-x-1 text-[10px] text-[#00793d] pt-0.5">

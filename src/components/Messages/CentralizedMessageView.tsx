@@ -47,7 +47,7 @@ import {
   Reply
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
+import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
@@ -61,6 +61,7 @@ import { useMessageViewport } from '../../features/messages/hooks/useMessageView
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { api } from '../../utils/apiClient';
+import { renderFormattedMessage } from '../../utils/formatMessageText';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
@@ -311,6 +312,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     };
   }, [activeThread?.customerPhone]);
 
+  // Lắng nghe sự kiện SSE realtime khi AI tự động tắt (khách muốn gặp người / khách tức giận) hoặc được bật lại
+  useEffect(() => {
+    const handleAiStatusChange = (e: any) => {
+      const detail = e?.detail;
+      if (
+        detail?.phone &&
+        activeThread?.customerPhone &&
+        isSamePhoneNumber(detail.phone, activeThread.customerPhone) &&
+        typeof detail.isAiActive === 'boolean'
+      ) {
+        setIsCustomerAiActive(detail.isAiActive);
+      }
+    };
+    window.addEventListener('ai:status_change', handleAiStatusChange);
+    return () => window.removeEventListener('ai:status_change', handleAiStatusChange);
+  }, [activeThread?.customerPhone]);
+
   const handleToggleAi = async () => {
     if (!activeThread?.customerPhone || isTogglingAi) return;
     const nextState = !isCustomerAiActive;
@@ -321,7 +339,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       const res = await api.post<{ success: boolean; isAiActive: boolean }>(`/meta/messages/ai-toggle`, {
         phone: activeThread.customerPhone,
         enabled: nextState,
-        minutes: 60,
+        minutes: 0, // 0 = tắt vĩnh viễn cho đến khi người dùng chủ động bấm Bật lại
       });
       if (typeof res?.isAiActive === 'boolean') {
         setIsCustomerAiActive(res.isAiActive);
@@ -1080,7 +1098,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     </div>
                                     {imgInfo.caption && (
                                       <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] wrap-break-word font-normal pt-1">
-                                        <span>{imgInfo.caption}</span>
+                                        <span>{renderFormattedMessage(imgInfo.caption)}</span>
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
@@ -1125,7 +1143,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     </div>
                                     {caption && (
                                       <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#111b21] font-normal pt-0.5">
-                                        <span>{caption}</span>
+                                        <span>{renderFormattedMessage(caption)}</span>
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
@@ -1180,7 +1198,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       </span>
                                     </div>
                                     <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] font-normal pl-0.5">
-                                      <span>{bodyLines}</span>
+                                      <span>{renderFormattedMessage(bodyLines)}</span>
                                       <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                         <span>{timeFormatted}</span>
                                         {isAgent && (
@@ -1196,7 +1214,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 <div className="space-y-1">
                                   {renderQuoteHeader()}
                                   <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] wrap-break-word font-normal">
-                                    <span>{content}</span>
+                                    <span>{renderFormattedMessage(content)}</span>
                                     <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                       <span>{timeFormatted}</span>
                                       {isAgent && (

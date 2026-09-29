@@ -282,6 +282,14 @@ export function useCentralMessages({
       eventSource.addEventListener('customers:sync', () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
       });
+      eventSource.addEventListener('ai:status', (event: MessageEvent) => {
+        try {
+          const detail = JSON.parse(event.data);
+          window.dispatchEvent(new CustomEvent('ai:status_change', { detail }));
+        } catch {
+          // Ignore
+        }
+      });
 
       eventSource.onerror = (error) => {
         console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', error);

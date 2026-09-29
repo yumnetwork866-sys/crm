@@ -363,9 +363,11 @@ export async function sendMessage(req: Request, res: Response) {
     // Broadcast instant real-time event
     realtimeHub.broadcast('message:new', newMsg);
 
-    // Pause AI auto-reply for this customer so staff can chat without bot interruption
+    // Khi nhân viên gửi tin nhắn từ CRM: Tự động tạm dừng AI trong 30 phút để nhân viên chăm sóc
+    // Sau 30 phút nếu nhân viên không gửi thêm tin nhắn nào, AI sẽ tự động hoạt động trở lại
     if (resolvedCustomerPhone) {
       pauseAiForCustomer(resolvedCustomerPhone, 30);
+      realtimeHub.broadcast('ai:status', { phone: resolvedCustomerPhone, isAiActive: false });
     }
 
     return res.json({
@@ -654,10 +656,11 @@ export async function toggleCustomerAi(req: Request, res: Response) {
     if (enabled) {
       resumeAiForCustomer(phone);
     } else {
-      pauseAiForCustomer(phone, typeof minutes === 'number' ? minutes : 60);
+      pauseAiForCustomer(phone, typeof minutes === 'number' ? minutes : 0);
     }
 
     const isActive = isAiActiveForCustomer(phone);
+    realtimeHub.broadcast('ai:status', { phone, isAiActive: isActive });
     return res.json({
       success: true,
       phone,

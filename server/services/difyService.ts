@@ -67,13 +67,18 @@ export function isAiActiveForCustomer(phone: string): boolean {
 }
 
 /**
- * Pause AI auto-reply for a customer (e.g. when staff manually intervenes)
+/**
+ * Pause AI auto-reply for a customer (durationMinutes = 0 means indefinite until manually resumed in CRM)
  */
-export function pauseAiForCustomer(phone: string, durationMinutes = 30) {
+export function pauseAiForCustomer(phone: string, durationMinutes = 0) {
   const cleanPhone = phone.replace(/\D/g, '');
-  const until = Date.now() + durationMinutes * 60 * 1000;
+  const until = durationMinutes > 0 ? Date.now() + durationMinutes * 60 * 1000 : Number.MAX_SAFE_INTEGER;
   customerAiPausedUntil.set(cleanPhone, until);
-  console.log(`[Dify AI] Tạm dừng AI cho khách ${cleanPhone} trong ${durationMinutes} phút (đến ${new Date(until).toLocaleTimeString('vi-VN')})`);
+  if (durationMinutes > 0) {
+    console.log(`[Dify AI] Tạm dừng AI cho khách ${cleanPhone} trong ${durationMinutes} phút (đến ${new Date(until).toLocaleTimeString('vi-VN')})`);
+  } else {
+    console.log(`[Dify AI] Tắt AI cho khách ${cleanPhone} cho đến khi bấm Bật lại trên CRM`);
+  }
 }
 
 /**
@@ -169,6 +174,77 @@ export async function askDify(
 }
 
 /**
+ * Convert standard Markdown syntax into native WhatsApp formatting:
+ * - Markdown bold **text** -> WhatsApp bold *text*
+ * - Markdown lists (* item or - item) -> bullet • item
+ * - Markdown headers (### Header) -> *Header*
+ */
+export function formatToWhatsAppMarkdown(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')
+    .replace(/^(\s*)[*\-]\s+/gm, '$1• ')
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '*_$1_*');
+}
+
+/**
+ * Detect if customer explicitly demands to talk to a human / consultant
+ */
+export function isCustomerDemandingHuman(text: string): boolean {
+  if (!text) return false;
+  const clean = text.toLowerCase().trim();
+
+  const patterns = [
+    // Gặp nhân viên, người thật, tư vấn viên, chuyên viên, quản lý
+    /(cho\s+(tôi|mình|em|anh|chị)?\s*)?(gặp|nói\s+chuyện|kết\s+nối|chuyển\s+máy|gọi)\s*(với)?\s*(người\s*thật|nhân\s*viên|tư\s*vấn\s*viên|cskh|chăm\s*sóc|quản\s*lý|admin|chuyên\s*viên|hỗ\s*trợ\s*viên)/i,
+    // Nhân viên đâu, có ai trực không
+    /(nhân\s*viên|tư\s*vấn\s*viên|người\s*thật|cskh|admin)\s*(đâu|có\s*(đó|ở\s*đây)\s*không|trực\s*không|hỗ\s*trợ\s*đi)/i,
+    // Cần / muốn gặp người
+    /(cần|muốn)\s*(gặp|nói\s*chuyện|hỗ\s*trợ\s*bởi|trao\s*đổi\s*với)\s*(người|nhân\s*viên|tư\s*vấn|người\s*thật)/i,
+    // Phản đối bot
+    /(đừng\s*chat\s*bot|tắt\s*bot|bot\s*ngu|ngừng\s*bot|không\s*muốn\s*chat\s*với\s*bot|đổi\s*người\s*đi|cho\s*người\s*khác)/i,
+    // Yêu cầu gọi điện thoại
+    /(gọi\s*(điện|cho\s*(tôi|mình|em|anh|chị)|lại\s*cho\s*(tôi|mình|em))|alo\s*trực\s*tiếp|liên\s*hệ\s*trực\s*tiếp)/i,
+    // Tiếng Anh / Mã
+    /(talk|speak)\s*to\s*(a\s*)?(human|person|agent|representative|operator|manager)/i,
+    /(real\s*person|human\s*agent|customer\s*service\s*agent|support\s*agent)/i,
+    /(sambungkan|bercakap|cakap)\s*dengan\s*(orang|ejen|pegawai|staf)/i,
+    /(nak\s*cakap\s*dengan\s*orang|nak\s*ejen)/i,
+  ];
+
+  return patterns.some((p) => p.test(clean));
+}
+
+/**
+ * Detect if customer is angry, abusive, or escalating a critical complaint
+ */
+export function isCustomerAngryOrComplaining(text: string): boolean {
+  if (!text) return false;
+  const clean = text.toLowerCase().trim();
+
+  const patterns = [
+    // Tố cáo lừa đảo, gian lận
+    /(lừa\s*đảo|lua\s*dao|scam|scammer|gian\s*lận|bịp\s*bợm)/i,
+    // Chửi bới, văng tục, xúc phạm
+    /(đ[c|m]|d[c|m]|đ\s*ụ|địt|đéo|vcl|v[c|l]|vãi\s*l|đ[c|m]m|dcm|bố\s*láo|mất\s*dạy|vô\s*học|chó\s*chết)/i,
+    /(làm\s*ăn\s*(như|quá)\s*(cặc|lồn|buồi|hạch|cc|cl|tệ|vớ\s*vẩn|tào\s*lao|rác))/i,
+    /(vớ\s*vẩn|tào\s*lao|nhảm\s*nhí|như\s*hạch|như\s*cặc|như\s*lồn)/i,
+    // Bức xúc, tức giận
+    /(bực\s*(mình|cả\s*mình)|tức\s*(điên|chết|mình)|quá\s*thất\s*vọng|bực\s*bội|bực\s*mình\s*thật)/i,
+    // Khiếu nại, dọa nạt, kiện tụng
+    /(khiếu\s*nại|thưa\s*kiện|kiện|báo\s*công\s*an|ra\s*công\s*an|phốt|bóc\s*phốt|tẩy\s*chay|báo\s*chí)/i,
+    // Đòi tiền, đòi hoàn tiền trong giận dữ
+    /(trả\s*(lại\s*)?tiền|hoàn\s*tiền\s*ngay|đòi\s*tiền|bồi\s*thường|dẹp\s*(mẹ\s*)?đi|dẹp\s*tiệm)/i,
+    // Tiếng Anh / Mã
+    /(terrible|horrible|worst\s*service|fraud|sue\s*you|police|refund\s*now|fuck|bullshit|damn|idiot|stupid)/i,
+    /(penipu|teruk|bodoh|gila|marah|nak\s*duit\s*balik|refund\s*sekarang)/i,
+  ];
+
+  return patterns.some((p) => p.test(clean));
+}
+
+/**
  * Process incoming customer message, generate RAG response from Dify,
  * and dispatch back to customer WhatsApp automatically.
  */
@@ -203,10 +279,41 @@ export async function autoReplyWithDify(params: {
   }
 
   try {
-    // 3. Query Dify RAG with dynamic brand name
-    const answer = await askDify(trimmed, fromPhone, brandName);
-    if (!answer) {
-      return false;
+    const isDemandingHuman = isCustomerDemandingHuman(trimmed);
+    const isAngryOrComplaining = isCustomerAngryOrComplaining(trimmed);
+    const isExplicitCustomerOptOut = /^(stop|huy|dung|unsubscribe|tam dung)$/i.test(trimmed);
+
+    let answer = '';
+    let shouldPauseAfterReply = false;
+
+    if (isAngryOrComplaining) {
+      const brand = resolveBrandName(brandName);
+      answer = `Dạ ${brand} rất lấy làm tiếc vì trải nghiệm chưa hài lòng của quý khách. Em đã lập tức chuyển cuộc trò chuyện này cho quản lý và chuyên viên phụ trách để liên hệ xử lý trực tiếp ngay cho quý khách ạ.`;
+      shouldPauseAfterReply = true;
+      console.log(`[Dify AI] Khách tức giận/khiếu nại (${fromPhone}): Kích hoạt phản hồi xoa dịu và chuyển giao.`);
+    } else if (isDemandingHuman) {
+      answer = `Dạ em đã ghi nhận yêu cầu của quý khách. Em đang kết nối và chuyển thông tin cho chuyên viên hỗ trợ trực tiếp liên hệ lại với quý khách ngay nhé ạ!`;
+      shouldPauseAfterReply = true;
+      console.log(`[Dify AI] Khách yêu cầu gặp người thật (${fromPhone}): Kích hoạt phản hồi chuyển giao.`);
+    } else if (isExplicitCustomerOptOut) {
+      answer = `Dạ hệ thống đã tạm dừng phản hồi tự động theo yêu cầu của quý khách. Nếu cần hỗ trợ thêm, quý khách có thể gửi tin nhắn bất kỳ lúc nào nhé ạ!`;
+      shouldPauseAfterReply = true;
+      console.log(`[Dify AI] Khách yêu cầu dừng bot (${fromPhone}): Tạm dừng bot.`);
+    } else {
+      // 3. Normal question: Query Dify RAG with dynamic brand name
+      const rawAnswer = await askDify(trimmed, fromPhone, brandName);
+      if (!rawAnswer) {
+        return false;
+      }
+      answer = formatToWhatsAppMarkdown(rawAnswer);
+
+      // Check if Dify itself decided to escalate to human
+      const isDifyHandover =
+        /(đang chuyển|đã chuyển|bàn giao|kết nối).*(nhân viên|quản lý|người thật|cấp trên|senior)/i.test(answer) ||
+        /(hubungi pegawai|sambungkan ke ejen|pegawai akan hubungi)/i.test(answer);
+      if (isDifyHandover) {
+        shouldPauseAfterReply = true;
+      }
     }
 
     // 4. Send reply back to customer via WhatsApp Cloud API
@@ -234,16 +341,11 @@ export async function autoReplyWithDify(params: {
       }
     }
 
-    // Auto-detect Human Handover, Escalation or Opt-out to silence bot
-    const isExplicitCustomerOptOut = /^(stop|huy|dung|unsubscribe|tam dung)$/i.test(trimmed);
-    const isHandoverTransfer =
-      /(đang chuyển|đã chuyển|bàn giao|kết nối).*(nhân viên|quản lý|người thật|cấp trên|senior)/i.test(answer) ||
-      /(chuyên viên|quản lý|nhân viên).*(sẽ liên hệ|gọi lại|tiếp nhận xử lý)/i.test(answer) ||
-      /(hubungi pegawai|sambungkan ke ejen|pegawai akan hubungi)/i.test(answer);
-
-    if (isExplicitCustomerOptOut || isHandoverTransfer) {
-      pauseAiForCustomer(fromPhone, 60);
-      console.log(`[Dify AI] Tự động chuyển giao nhân viên & tạm dừng bot cho khách: ${fromPhone}`);
+    // If triggered human request, angry customer or handover, pause AI indefinitely until user toggles back on in CRM
+    if (shouldPauseAfterReply) {
+      pauseAiForCustomer(fromPhone, 0);
+      realtimeHub.broadcast('ai:status', { phone: fromPhone, isAiActive: false });
+      console.log(`[Dify AI] Đã tắt AI tự động cho khách ${fromPhone} (khách muốn gặp người / tức giận / chuyển giao). Chờ nhân viên bật lại trên CRM.`);
     }
 
     // 5. Create in-memory message for CRM UI
