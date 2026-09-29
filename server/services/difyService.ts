@@ -101,8 +101,197 @@ export function resolveBrandName(rawBrand?: string): string {
   return trimmed;
 }
 
+export interface PhoneCountryProfile {
+  countryCode: string;
+  countryName: string;
+  primaryLanguage: string;
+  secondaryLanguage?: string;
+  currency: string;
+  instruction: string;
+}
+
 /**
- * Call Dify Chat Completion API with customer question
+ * Detect customer country, primary language and system instruction based on phone prefix
+ */
+export function detectCustomerCountryProfile(phone: string): PhoneCountryProfile {
+  const clean = phone.replace(/\D/g, '');
+
+  // 1. Vietnam (+84 hoặc số nội địa bắt đầu bằng 0)
+  if (clean.startsWith('84') || (clean.startsWith('0') && clean.length === 10)) {
+    return {
+      countryCode: '+84',
+      countryName: 'Vietnam',
+      primaryLanguage: 'Tiếng Việt',
+      currency: 'VNĐ',
+      instruction: 'Khách hàng sử dụng số điện thoại Việt Nam (+84). Hãy ưu tiên phản hồi bằng Tiếng Việt thân thiện, tự nhiên và báo giá bằng VNĐ.',
+    };
+  }
+
+  // 2. Malaysia (+60)
+  if (clean.startsWith('60')) {
+    return {
+      countryCode: '+60',
+      countryName: 'Malaysia',
+      primaryLanguage: 'Bahasa Melayu',
+      secondaryLanguage: 'English',
+      currency: 'RM (MYR)',
+      instruction: 'Khách hàng sử dụng số điện thoại Malaysia (+60). Hãy ưu tiên phản hồi bằng tiếng Bahasa Melayu thân thiện, lịch sự (hoặc song ngữ Malay/English nếu khách dùng tiếng Anh), ưu tiên báo giá kèm RM (Ringgit Malaysia). Nếu khách chủ động nhắn tiếng Việt thì trả lời bằng tiếng Việt.',
+    };
+  }
+
+  // 3. Singapore (+65)
+  if (clean.startsWith('65')) {
+    return {
+      countryCode: '+65',
+      countryName: 'Singapore',
+      primaryLanguage: 'English',
+      secondaryLanguage: 'Chinese',
+      currency: 'SGD ($)',
+      instruction: 'Khách hàng sử dụng số điện thoại Singapore (+65). Hãy ưu tiên phản hồi bằng Tiếng Anh (English) chuyên nghiệp hoặc Tiếng Trung nếu khách dùng tiếng Trung, và ưu tiên báo giá bằng SGD / USD.',
+    };
+  }
+
+  // 4. Taiwan (+886)
+  if (clean.startsWith('886')) {
+    return {
+      countryCode: '+886',
+      countryName: 'Taiwan',
+      primaryLanguage: 'Traditional Chinese (繁體中文)',
+      currency: 'TWD (NT$)',
+      instruction: 'Khách hàng sử dụng số điện thoại Đài Loan (+886). Hãy ưu tiên phản hồi bằng Tiếng Trung Phồn thể (繁體中文) lịch sự, thân thiện.',
+    };
+  }
+
+  // 5. China (+86)
+  if (clean.startsWith('86')) {
+    return {
+      countryCode: '+86',
+      countryName: 'China',
+      primaryLanguage: 'Simplified Chinese (简体中文)',
+      currency: 'RMB / CNY (¥)',
+      instruction: 'Khách hàng sử dụng số điện thoại Trung Quốc (+86). Hãy ưu tiên phản hồi bằng Tiếng Trung Giản thể (简体中文) lịch sự, thân thiện.',
+    };
+  }
+
+  // 6. Thailand (+66)
+  if (clean.startsWith('66')) {
+    return {
+      countryCode: '+66',
+      countryName: 'Thailand',
+      primaryLanguage: 'Thai (ภาษาไทย)',
+      secondaryLanguage: 'English',
+      currency: 'THB (฿)',
+      instruction: 'Khách hàng sử dụng số điện thoại Thái Lan (+66). Hãy phản hồi bằng Tiếng Thái (ภาษาไทย) hoặc Tiếng Anh thân thiện.',
+    };
+  }
+
+  // 7. Philippines (+63)
+  if (clean.startsWith('63')) {
+    return {
+      countryCode: '+63',
+      countryName: 'Philippines',
+      primaryLanguage: 'English',
+      secondaryLanguage: 'Tagalog',
+      currency: 'PHP (₱)',
+      instruction: 'Khách hàng sử dụng số điện thoại Philippines (+63). Hãy phản hồi bằng Tiếng Anh (English) hoặc Tagalog thân thiện.',
+    };
+  }
+
+  // 8. Indonesia (+62)
+  if (clean.startsWith('62')) {
+    return {
+      countryCode: '+62',
+      countryName: 'Indonesia',
+      primaryLanguage: 'Bahasa Indonesia',
+      currency: 'IDR (Rp)',
+      instruction: 'Khách hàng sử dụng số điện thoại Indonesia (+62). Hãy phản hồi bằng tiếng Bahasa Indonesia thân thiện.',
+    };
+  }
+
+  // 9. Japan (+81)
+  if (clean.startsWith('81')) {
+    return {
+      countryCode: '+81',
+      countryName: 'Japan',
+      primaryLanguage: 'Japanese (日本語)',
+      currency: 'JPY (¥)',
+      instruction: 'Khách hàng sử dụng số điện thoại Nhật Bản (+81). Hãy phản hồi bằng Tiếng Nhật (日本語) lịch sự (Keigo).',
+    };
+  }
+
+  // 10. Korea (+82)
+  if (clean.startsWith('82')) {
+    return {
+      countryCode: '+82',
+      countryName: 'Korea',
+      primaryLanguage: 'Korean (한국어)',
+      currency: 'KRW (₩)',
+      instruction: 'Khách hàng sử dụng số điện thoại Hàn Quốc (+82). Hãy phản hồi bằng Tiếng Hàn (한국어) lịch thiệp.',
+    };
+  }
+
+  // 11. US / Canada (+1)
+  if (clean.startsWith('1') && clean.length >= 10) {
+    return {
+      countryCode: '+1',
+      countryName: 'US/Canada',
+      primaryLanguage: 'English',
+      currency: 'USD ($)',
+      instruction: 'Khách hàng sử dụng số điện thoại Mỹ/Canada (+1). Hãy phản hồi bằng Tiếng Anh (English) chuyên nghiệp và báo giá USD.',
+    };
+  }
+
+  // Default fallback
+  return {
+    countryCode: 'Unknown',
+    countryName: 'International',
+    primaryLanguage: 'Tiếng Việt / English',
+    currency: 'USD / VNĐ',
+    instruction: 'Hãy phản hồi theo ngôn ngữ mà khách hàng đang sử dụng trong câu hỏi (nếu khách dùng tiếng Việt thì trả lời tiếng Việt, nếu dùng tiếng Anh thì trả lời tiếng Anh).',
+  };
+}
+
+/**
+ * Return tailored handover messages in customer native language
+ */
+export function getHandoverMessagesByCountry(phone: string, brandName: string) {
+  const profile = detectCustomerCountryProfile(phone);
+  const brand = resolveBrandName(brandName);
+
+  if (profile.countryName === 'Malaysia') {
+    return {
+      angry: `Hai, pihak ${brand} memohon maaf atas sebarang kesulitan yang dihadapi. Kami telah memanjangkan perbualan ini kepada pihak pengurusan dan pegawai kami untuk menghubungi dan membantu anda dengan segera.`,
+      human: `Permintaan anda telah kami terima. Kami sedang menyambungkan perbualan ini kepada pegawai perkhidmatan pelanggan kami untuk menghubungi anda sebentar lagi ya.`,
+      optOut: `Sistem telah menjeda maklum balas automatik mengikut permintaan anda. Sila hantar mesej pada bila-bila masa jika anda memerlukan bantuan lanjut ya!`,
+    };
+  }
+
+  if (profile.countryName === 'Singapore' || profile.countryName === 'US/Canada') {
+    return {
+      angry: `Dear customer, ${brand} sincerely apologizes for your unsatisfactory experience. We have immediately escalated this conversation to our management team to contact and assist you directly.`,
+      human: `Your request has been noted. We are connecting you with a customer support specialist to assist you directly shortly!`,
+      optOut: `Auto-reply has been paused as requested. Please message us anytime if you need further assistance!`,
+    };
+  }
+
+  if (profile.countryName === 'Taiwan') {
+    return {
+      angry: `您好，${brand} 對於造成您的不便深感抱歉。我們已將您的對話轉交給主管及專員，將會盡快與您直接聯繫處理。`,
+      human: `已收到您的需求，我們正在為您轉接真人專員，專員將會盡快與您聯繫協助！`,
+      optOut: `系統已為您暫停自動回覆。若後續有任何需要，歡迎隨時留言發送訊息給我們！`,
+    };
+  }
+
+  // Default Vietnamese
+  return {
+    angry: `Dạ ${brand} rất lấy làm tiếc vì trải nghiệm chưa hài lòng của quý khách. Em đã lập tức chuyển cuộc trò chuyện này cho quản lý và chuyên viên phụ trách để liên hệ xử lý trực tiếp ngay cho quý khách ạ.`,
+    human: `Dạ em đã ghi nhận yêu cầu của quý khách. Em đang kết nối và chuyển thông tin cho chuyên viên hỗ trợ trực tiếp liên hệ lại với quý khách ngay nhé ạ!`,
+    optOut: `Dạ hệ thống đã tạm dừng phản hồi tự động theo yêu cầu của quý khách. Nếu cần hỗ trợ thêm, quý khách có thể gửi tin nhắn bất kỳ lúc nào nhé ạ!`,
+  };
+}
+
+/**
+ * Call Dify Chat Completion API with customer question and country-aware language guidance
  */
 export async function askDify(
   query: string,
@@ -117,13 +306,17 @@ export async function askDify(
   const cleanPhone = userPhone.replace(/\D/g, '') || 'guest_user';
   const existingConvId = phoneToConversationId.get(cleanPhone) || '';
   const finalBrandName = resolveBrandName(brandName);
+  const countryProfile = detectCustomerCountryProfile(cleanPhone);
 
   const controller = new AbortController();
   const timeoutTimer = setTimeout(() => controller.abort(), config.timeoutMs);
 
   try {
     const endpoint = `${config.apiUrl}/chat-messages`;
-    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone}) [Brand: ${finalBrandName}] sang Dify: "${query.slice(0, 80)}..."`);
+    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone} - ${countryProfile.countryName}) [Brand: ${finalBrandName}] sang Dify: "${query.slice(0, 80)}..."`);
+
+    // Gắn chỉ thị ngôn ngữ tự động vào câu hỏi dựa trên quốc gia của đầu số điện thoại
+    const contextualQuery = `[Ngữ cảnh: ${countryProfile.instruction}]: ${query.trim()}`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -134,8 +327,10 @@ export async function askDify(
       body: JSON.stringify({
         inputs: {
           brand_name: finalBrandName,
+          customer_country: countryProfile.countryName,
+          target_language: countryProfile.primaryLanguage,
         },
-        query: query.trim(),
+        query: contextualQuery,
         response_mode: 'blocking',
         conversation_id: existingConvId,
         user: `user_${cleanPhone}`,
@@ -285,18 +480,18 @@ export async function autoReplyWithDify(params: {
 
     let answer = '';
     let shouldPauseAfterReply = false;
+    const handoverMsgs = getHandoverMessagesByCountry(fromPhone, brandName || '');
 
     if (isAngryOrComplaining) {
-      const brand = resolveBrandName(brandName);
-      answer = `Dạ ${brand} rất lấy làm tiếc vì trải nghiệm chưa hài lòng của quý khách. Em đã lập tức chuyển cuộc trò chuyện này cho quản lý và chuyên viên phụ trách để liên hệ xử lý trực tiếp ngay cho quý khách ạ.`;
+      answer = handoverMsgs.angry;
       shouldPauseAfterReply = true;
-      console.log(`[Dify AI] Khách tức giận/khiếu nại (${fromPhone}): Kích hoạt phản hồi xoa dịu và chuyển giao.`);
+      console.log(`[Dify AI] Khách tức giận/khiếu nại (${fromPhone}): Kích hoạt phản hồi xoa dịu theo ngôn ngữ bản địa.`);
     } else if (isDemandingHuman) {
-      answer = `Dạ em đã ghi nhận yêu cầu của quý khách. Em đang kết nối và chuyển thông tin cho chuyên viên hỗ trợ trực tiếp liên hệ lại với quý khách ngay nhé ạ!`;
+      answer = handoverMsgs.human;
       shouldPauseAfterReply = true;
-      console.log(`[Dify AI] Khách yêu cầu gặp người thật (${fromPhone}): Kích hoạt phản hồi chuyển giao.`);
+      console.log(`[Dify AI] Khách yêu cầu gặp người thật (${fromPhone}): Kích hoạt phản hồi chuyển giao theo ngôn ngữ bản địa.`);
     } else if (isExplicitCustomerOptOut) {
-      answer = `Dạ hệ thống đã tạm dừng phản hồi tự động theo yêu cầu của quý khách. Nếu cần hỗ trợ thêm, quý khách có thể gửi tin nhắn bất kỳ lúc nào nhé ạ!`;
+      answer = handoverMsgs.optOut;
       shouldPauseAfterReply = true;
       console.log(`[Dify AI] Khách yêu cầu dừng bot (${fromPhone}): Tạm dừng bot.`);
     } else {
