@@ -18,7 +18,7 @@ export function renderFormattedMessage(text: string | null | undefined): React.R
     // Markdown headers (### Header -> *Header*)
     .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')
     // Markdown lists (* item or - item -> • item)
-    .replace(/^(\s*)[*\-]\s+/gm, '$1• ');
+    .replace(/^(\s*)[*-]\s+/gm, '$1• ');
 
   // 2. Tokenize by inline formatting patterns
   // Order matters: code blocks first, inline code, bold markdown, bold whatsapp, italic, strike, url

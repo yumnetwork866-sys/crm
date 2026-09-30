@@ -378,7 +378,7 @@ export function formatToWhatsAppMarkdown(text: string): string {
   if (!text) return '';
   return text
     .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')
-    .replace(/^(\s*)[*\-]\s+/gm, '$1• ')
+    .replace(/^(\s*)[*-]\s+/gm, '$1• ')
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
     .replace(/\*\*\*(.+?)\*\*\*/g, '*_$1_*');
 }
