@@ -15,7 +15,7 @@ interface CommerceManagementViewProps {
   onAddProduct: (product: Partial<Product>) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
-  onImportProducts?: (products: Product[]) => void;
+  onImportProducts?: (products: Product[]) => Promise<unknown> | void;
 }
 
 export const CommerceManagementView: React.FC<CommerceManagementViewProps> = ({

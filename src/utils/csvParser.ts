@@ -23,11 +23,17 @@ export function parseCsvContent(csvString: string): ParsedCsvResult {
   // Remove UTF-8 BOM if present
   const cleanText = csvString.replace(/^\uFEFF/, '').trim();
 
-  // Determine delimiter: ',' or ';'
+  // Determine delimiter: ',', ';', or '\t'
   const firstLine = cleanText.split(/\r?\n/)[0] || '';
   const commaCount = (firstLine.match(/,/g) || []).length;
   const semicolonCount = (firstLine.match(/;/g) || []).length;
-  const delimiter = semicolonCount > commaCount ? ';' : ',';
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  let delimiter = ',';
+  if (tabCount > commaCount && tabCount > semicolonCount) {
+    delimiter = '\t';
+  } else if (semicolonCount > commaCount) {
+    delimiter = ';';
+  }
 
   // Parse lines considering quotes
   const lines: string[][] = [];
@@ -106,3 +112,18 @@ export function downloadCsvFile(filename: string, csvContent: string) {
   link.click();
   document.body.removeChild(link);
 }
+
+export function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+export function normalizeHeaderKey(key: string): string {
+  return removeVietnameseTones(key)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+

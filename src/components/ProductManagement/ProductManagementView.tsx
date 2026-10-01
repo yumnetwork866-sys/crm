@@ -27,7 +27,7 @@ interface ProductManagementViewProps {
   onAddProduct: (product: Partial<Product>) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
-  onImportProducts?: (products: Product[]) => void;
+  onImportProducts?: (products: Product[]) => Promise<unknown> | void;
 }
 
 const CATEGORIES = ['Tất cả danh mục', 'Mỹ Phẩm', 'Thực Phẩm Chức Năng', 'Thời Trang', 'Gia Dụng', 'Khác'];
@@ -710,9 +710,9 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
         <ImportProductCsvModal
           isOpen={isImportCsvOpen}
           onClose={() => setIsImportCsvOpen(false)}
-          onImportProducts={(importedPrds) => {
+          onImportProducts={async (importedPrds) => {
             if (onImportProducts) {
-              onImportProducts(importedPrds);
+              await onImportProducts(importedPrds);
             }
           }}
         />

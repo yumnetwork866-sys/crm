@@ -94,14 +94,27 @@ export function useProducts(currentUser: AppUser | null, enabled = true) {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (newProducts: Product[]) => newProducts,
-    onMutate: async (newProducts) => {
-      const previous = queryClient.getQueryData<Product[]>(queryKeys.products) || [];
-      queryClient.setQueryData<Product[]>(queryKeys.products, [...newProducts, ...previous]);
-      return { previous };
+    mutationFn: async (newProducts: Product[]) => {
+      const response = await api.post<{ message: string; count: number; products: Product[] }>(
+        '/products/bulk',
+        { products: newProducts }
+      );
+      return response.products;
     },
-    onError: (_error, _products, context) => {
-      if (context) queryClient.setQueryData(queryKeys.products, context.previous);
+    onSuccess: (savedProducts) => {
+      queryClient.setQueryData<Product[]>(queryKeys.products, (current = []) => {
+        const savedMap = new Map<string, Product>();
+        for (const p of savedProducts) {
+          savedMap.set(p.code, p);
+        }
+        const updated = current.map((p) => (savedMap.has(p.code) ? savedMap.get(p.code)! : p));
+        const newItems = savedProducts.filter((p) => !current.some((c) => c.code === p.code));
+        return [...newItems, ...updated];
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.products });
+    },
+    onError: (error) => {
+      console.error('Error importing products in bulk:', error);
     },
   });
 
@@ -114,8 +127,8 @@ export function useProducts(currentUser: AppUser | null, enabled = true) {
   const deleteProduct = useCallback(async (productId: string) => {
     await deleteMutation.mutateAsync(productId).catch((error) => console.error('Error deleting product:', error));
   }, [deleteMutation]);
-  const importProducts = useCallback((newProducts: Product[]) => {
-    importMutation.mutate(newProducts);
+  const importProducts = useCallback(async (newProducts: Product[]) => {
+    return await importMutation.mutateAsync(newProducts);
   }, [importMutation]);
   const resetProducts = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_PRODUCTS);
