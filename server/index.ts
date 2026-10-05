@@ -59,7 +59,10 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 app.use(helmet({
-  contentSecurityPolicy: false // Allow inline scripts for dev Vite proxy if served together
+  contentSecurityPolicy: false, // Allow inline scripts for dev Vite proxy if served together
+  // Facebook Embedded Signup uses a cross-origin popup that must retain window.opener
+  // so the SDK can return its authorization result and WA_EMBEDDED_SIGNUP events.
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 
 // 2. CORS Security
