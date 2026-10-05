@@ -22,7 +22,9 @@ import {
   getMediaProxy,
   getRealtimeStream,
   toggleCustomerAi,
-  getCustomerAiStatus
+  getCustomerAiStatus,
+  getGlobalAiStatus,
+  toggleGlobalAi
 } from '../controllers/chatController';
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
@@ -65,6 +67,8 @@ router.post('/messages/send', authenticateToken, requirePermission(Permission.ME
 router.post('/messages/react', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendReaction);
 router.post('/messages/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleCustomerAi);
 router.get('/messages/ai-status/:phone', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getCustomerAiStatus);
+router.get('/ai-status', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getGlobalAiStatus);
+router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleGlobalAi);
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);
 router.delete('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteThread);
 router.delete('/messages/item/:messageId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessage);

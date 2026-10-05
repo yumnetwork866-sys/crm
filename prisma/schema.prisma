@@ -261,6 +261,7 @@ model IntegrationSetting {
   whatsappTokenExpiresAt DateTime?
   whatsappVerifyToken   String?   @default("YUMNETWORK_CRM_META_VERIFY_TOKEN_2026")
   whatsappAppId         String?
+  difyAiEnabled          Boolean   @default(true)
   status                String    @default("disconnected") // 'connected' | 'disconnected' | 'error'
   lastConnectedAt       DateTime?
   createdAt             DateTime  @default(now())

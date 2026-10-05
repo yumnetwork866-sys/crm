@@ -557,63 +557,40 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
                   </div>
 
                   <div className="space-y-2 pt-1">
-                    {group.phones.map((item) => {
-                      const isSelected = phoneId === item.id;
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectPhone(item.id)}
-                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                            isSelected
-                              ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
-                              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                              isSelected ? 'bg-emerald-600 text-white ring-2 ring-emerald-200' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {item.profilePictureUrl ? (
-                                <img
-                                  src={item.profilePictureUrl}
-                                  alt={`Ảnh đại diện ${item.verifiedName}`}
-                                  className="h-full w-full rounded-lg object-cover"
-                                />
-                              ) : (
-                                <Phone className="w-4 h-4" />
-                              )}
-                            </div>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-sm text-slate-900 truncate">
-                                  {item.verifiedName}
-                                </span>
-                                <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
-                                  {item.displayPhoneNumber}
-                                </span>
-                              </div>
-                              <p className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">
-                                Phone Number ID: {item.id}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="shrink-0">
-                            {isSelected ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
-                                <Check className="w-3.5 h-3.5" />
-                                Đang sử dụng
-                              </span>
+                    {group.phones.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600">
+                            {item.profilePictureUrl ? (
+                              <img
+                                src={item.profilePictureUrl}
+                                alt={`Ảnh đại diện ${item.verifiedName}`}
+                                className="h-full w-full rounded-lg object-cover"
+                              />
                             ) : (
-                              <span className="text-[11px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-lg border border-slate-200 transition">
-                                Chọn
-                              </span>
+                              <Phone className="w-4 h-4" />
                             )}
                           </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm text-slate-900 truncate">
+                                {item.verifiedName}
+                              </span>
+                              <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
+                                {item.displayPhoneNumber}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">
+                              Phone Number ID: {item.id}
+                            </p>
+                          </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

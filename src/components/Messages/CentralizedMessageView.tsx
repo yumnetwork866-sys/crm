@@ -15,7 +15,6 @@ import {
   Paperclip,
   Smile,
   Zap,
-  Sparkles,
   Pin,
   Clock,
   X,
@@ -47,7 +46,7 @@ import {
   Reply
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, isSamePhoneNumber } from '../../utils/crmUtils';
+import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
@@ -292,66 +291,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     }
     window.setTimeout(() => jumpToQuotedMessage(messageId), 50);
   }, [jumpToQuotedMessage, messageRowIndexById, messageVirtualizer]);
-
-  // Dify AI Auto-reply state per active customer thread
-  const [isCustomerAiActive, setIsCustomerAiActive] = useState<boolean>(true);
-  const [isTogglingAi, setIsTogglingAi] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!activeThread?.customerPhone) return;
-    let isCancelled = false;
-    api.get<{ phone: string; isAiActive: boolean }>(`/meta/messages/ai-status/${encodeURIComponent(activeThread.customerPhone)}`)
-      .then((res) => {
-        if (!isCancelled && typeof res.isAiActive === 'boolean') {
-          setIsCustomerAiActive(res.isAiActive);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isCancelled = true;
-    };
-  }, [activeThread?.customerPhone]);
-
-  // Lắng nghe sự kiện SSE realtime khi AI tự động tắt (khách muốn gặp người / khách tức giận) hoặc được bật lại
-  useEffect(() => {
-    const handleAiStatusChange = (e: any) => {
-      const detail = e?.detail;
-      if (
-        detail?.phone &&
-        activeThread?.customerPhone &&
-        isSamePhoneNumber(detail.phone, activeThread.customerPhone) &&
-        typeof detail.isAiActive === 'boolean'
-      ) {
-        setIsCustomerAiActive(detail.isAiActive);
-      }
-    };
-    window.addEventListener('ai:status_change', handleAiStatusChange);
-    return () => window.removeEventListener('ai:status_change', handleAiStatusChange);
-  }, [activeThread?.customerPhone]);
-
-  const handleToggleAi = async () => {
-    if (!activeThread?.customerPhone || isTogglingAi) return;
-    const nextState = !isCustomerAiActive;
-    // Cập nhật giao diện ngay lập tức (Optimistic UI) để người dùng thấy nút phản hồi tức thì
-    setIsCustomerAiActive(nextState);
-    setIsTogglingAi(true);
-    try {
-      const res = await api.post<{ success: boolean; isAiActive: boolean }>(`/meta/messages/ai-toggle`, {
-        phone: activeThread.customerPhone,
-        enabled: nextState,
-        minutes: 0, // 0 = tắt vĩnh viễn cho đến khi người dùng chủ động bấm Bật lại
-      });
-      if (typeof res?.isAiActive === 'boolean') {
-        setIsCustomerAiActive(res.isAiActive);
-      }
-    } catch (err) {
-      console.error('Lỗi khi bật/tắt AI:', err);
-      // Nếu có lỗi mạng/quyền, khôi phục lại trạng thái cũ
-      setIsCustomerAiActive(!nextState);
-    } finally {
-      setIsTogglingAi(false);
-    }
-  };
 
   useEffect(() => {
     try {
@@ -673,27 +612,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         <ChevronDown className="w-2.5 h-2.5 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500" />
                       </div>
 
-                      {/* Dify AI Auto-reply Status & Toggle */}
-                      {activeThread?.customerPhone && (
-                        <button
-                          type="button"
-                          onClick={handleToggleAi}
-                          disabled={isTogglingAi}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all flex items-center gap-1 shadow-2xs cursor-pointer ${
-                            isCustomerAiActive
-                              ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                              : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
-                          }`}
-                          title={
-                            isCustomerAiActive
-                              ? 'AI Bot Dify đang BẬT: Đang tự động trả lời khách hàng. Nhấp để tạm dừng khi nhân viên tư vấn.'
-                              : 'AI Bot Dify đang TẮT/DỪNG: Nhấp để bật lại tự động trả lời.'
-                          }
-                        >
-                          <Sparkles className={`w-2.5 h-2.5 ${isCustomerAiActive ? 'text-purple-600 animate-pulse' : 'text-slate-400'}`} />
-                          <span>{isCustomerAiActive ? 'AI: Bật' : 'AI: Tắt'}</span>
-                        </button>
-                      )}
                     </div>
 
                     <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">

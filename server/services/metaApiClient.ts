@@ -13,6 +13,7 @@ export interface IntegrationSettingData {
   whatsappRegistrationPinEncrypted?: string | null;
   whatsappTokenExpiresAt?: Date | null;
   whatsappAppId?: string | null;
+  difyAiEnabled?: boolean;
   status: string;
   lastConnectedAt?: Date | null;
   createdAt?: Date;
@@ -26,6 +27,7 @@ let inMemorySetting: IntegrationSettingData = {
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
   whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
   whatsappAppId: process.env.META_APP_ID || process.env.WHATSAPP_APP_ID || '',
+  difyAiEnabled: true,
   status: process.env.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'disconnected',
   lastConnectedAt: null,
   createdAt: new Date(),

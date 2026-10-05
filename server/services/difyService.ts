@@ -3,6 +3,7 @@ import type { InMemoryMessage } from './messageStore';
 import { messageStore } from './messageStore';
 import {
   getIntegrationSetting,
+  updateIntegrationSetting,
   resolvePhoneNumberId,
   getMetaAccessTokenForPhone,
   dispatchMetaMessage,
@@ -51,6 +52,19 @@ export function getDifyConfig() {
     apiKey: process.env.DIFY_API_KEY || '',
     timeoutMs: Number(process.env.DIFY_TIMEOUT_MS) || 20000,
   };
+}
+
+/** Global AI switch shared by every CRM user and every WhatsApp conversation. */
+export async function isGlobalAiEnabled(): Promise<boolean> {
+  const config = getDifyConfig();
+  if (!config.enabled) return false;
+  const setting = await getIntegrationSetting();
+  return setting.difyAiEnabled !== false;
+}
+
+export async function setGlobalAiEnabled(enabled: boolean): Promise<boolean> {
+  await updateIntegrationSetting({ difyAiEnabled: enabled }, { requirePersistence: true });
+  return isGlobalAiEnabled();
 }
 
 /**
@@ -455,8 +469,8 @@ export async function autoReplyWithDify(params: {
 }): Promise<boolean> {
   const { fromPhone, customerName, customerId, incomingText, isCrmCustomer, incomingMsgId, brandName, businessPhoneNumberId } = params;
 
-  // 1. Validate if AI is active for this customer
-  if (!isAiActiveForCustomer(fromPhone)) {
+  // 1. Validate both the shared system switch and the per-customer pause state.
+  if (!(await isGlobalAiEnabled()) || !isAiActiveForCustomer(fromPhone)) {
     return false;
   }
 
