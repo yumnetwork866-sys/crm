@@ -50,9 +50,8 @@ import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../ty
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
-import type { ActiveMessageFilter, ConversationStatus, InternalNote } from '../../features/messages/types';
+import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
 import { extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
-import { useBusinessPhones } from '../../features/messages/hooks/useBusinessPhones';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
 import { useMessagePreferences } from '../../features/messages/hooks/useMessagePreferences';
@@ -82,6 +81,9 @@ interface CentralizedMessageViewProps {
   messages: CentralMessage[];
   customers: Customer[];
   currentUser?: AppUser | null;
+  businessPhones: BusinessPhoneNumber[];
+  selectedPhoneId: string;
+  onSelectBusinessPhone: (phoneId: string) => void;
   selectedCustomerId?: string | null;
   onSelectCustomerThread: (customerId: string, customerPhone?: string, messageIds?: string[]) => void;
   onSendMessage: (
@@ -106,6 +108,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   messages,
   customers,
   currentUser,
+  businessPhones,
+  selectedPhoneId,
+  onSelectBusinessPhone,
   selectedCustomerId,
   onSelectCustomerThread,
   onSendMessage,
@@ -238,11 +243,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     return () => window.clearInterval(timer);
   }, []);
 
-  const {
-    businessPhones,
-    selectedPhoneId,
-    selectBusinessPhone: handleSelectBusinessPhone,
-  } = useBusinessPhones();
   const {
     inputText,
     setInputText,
@@ -444,7 +444,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             <BusinessPhoneSelector
               phones={businessPhones}
               selectedPhoneId={selectedPhoneId}
-              onSelect={handleSelectBusinessPhone}
+              onSelect={onSelectBusinessPhone}
             />
           </div>
 

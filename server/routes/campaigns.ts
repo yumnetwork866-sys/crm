@@ -7,7 +7,7 @@ import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { kickCampaignWorker } from '../services/campaignWorker';
 import { getRouteParam } from '../utils/requestParams';
-import { getIntegrationSetting, getMetaAccessToken, verifyApprovedMessageTemplate } from '../services/metaApiClient';
+import { getIntegrationSetting, getMetaAccessTokenForPhone, verifyApprovedMessageTemplate } from '../services/metaApiClient';
 import { isWhatsAppSessionOpen } from '../services/whatsappSessionWindow';
 import templateRoutes, { categorySchema } from './templates';
 
@@ -238,7 +238,8 @@ router.post(
       const input = parsed.data;
       const setting = await getIntegrationSetting();
       const wabaId = setting.whatsappWabaId?.trim();
-      const token = await getMetaAccessToken(setting);
+      const phoneId = setting.whatsappPhoneNumberId?.trim() || '';
+      const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
       if (!wabaId || !token) {
         return res.status(409).json({ error: 'Chưa cấu hình WhatsApp Business Account ID hoặc access token.' });
       }

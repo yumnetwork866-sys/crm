@@ -10,11 +10,13 @@ interface PhoneNumbersResponse {
   selectedPhoneNumberId?: string;
 }
 
-export function useBusinessPhones() {
+export function useBusinessPhones(enabled = true) {
   const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>([]);
   const [selectedPhoneId, setSelectedPhoneId] = useState(() => localStorage.getItem(SELECTED_PHONE_KEY) || '');
 
   useEffect(() => {
+    if (!enabled) return;
+
     let isMounted = true;
 
     async function loadPhones() {
@@ -31,10 +33,18 @@ export function useBusinessPhones() {
         setBusinessPhones(phones);
 
         const saved = localStorage.getItem(SELECTED_PHONE_KEY);
-        const selected = phones.find((phone) =>
-          phone.id === saved || phone.id === payload.selectedPhoneNumberId
-        ) || phones[0];
-        setSelectedPhoneId(selected?.id || '');
+        const selected = phones.find((phone) => phone.id === saved)
+          || phones.find((phone) => phone.id === payload.selectedPhoneNumberId)
+          || phones[0];
+        const nextPhoneId = selected?.id || '';
+        setSelectedPhoneId(nextPhoneId);
+        if (nextPhoneId) {
+          try {
+            localStorage.setItem(SELECTED_PHONE_KEY, nextPhoneId);
+          } catch {
+            // Selection remains active for the current session.
+          }
+        }
       } catch (error) {
         console.warn('Failed to load Meta WABA phone numbers:', error);
         if (isMounted) {
@@ -46,7 +56,7 @@ export function useBusinessPhones() {
 
     void loadPhones();
     return () => { isMounted = false; };
-  }, []);
+  }, [enabled]);
 
   const selectBusinessPhone = useCallback((phoneId: string) => {
     setSelectedPhoneId(phoneId);

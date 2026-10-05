@@ -9,6 +9,7 @@ import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
 import { useCampaigns } from './hooks/useCampaigns';
 import { useMarketingReports } from './hooks/useMarketingReports';
+import { useBusinessPhones } from './features/messages/hooks/useBusinessPhones';
 
 import { Header } from './components/Header';
 import type { ActiveTab } from './components/Navigation';
@@ -119,6 +120,11 @@ export default function App() {
   } = useAuth();
 
   const { marketingReports, saveReports: setMarketingReports } = useMarketingReports(currentUser, shouldLoadReports);
+  const {
+    businessPhones,
+    selectedPhoneId,
+    selectBusinessPhone: handleSelectBusinessPhone,
+  } = useBusinessPhones(Boolean(currentUser));
 
   const {
     customers,
@@ -185,6 +191,7 @@ export default function App() {
     customers,
     setCustomers,
     currentUser,
+    phoneNumberId: selectedPhoneId,
     loadMessages: shouldLoadFullMessages,
   });
   const customerFilterModel = useMemo(
@@ -557,6 +564,9 @@ export default function App() {
                   messages={centralMessages}
                   customers={customers}
                   currentUser={currentUser}
+                  businessPhones={businessPhones}
+                  selectedPhoneId={selectedPhoneId}
+                  onSelectBusinessPhone={handleSelectBusinessPhone}
                   selectedCustomerId={selectedChatCustomerId}
                   onSelectCustomerThread={handleSelectCustomerThread}
                   onSendMessage={handleSendCentralMessage}

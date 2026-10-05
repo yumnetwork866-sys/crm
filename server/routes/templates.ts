@@ -13,7 +13,7 @@ import {
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   getIntegrationSetting,
-  getMetaAccessToken,
+  getMetaAccessTokenForPhone,
   uploadTemplateSampleMedia,
 } from "../services/metaApiClient";
 
@@ -359,7 +359,8 @@ export const templateMediaUploadSchema = z.object({
 async function getWabaContext() {
   const setting = await getIntegrationSetting();
   const wabaId = setting.whatsappWabaId?.trim() || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || "";
-  const token = await getMetaAccessToken(setting);
+  const phoneId = setting.whatsappPhoneNumberId?.trim() || '';
+  const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
   const appId = setting.whatsappAppId?.trim() || process.env.META_APP_ID?.trim() || process.env.WHATSAPP_APP_ID?.trim() || "";
   return { wabaId, token, appId };
 }

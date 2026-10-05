@@ -6,8 +6,8 @@ export const queryKeys = {
   campaigns: ['campaigns'] as const,
   whatsappTemplates: ['whatsapp-templates'] as const,
   automationSteps: ['automation-steps'] as const,
-  centralMessages: ['central-messages'] as const,
-  messageUnreadSummary: ['message-unread-summary'] as const,
+  centralMessages: (phoneNumberId: string) => ['central-messages', phoneNumberId] as const,
+  messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
   marketingReports: ['marketing-reports'] as const,
 };
 

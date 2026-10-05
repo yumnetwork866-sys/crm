@@ -180,18 +180,46 @@ async function processIntegrationLifecycle(body: any): Promise<void> {
 
     const setting = await getIntegrationSetting();
     const eventWabaId = String(change.value?.waba_info?.waba_id || change.value?.waba_id || change.entryId || '');
-    if (setting.whatsappWabaId && eventWabaId && setting.whatsappWabaId !== eventWabaId) continue;
+    const disconnectedWabaId = eventWabaId || setting.whatsappWabaId || '';
+    if (!disconnectedWabaId) continue;
 
-    await updateIntegrationSetting({
-      whatsappPhoneNumberId: null,
-      whatsappWabaId: null,
-      metaBusinessId: null,
-      whatsappAccessTokenEncrypted: null,
-      whatsappTokenExpiresAt: null,
-      status: 'disconnected',
-      lastConnectedAt: null,
-    }, { requirePersistence: true });
-    realtimeHub.broadcast('integration:status', { status: 'disconnected', reason: eventName || change.field });
+    await prisma.whatsAppConnection.updateMany({
+      where: { wabaId: disconnectedWabaId },
+      data: { status: 'disconnected' },
+    });
+
+    // Offboarding one WABA must not disconnect every other number. Only move the
+    // global default pointer when the active WABA is the one Meta removed.
+    if (setting.whatsappWabaId === disconnectedWabaId) {
+      const fallback = await prisma.whatsAppConnection.findFirst({
+        where: { status: 'connected' },
+        orderBy: { createdAt: 'asc' },
+      });
+      await updateIntegrationSetting(fallback ? {
+        whatsappPhoneNumberId: fallback.phoneNumberId,
+        whatsappWabaId: fallback.wabaId,
+        metaBusinessId: fallback.businessId,
+        whatsappAccessTokenEncrypted: fallback.accessTokenEncrypted,
+        whatsappRegistrationPinEncrypted: fallback.registrationPinEncrypted,
+        whatsappTokenExpiresAt: fallback.tokenExpiresAt,
+        status: 'connected',
+        lastConnectedAt: fallback.lastConnectedAt,
+      } : {
+        whatsappPhoneNumberId: null,
+        whatsappWabaId: null,
+        metaBusinessId: null,
+        whatsappAccessTokenEncrypted: null,
+        whatsappRegistrationPinEncrypted: null,
+        whatsappTokenExpiresAt: null,
+        status: 'disconnected',
+        lastConnectedAt: null,
+      }, { requirePersistence: true });
+      realtimeHub.broadcast('integration:status', {
+        status: fallback ? 'connected' : 'disconnected',
+        reason: eventName || change.field,
+        phoneNumberId: fallback?.phoneNumberId,
+      });
+    }
   }
 }
 
@@ -224,6 +252,7 @@ async function processSmbContacts(body: any): Promise<number> {
 async function saveMirroredMessage(input: {
   msgData: any;
   customerPhone: string;
+  businessPhoneNumberId?: string;
   sender: 'agent' | 'customer';
   customerName?: string;
   broadcast?: boolean;
@@ -236,6 +265,7 @@ async function saveMirroredMessage(input: {
     customerId: matched.customerId,
     customerName: matched.customerName,
     customerPhone,
+    businessPhoneNumberId: input.businessPhoneNumberId,
     sender,
     agentName: sender === 'agent' ? 'WhatsApp Business App' : undefined,
     channel: 'WhatsApp',
@@ -252,6 +282,7 @@ async function saveMirroredMessage(input: {
       ...(matched.isCrmCustomer ? { customerId: matched.customerId } : {}),
       customerName: matched.customerName,
       customerPhone,
+      businessPhoneNumberId: input.businessPhoneNumberId || null,
       sender: mirrored.sender,
       agentName: mirrored.agentName,
       channel: mirrored.channel,
@@ -273,6 +304,7 @@ async function processSmbMessages(body: any): Promise<number> {
         if (await saveMirroredMessage({
           msgData: message,
           customerPhone: String(message?.to || ''),
+          businessPhoneNumberId: String(change.value?.metadata?.phone_number_id || '') || undefined,
           sender: 'agent',
           broadcast: true,
         })) processed++;
@@ -289,6 +321,7 @@ async function processSmbMessages(body: any): Promise<number> {
             if (await saveMirroredMessage({
               msgData: message,
               customerPhone,
+              businessPhoneNumberId: String(change.value?.metadata?.phone_number_id || '') || undefined,
               sender: isAgent ? 'agent' : 'customer',
             })) {
               processed++;
@@ -363,6 +396,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
   for (const { msgData, valueObj } of extractedItems) {
     const contactData = valueObj?.contacts?.find((c: any) => c.wa_id === msgData.from) || valueObj?.contacts?.[0];
     const fromPhone = msgData.from || 'Khách Hàng';
+    const businessPhoneNumberId = String(valueObj?.metadata?.phone_number_id || '') || undefined;
     const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
 
     // Determine message text body based on message type
@@ -422,6 +456,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
       customerId,
       customerName,
       customerPhone: fromPhone,
+      businessPhoneNumberId,
       sender: 'customer',
       channel: 'WhatsApp',
       content: fullTextBody,
@@ -438,6 +473,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         id: newIncoming.id,
         customerName: newIncoming.customerName,
         customerPhone: newIncoming.customerPhone,
+        businessPhoneNumberId: businessPhoneNumberId || null,
         sender: newIncoming.sender,
         channel: newIncoming.channel,
         content: newIncoming.content,
@@ -483,6 +519,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         isCrmCustomer,
         incomingMsgId: msgData?.id,
         brandName,
+        businessPhoneNumberId,
       }).catch((aiErr) => {
         console.warn('[Dify Auto-reply Hook Error]', aiErr?.message || aiErr);
       });

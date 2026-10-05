@@ -4,6 +4,7 @@ export interface InMemoryMessage {
   customerId?: string | null;
   customerName?: string;
   customerPhone?: string;
+  businessPhoneNumberId?: string;
   sender: 'customer' | 'agent';
   agentName?: string | null;
   channel: string;

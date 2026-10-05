@@ -7,7 +7,7 @@ import { realtimeHub } from '../services/realtimeHub';
 import { getRouteParam } from '../utils/requestParams';
 import {
   getIntegrationSetting,
-  getMetaAccessToken,
+  getMetaAccessTokenForPhone,
   resolvePhoneNumberId,
   dispatchMetaMessage,
   dispatchMetaReaction,
@@ -24,12 +24,20 @@ import {
  */
 export async function getMessages(req: Request, res: Response) {
   try {
-    const { cursor, limit: limitQuery, direction = 'before', customerId, customerPhone, paginate } = req.query;
+    const { cursor, limit: limitQuery, direction = 'before', customerId, customerPhone, phoneNumberId, paginate } = req.query;
 
     const isCursorPaginationRequested = cursor !== undefined || limitQuery !== undefined || paginate === 'true';
     const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '30'), 10) || 30));
 
     const whereClause: any = {};
+    const integrationSetting = await getIntegrationSetting();
+    const requestedBusinessPhoneId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
+      ? phoneNumberId
+      : '';
+    const activeBusinessPhoneId = requestedBusinessPhoneId || await resolvePhoneNumberId(integrationSetting);
+    if (activeBusinessPhoneId) {
+      whereClause.businessPhoneNumberId = activeBusinessPhoneId;
+    }
 
     // Filter by customer or phone if specified
     if (customerId && typeof customerId === 'string') {
@@ -149,7 +157,10 @@ export async function getMessages(req: Request, res: Response) {
  */
 export async function markMessagesAsRead(req: Request, res: Response) {
   try {
-    const { customerId, customerPhone, messageIds, readBy } = req.body;
+    const { customerId, customerPhone, messageIds, readBy, phoneNumberId } = req.body;
+    const businessPhoneNumberId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
+      ? phoneNumberId
+      : '';
     const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
     const cleanPhone = rawPhone.replace(/\D/g, '');
     let lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
@@ -176,9 +187,12 @@ export async function markMessagesAsRead(req: Request, res: Response) {
     messageStore.update((msgs) =>
       msgs.map((m) => {
         const mPhone = (m.customerPhone || '').replace(/\D/g, '');
-        const isMatch = (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
+        const isSameBusinessPhone = !businessPhoneNumberId || m.businessPhoneNumberId === businessPhoneNumberId;
+        const isMatch = isSameBusinessPhone && (
+          (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
           (customerId && m.customerId === customerId) ||
-          (lastDigits && mPhone.endsWith(lastDigits));
+          (lastDigits && mPhone.endsWith(lastDigits))
+        );
         return isMatch
           ? {
               ...m,
@@ -194,7 +208,10 @@ export async function markMessagesAsRead(req: Request, res: Response) {
     try {
       if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
         await prisma.whatsAppMessage.updateMany({
-          where: { id: { in: messageIds } },
+          where: {
+            id: { in: messageIds },
+            ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
+          },
           data: { isRead: true, readBy: reader, readAt: new Date() }
         });
       } else if (customerId || lastDigits) {
@@ -208,7 +225,10 @@ export async function markMessagesAsRead(req: Request, res: Response) {
         }
         if (orConditions.length > 0) {
           await prisma.whatsAppMessage.updateMany({
-            where: { OR: orConditions },
+            where: {
+              OR: orConditions,
+              ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
+            },
             data: { isRead: true, readBy: reader, readAt: new Date() }
           });
         }
@@ -287,7 +307,7 @@ export async function sendMessage(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = await getMetaAccessToken(setting);
+    const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
 
     let metaResult: any = null;
     let isRealSent = false;
@@ -314,6 +334,7 @@ export async function sendMessage(req: Request, res: Response) {
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
       customerPhone: resolvedCustomerPhone,
+      businessPhoneNumberId: phoneId || undefined,
       sender: 'agent',
       agentName: agentName || 'Nguyễn Văn Ánh',
       channel: 'WhatsApp',
@@ -332,6 +353,7 @@ export async function sendMessage(req: Request, res: Response) {
         id: newMsg.id,
         customerName: newMsg.customerName,
         customerPhone: newMsg.customerPhone,
+        businessPhoneNumberId: phoneId || null,
         sender: newMsg.sender,
         agentName: newMsg.agentName,
         channel: newMsg.channel,
@@ -404,7 +426,7 @@ export async function sendReaction(req: Request, res: Response) {
     const phoneId = (effectiveOverride && !effectiveOverride.startsWith('phone_'))
       ? effectiveOverride
       : (await resolvePhoneNumberId(setting));
-    const token = await getMetaAccessToken(setting);
+    const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
 
     let isRealSent = false;
     let metaResult: any = null;
@@ -463,7 +485,10 @@ export async function clearAllMessages(req: Request, res: Response) {
  */
 export async function deleteThread(req: Request, res: Response) {
   const customerId = getRouteParam(req.params.customerId);
-  const { customerPhone } = req.query;
+  const { customerPhone, phoneNumberId } = req.query;
+  const businessPhoneNumberId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
+    ? phoneNumberId
+    : '';
   const rawPhone = typeof customerPhone === 'string' ? customerPhone : customerId;
   const cleanPhone = rawPhone.replace(/\D/g, '');
   const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
@@ -472,7 +497,8 @@ export async function deleteThread(req: Request, res: Response) {
     const msgCleanPhone = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
     const matchId = m.customerId === customerId;
     const matchPhone = lastDigits && msgCleanPhone && msgCleanPhone.includes(lastDigits);
-    return !matchId && !matchPhone;
+    const matchesBusinessPhone = !businessPhoneNumberId || m.businessPhoneNumberId === businessPhoneNumberId;
+    return !(matchesBusinessPhone && (matchId || matchPhone));
   });
 
   try {
@@ -483,7 +509,8 @@ export async function deleteThread(req: Request, res: Response) {
     }
     const result = await prisma.whatsAppMessage.deleteMany({
       where: {
-        OR: deleteConditions
+        OR: deleteConditions,
+        ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
       }
     });
     console.log(`[DB DELETE THREAD SUCCESS] Deleted ${result.count} messages for customer ${customerId}`);
@@ -554,14 +581,26 @@ export function getRealtimeStream(req: Request, res: Response) {
  */
 export async function getConversations(req: Request, res: Response) {
   try {
-    const { search, limit: limitQuery, page: pageQuery } = req.query;
+    const { search, phoneNumberId, limit: limitQuery, page: pageQuery } = req.query;
     const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '50'), 10) || 50));
     const skip = (page - 1) * limit;
 
     const searchFilter = search && typeof search === 'string' && search.trim() ? search.trim() : null;
-    const filterSql = searchFilter
-      ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+    const integrationSetting = await getIntegrationSetting();
+    const requestedBusinessPhoneId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
+      ? phoneNumberId
+      : '';
+    const activeBusinessPhoneId = requestedBusinessPhoneId || await resolvePhoneNumberId(integrationSetting);
+    const filterSql = activeBusinessPhoneId
+      ? searchFilter
+        ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId} AND ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+        : Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
+      : searchFilter
+        ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+        : Prisma.empty;
+    const unreadFilterSql = activeBusinessPhoneId
+      ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
       : Prisma.empty;
 
     const rawThreads: Array<{
@@ -598,6 +637,7 @@ export async function getConversations(req: Request, res: Response) {
           COALESCE("customerPhone", "customerId", "id") as thread_key,
           COUNT(*) FILTER (WHERE "sender" = 'customer' AND "isRead" = false) as unread_count
         FROM "WhatsAppMessage"
+        ${unreadFilterSql}
         GROUP BY COALESCE("customerPhone", "customerId", "id")
       )
       SELECT 

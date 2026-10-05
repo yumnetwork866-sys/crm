@@ -4,7 +4,7 @@ import { messageStore } from './messageStore';
 import {
   getIntegrationSetting,
   resolvePhoneNumberId,
-  getMetaAccessToken,
+  getMetaAccessTokenForPhone,
   dispatchMetaMessage,
 } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
@@ -451,8 +451,9 @@ export async function autoReplyWithDify(params: {
   isCrmCustomer: boolean;
   incomingMsgId?: string;
   brandName?: string;
+  businessPhoneNumberId?: string;
 }): Promise<boolean> {
-  const { fromPhone, customerName, customerId, incomingText, isCrmCustomer, incomingMsgId, brandName } = params;
+  const { fromPhone, customerName, customerId, incomingText, isCrmCustomer, incomingMsgId, brandName, businessPhoneNumberId } = params;
 
   // 1. Validate if AI is active for this customer
   if (!isAiActiveForCustomer(fromPhone)) {
@@ -514,8 +515,8 @@ export async function autoReplyWithDify(params: {
     // 4. Send reply back to customer via WhatsApp Cloud API
     const cleanPhone = fromPhone.replace(/\D/g, '');
     const setting = await getIntegrationSetting();
-    const phoneId = await resolvePhoneNumberId(setting);
-    const token = await getMetaAccessToken(setting);
+    const phoneId = businessPhoneNumberId || await resolvePhoneNumberId(setting);
+    const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
 
     let isRealSent = false;
     let metaSentId: string | null = null;
@@ -550,6 +551,7 @@ export async function autoReplyWithDify(params: {
       customerId,
       customerName,
       customerPhone: fromPhone,
+      businessPhoneNumberId: phoneId || undefined,
       sender: 'agent',
       agentName: configuredAgentName,
       channel: 'WhatsApp',
@@ -574,6 +576,7 @@ export async function autoReplyWithDify(params: {
         id: aiMsg.id,
         customerName: aiMsg.customerName,
         customerPhone: aiMsg.customerPhone,
+        businessPhoneNumberId: phoneId || null,
         sender: 'agent',
         agentName: aiMsg.agentName,
         channel: 'WhatsApp',

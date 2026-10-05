@@ -28,6 +28,7 @@ interface UseCentralMessagesOptions {
   customers: Customer[];
   setCustomers: Dispatch<SetStateAction<Customer[]>>;
   currentUser: AppUser | null;
+  phoneNumberId: string;
   loadMessages?: boolean;
 }
 
@@ -39,29 +40,40 @@ export function useCentralMessages({
   customers,
   setCustomers,
   currentUser,
+  phoneNumberId,
   loadMessages = true,
 }: UseCentralMessagesOptions) {
   const queryClient = useQueryClient();
+  const centralMessagesQueryKey = useMemo(
+    () => queryKeys.centralMessages(phoneNumberId),
+    [phoneNumberId]
+  );
+  const unreadSummaryQueryKey = useMemo(
+    () => queryKeys.messageUnreadSummary(phoneNumberId),
+    [phoneNumberId]
+  );
   const messagesQuery = useInfiniteQuery<
     MessagePage,
     Error,
     InfiniteData<MessagePage, string | null>,
-    typeof queryKeys.centralMessages,
+    ReturnType<typeof queryKeys.centralMessages>,
     string | null
   >({
-    queryKey: queryKeys.centralMessages,
+    queryKey: centralMessagesQueryKey,
     queryFn: ({ pageParam }) => api.get<MessagePage>(
-      `/meta/messages?paginate=true&limit=30${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`
+      `/meta/messages?paginate=true&limit=30&phoneNumberId=${encodeURIComponent(phoneNumberId)}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`
     ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
-    enabled: Boolean(currentUser) && loadMessages,
+    enabled: Boolean(currentUser) && Boolean(phoneNumberId) && loadMessages,
   });
   const messages = useMemo(() => flattenMessagePages(messagesQuery.data), [messagesQuery.data]);
   const unreadSummaryQuery = useQuery({
-    queryKey: queryKeys.messageUnreadSummary,
-    queryFn: () => api.get<ConversationSummaryResponse>('/meta/messages/conversations?limit=100'),
-    enabled: Boolean(currentUser) && !loadMessages,
+    queryKey: unreadSummaryQueryKey,
+    queryFn: () => api.get<ConversationSummaryResponse>(
+      `/meta/messages/conversations?limit=100&phoneNumberId=${encodeURIComponent(phoneNumberId)}`
+    ),
+    enabled: Boolean(currentUser) && Boolean(phoneNumberId) && !loadMessages,
     staleTime: 30_000,
   });
 
@@ -71,7 +83,7 @@ export function useCentralMessages({
   }, []);
 
   const setMessages: Dispatch<SetStateAction<CentralMessage[]>> = useCallback((update) => {
-    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(queryKeys.centralMessages, (data) => {
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(centralMessagesQueryKey, (data) => {
       if (!data) return data;
       const current = flattenMessagePages(data);
       const next = typeof update === 'function' ? update(current) : update;
@@ -97,7 +109,7 @@ export function useCentralMessages({
       }
       return { ...data, pages };
     });
-  }, [queryClient]);
+  }, [centralMessagesQueryKey, queryClient]);
   const [toastNotification, setToastNotification] = useState<{
     message: CentralMessage;
     show: boolean;
@@ -128,7 +140,7 @@ export function useCentralMessages({
   }, [loadMessages, messages, unreadSummaryQuery.data]);
 
   const readMutation = useMutation({
-    mutationFn: (variables: { customerId: string; customerPhone: string; messageIds?: string[]; readBy: string }) =>
+    mutationFn: (variables: { customerId: string; customerPhone: string; messageIds?: string[]; readBy: string; phoneNumberId: string }) =>
       api.post('/meta/messages/read', variables),
   });
 
@@ -168,14 +180,17 @@ export function useCentralMessages({
       customerPhone: phone,
       messageIds,
       readBy: reader,
+      phoneNumberId,
     });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
-  }, [queryClient, readMutation, setMessages]);
+    void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+  }, [phoneNumberId, queryClient, readMutation, setMessages, unreadSummaryQueryKey]);
 
   useEffect(() => {
+    if (!phoneNumberId) return;
+
     const knownMessageIds = new Set<string>();
     flattenMessagePages(
-      queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(queryKeys.centralMessages)
+      queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(centralMessagesQueryKey)
     )
       .forEach((message) => knownMessageIds.add(message.id));
 
@@ -190,6 +205,7 @@ export function useCentralMessages({
         try {
           const newMessage: CentralMessage = JSON.parse(event.data);
           if (!newMessage?.id) return;
+          if (newMessage.businessPhoneNumberId && newMessage.businessPhoneNumberId !== phoneNumberId) return;
           const wasKnown = knownMessageIds.has(newMessage.id);
           knownMessageIds.add(newMessage.id);
 
@@ -220,7 +236,7 @@ export function useCentralMessages({
             playNotificationSound();
             setToastNotification({ message: newMessage, show: true });
           }
-          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:new event:', error);
         }
@@ -243,7 +259,7 @@ export function useCentralMessages({
                 : message;
             })
           );
-          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:read event:', error);
         }
@@ -257,7 +273,7 @@ export function useCentralMessages({
                 && !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone))
             )
           );
-          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch {
           // Ignore malformed realtime events.
         }
@@ -266,18 +282,18 @@ export function useCentralMessages({
         try {
           const { messageId } = JSON.parse(event.data);
           setMessages((previous) => previous.filter((message) => message.id !== messageId));
-          void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch {
           // Ignore malformed realtime events.
         }
       });
       eventSource.addEventListener('message:cleared', () => {
         setMessages([]);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+        void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
       });
       eventSource.addEventListener('messages:sync', () => {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.centralMessages });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadSummary });
+        void queryClient.invalidateQueries({ queryKey: centralMessagesQueryKey });
+        void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
       });
       eventSource.addEventListener('customers:sync', () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
@@ -299,7 +315,7 @@ export function useCentralMessages({
     }
 
     return () => eventSource?.close();
-  }, [queryClient, setCustomers, setMessages]);
+  }, [centralMessagesQueryKey, phoneNumberId, queryClient, setCustomers, setMessages, unreadSummaryQueryKey]);
 
   const sendMutation = useMutation({
     mutationFn: (variables: {
@@ -308,7 +324,7 @@ export function useCentralMessages({
       customerPhone: string;
       content: string;
       agentName: string;
-      phoneNumberId?: string;
+      senderPhoneId?: string;
       contextMessageId?: string;
       replyTo?: { id: string; senderName: string; content: string };
     }) => api.post<any>('/meta/messages/send', variables),
@@ -316,8 +332,11 @@ export function useCentralMessages({
   const threadDeleteMutation = useMutation({
     mutationFn: ({ customerId, phone }: { customerId: string; phone: string }) => {
       const cleanPhone = phone.replace(/\D/g, '');
-      const query = cleanPhone ? `?customerPhone=${encodeURIComponent(cleanPhone)}` : '';
-      return api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${query}`);
+      const query = new URLSearchParams();
+      if (cleanPhone) query.set('customerPhone', cleanPhone);
+      if (phoneNumberId) query.set('phoneNumberId', phoneNumberId);
+      const queryString = query.toString();
+      return api.delete(`/meta/messages/thread/${encodeURIComponent(customerId)}${queryString ? `?${queryString}` : ''}`);
     },
   });
   const messageDeleteMutation = useMutation({
@@ -356,6 +375,7 @@ export function useCentralMessages({
       content,
       timestamp: new Date().toISOString(),
       isRead: true,
+      businessPhoneNumberId: senderPhoneNumberId,
       replyTo,
     };
 
@@ -367,7 +387,7 @@ export function useCentralMessages({
         customerPhone: phone,
         content,
         agentName,
-        phoneNumberId: senderPhoneNumberId,
+        senderPhoneId: senderPhoneNumberId,
         contextMessageId: replyTo?.id,
         replyTo,
       });
@@ -428,7 +448,7 @@ export function useCentralMessages({
       || customersRef.current.find((customer) => customer.id === customerId)?.phone
       || customerId;
     const previousMessages = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
-      queryKeys.centralMessages
+      centralMessagesQueryKey
     );
     setMessages((previous) =>
       previous.filter(
@@ -439,10 +459,10 @@ export function useCentralMessages({
     try {
       await threadDeleteMutation.mutateAsync({ customerId, phone });
     } catch (error) {
-      if (previousMessages) queryClient.setQueryData(queryKeys.centralMessages, previousMessages);
+      if (previousMessages) queryClient.setQueryData(centralMessagesQueryKey, previousMessages);
       console.error('Error deleting thread via API:', error);
     }
-  }, [messages, queryClient, setMessages, threadDeleteMutation]);
+  }, [centralMessagesQueryKey, messages, queryClient, setMessages, threadDeleteMutation]);
 
   const deleteMessage = useCallback(async (messageId: string) => {
     if (currentUserRef.current?.role !== 'Admin') {
@@ -450,16 +470,16 @@ export function useCentralMessages({
       return;
     }
     const previousMessages = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
-      queryKeys.centralMessages
+      centralMessagesQueryKey
     );
     setMessages((previous) => previous.filter((message) => message.id !== messageId));
     try {
       await messageDeleteMutation.mutateAsync(messageId);
     } catch (error) {
-      if (previousMessages) queryClient.setQueryData(queryKeys.centralMessages, previousMessages);
+      if (previousMessages) queryClient.setQueryData(centralMessagesQueryKey, previousMessages);
       console.error('Error deleting message via API:', error);
     }
-  }, [messageDeleteMutation, queryClient, setMessages]);
+  }, [centralMessagesQueryKey, messageDeleteMutation, queryClient, setMessages]);
 
   return {
     messages,

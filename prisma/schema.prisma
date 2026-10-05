@@ -267,6 +267,25 @@ model IntegrationSetting {
   updatedAt             DateTime  @updatedAt
 }
 
+model WhatsAppConnection {
+  phoneNumberId           String    @id
+  wabaId                  String
+  businessId              String?
+  displayPhoneNumber      String?
+  verifiedName            String?
+  accessTokenEncrypted    String?
+  registrationPinEncrypted String?
+  tokenExpiresAt          DateTime?
+  usesEnvironmentToken    Boolean   @default(false)
+  status                  String    @default("connected")
+  lastConnectedAt         DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([wabaId])
+  @@index([status])
+}
+
 model WhatsAppTemplateArchive {
   id           String   @id @default(uuid())
   wabaId       String
@@ -286,6 +305,7 @@ model WhatsAppMessage {
   customerId    String?
   customerName  String
   customerPhone String
+  businessPhoneNumberId String?
   sender        String // 'customer' | 'agent'
   agentName     String?
   channel       String    @default("WhatsApp")
@@ -301,6 +321,7 @@ model WhatsAppMessage {
 
   @@index([customerId])
   @@index([customerPhone])
+  @@index([businessPhoneNumberId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
   @@index([customerId, sender, channel, timestamp(sort: Desc)])
   @@index([isRead, sender])

@@ -2,10 +2,13 @@ import type { Request, Response } from 'express';
 import {
   getIntegrationSetting,
   getMetaAccessToken,
+  getMetaAccessTokenForPhone,
+  syncEnvironmentWhatsAppConnections,
   updateIntegrationSetting,
   resolvePhoneNumberId,
   ensureWabaSubscribed,
   fetchWabaPhoneNumbers,
+  fetchWabaDetails,
   fetchWhatsAppPhoneDetails,
   fetchWhatsAppBusinessProfile,
   registerWhatsAppPhoneNumber,
@@ -166,12 +169,52 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       ? new Date(Date.now() + expiresIn * 1_000)
       : null;
     const now = new Date();
+    const encryptedAccessToken = encryptMetaToken(accessToken);
+    // The signup token grants access to the WABA, not only to the selected phone.
+    // Persist every phone returned by Meta so adding another WABA never hides the
+    // connections that were onboarded previously.
+    await prisma.$transaction(phoneNumbers.map((phone: any) => {
+      const currentPhoneId = String(phone?.id || '').trim();
+      const isSelectedPhone = currentPhoneId === resolvedPhoneNumberId;
+      return prisma.whatsAppConnection.upsert({
+        where: { phoneNumberId: currentPhoneId },
+        update: {
+          wabaId,
+          businessId: businessId || null,
+          displayPhoneNumber: phone?.display_phone_number || null,
+          verifiedName: phone?.verified_name || null,
+          accessTokenEncrypted: encryptedAccessToken,
+          ...(isSelectedPhone
+            ? { registrationPinEncrypted: mode === 'coexistence' ? null : encryptedRegistrationPin || undefined }
+            : {}),
+          tokenExpiresAt,
+          usesEnvironmentToken: false,
+          status: 'connected',
+          lastConnectedAt: now,
+        },
+        create: {
+          phoneNumberId: currentPhoneId,
+          wabaId,
+          businessId: businessId || null,
+          displayPhoneNumber: phone?.display_phone_number || null,
+          verifiedName: phone?.verified_name || null,
+          accessTokenEncrypted: encryptedAccessToken,
+          registrationPinEncrypted: isSelectedPhone && mode !== 'coexistence'
+            ? encryptedRegistrationPin || null
+            : null,
+          tokenExpiresAt,
+          usesEnvironmentToken: false,
+          status: 'connected',
+          lastConnectedAt: now,
+        },
+      });
+    }));
     await updateIntegrationSetting({
       whatsappPhoneNumberId: resolvedPhoneNumberId,
       whatsappWabaId: wabaId,
       metaBusinessId: businessId || null,
       whatsappAppId: appId,
-      whatsappAccessTokenEncrypted: encryptMetaToken(accessToken),
+      whatsappAccessTokenEncrypted: encryptedAccessToken,
       whatsappTokenExpiresAt: tokenExpiresAt,
       ...(mode === 'coexistence'
         ? { whatsappRegistrationPinEncrypted: null }
@@ -237,17 +280,28 @@ export async function saveConfig(req: Request, res: Response) {
     } = req.body;
 
     const existing = await getIntegrationSetting();
-
-    const accessToken = await getMetaAccessToken(existing);
-
     const finalPhoneId = whatsappPhoneNumberId !== undefined ? whatsappPhoneNumberId.trim() : existing.whatsappPhoneNumberId;
+    const selectedConnection = finalPhoneId
+      ? await prisma.whatsAppConnection.findUnique({ where: { phoneNumberId: finalPhoneId } })
+      : null;
+    const finalWabaId = selectedConnection?.wabaId
+      || (whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId);
+    const accessToken = finalPhoneId
+      ? await getMetaAccessTokenForPhone(finalPhoneId, existing)
+      : await getMetaAccessToken(existing);
     const isFullyConfigured = Boolean(accessToken && finalPhoneId);
     const newStatus = isFullyConfigured ? 'connected' : (existing.status || 'disconnected');
     const newLastConnected = isFullyConfigured ? (existing.lastConnectedAt || new Date()) : existing.lastConnectedAt;
 
     const updateData = {
       whatsappPhoneNumberId: finalPhoneId,
-      whatsappWabaId: whatsappWabaId !== undefined ? whatsappWabaId.trim() : existing.whatsappWabaId,
+      whatsappWabaId: finalWabaId,
+      ...(selectedConnection ? {
+        metaBusinessId: selectedConnection.businessId,
+        whatsappAccessTokenEncrypted: selectedConnection.accessTokenEncrypted,
+        whatsappRegistrationPinEncrypted: selectedConnection.registrationPinEncrypted,
+        whatsappTokenExpiresAt: selectedConnection.tokenExpiresAt,
+      } : {}),
       whatsappVerifyToken: (whatsappVerifyToken && whatsappVerifyToken.trim().length > 0) ? whatsappVerifyToken.trim() : existing.whatsappVerifyToken,
       whatsappAppId: whatsappAppId !== undefined ? whatsappAppId.trim() : existing.whatsappAppId,
       status: newStatus,
@@ -330,7 +384,12 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
 
     const setting = await getIntegrationSetting();
     const wabaId = (inputWabaId && inputWabaId.trim().length > 0) ? inputWabaId.trim() : setting.whatsappWabaId;
-    const token = await getMetaAccessToken(setting);
+    const wabaConnection = wabaId
+      ? await prisma.whatsAppConnection.findFirst({ where: { wabaId, status: 'connected' } })
+      : null;
+    const token = wabaConnection
+      ? await getMetaAccessTokenForPhone(wabaConnection.phoneNumberId, setting)
+      : await getMetaAccessToken(setting);
 
     if (!wabaId) {
       return res.status(400).json({ error: 'Vui lòng nhập WhatsApp Business Account ID (WABA ID).' });
@@ -339,8 +398,11 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
       return res.status(400).json({ error: 'Vui lòng nhập Permanent Access Token từ Meta.' });
     }
 
-    // LUÔN gọi Meta để lấy danh sách số điện thoại mới nhất (KHÔNG lưu cache danh sách số)
-    const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, token);
+    // LUÔN gọi Meta để lấy danh sách số điện thoại mới nhất và thông tin WABA
+    const [phoneNumbers, wabaDetails] = await Promise.all([
+      fetchWabaPhoneNumbers(wabaId, token),
+      fetchWabaDetails(wabaId, token),
+    ]);
     const phoneNumbersWithProfiles = await Promise.all(
       phoneNumbers.map(async (phone: any) => {
         // Chỉ avatar được lưu về máy và cache 1 ngày 1 lần
@@ -359,6 +421,12 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
 
     return res.json({
       success: true,
+      waba: {
+        id: wabaId,
+        name: wabaDetails?.name || undefined,
+        currency: wabaDetails?.currency,
+        timezone: wabaDetails?.timezone_id,
+      },
       count: phoneNumbersWithProfiles.length,
       phoneNumbers: phoneNumbersWithProfiles,
     });
@@ -371,22 +439,49 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
 /** Read-only phone list for authenticated messaging users. */
 export async function getBusinessPhones(req: Request, res: Response) {
   try {
+    await syncEnvironmentWhatsAppConnections();
     const setting = await getIntegrationSetting();
-    const wabaId = setting.whatsappWabaId?.trim() || '';
-    const token = await getMetaAccessToken(setting);
-    if (!wabaId || !token) {
-      return res.json({ success: true, phoneNumbers: [], selectedPhoneNumberId: '' });
-    }
+    const connections = await prisma.whatsAppConnection.findMany({
+      where: { status: 'connected' },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    const phoneNumbers = await fetchWabaPhoneNumbers(wabaId, token);
-    const normalized = await Promise.all(phoneNumbers.map(async (phone: any) => ({
-      id: String(phone.id),
-      verifiedName: phone.verified_name || phone.display_phone_number || 'WhatsApp Business',
-      displayPhoneNumber: phone.display_phone_number || String(phone.id),
-      profilePictureUrl: await getOrUpdateWabaAvatar(String(phone.id), token),
-      qualityRating: phone.quality_rating || 'UNKNOWN',
-      codeVerificationStatus: phone.code_verification_status || 'VERIFIED',
-    })));
+    const wabaNames = new Map<string, string>();
+    await Promise.all(Array.from(new Set(connections.map((connection) => connection.wabaId))).map(async (connectionWabaId) => {
+      const representative = connections.find((connection) => connection.wabaId === connectionWabaId);
+      if (!representative) return;
+      const token = await getMetaAccessTokenForPhone(representative.phoneNumberId, setting);
+      if (!token) return;
+      const details = await fetchWabaDetails(connectionWabaId, token);
+      if (details?.name) wabaNames.set(connectionWabaId, String(details.name));
+    }));
+
+    const normalized = await Promise.all(connections.map(async (connection) => {
+      const token = await getMetaAccessTokenForPhone(connection.phoneNumberId, setting);
+      const details = token
+        ? await fetchWhatsAppPhoneDetails(connection.phoneNumberId, token).catch(() => null)
+        : null;
+      if (details || connection.displayPhoneNumber || connection.verifiedName) {
+        await prisma.whatsAppConnection.update({
+          where: { phoneNumberId: connection.phoneNumberId },
+          data: {
+            displayPhoneNumber: details?.display_phone_number || connection.displayPhoneNumber,
+            verifiedName: details?.verified_name || connection.verifiedName,
+          },
+        }).catch(() => undefined);
+      }
+      return {
+        id: connection.phoneNumberId,
+        wabaId: connection.wabaId,
+        wabaName: wabaNames.get(connection.wabaId),
+        verifiedName: details?.verified_name || connection.verifiedName || connection.displayPhoneNumber || 'WhatsApp Business',
+        displayPhoneNumber: details?.display_phone_number || connection.displayPhoneNumber || connection.phoneNumberId,
+        profilePictureUrl: token ? await getOrUpdateWabaAvatar(connection.phoneNumberId, token) : '',
+        qualityRating: details?.quality_rating || 'UNKNOWN',
+        codeVerificationStatus: details?.code_verification_status || 'UNKNOWN',
+        tokenExpiresAt: connection.tokenExpiresAt,
+      };
+    }));
 
     return res.json({
       success: true,
@@ -408,7 +503,7 @@ export async function testConnection(req: Request, res: Response) {
 
     const setting = await getIntegrationSetting();
     const phoneId = overridePhoneId || (await resolvePhoneNumberId(setting));
-    const token = await getMetaAccessToken(setting);
+    const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
 
     if (!phoneId) {
       return res.status(400).json({ error: 'Chưa cấu hình Phone Number ID. Vui lòng nhập Phone Number ID trước khi test.' });
@@ -452,6 +547,7 @@ export async function testConnection(req: Request, res: Response) {
       customerId: `cust_${cleanPhone}`,
       customerName: `Khách WhatsApp (${cleanPhone})`,
       customerPhone: recipientPhone,
+      businessPhoneNumberId: phoneId,
       sender: 'agent',
       agentName: 'Hệ Thống CRM (Test)',
       channel: 'WhatsApp',
@@ -469,6 +565,7 @@ export async function testConnection(req: Request, res: Response) {
           id: testMsgRecord.id,
           customerName: testMsgRecord.customerName || `Khách WhatsApp (${cleanPhone})`,
           customerPhone: testMsgRecord.customerPhone || recipientPhone,
+          businessPhoneNumberId: phoneId,
           sender: testMsgRecord.sender,
           agentName: testMsgRecord.agentName,
           channel: testMsgRecord.channel,

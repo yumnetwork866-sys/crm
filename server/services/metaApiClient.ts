@@ -130,6 +130,87 @@ export async function getMetaAccessToken(setting?: IntegrationSettingData): Prom
   return process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
 }
 
+export async function getMetaAccessTokenForPhone(
+  phoneNumberId: string,
+  fallbackSetting?: IntegrationSettingData,
+): Promise<string> {
+  const normalizedPhoneId = phoneNumberId.trim();
+  if (!normalizedPhoneId) return '';
+
+  const connection = await prisma.whatsAppConnection.findUnique({
+    where: { phoneNumberId: normalizedPhoneId },
+  }).catch(() => null);
+  if (connection) {
+    if (connection.tokenExpiresAt && connection.tokenExpiresAt.getTime() <= Date.now()) {
+      console.warn(`[META TOKEN] Token của Phone Number ID ${normalizedPhoneId} đã hết hạn.`);
+      return '';
+    }
+    if (connection.accessTokenEncrypted) {
+      try {
+        return decryptMetaToken(connection.accessTokenEncrypted);
+      } catch (error) {
+        console.error('[META TOKEN] Không thể giải mã token của kết nối WhatsApp:', error instanceof Error ? error.message : error);
+        return '';
+      }
+    }
+    if (connection.usesEnvironmentToken) {
+      return process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+    }
+  }
+
+  const setting = fallbackSetting || await getIntegrationSetting();
+  if (setting.whatsappPhoneNumberId === normalizedPhoneId) {
+    return getMetaAccessToken(setting);
+  }
+  return '';
+}
+
+export async function syncEnvironmentWhatsAppConnections(): Promise<void> {
+  const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || '';
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+  if (!wabaId || !token) return;
+
+  try {
+    const phones = await fetchWabaPhoneNumbers(wabaId, token);
+    for (const phone of phones) {
+      const phoneNumberId = String(phone?.id || '').trim();
+      if (!phoneNumberId) continue;
+      const details = await fetchWhatsAppPhoneDetails(phoneNumberId, token).catch(() => phone);
+      await prisma.whatsAppConnection.upsert({
+        where: { phoneNumberId },
+        update: {
+          wabaId,
+          displayPhoneNumber: details?.display_phone_number || phone?.display_phone_number || null,
+          verifiedName: details?.verified_name || phone?.verified_name || null,
+          usesEnvironmentToken: true,
+          status: 'connected',
+        },
+        create: {
+          phoneNumberId,
+          wabaId,
+          displayPhoneNumber: details?.display_phone_number || phone?.display_phone_number || null,
+          verifiedName: details?.verified_name || phone?.verified_name || null,
+          usesEnvironmentToken: true,
+          status: 'connected',
+        },
+      });
+    }
+
+    if (phones.length === 1) {
+      const legacyPhoneId = String(phones[0]?.id || '').trim();
+      const setting = await getIntegrationSetting();
+      if (legacyPhoneId && legacyPhoneId !== setting.whatsappPhoneNumberId) {
+        await prisma.whatsAppMessage.updateMany({
+          where: { businessPhoneNumberId: null },
+          data: { businessPhoneNumberId: legacyPhoneId },
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[META CONNECTIONS] Không thể đồng bộ kết nối từ biến môi trường:', error instanceof Error ? error.message : error);
+  }
+}
+
 /**
  * Automatically resolve Phone Number ID from WABA ID if not explicitly specified
  */
@@ -274,6 +355,29 @@ export async function fetchWabaPhoneNumbers(wabaId: string, token: string) {
   }
 
   return responseData.data || [];
+}
+
+/**
+ * Fetch WhatsApp Business Account (WABA) details (name, currency, timezone).
+ */
+export async function fetchWabaDetails(wabaId: string, token: string): Promise<any> {
+  try {
+    const metaApiUrl = `https://graph.facebook.com/v26.0/${encodeURIComponent(wabaId)}?fields=id,name,currency,timezone_id`;
+    const response = await fetch(metaApiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(10_000)
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (e) {
+    console.warn(`[WABA Details] Không thể lấy thông tin chi tiết WABA ${wabaId}:`, e);
+  }
+  return null;
 }
 
 /**

@@ -9,6 +9,7 @@ export interface CentralMessage {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  businessPhoneNumberId?: string;
   sender: 'customer' | 'agent' | 'system';
   agentName?: string;
   channel: MessageChannel;
