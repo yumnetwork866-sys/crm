@@ -61,9 +61,20 @@ export function useMessageComposer({
   };
 
   const addEmoji = (emoji: string) => {
-    setInputText((current) => current + emoji);
-    setShowEmojiPicker(false);
-    focusComposer();
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart ?? inputText.length;
+      const end = textarea.selectionEnd ?? inputText.length;
+      const next = inputText.slice(0, start) + emoji + inputText.slice(end);
+      setInputText(next);
+      requestAnimationFrame(() => {
+        textarea.selectionStart = start + emoji.length;
+        textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+      });
+    } else {
+      setInputText((current) => current + emoji);
+    }
   };
 
   const attachFile = (file: File | null) => {

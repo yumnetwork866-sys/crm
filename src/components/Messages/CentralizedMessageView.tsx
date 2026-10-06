@@ -48,7 +48,8 @@ import {
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
-import { EXTENDED_EMOJIS, POPULAR_EMOJIS, QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
+import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
+import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
 import { extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
@@ -312,6 +313,33 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isFilterMenuOpen]);
+
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (emojiPickerRef.current?.contains(target)) return;
+      if (emojiButtonRef.current?.contains(target)) return;
+      setShowEmojiPicker(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showEmojiPicker, setShowEmojiPicker]);
 
   const filterOptions = [
     { id: 'all', label: `Tất cả (${threads.length})` },
@@ -790,6 +818,71 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         ? effectiveCurrentUser.avatar
                         : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
 
+                      const renderReactionPicker = (agentMsg: boolean) => (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className={`absolute top-full mt-1.5 ${agentMsg ? 'right-0' : 'left-0'} flex items-center space-x-1 bg-white/95 backdrop-blur-md px-2 py-1 rounded-full shadow-lg border border-slate-200 z-40 animate-in fade-in zoom-in-95 duration-150 whitespace-nowrap`}
+                        >
+                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => {
+                            const isSelected = reaction === emoji;
+                            return (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => handleReactMessage(msg, emoji)}
+                                className={`w-7 h-7 flex items-center justify-center text-base rounded-full hover:scale-135 transition-transform duration-150 cursor-pointer ${
+                                  isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
+                                }`}
+                                title={`Thả ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
+
+                          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+
+                          {/* WhatsApp '+' Button to open extended emoji palette */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowExpandedReactionPickerMsgId(showExpandedReactionPickerMsgId === msg.id ? null : msg.id);
+                              }}
+                              className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer hover:scale-110 shadow-2xs ${
+                                showExpandedReactionPickerMsgId === msg.id
+                                  ? 'bg-[#1fa855] text-white'
+                                  : 'bg-[#f0f2f5] text-[#54656f] hover:bg-[#e2e5e9] hover:text-[#111b21]'
+                              }`}
+                              title="Thêm biểu cảm khác (+)"
+                            >
+                              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                            </button>
+
+                            {/* Extended WhatsApp Reaction Palette Popover anchored RIGHT BELOW the '+' button */}
+                            {showExpandedReactionPickerMsgId === msg.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute top-full mt-2 ${agentMsg ? 'right-0' : 'left-0'} z-50 animate-in fade-in zoom-in-95 duration-150`}
+                              >
+                                <EmojiPicker
+                                  selectedEmoji={reaction}
+                                  onSelect={(emoji) => {
+                                    void handleReactMessage(msg, emoji);
+                                  }}
+                                  onClose={() => setShowExpandedReactionPickerMsgId(null)}
+                                  title="Tất cả biểu cảm"
+                                  theme="whatsapp"
+                                  bodyMaxHeight="max-h-48"
+                                  className="flex w-72 sm:w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+
                       return (
                         <div
                           key={msg.id}
@@ -820,7 +913,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                           {/* Outgoing Message: Left side Action Buttons (Reply + React) in a Unified Pill */}
                           {isAgent && (
-                            <div className="mr-1.5 mb-1 flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+                            <div className={`mr-1.5 self-center flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs transition-opacity duration-150 shrink-0 ${
+                              activeReactionPickerMsgId === msg.id ? 'opacity-100 z-30' : 'opacity-0 group-hover:opacity-100'
+                            }`}>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -832,19 +927,22 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               >
                                 <Reply className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
-                                }}
-                                className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
-                                  activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
-                                }`}
-                                title="Thả cảm xúc"
-                              >
-                                <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
-                              </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
+                                  }}
+                                  className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
+                                    activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
+                                  }`}
+                                  title="Thả cảm xúc"
+                                >
+                                  <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                </button>
+                                {activeReactionPickerMsgId === msg.id && renderReactionPicker(true)}
+                              </div>
                             </div>
                           )}
 
@@ -861,89 +959,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 : ''
                             }`}
                           >
-                            {/* Floating WhatsApp Reaction Picker Bar (Absolute floating overlay, zero layout shift) */}
-                            {activeReactionPickerMsgId === msg.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className={`absolute -top-11 ${isAgent ? 'right-0' : 'left-0'} flex items-center space-x-1 bg-white/95 backdrop-blur-md px-2 py-1 rounded-full shadow-lg border border-slate-200 z-30 animate-in fade-in zoom-in-95 duration-150`}
-                              >
-                                {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => {
-                                  const isSelected = reaction === emoji;
-                                  return (
-                                    <button
-                                      key={emoji}
-                                      type="button"
-                                      onClick={() => handleReactMessage(msg, emoji)}
-                                      className={`w-7 h-7 flex items-center justify-center text-base rounded-full hover:scale-135 transition-transform duration-150 cursor-pointer ${
-                                        isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
-                                      }`}
-                                      title={`Thả ${emoji}`}
-                                    >
-                                      {emoji}
-                                    </button>
-                                  );
-                                })}
-
-                                <div className="w-px h-4 bg-slate-200 mx-0.5" />
-
-                                {/* WhatsApp '+' Button to open extended emoji palette */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowExpandedReactionPickerMsgId(showExpandedReactionPickerMsgId === msg.id ? null : msg.id);
-                                  }}
-                                  className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer hover:scale-110 shadow-2xs ${
-                                    showExpandedReactionPickerMsgId === msg.id
-                                      ? 'bg-[#1fa855] text-white'
-                                      : 'bg-[#f0f2f5] text-[#54656f] hover:bg-[#e2e5e9] hover:text-[#111b21]'
-                                  }`}
-                                  title="Thêm biểu cảm khác (+)"
-                                >
-                                  <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Extended WhatsApp Reaction Palette Popover */}
-                            {showExpandedReactionPickerMsgId === msg.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className={`absolute -top-52 ${isAgent ? 'right-0' : 'left-0'} w-64 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-2xl z-40 animate-in fade-in zoom-in-95 duration-150`}
-                              >
-                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
-                                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tất cả biểu cảm</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowExpandedReactionPickerMsgId(null)}
-                                    className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto pr-0.5 custom-scrollbar">
-                                  {EXTENDED_EMOJIS.map((emoji) => {
-                                    const isSelected = reaction === emoji;
-                                    return (
-                                      <button
-                                        key={emoji}
-                                        type="button"
-                                        onClick={() => {
-                                          void handleReactMessage(msg, emoji);
-                                        }}
-                                        className={`w-8 h-8 flex items-center justify-center text-lg rounded-xl hover:scale-125 transition-transform duration-100 cursor-pointer ${
-                                          isSelected ? 'bg-emerald-100 scale-110 shadow-2xs' : 'hover:bg-slate-100'
-                                        }`}
-                                        title={emoji}
-                                      >
-                                        {emoji}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
                             {/* Sender Info for Outgoing Agent Message */}
                             {isAgent && (
                               <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-emerald-600/30 text-[10.5px] select-none">
@@ -1155,20 +1170,25 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                           {/* Incoming Customer Message: Right side Action Buttons (React + Reply) in a Unified Pill */}
                           {!isAgent && (
-                            <div className="ml-1.5 mb-1 flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
-                                }}
-                                className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
-                                  activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
-                                }`}
-                                title="Thả cảm xúc"
-                              >
-                                <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
-                              </button>
+                            <div className={`ml-1.5 self-center flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs transition-opacity duration-150 shrink-0 ${
+                              activeReactionPickerMsgId === msg.id ? 'opacity-100 z-30' : 'opacity-0 group-hover:opacity-100'
+                            }`}>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveReactionPickerMsgId(activeReactionPickerMsgId === msg.id ? null : msg.id);
+                                  }}
+                                  className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 ${
+                                    activeReactionPickerMsgId === msg.id ? 'bg-[#f0f2f5] text-[#111b21]' : ''
+                                  }`}
+                                  title="Thả cảm xúc"
+                                >
+                                  <Smile className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                </button>
+                                {activeReactionPickerMsgId === msg.id && renderReactionPicker(false)}
+                              </div>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1256,16 +1276,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
               {/* Popups: Emoji Picker, Quick Templates, Attach Menu */}
               {showEmojiPicker && (
-                <div className="absolute bottom-16 left-4 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-30 animate-fadeIn grid grid-cols-7 gap-2">
-                  {POPULAR_EMOJIS.map((em) => (
-                    <button
-                      key={em}
-                      onClick={() => handleAddEmoji(em)}
-                      className="w-8 h-8 text-lg hover:bg-slate-100 rounded-lg flex items-center justify-center transition hover:scale-110 cursor-pointer"
-                    >
-                      {em}
-                    </button>
-                  ))}
+                <div ref={emojiPickerRef} className="absolute bottom-16 left-3 z-30 animate-fadeIn">
+                  <EmojiPicker
+                    onSelect={handleAddEmoji}
+                    onClose={() => setShowEmojiPicker(false)}
+                    theme="whatsapp"
+                    title="Biểu tượng cảm xúc"
+                    className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+                  />
                 </div>
               )}
 
@@ -1447,10 +1465,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
               <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
                 {/* Emoji Trigger */}
                 <button
+                  ref={emojiButtonRef}
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
-                  title="Emoji"
+                  className={`p-2 rounded-full transition cursor-pointer ${
+                    showEmojiPicker
+                      ? 'bg-slate-200 text-[#1fa855]'
+                      : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
+                  }`}
+                  title="Biểu tượng cảm xúc"
+                  aria-label="Biểu tượng cảm xúc"
+                  aria-expanded={showEmojiPicker}
                 >
                   <Smile className="w-5 h-5" />
                 </button>
