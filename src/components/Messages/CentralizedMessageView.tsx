@@ -51,12 +51,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
-import { extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
+import { extractAudioInfo, extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
+import { useVoiceRecorder } from '../../features/messages/hooks/useVoiceRecorder';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
 import { useMessagePreferences } from '../../features/messages/hooks/useMessagePreferences';
 import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
+import { VoiceMessagePlayer } from '../../features/messages/components/VoiceMessagePlayer';
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { api } from '../../utils/apiClient';
@@ -265,9 +267,39 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     handlePaste,
     handleFileSelect,
     handleSend,
+    handleSendVoiceMessage,
     handleKeyDown,
     handleReplyMessage: startReplyMessage,
   } = useMessageComposer({ activeThread, selectedPhoneId, soundEnabled, onSendMessage });
+
+  const {
+    isRecording,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useVoiceRecorder();
+
+  const handleStartVoiceRecord = async () => {
+    await startRecording();
+  };
+
+  const handleCancelVoiceRecord = () => {
+    cancelRecording();
+  };
+
+  const handleSendVoiceRecord = async () => {
+    const result = await stopRecording();
+    if (result?.dataUrl) {
+      handleSendVoiceMessage(result.dataUrl);
+    }
+  };
+
+  const formatRecordingTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
   const {
     messageReactions,
     activeReactionPickerMsgId,
@@ -1001,7 +1033,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       <span>{replyQuote.senderName || 'Tin nhắn được trả lời'}</span>
                                     </div>
                                     <p className="text-[11.5px] text-[#54656f] truncate leading-tight mt-0.5 max-w-sm">
-                                      {replyQuote.content?.startsWith('/uploads/') || replyQuote.content?.startsWith('data:image/') || replyQuote.content?.startsWith('/api/meta/media/')
+                                      {replyQuote.content?.startsWith('data:audio/') || (replyQuote.content?.startsWith('/api/meta/media/') && replyQuote.content?.includes('type=audio')) || replyQuote.content?.includes('Tin nhắn thoại')
+                                        ? '🎙️ [Tin nhắn thoại]'
+                                        : replyQuote.content?.startsWith('/uploads/') || replyQuote.content?.startsWith('data:image/') || replyQuote.content?.startsWith('/api/meta/media/')
                                         ? '📷 [Hình ảnh]'
                                         : replyQuote.content || 'Nội dung tin nhắn'}
                                     </p>
@@ -1009,7 +1043,63 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 );
                               };
 
-                              // 1. Image Message (Uploaded file, Base64, Link, Meta Cloud Media or Incoming Webhook)
+                              const audioInfo = extractAudioInfo(content);
+
+                              // 1. Voice / Audio Message (Recorded, Uploaded, Meta Media)
+                              if (audioInfo.isAudio && audioInfo.audioUrl) {
+                                return (
+                                  <div className="space-y-1">
+                                    {renderQuoteHeader()}
+                                    <VoiceMessagePlayer
+                                      src={audioInfo.audioUrl}
+                                      caption={audioInfo.caption}
+                                      timeFormatted={timeFormatted}
+                                      isAgent={isAgent}
+                                    />
+                                  </div>
+                                );
+                              }
+
+                              // 2. Incoming voice message placeholder without direct media URL
+                              if (audioInfo.isAudio && !audioInfo.audioUrl) {
+                                return (
+                                  <div className="space-y-1.5 min-w-55">
+                                    {renderQuoteHeader()}
+                                    <div className="p-3 bg-slate-100/90 rounded-lg border border-slate-200 flex items-center gap-2.5">
+                                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#1fa855] flex items-center justify-center shrink-0">
+                                        <Mic className="w-5 h-5" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-slate-800 truncate">Tin nhắn thoại WhatsApp</p>
+                                        <p className="text-[10px] text-slate-500">Đang đồng bộ từ Meta Cloud...</p>
+                                      </div>
+                                    </div>
+                                    {audioInfo.caption && (
+                                      <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#111b21] font-normal pt-0.5">
+                                        <span>{renderFormattedMessage(audioInfo.caption)}</span>
+                                        <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {!audioInfo.caption && (
+                                      <div className="flex justify-end pt-0.5">
+                                        <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
+                                          <span>{timeFormatted}</span>
+                                          {isAgent && (
+                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              // 3. Image Message (Uploaded file, Base64, Link, Meta Cloud Media or Incoming Webhook)
                               if (imgInfo.isImage && imgInfo.imgUrl) {
                                 return (
                                   <div className="space-y-1">
@@ -1461,80 +1551,134 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 )}
               </div>
 
-              {/* WhatsApp Authentic Input Bar */}
-              <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
-                {/* Emoji Trigger */}
-                <button
-                  ref={emojiButtonRef}
-                  type="button"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`p-2 rounded-full transition cursor-pointer ${
-                    showEmojiPicker
-                      ? 'bg-slate-200 text-[#1fa855]'
-                      : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
-                  }`}
-                  title="Biểu tượng cảm xúc"
-                  aria-label="Biểu tượng cảm xúc"
-                  aria-expanded={showEmojiPicker}
-                >
-                  <Smile className="w-5 h-5" />
-                </button>
-
-                {/* Attachment Menu Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setShowAttachMenu(!showAttachMenu)}
-                  className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
-                  title="Đính kèm hình ảnh, đơn hàng"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                {/* Quick Canned Template Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                  className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/60 rounded-full transition cursor-pointer"
-                  title="Mẫu tin nhắn nhanh (/)"
-                >
-                  <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
-                </button>
-
-                {/* Textarea Input with Clipboard Paste support */}
-                <div className="flex-1 bg-white rounded-lg px-3.5 py-2 transition shadow-2xs">
-                  <textarea
-                    ref={textareaRef}
-                    rows={1}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    placeholder={pendingImage ? "Nhập chú thích cho ảnh (Tùy chọn)..." : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."}
-                    className="w-full bg-transparent text-[14px] text-[#111b21] focus:outline-none resize-none placeholder-[#8696a0] max-h-24 leading-5"
-                  />
-                </div>
-
-                {/* Mic vs Send Button */}
-                {inputText.trim() || pendingImage ? (
+              {/* WhatsApp Authentic Input Bar or Voice Recording Bar */}
+              {isRecording ? (
+                <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-2 z-10">
+                  {/* Cancel Recording (Trash) */}
                   <button
                     type="button"
-                    onClick={() => handleSend()}
-                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
-                    title="Gửi tin nhắn (Enter)"
+                    onClick={handleCancelVoiceRecord}
+                    className="w-10 h-10 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-100 flex items-center justify-center transition cursor-pointer shrink-0"
+                    title="Hủy ghi âm"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+
+                  {/* Recording Status: pulsing red dot, timer, and animated waveform */}
+                  <div className="flex-1 flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-rose-200 shadow-2xs">
+                    <div className="relative flex items-center justify-center shrink-0">
+                      <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute opacity-75" />
+                      <span className="w-3 h-3 rounded-full bg-rose-600 relative" />
+                    </div>
+
+                    <span className="font-mono font-bold text-sm text-slate-800 min-w-12 select-none">
+                      {formatRecordingTimer(recordingDuration)}
+                    </span>
+
+                    {/* Animated waveform bars */}
+                    <div className="flex-1 flex items-center gap-1 h-5 overflow-hidden">
+                      {[40, 75, 50, 90, 60, 30, 80, 100, 45, 65, 85, 35, 70, 95, 55, 75, 40, 80].map((h, i) => (
+                        <span
+                          key={i}
+                          className="w-1 bg-rose-400 rounded-full animate-pulse transition-all duration-300"
+                          style={{
+                            height: `${Math.max(20, (h * ((i + recordingDuration) % 4 + 1)) % 100)}%`,
+                            animationDelay: `${(i * 60) % 500}ms`,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    <span className="text-xs text-rose-600 font-medium hidden sm:inline select-none">
+                      Đang ghi âm giọng nói...
+                    </span>
+                  </div>
+
+                  {/* Send Voice Recording */}
+                  <button
+                    type="button"
+                    onClick={handleSendVoiceRecord}
+                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 animate-pulse"
+                    title="Gửi tin nhắn thoại"
                   >
                     <Send className="w-4 h-4 ml-0.5" />
                   </button>
-                ) : (
+                </div>
+              ) : (
+                <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
+                  {/* Emoji Trigger */}
+                  <button
+                    ref={emojiButtonRef}
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`p-2 rounded-full transition cursor-pointer ${
+                      showEmojiPicker
+                        ? 'bg-slate-200 text-[#1fa855]'
+                        : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
+                    }`}
+                    title="Biểu tượng cảm xúc"
+                    aria-label="Biểu tượng cảm xúc"
+                    aria-expanded={showEmojiPicker}
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+
+                  {/* Attachment Menu Trigger */}
                   <button
                     type="button"
-                    onClick={() => handleApplyTemplate('Dạ em gửi lời chào đến anh/chị ạ!')}
-                    className="w-10 h-10 rounded-full text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 flex items-center justify-center transition cursor-pointer shrink-0"
-                    title="Ghi âm thoại (Mic)"
+                    onClick={() => setShowAttachMenu(!showAttachMenu)}
+                    className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
+                    title="Đính kèm hình ảnh, đơn hàng"
                   >
-                    <Mic className="w-5 h-5" />
+                    <Paperclip className="w-5 h-5" />
                   </button>
-                )}
-              </div>
+
+                  {/* Quick Canned Template Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatePicker(!showTemplatePicker)}
+                    className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/60 rounded-full transition cursor-pointer"
+                    title="Mẫu tin nhắn nhanh (/)"
+                  >
+                    <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  </button>
+
+                  {/* Textarea Input with Clipboard Paste support */}
+                  <div className="flex-1 bg-white rounded-lg px-3.5 py-2 transition shadow-2xs">
+                    <textarea
+                      ref={textareaRef}
+                      rows={1}
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onPaste={handlePaste}
+                      placeholder={pendingImage ? "Nhập chú thích cho ảnh (Tùy chọn)..." : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."}
+                      className="w-full bg-transparent text-[14px] text-[#111b21] focus:outline-none resize-none placeholder-[#8696a0] max-h-24 leading-5"
+                    />
+                  </div>
+
+                  {/* Mic vs Send Button */}
+                  {inputText.trim() || pendingImage ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSend()}
+                      className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
+                      title="Gửi tin nhắn (Enter)"
+                    >
+                      <Send className="w-4 h-4 ml-0.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartVoiceRecord}
+                      className="w-10 h-10 rounded-full text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 flex items-center justify-center transition cursor-pointer shrink-0"
+                      title="Ghi âm thoại thật (Microphone)"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">

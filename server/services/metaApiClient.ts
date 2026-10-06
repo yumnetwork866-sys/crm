@@ -548,6 +548,54 @@ export async function dispatchMetaMessage(options: {
         text: { body: caption ? `[Hình ảnh] ${caption}` : '📷 [Hình ảnh gửi từ CRM]' }
       };
     }
+  } else if (content.startsWith('data:audio/')) {
+    const parts = content.split('\n');
+    const dataUrl = parts[0];
+    const caption = parts.slice(1).join('\n').trim();
+
+    const matches = dataUrl.match(/^data:([-A-Za-z0-9+/;=]+);base64,(.+)$/);
+    let uploadedMediaId: string | null = null;
+    if (matches && matches.length === 3) {
+      const rawMime = matches[1].split(';')[0].toLowerCase();
+      let mimeType = 'audio/ogg';
+      let fileExt = 'ogg';
+      if (rawMime.includes('mp4') || rawMime.includes('m4a')) {
+        mimeType = 'audio/mp4';
+        fileExt = 'mp4';
+      } else if (rawMime.includes('mpeg') || rawMime.includes('mp3')) {
+        mimeType = 'audio/mpeg';
+        fileExt = 'mp3';
+      } else if (rawMime.includes('aac')) {
+        mimeType = 'audio/aac';
+        fileExt = 'aac';
+      } else if (rawMime.includes('ogg')) {
+        mimeType = 'audio/ogg';
+        fileExt = 'ogg';
+      } else if (rawMime.includes('webm')) {
+        mimeType = 'audio/webm';
+        fileExt = 'webm';
+      }
+      const buffer = Buffer.from(matches[2], 'base64');
+      uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, `voice_${Date.now()}.${fileExt}`);
+    }
+
+    if (uploadedMediaId) {
+      payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'audio',
+        audio: { id: uploadedMediaId }
+      };
+    } else {
+      payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: caption ? `[Tin nhắn thoại] ${caption}` : '🎙️ [Tin nhắn thoại gửi từ CRM]' }
+      };
+    }
   } else if (content.startsWith('/uploads/')) {
     const parts = content.split('\n');
     const imgPath = parts[0];
@@ -1528,11 +1576,19 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
   }
 
   // 1. Check disk cache
-  const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg'];
+  const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg', 'ogg', 'mp3', 'm4a', 'wav', 'webm', 'aac'];
   for (const ext of potentialExtensions) {
     const cachedPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
     if (fs.existsSync(cachedPath)) {
-      const mimeType = ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg');
+      let mimeType = 'image/jpeg';
+      if (ext === 'png') mimeType = 'image/png';
+      else if (ext === 'webp') mimeType = 'image/webp';
+      else if (ext === 'ogg') mimeType = 'audio/ogg';
+      else if (ext === 'm4a') mimeType = 'audio/mp4';
+      else if (ext === 'mp3') mimeType = 'audio/mpeg';
+      else if (ext === 'wav') mimeType = 'audio/wav';
+      else if (ext === 'webm') mimeType = 'audio/webm';
+      else if (ext === 'aac') mimeType = 'audio/aac';
       const buffer = await fs.promises.readFile(cachedPath);
       return { buffer, contentType: mimeType };
     }
@@ -1579,6 +1635,12 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
   let ext = 'jpg';
   if (contentType.includes('png')) ext = 'png';
   else if (contentType.includes('webp')) ext = 'webp';
+  else if (contentType.includes('ogg')) ext = 'ogg';
+  else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
+  else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
+  else if (contentType.includes('wav')) ext = 'wav';
+  else if (contentType.includes('webm')) ext = 'webm';
+  else if (contentType.includes('aac')) ext = 'aac';
   const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
   await fs.promises.writeFile(diskPath, buffer).catch((err) => {
     console.warn('Could not write cache file to disk:', err);

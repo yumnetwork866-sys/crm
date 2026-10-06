@@ -163,7 +163,12 @@ function getMessageText(msgData: any): string {
   }
   if (msgData?.type === 'sticker') return '[Sticker WhatsApp]';
   if (msgData?.type === 'document') return `[Tài liệu] ${msgData.document?.filename || 'Tập tin đính kèm'}`;
-  if (msgData?.type === 'audio') return '[Tin nhắn thoại (Audio)]';
+  if (msgData?.type === 'audio') {
+    const mediaId = msgData.audio?.id;
+    return mediaId
+      ? `/api/meta/media/${mediaId}?type=audio`
+      : '[Tin nhắn thoại (Audio)]';
+  }
   if (msgData?.type === 'video') return '[Video]';
   if (msgData?.type === 'location') {
     return `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();

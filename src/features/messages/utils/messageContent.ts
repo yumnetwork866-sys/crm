@@ -6,8 +6,64 @@ export interface ImageInfo {
   caption: string | null;
 }
 
+export interface AudioInfo {
+  isAudio: boolean;
+  audioUrl: string | null;
+  caption: string | null;
+}
+
+const AUDIO_EXTENSIONS_REGEX = /\.(mp3|ogg|wav|m4a|aac|webm|opus)(\?[^\s\n]*)?$/i;
+
+export function isAudioContent(rawContent: string): boolean {
+  if (!rawContent) return false;
+  const content = rawContent.trim();
+  if (content.startsWith('data:audio/')) return true;
+  const firstLine = content.split('\n')[0].trim();
+  if (AUDIO_EXTENSIONS_REGEX.test(firstLine)) return true;
+  if (firstLine.startsWith('/uploads/') && AUDIO_EXTENSIONS_REGEX.test(firstLine)) return true;
+  if (firstLine.startsWith('/api/meta/media/') && firstLine.includes('type=audio')) return true;
+  if (/^\[(tin nhắn thoại|audio|voice|voice note)/i.test(firstLine)) return true;
+  return false;
+}
+
+export function extractAudioInfo(rawContent: string): AudioInfo {
+  if (!rawContent) return { isAudio: false, audioUrl: null, caption: null };
+  const content = rawContent.trim();
+
+  // 1. Data URL
+  if (content.startsWith('data:audio/')) {
+    const parts = content.split('\n');
+    return { isAudio: true, audioUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 2. Uploaded / URL audio
+  const firstLine = content.split('\n')[0].trim();
+  if (AUDIO_EXTENSIONS_REGEX.test(firstLine)) {
+    const parts = content.split('\n');
+    return { isAudio: true, audioUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 3. Meta Media Audio Proxy
+  if (firstLine.startsWith('/api/meta/media/') && firstLine.includes('type=audio')) {
+    const parts = content.split('\n');
+    return { isAudio: true, audioUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
+  }
+
+  // 4. Voice message placeholder
+  if (/^\[(tin nhắn thoại|audio|voice|voice note)/i.test(firstLine)) {
+    const caption = content
+      .replace(/^\[(tin nhắn thoại \(Audio\)|tin nhắn thoại|audio message|audio|voice note|voice)\]?:?\s*/i, '')
+      .replace(/\[|\]/g, '')
+      .trim();
+    return { isAudio: true, audioUrl: null, caption: caption || null };
+  }
+
+  return { isAudio: false, audioUrl: null, caption: null };
+}
+
 export function extractImageInfo(rawContent: string): ImageInfo {
   if (!rawContent) return { isImage: false, imgUrl: null, caption: null };
+  if (isAudioContent(rawContent)) return { isImage: false, imgUrl: null, caption: null };
   const content = rawContent.trim();
 
   if (content.startsWith('data:image/') || content.startsWith('/uploads/') || content.startsWith('/api/meta/media/')) {

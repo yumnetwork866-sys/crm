@@ -135,6 +135,34 @@ export function useMessageComposer({
     closePickers();
   };
 
+  const sendVoiceMessage = (dataUrl: string) => {
+    if (!activeThread || !dataUrl) return;
+
+    const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
+    const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
+    const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
+    const replyTo = replyingToMessage ? {
+      id: replyingToMessage.id,
+      senderName: replyingToMessage.sender === 'agent'
+        ? 'Chính mình'
+        : (replyingToMessage.customerName || 'Khách hàng'),
+      content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150),
+    } : undefined;
+
+    let content = dataUrl;
+    if (replyTo) content = `[reply:${JSON.stringify(replyTo)}]\n${content}`;
+
+    onSendMessage(targetId, content, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyTo);
+    if (soundEnabled) playPopSound();
+
+    if (dataUrl.startsWith('data:audio/')) {
+      void api.post('/upload', { audioBase64: dataUrl, folder: 'chat' }).catch(() => undefined);
+    }
+
+    setReplyingToMessage(null);
+    closePickers();
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -169,6 +197,7 @@ export function useMessageComposer({
     handlePaste,
     handleFileSelect,
     handleSend: send,
+    handleSendVoiceMessage: sendVoiceMessage,
     handleKeyDown,
     handleReplyMessage: startReply,
   };

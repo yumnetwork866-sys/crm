@@ -27,26 +27,36 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'mp4',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/aac': 'aac',
+  'audio/x-m4a': 'm4a',
+  'audio/m4a': 'm4a',
 };
 
-const MAX_UPLOAD_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_UPLOAD_SIZE = 16 * 1024 * 1024; // 16 MB
 
-// Endpoint: POST /api/upload - Upload Base64 Image to Server Disk
+// Endpoint: POST /api/upload - Upload Base64 Image or Audio to Server Disk
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { imageBase64, folder = 'chat', customFilename } = req.body;
+    const { imageBase64, audioBase64, fileBase64, folder = 'chat', customFilename } = req.body;
+    const rawData = imageBase64 || audioBase64 || fileBase64;
 
-    if (!imageBase64 || typeof imageBase64 !== 'string') {
-      return res.status(400).json({ success: false, error: 'Thiếu dữ liệu hình ảnh (imageBase64).' });
+    if (!rawData || typeof rawData !== 'string') {
+      return res.status(400).json({ success: false, error: 'Thiếu dữ liệu tệp tin (imageBase64/audioBase64).' });
     }
 
     // Extract mime type and base64 data
-    const matches = imageBase64.match(/^data:([-A-Za-z+/]+);base64,(.+)$/);
+    const matches = rawData.match(/^data:([-A-Za-z0-9+/;=]+);base64,(.+)$/);
     let mimeType = 'image/jpeg';
-    let base64Data = imageBase64;
+    let base64Data = rawData;
 
     if (matches && matches.length === 3) {
-      mimeType = matches[1].toLowerCase();
+      mimeType = matches[1].split(';')[0].toLowerCase();
       base64Data = matches[2];
     }
 
@@ -54,7 +64,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     if (!ext) {
       return res.status(400).json({
         success: false,
-        error: `Định dạng ảnh không được hỗ trợ (${mimeType}). Chỉ chấp nhận JPG, PNG, WEBP, GIF.`
+        error: `Định dạng tệp không được hỗ trợ (${mimeType}). Chỉ chấp nhận hình ảnh (JPG, PNG, WEBP, GIF) hoặc âm thanh (WEBM, OGG, MP4, MP3, WAV, AAC, M4A).`
       });
     }
 
@@ -62,7 +72,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     if (buffer.length > MAX_UPLOAD_SIZE) {
       return res.status(413).json({
         success: false,
-        error: `Dung lượng ảnh (${(buffer.length / (1024 * 1024)).toFixed(2)}MB) vượt quá giới hạn cho phép (5MB).`
+        error: `Dung lượng tệp (${(buffer.length / (1024 * 1024)).toFixed(2)}MB) vượt quá giới hạn cho phép (16MB).`
       });
     }
 
@@ -76,9 +86,10 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       ? path.basename(customFilename).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50)
       : '';
 
+    const prefix = mimeType.startsWith('audio/') ? 'voice' : cleanFolder;
     const filename = safeCustomName
       ? `${safeCustomName}_${Date.now()}.${ext}`
-      : `${cleanFolder}_${Date.now()}_${rand}.${ext}`;
+      : `${prefix}_${Date.now()}_${rand}.${ext}`;
 
     const filePath = path.join(targetSubdir, filename);
     await fs.promises.writeFile(filePath, buffer);
