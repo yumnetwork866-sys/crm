@@ -1,100 +1,205 @@
-import React, { useEffect } from 'react';
-import { MessageSquare, X, ArrowRight, BellRing } from 'lucide-react';
-import type { CentralMessage } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Camera, FileText, MessageSquare, Mic, X } from 'lucide-react';
+import type { CentralMessage, Customer } from '../../types';
+import { isSamePhoneNumber } from '../../utils/crmUtils';
 
 interface NotificationToastProps {
   toast: {
     message: CentralMessage;
     show: boolean;
   } | null;
+  customers?: Customer[];
   onClose: () => void;
   onOpenMessage: (message: CentralMessage) => void;
 }
 
+const DISPLAY_DURATION_MS = 7000;
+
+function parseToastMessageSnippet(content: string): {
+  type: 'text' | 'image' | 'audio' | 'document';
+  text: string;
+} {
+  if (!content) return { type: 'text', text: 'Tin nhắn mới' };
+
+  // Strip reply quote header if present
+  const clean = content.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+
+  if (
+    clean.startsWith('data:image/') ||
+    clean.startsWith('/uploads/') ||
+    clean.startsWith('/api/meta/media/') ||
+    clean.toLowerCase().startsWith('[hình ảnh') ||
+    clean.toLowerCase().startsWith('[image')
+  ) {
+    const lines = clean.split('\n');
+    const caption = lines.length > 1 ? lines.slice(1).join(' ').trim() : '';
+    return {
+      type: 'image',
+      text: caption || 'Hình ảnh',
+    };
+  }
+
+  if (
+    clean.startsWith('data:audio/') ||
+    clean.startsWith('/api/meta/media/?type=audio') ||
+    clean.toLowerCase().includes('[tin nhắn thoại')
+  ) {
+    return {
+      type: 'audio',
+      text: 'Tin nhắn thoại',
+    };
+  }
+
+  if (
+    clean.startsWith('[document:') ||
+    clean.includes('type=document') ||
+    clean.toLowerCase().startsWith('[tài liệu')
+  ) {
+    const docMatch = clean.match(/"filename":"([^"]+)"/);
+    const filename = docMatch ? docMatch[1] : '';
+    return {
+      type: 'document',
+      text: filename || 'Tài liệu',
+    };
+  }
+
+  return {
+    type: 'text',
+    text: clean,
+  };
+}
+
 export const NotificationToast: React.FC<NotificationToastProps> = ({
   toast,
+  customers,
   onClose,
   onOpenMessage,
 }) => {
+  const [progress, setProgress] = useState(100);
+  const [isPaused, setIsPaused] = useState(false);
+
   useEffect(() => {
-    if (toast?.show) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 7000);
-      return () => clearTimeout(timer);
+    if (!toast?.show) {
+      setProgress(100);
+      setIsPaused(false);
+      return;
     }
-  }, [toast, onClose]);
+
+    setProgress(100);
+    const stepInterval = 50;
+    const stepAmount = (stepInterval / DISPLAY_DURATION_MS) * 100;
+
+    const timer = setInterval(() => {
+      if (!isPaused) {
+        setProgress((prev) => {
+          if (prev <= 0) {
+            clearInterval(timer);
+            onClose();
+            return 0;
+          }
+          return Math.max(0, prev - stepAmount);
+        });
+      }
+    }, stepInterval);
+
+    return () => clearInterval(timer);
+  }, [toast?.show, isPaused, onClose]);
+
+  const matchedCustomer = useMemo(() => {
+    if (!toast?.message || !customers?.length) return null;
+    const msg = toast.message;
+    return customers.find(
+      (c) =>
+        c.id === msg.customerId ||
+        isSamePhoneNumber(c.phone, msg.customerPhone || msg.customerId)
+    ) || null;
+  }, [toast?.message, customers]);
 
   if (!toast || !toast.show) return null;
 
   const { message } = toast;
-
-  const getChannelBg = (channel: string) => {
-    switch (channel) {
-      case 'WhatsApp':
-        return 'bg-emerald-500 text-white';
-      case 'Zalo':
-        return 'bg-blue-600 text-white';
-      case 'Facebook':
-        return 'bg-indigo-600 text-white';
-      case 'TikTok':
-        return 'bg-black text-white';
-      default:
-        return 'bg-indigo-500 text-white';
-    }
-  };
+  const customerName = matchedCustomer?.name || message.customerName || 'Khách Hàng';
+  const customerPhone = matchedCustomer?.phone || message.customerPhone || '';
+  const fallbackAvatar = `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(
+    customerPhone || customerName
+  )}`;
+  const avatarUrl = matchedCustomer?.avatar || fallbackAvatar;
+  const snippet = parseToastMessageSnippet(message.content);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-slide-up max-w-md w-full bg-slate-900 border border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md p-4 text-white">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start space-x-3">
-          <div className="relative shrink-0 mt-0.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold">
-              <MessageSquare className="w-5 h-5 text-emerald-400 animate-pulse" />
-            </div>
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-            </span>
+    <div
+      role="alert"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onClick={() => {
+        onOpenMessage(message);
+        onClose();
+      }}
+      className="fixed bottom-6 right-6 z-50 w-80 sm:w-92 max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden transition-all duration-200 hover:shadow-[0_20px_50px_rgba(0,0,0,0.16)] hover:-translate-y-0.5 cursor-pointer group animate-in fade-in slide-in-from-bottom-5 duration-200 select-none"
+    >
+      <div className="p-3.5 flex items-center gap-3">
+        {/* Customer Avatar with WhatsApp Badge */}
+        <div className="relative shrink-0">
+          <div className="w-11 h-11 rounded-full overflow-hidden bg-slate-100 ring-2 ring-emerald-500/20 shadow-xs">
+            <img
+              src={avatarUrl}
+              alt={customerName}
+              className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+              onError={(e) => {
+                e.currentTarget.src = fallbackAvatar;
+              }}
+            />
           </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-slate-100 truncate">{message.customerName}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500 text-white">
-                WhatsApp
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-              "{message.content}"
-            </p>
-
-            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800">
-              <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                <BellRing className="w-3 h-3 text-amber-400" />
-                Vừa xong • {message.customerPhone}
-              </span>
-              <button
-                onClick={() => {
-                  onOpenMessage(message);
-                  onClose();
-                }}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center space-x-1 cursor-pointer transition"
-              >
-                <span>Xem tin nhắn</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#25D366] text-white flex items-center justify-center ring-2 ring-white shadow-2xs">
+            <MessageSquare className="w-2.5 h-2.5 fill-white/30" />
           </div>
         </div>
 
+        {/* Content: Name + Snippet */}
+        <div className="flex-1 min-w-0 pr-1">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-sm font-bold text-slate-900 truncate group-hover:text-emerald-700 transition">
+              {customerName}
+            </h4>
+            <span className="text-[11px] text-slate-400 shrink-0 font-normal">
+              Vừa xong
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mt-0.5">
+            {snippet.type === 'image' && (
+              <Camera className="w-3.5 h-3.5 inline text-emerald-600 mr-1 -mt-0.5 shrink-0" />
+            )}
+            {snippet.type === 'audio' && (
+              <Mic className="w-3.5 h-3.5 inline text-emerald-600 mr-1 -mt-0.5 shrink-0" />
+            )}
+            {snippet.type === 'document' && (
+              <FileText className="w-3.5 h-3.5 inline text-emerald-600 mr-1 -mt-0.5 shrink-0" />
+            )}
+            <span>{snippet.text}</span>
+          </p>
+        </div>
+
+        {/* Close Button */}
         <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="w-7 h-7 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition shrink-0 cursor-pointer self-start -mr-1 -mt-1"
+          title="Đóng"
         >
           <X className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* Thin Countdown Bar */}
+      <div className="h-0.5 bg-slate-100 w-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-75 ease-linear"
+          style={{ width: `${progress}%` }}
+        />
       </div>
     </div>
   );

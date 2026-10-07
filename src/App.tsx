@@ -398,14 +398,17 @@ export default function App() {
                   initialUser={editingUser}
                 />
 
-                <NotificationToast
-                  toast={toastNotification}
-                  onClose={() => setToastNotification(null)}
-                  onOpenMessage={(msg) => {
-                    void navigate('/messages');
-                    handleSelectCustomerThread(msg.customerId);
-                  }}
-                />
+                {activeTab !== 'messages' && (
+                  <NotificationToast
+                    toast={toastNotification}
+                    customers={customers}
+                    onClose={() => setToastNotification(null)}
+                    onOpenMessage={(msg) => {
+                      void navigate('/messages');
+                      handleSelectCustomerThread(msg.customerId);
+                    }}
+                  />
+                )}
               </div>
             }
           >
