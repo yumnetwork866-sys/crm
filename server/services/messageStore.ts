@@ -14,6 +14,10 @@ export interface InMemoryMessage {
   readBy?: string | null;
   readAt?: string | null;
   isRealSent?: boolean;
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  deliveredAt?: string | null;
   replyTo?: any;
 }
 
@@ -32,6 +36,18 @@ export const messageStore = {
 
   update(updater: (messages: InMemoryMessage[]) => InMemoryMessage[]): void {
     inMemoryMessages = updater(inMemoryMessages);
+  },
+
+  updateMessage(id: string, patch: Partial<InMemoryMessage>): InMemoryMessage | undefined {
+    let updated: InMemoryMessage | undefined;
+    inMemoryMessages = inMemoryMessages.map((m) => {
+      if (m.id === id) {
+        updated = { ...m, ...patch };
+        return updated;
+      }
+      return m;
+    });
+    return updated;
   },
 
   filter(predicate: (m: InMemoryMessage) => boolean): void {

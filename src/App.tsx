@@ -181,6 +181,7 @@ export default function App() {
     selectedCustomerId: selectedChatCustomerId,
     selectCustomerThread: handleSelectCustomerThread,
     sendMessage: handleSendCentralMessage,
+    retryMessage: handleRetryCentralMessage,
     deleteThread: handleDeleteThread,
     deleteMessage: handleDeleteMessage,
     hasOlderMessages,
@@ -570,6 +571,7 @@ export default function App() {
                   selectedCustomerId={selectedChatCustomerId}
                   onSelectCustomerThread={handleSelectCustomerThread}
                   onSendMessage={handleSendCentralMessage}
+                  onRetryMessage={handleRetryCentralMessage}
                   onOpenAddOrder={(cust) => {
                     setOrderCustomer(cust);
                     setIsOrderOpen(true);

@@ -4,6 +4,8 @@ export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' |
 
 export type MessageChannel = 'WhatsApp';
 
+export type MessageDeliveryStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+
 export interface CentralMessage {
   id: string;
   customerId: string;
@@ -16,6 +18,11 @@ export interface CentralMessage {
   content: string;
   timestamp: string;
   isRead: boolean;
+  status?: MessageDeliveryStatus;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  deliveredAt?: string | null;
+  isRealSent?: boolean;
   readBy?: string;
   readAt?: string;
   replyTo?: {

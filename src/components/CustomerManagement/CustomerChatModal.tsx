@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { X, Send, CheckCheck } from 'lucide-react';
+import { X, Send } from 'lucide-react';
+import { MessageDeliveryStatusIcon } from '../Messages/MessageDeliveryStatusIcon';
 import type { Customer, CentralMessage, AppUser } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRoleTextStyle } from '../../utils/roleColors';
-import { renderFormattedMessage } from '../../utils/formatMessageText';
+import { renderFormattedMessage, extractFirstUrl } from '../../utils/formatMessageText';
+import { LinkPreviewCard } from '../../features/messages/components/LinkPreviewCard';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
@@ -49,6 +51,9 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     time: new Date(m.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     content: m.content,
     isAgent: m.sender === 'agent',
+    status: m.status,
+    isRealSent: m.isRealSent,
+    errorMessage: m.errorMessage,
   }));
 
 
@@ -137,12 +142,19 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                       </span>
                       <span className="text-slate-400 font-normal">{msg.time}</span>
                     </div>
+                    {extractFirstUrl(msg.content) && (
+                      <LinkPreviewCard url={extractFirstUrl(msg.content)!} />
+                    )}
                     <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-900">
                       {renderFormattedMessage(msg.content)}
                     </p>
                     {msg.isAgent && (
                       <div className="flex items-center justify-end space-x-1 text-[10px] text-[#00793d] pt-0.5">
-                        <CheckCheck className="w-3.5 h-3.5 text-[#00793d]" />
+                        <MessageDeliveryStatusIcon
+                          status={msg.status}
+                          isRealSent={msg.isRealSent}
+                          errorMessage={msg.errorMessage}
+                        />
                       </div>
                     )}
                   </div>

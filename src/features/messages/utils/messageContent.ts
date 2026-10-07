@@ -12,7 +12,17 @@ export interface AudioInfo {
   caption: string | null;
 }
 
+export interface DocumentInfo {
+  isDocument: boolean;
+  docUrl: string | null;
+  filename: string;
+  filesize?: number | null;
+  caption: string | null;
+  fileExt: string;
+}
+
 const AUDIO_EXTENSIONS_REGEX = /\.(mp3|ogg|wav|m4a|aac|webm|opus)(\?[^\s\n]*)?$/i;
+const DOC_EXTENSIONS_REGEX = /\.(pdf|doc|docx|xls|xlsx|csv|txt)(\?[^\s\n]*)?$/i;
 
 export function isAudioContent(rawContent: string): boolean {
   if (!rawContent) return false;
@@ -24,6 +34,129 @@ export function isAudioContent(rawContent: string): boolean {
   if (firstLine.startsWith('/api/meta/media/') && firstLine.includes('type=audio')) return true;
   if (/^\[(tin nhắn thoại|audio|voice|voice note)/i.test(firstLine)) return true;
   return false;
+}
+
+export function isDocumentContent(rawContent: string): boolean {
+  if (!rawContent) return false;
+  const content = rawContent.trim();
+  if (content.startsWith('[document:')) return true;
+  if (content.startsWith('data:application/') || content.startsWith('data:text/csv') || content.startsWith('data:text/plain')) return true;
+  const firstLine = content.split('\n')[0].trim();
+  if (DOC_EXTENSIONS_REGEX.test(firstLine)) return true;
+  if (firstLine.startsWith('/uploads/') && DOC_EXTENSIONS_REGEX.test(firstLine)) return true;
+  if (firstLine.startsWith('/api/meta/media/') && firstLine.includes('type=document')) return true;
+  if (/^\[(tài liệu|document)/i.test(firstLine)) return true;
+  return false;
+}
+
+export function extractDocumentInfo(rawContent: string): DocumentInfo {
+  if (!rawContent) {
+    return { isDocument: false, docUrl: null, filename: '', filesize: null, caption: null, fileExt: '' };
+  }
+  const content = rawContent.trim();
+
+  // 1. Tag format [document:{"url":"...","filename":"...","size":...}]
+  if (content.startsWith('[document:')) {
+    const match = content.match(/^\[document:(\{.*?\})\]\n?([\s\S]*)$/);
+    if (match) {
+      try {
+        const meta = JSON.parse(match[1]);
+        const filename = meta.filename || 'Tài liệu đính kèm';
+        const fileExt = (filename.split('.').pop() || 'pdf').toLowerCase();
+        return {
+          isDocument: true,
+          docUrl: meta.url || null,
+          filename,
+          filesize: meta.size || null,
+          caption: match[2]?.trim() || null,
+          fileExt,
+        };
+      } catch {
+        // ignore parse error
+      }
+    }
+  }
+
+  // 2. Data URL format
+  if (content.startsWith('data:application/') || content.startsWith('data:text/csv') || content.startsWith('data:text/plain')) {
+    const parts = content.split('\n');
+    const dataUrl = parts[0];
+    const caption = parts.slice(1).join('\n').trim() || null;
+    let fileExt = 'pdf';
+    if (dataUrl.includes('sheet') || dataUrl.includes('excel')) fileExt = 'xlsx';
+    else if (dataUrl.includes('word') || dataUrl.includes('msword')) fileExt = 'docx';
+    else if (dataUrl.includes('csv')) fileExt = 'csv';
+    else if (dataUrl.includes('plain')) fileExt = 'txt';
+    return {
+      isDocument: true,
+      docUrl: dataUrl,
+      filename: `Tài liệu.${fileExt}`,
+      filesize: null,
+      caption,
+      fileExt,
+    };
+  }
+
+  // 3. Meta Media Document Proxy
+  const firstLine = content.split('\n')[0].trim();
+  if (firstLine.startsWith('/api/meta/media/') && firstLine.includes('type=document')) {
+    const parts = content.split('\n');
+    const docUrl = parts[0];
+    const caption = parts.slice(1).join('\n').trim() || null;
+    let filename = 'Tài liệu.pdf';
+    try {
+      const urlObj = new URL(docUrl, 'http://localhost');
+      filename = urlObj.searchParams.get('filename') || 'Tài liệu.pdf';
+    } catch {
+      // ignore
+    }
+    const fileExt = (filename.split('.').pop() || 'pdf').toLowerCase();
+    return {
+      isDocument: true,
+      docUrl,
+      filename,
+      filesize: null,
+      caption,
+      fileExt,
+    };
+  }
+
+  // 4. File URL or /uploads/ path
+  if (DOC_EXTENSIONS_REGEX.test(firstLine)) {
+    const parts = content.split('\n');
+    const docUrl = parts[0];
+    const caption = parts.slice(1).join('\n').trim() || null;
+    const cleanUrl = docUrl.split('?')[0];
+    const filename = decodeURIComponent(cleanUrl.split('/').pop() || 'Tài liệu');
+    const fileExt = (filename.split('.').pop() || 'pdf').toLowerCase();
+    return {
+      isDocument: true,
+      docUrl,
+      filename,
+      filesize: null,
+      caption,
+      fileExt,
+    };
+  }
+
+  // 5. Placeholder from webhook without direct URL
+  if (/^\[(tài liệu|document)/i.test(firstLine)) {
+    const cleanTag = content.replace(/^\[(tài liệu|document)\]:?\s*/i, '').trim();
+    const parts = cleanTag.split('\n');
+    const filename = parts[0] || 'Tài liệu đính kèm';
+    const caption = parts.slice(1).join('\n').trim() || null;
+    const fileExt = (filename.split('.').pop() || 'pdf').toLowerCase();
+    return {
+      isDocument: true,
+      docUrl: null,
+      filename,
+      filesize: null,
+      caption,
+      fileExt,
+    };
+  }
+
+  return { isDocument: false, docUrl: null, filename: '', filesize: null, caption: null, fileExt: '' };
 }
 
 export function extractAudioInfo(rawContent: string): AudioInfo {
@@ -63,7 +196,7 @@ export function extractAudioInfo(rawContent: string): AudioInfo {
 
 export function extractImageInfo(rawContent: string): ImageInfo {
   if (!rawContent) return { isImage: false, imgUrl: null, caption: null };
-  if (isAudioContent(rawContent)) return { isImage: false, imgUrl: null, caption: null };
+  if (isAudioContent(rawContent) || isDocumentContent(rawContent)) return { isImage: false, imgUrl: null, caption: null };
   const content = rawContent.trim();
 
   if (content.startsWith('data:image/') || content.startsWith('/uploads/') || content.startsWith('/api/meta/media/')) {
@@ -76,7 +209,7 @@ export function extractImageInfo(rawContent: string): ImageInfo {
     return { isImage: true, imgUrl: parts[0], caption: parts.slice(1).join('\n').trim() || null };
   }
 
-  const embeddedMatch = content.match(/(https?:\/\/[^\s\]\n]+|data:image\/[a-zA-Z+]+;base64,[^\s\]\n]+|\/uploads\/[^\s\]\n]+|\/api\/meta\/media\/[^\s\]\n]+)/i);
+  const embeddedMatch = content.match(/(https?:\/\/[^\s\]\n]+\.(png|jpg|jpeg|gif|webp|svg)(\?[^\s\]\n]*)?|data:image\/[a-zA-Z+]+;base64,[^\s\]\n]+|\/uploads\/[^\s\]\n]+\.(png|jpg|jpeg|gif|webp|svg)(\?[^\s\]\n]*)?|\/api\/meta\/media\/[^\s\]\n]+)/i);
   if (embeddedMatch) {
     const imgUrl = embeddedMatch[0];
     const caption = content

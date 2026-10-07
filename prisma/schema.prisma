@@ -311,9 +311,13 @@ model WhatsAppMessage {
   agentName     String?
   channel       String    @default("WhatsApp")
   content       String
+  status        String    @default("sent") // 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+  errorCode     String?
+  errorMessage  String?
   isRead        Boolean   @default(false)
   readBy        String?
   readAt        DateTime?
+  deliveredAt   DateTime?
   isRealSent    Boolean   @default(true)
   timestamp     DateTime  @default(now())
   createdAt     DateTime  @default(now())
@@ -326,6 +330,7 @@ model WhatsAppMessage {
   @@index([timestamp(sort: Desc)])
   @@index([customerId, sender, channel, timestamp(sort: Desc)])
   @@index([isRead, sender])
+  @@index([status])
 }
 
 model MarketingReport {

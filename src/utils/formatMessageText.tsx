@@ -21,8 +21,8 @@ export function renderFormattedMessage(text: string | null | undefined): React.R
     .replace(/^(\s*)[*-]\s+/gm, '$1• ');
 
   // 2. Tokenize by inline formatting patterns
-  // Order matters: code blocks first, inline code, bold markdown, bold whatsapp, italic, strike, url
-  const pattern = /(```[\s\S]*?```|`[^`\n]+`|\*\*[^*\n]+?\*\*|\*(?!\s)[^*\n]+?(?<!\s)\*|_(?!\s)[^_\n]+?(?<!\s)_|~(?!\s)[^~\n]+?(?<!\s)~|https?:\/\/[^\s]+)/g;
+  // Order matters: code blocks first, inline code, markdown links, bold markdown, bold whatsapp, italic, strike, raw url
+  const pattern = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)|\*\*[^*\n]+?\*\*|\*(?!\s)[^*\n]+?(?<!\s)\*|_(?!\s)[^_\n]+?(?<!\s)_|~(?!\s)[^~\n]+?(?<!\s)~|https?:\/\/[^\s]+)/g;
 
   const parts = normalizedText.split(pattern);
 
@@ -52,6 +52,26 @@ export function renderFormattedMessage(text: string | null | undefined): React.R
           {part.slice(1, -1)}
         </code>
       );
+    }
+
+    // Markdown Link: [Text](https://...)
+    if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
+      const match = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+      if (match) {
+        const [, linkText, linkUrl] = match;
+        return (
+          <a
+            key={index}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#0066cc', textDecoration: 'underline' }}
+            className="!text-[#0066cc] font-medium hover:!text-[#004999] hover:underline underline-offset-2 break-all cursor-pointer"
+          >
+            {linkText}
+          </a>
+        );
+      }
     }
 
     // Bold Markdown: **text**
@@ -98,7 +118,8 @@ export function renderFormattedMessage(text: string | null | undefined): React.R
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#027eb5] hover:underline underline-offset-2 break-all"
+          style={{ color: '#0066cc', textDecoration: 'underline' }}
+          className="!text-[#0066cc] font-medium hover:!text-[#004999] hover:underline underline-offset-2 break-all cursor-pointer"
         >
           {part}
         </a>
@@ -109,3 +130,17 @@ export function renderFormattedMessage(text: string | null | undefined): React.R
     return <React.Fragment key={index}>{part}</React.Fragment>;
   });
 }
+
+/**
+ * Extract the first HTTP/HTTPS URL from a message text for rich link previews
+ */
+export function extractFirstUrl(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/[^\s]+/i);
+  if (!match) return null;
+  let url = match[0];
+  // Remove trailing markdown formatting or punctuation
+  url = url.replace(/[*_~`.,;:!?)]+$/, '');
+  return url;
+}
+

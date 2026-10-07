@@ -1,5 +1,6 @@
 import React from 'react';
-import { AlertTriangle, CheckCheck, Pin, Trash2 } from 'lucide-react';
+import { AlertTriangle, Pin, Trash2 } from 'lucide-react';
+import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageDeliveryStatusIcon';
 import { formatDate, formatPhoneWithCountryCode } from '../../../utils/crmUtils';
 import { STATUS_CONFIG } from '../constants';
 import type { ConversationStatus, MessageThread } from '../types';
@@ -117,7 +118,13 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
         {/* Last Message Snippet */}
         <div className="flex items-center justify-between mt-1">
           <p className={`text-xs truncate pr-1 flex items-center gap-1 ${hasUnread ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
-            {isAgentLast && <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />}
+            {isAgentLast && (
+              <MessageDeliveryStatusIcon
+                status={thread.lastMessage.status}
+                isRealSent={thread.lastMessage.isRealSent}
+                errorMessage={thread.lastMessage.errorMessage}
+              />
+            )}
             <span className="truncate">
               {(() => {
                 const c = thread.lastMessage.content;

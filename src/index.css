@@ -898,3 +898,20 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   -webkit-text-fill-color: #ffffff !important;
 }
 
+/* WhatsApp message links - always vivid blue */
+.whatsapp-page a[href^="http://"],
+.whatsapp-page a[href^="https://"],
+a[href^="http://"].break-all,
+a[href^="https://"].break-all {
+  color: #0066cc !important;
+  text-decoration: underline !important;
+}
+
+.whatsapp-page a[href^="http://"]:hover,
+.whatsapp-page a[href^="https://"]:hover,
+a[href^="http://"].break-all:hover,
+a[href^="https://"].break-all:hover {
+  color: #004999 !important;
+}
+
+

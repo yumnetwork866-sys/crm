@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+export type VoiceRecordingState = 'idle' | 'recording' | 'recorded';
+
 export interface VoiceRecordingResult {
   blob: Blob;
   dataUrl: string;
@@ -7,8 +9,9 @@ export interface VoiceRecordingResult {
 }
 
 export function useVoiceRecorder() {
-  const [isRecording, setIsRecording] = useState(false);
+  const [recordingState, setRecordingState] = useState<VoiceRecordingState>('idle');
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordedAudio, setRecordedAudio] = useState<VoiceRecordingResult | null>(null);
   const [isSupported, setIsSupported] = useState(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -57,6 +60,7 @@ export function useVoiceRecorder() {
       chunksRef.current = [];
       durationRef.current = 0;
       setRecordingDuration(0);
+      setRecordedAudio(null);
 
       // Detect best supported MIME type
       const preferredTypes = [
@@ -98,7 +102,7 @@ export function useVoiceRecorder() {
             stopResolverRef.current(null);
             stopResolverRef.current = null;
           }
-          setIsRecording(false);
+          setRecordingState('idle');
           return;
         }
 
@@ -106,12 +110,13 @@ export function useVoiceRecorder() {
         const reader = new FileReader();
         reader.onloadend = () => {
           const dataUrl = reader.result as string;
+          const result: VoiceRecordingResult = { blob, dataUrl, duration };
+          setRecordedAudio(result);
+          setRecordingState('recorded');
           if (stopResolverRef.current) {
-            stopResolverRef.current({ blob, dataUrl, duration });
+            stopResolverRef.current(result);
             stopResolverRef.current = null;
           }
-          setIsRecording(false);
-          setRecordingDuration(0);
         };
         reader.readAsDataURL(blob);
       };
@@ -119,7 +124,7 @@ export function useVoiceRecorder() {
       recorder.onerror = () => {
         clearTimer();
         cleanupStream();
-        setIsRecording(false);
+        setRecordingState('idle');
         if (stopResolverRef.current) {
           stopResolverRef.current(null);
           stopResolverRef.current = null;
@@ -128,7 +133,7 @@ export function useVoiceRecorder() {
 
       mediaRecorderRef.current = recorder;
       recorder.start(250); // Slice data every 250ms
-      setIsRecording(true);
+      setRecordingState('recording');
 
       timerRef.current = window.setInterval(() => {
         durationRef.current += 1;
@@ -140,7 +145,7 @@ export function useVoiceRecorder() {
       console.error('[VoiceRecorder] Error starting recording:', err);
       cleanupStream();
       clearTimer();
-      setIsRecording(false);
+      setRecordingState('idle');
       alert('Không thể truy cập microphone. Vui lòng cấp quyền truy cập micro trong trình duyệt để ghi âm giọng nói.');
       return false;
     }
@@ -152,8 +157,12 @@ export function useVoiceRecorder() {
       if (!recorder || recorder.state === 'inactive') {
         clearTimer();
         cleanupStream();
-        setIsRecording(false);
-        resolve(null);
+        if (recordedAudio) {
+          resolve(recordedAudio);
+        } else {
+          setRecordingState('idle');
+          resolve(null);
+        }
         return;
       }
 
@@ -163,11 +172,11 @@ export function useVoiceRecorder() {
       } catch {
         clearTimer();
         cleanupStream();
-        setIsRecording(false);
+        setRecordingState('idle');
         resolve(null);
       }
     });
-  }, [cleanupStream, clearTimer]);
+  }, [cleanupStream, clearTimer, recordedAudio]);
 
   const cancelRecording = useCallback(() => {
     clearTimer();
@@ -185,12 +194,17 @@ export function useVoiceRecorder() {
     chunksRef.current = [];
     durationRef.current = 0;
     setRecordingDuration(0);
-    setIsRecording(false);
+    setRecordedAudio(null);
+    setRecordingState('idle');
     if (stopResolverRef.current) {
       stopResolverRef.current(null);
       stopResolverRef.current = null;
     }
   }, [cleanupStream, clearTimer]);
+
+  const resetRecording = useCallback(() => {
+    cancelRecording();
+  }, [cancelRecording]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -201,11 +215,15 @@ export function useVoiceRecorder() {
   }, [cleanupStream, clearTimer]);
 
   return {
-    isRecording,
+    recordingState,
+    isRecording: recordingState === 'recording',
+    isRecorded: recordingState === 'recorded',
     recordingDuration,
+    recordedAudio,
     isSupported,
     startRecording,
     stopRecording,
     cancelRecording,
+    resetRecording,
   };
 }

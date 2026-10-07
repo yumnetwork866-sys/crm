@@ -474,6 +474,18 @@ export async function autoReplyWithDify(params: {
     return false;
   }
 
+  // 1.1 Ignore WhatsApp official system notifications (account setup, announcements, verification)
+  const cleanFrom = fromPhone.replace(/\D/g, '');
+  if (
+    cleanFrom === '16465894168' ||
+    customerName?.toLowerCase().includes('whatsapp business') ||
+    incomingText.includes('Continue setting up your account') ||
+    incomingText.includes('Setup guidance')
+  ) {
+    console.log(`[Dify AI] Bỏ qua tin nhắn hệ thống từ WhatsApp Business (${fromPhone}).`);
+    return false;
+  }
+
   // 2. Ignore non-text or system messages (images, stickers, media)
   const trimmed = incomingText.trim();
   if (
@@ -573,6 +585,9 @@ export async function autoReplyWithDify(params: {
       timestamp: new Date().toISOString(),
       isRead: true,
       isRealSent,
+      status: isRealSent ? 'sent' : 'failed',
+      errorCode: isRealSent ? null : 'META_DISPATCH_FAILED',
+      errorMessage: isRealSent ? null : 'Dify AI gửi tin qua Meta thất bại',
       replyTo: incomingMsgId
         ? {
             id: incomingMsgId,
@@ -597,6 +612,9 @@ export async function autoReplyWithDify(params: {
         content: aiMsg.content,
         isRead: true,
         isRealSent,
+        status: aiMsg.status,
+        errorCode: aiMsg.errorCode,
+        errorMessage: aiMsg.errorMessage,
         timestamp: new Date(aiMsg.timestamp),
       };
 

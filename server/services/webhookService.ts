@@ -161,8 +161,14 @@ function getMessageText(msgData: any): string {
       ? `/api/meta/media/${mediaId}${caption ? `\n${caption}` : ''}`
       : caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
   }
-  if (msgData?.type === 'sticker') return '[Sticker WhatsApp]';
-  if (msgData?.type === 'document') return `[Tài liệu] ${msgData.document?.filename || 'Tập tin đính kèm'}`;
+  if (msgData?.type === 'document') {
+    const mediaId = msgData.document?.id;
+    const filename = msgData.document?.filename || 'Tài liệu.pdf';
+    const caption = msgData.document?.caption || '';
+    return mediaId
+      ? `/api/meta/media/${mediaId}?type=document&filename=${encodeURIComponent(filename)}${caption ? `\n${caption}` : ''}`
+      : caption ? `[Tài liệu] ${filename}\n${caption}` : `[Tài liệu] ${filename}`;
+  }
   if (msgData?.type === 'audio') {
     const mediaId = msgData.audio?.id;
     return mediaId
@@ -341,41 +347,162 @@ async function processSmbMessages(body: any): Promise<number> {
   return processed;
 }
 
-async function processCampaignStatuses(body: any) {
+async function processWebhookStatuses(body: any) {
   const affectedCampaigns = new Set<string>();
   for (const item of extractWebhookStatuses(body)) {
     if (!item?.id || !item?.status) continue;
+    const eventAt = new Date(Number(item.timestamp) * 1000 || Date.now());
+
+    // 1. Process Campaign Broadcast Recipient status
     const recipient = await prisma.broadcastRecipient.findUnique({
       where: { metaMessageId: item.id },
       select: { id: true, campaignId: true },
     }).catch(() => null);
-    if (!recipient) continue;
 
-    const eventAt = new Date(Number(item.timestamp) * 1000 || Date.now());
-    if (item.status === 'delivered') {
-      await prisma.broadcastRecipient.updateMany({
-        where: { id: recipient.id, status: 'Sent' },
-        data: { status: 'Delivered', deliveredAt: eventAt },
-      });
-    } else if (item.status === 'read') {
-      await prisma.broadcastRecipient.updateMany({
-        where: { id: recipient.id, status: { in: ['Sent', 'Delivered'] } },
-        data: { status: 'Read', deliveredAt: eventAt, readAt: eventAt },
-      });
-    } else if (item.status === 'failed') {
-      const error = item.errors?.[0];
-      await prisma.broadcastRecipient.updateMany({
-        where: { id: recipient.id, status: { in: ['Pending', 'Processing', 'Retry', 'Sent'] } },
-        data: {
-          status: 'Failed',
-          lastErrorCode: error?.code ? String(error.code) : 'META_FAILED',
-          lastErrorMessage: error?.title || error?.message || 'Meta báo gửi thất bại.',
-        },
-      });
+    if (recipient) {
+      if (item.status === 'delivered') {
+        await prisma.broadcastRecipient.updateMany({
+          where: { id: recipient.id, status: 'Sent' },
+          data: { status: 'Delivered', deliveredAt: eventAt },
+        });
+      } else if (item.status === 'read') {
+        await prisma.broadcastRecipient.updateMany({
+          where: { id: recipient.id, status: { in: ['Sent', 'Delivered'] } },
+          data: { status: 'Read', deliveredAt: eventAt, readAt: eventAt },
+        });
+      } else if (item.status === 'failed') {
+        const error = item.errors?.[0];
+        await prisma.broadcastRecipient.updateMany({
+          where: { id: recipient.id, status: { in: ['Pending', 'Processing', 'Retry', 'Sent'] } },
+          data: {
+            status: 'Failed',
+            lastErrorCode: error?.code ? String(error.code) : 'META_FAILED',
+            lastErrorMessage: error?.title || error?.message || 'Meta báo gửi thất bại.',
+          },
+        });
+      }
+      affectedCampaigns.add(recipient.campaignId);
     }
-    affectedCampaigns.add(recipient.campaignId);
+
+    // 2. Process Direct 1-1 Chat Message status (WhatsAppMessage)
+    const directMsg = await prisma.whatsAppMessage.findUnique({
+      where: { id: item.id },
+      select: { id: true, status: true, customerId: true, customerPhone: true },
+    }).catch(() => null);
+
+    if (directMsg) {
+      if (item.status === 'sent') {
+        if (directMsg.status === 'sending') {
+          await prisma.whatsAppMessage.update({
+            where: { id: item.id },
+            data: { status: 'sent' },
+          });
+          messageStore.updateMessage(item.id, { status: 'sent' });
+          realtimeHub.broadcast('message:status', {
+            id: item.id,
+            status: 'sent',
+            customerId: directMsg.customerId,
+            customerPhone: directMsg.customerPhone,
+            timestamp: eventAt.toISOString(),
+          });
+        }
+      } else if (item.status === 'delivered') {
+        if (directMsg.status !== 'read') {
+          await prisma.whatsAppMessage.update({
+            where: { id: item.id },
+            data: { status: 'delivered', deliveredAt: eventAt },
+          });
+          messageStore.updateMessage(item.id, { status: 'delivered', deliveredAt: eventAt.toISOString() });
+          realtimeHub.broadcast('message:status', {
+            id: item.id,
+            status: 'delivered',
+            deliveredAt: eventAt.toISOString(),
+            customerId: directMsg.customerId,
+            customerPhone: directMsg.customerPhone,
+            timestamp: eventAt.toISOString(),
+          });
+        }
+      } else if (item.status === 'read') {
+        await prisma.whatsAppMessage.update({
+          where: { id: item.id },
+          data: { status: 'read', isRead: true, readAt: eventAt },
+        });
+        messageStore.updateMessage(item.id, { status: 'read', isRead: true, readAt: eventAt.toISOString() });
+        realtimeHub.broadcast('message:status', {
+          id: item.id,
+          status: 'read',
+          isRead: true,
+          readAt: eventAt.toISOString(),
+          customerId: directMsg.customerId,
+          customerPhone: directMsg.customerPhone,
+          timestamp: eventAt.toISOString(),
+        });
+      } else if (item.status === 'failed') {
+        const error = item.errors?.[0];
+        const errCode = error?.code ? String(error.code) : 'META_FAILED';
+        let errMsg = error?.title || error?.message || 'Meta báo gửi thất bại.';
+        if (error?.code === 131047) {
+          errMsg = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Cần dùng tin nhắn mẫu (Template) để mở lại hội thoại.';
+        } else if (error?.code === 131026) {
+          errMsg = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
+        }
+        await prisma.whatsAppMessage.update({
+          where: { id: item.id },
+          data: {
+            status: 'failed',
+            errorCode: errCode,
+            errorMessage: errMsg,
+          },
+        });
+        messageStore.updateMessage(item.id, { status: 'failed', errorCode: errCode, errorMessage: errMsg });
+        realtimeHub.broadcast('message:status', {
+          id: item.id,
+          status: 'failed',
+          errorCode: errCode,
+          errorMessage: errMsg,
+          customerId: directMsg.customerId,
+          customerPhone: directMsg.customerPhone,
+          timestamp: eventAt.toISOString(),
+        });
+      }
+    } else {
+      // In case message is only in memory
+      const inMem = messageStore.find((m) => m.id === item.id);
+      if (inMem) {
+        let mappedStatus: 'sent' | 'delivered' | 'read' | 'failed' = 'sent';
+        let errCode: string | undefined;
+        let errMsg: string | undefined;
+        if (item.status === 'delivered') mappedStatus = 'delivered';
+        else if (item.status === 'read') mappedStatus = 'read';
+        else if (item.status === 'failed') {
+          mappedStatus = 'failed';
+          const error = item.errors?.[0];
+          errCode = error?.code ? String(error.code) : 'META_FAILED';
+          errMsg = error?.title || error?.message || 'Meta báo gửi thất bại.';
+        }
+        messageStore.updateMessage(item.id, {
+          status: mappedStatus,
+          errorCode: errCode,
+          errorMessage: errMsg,
+          isRead: mappedStatus === 'read' ? true : inMem.isRead,
+          deliveredAt: mappedStatus === 'delivered' ? eventAt.toISOString() : inMem.deliveredAt,
+          readAt: mappedStatus === 'read' ? eventAt.toISOString() : inMem.readAt,
+        });
+        realtimeHub.broadcast('message:status', {
+          id: item.id,
+          status: mappedStatus,
+          errorCode: errCode,
+          errorMessage: errMsg,
+          customerId: inMem.customerId,
+          customerPhone: inMem.customerPhone,
+          timestamp: eventAt.toISOString(),
+        });
+      }
+    }
   }
-  await Promise.all(Array.from(affectedCampaigns, (campaignId) => aggregateCampaign(campaignId)));
+  if (affectedCampaigns.size > 0) {
+    await Promise.all(Array.from(affectedCampaigns, (campaignId) => aggregateCampaign(campaignId)));
+  }
 }
 
 /**
@@ -392,7 +519,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
   console.log('[META WEBHOOK POST RECEIVED]', JSON.stringify(parsedBody, null, 2));
 
   await processIntegrationLifecycle(parsedBody);
-  await processCampaignStatuses(parsedBody);
+  await processWebhookStatuses(parsedBody);
   const smbContactCount = await processSmbContacts(parsedBody);
   const smbMessageCount = await processSmbMessages(parsedBody);
   const extractedItems = extractWebhookItems(parsedBody);

@@ -20,6 +20,7 @@ import {
   isGlobalAiEnabled,
   setGlobalAiEnabled,
 } from '../services/difyService';
+import { fetchLinkPreview } from '../services/linkPreviewService';
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -331,6 +332,29 @@ export async function sendMessage(req: Request, res: Response) {
       }
     }
 
+    let initialStatus: 'sent' | 'failed' = 'sent';
+    let initialErrorCode: string | null = null;
+    let initialErrorMessage: string | null = null;
+
+    if (!phoneId || !token || !cleanPhone) {
+      initialStatus = 'failed';
+      initialErrorCode = 'CONFIG_MISSING';
+      initialErrorMessage = !cleanPhone ? 'Số điện thoại không hợp lệ' : 'Chưa cấu hình tài khoản Meta WhatsApp kết nối';
+    } else if (!isRealSent) {
+      initialStatus = 'failed';
+      const metaError = metaResult?.error;
+      initialErrorCode = metaError?.code ? String(metaError.code) : 'META_DISPATCH_FAILED';
+      if (metaError?.code === 131047 || metaError?.error_subcode === 131047) {
+        initialErrorMessage = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Cần gửi tin nhắn mẫu (Template) để mở lại hội thoại.';
+      } else if (metaError?.code === 131026) {
+        initialErrorMessage = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
+      } else if (metaError?.code === 190) {
+        initialErrorMessage = 'Access Token của Meta đã hết hạn hoặc bị hủy quyền.';
+      } else {
+        initialErrorMessage = metaError?.message || metaError?.error_user_msg || 'Meta từ chối gửi tin nhắn.';
+      }
+    }
+
     const newMsg: InMemoryMessage = {
       id: metaResult?.messages?.[0]?.id || `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId: resolvedCustomerId,
@@ -344,6 +368,9 @@ export async function sendMessage(req: Request, res: Response) {
       timestamp: new Date().toISOString(),
       isRead: true,
       isRealSent,
+      status: initialStatus,
+      errorCode: initialErrorCode,
+      errorMessage: initialErrorMessage,
       replyTo: replyTo || undefined
     };
 
@@ -362,6 +389,9 @@ export async function sendMessage(req: Request, res: Response) {
         content: newMsg.content,
         isRead: newMsg.isRead,
         isRealSent: newMsg.isRealSent,
+        status: newMsg.status,
+        errorCode: newMsg.errorCode,
+        errorMessage: newMsg.errorMessage,
         timestamp: new Date(newMsg.timestamp)
       };
 
@@ -397,6 +427,9 @@ export async function sendMessage(req: Request, res: Response) {
     return res.json({
       success: true,
       isRealSent,
+      status: initialStatus,
+      errorCode: initialErrorCode,
+      errorMessage: initialErrorMessage,
       metaResponse: metaResult,
       message: newMsg
     });
@@ -766,3 +799,24 @@ export async function toggleGlobalAi(req: Request, res: Response) {
     return res.status(500).json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI toàn hệ thống.' });
   }
 }
+
+/**
+ * Fetch OpenGraph link preview metadata for WhatsApp-style card rendering
+ */
+export async function getLinkPreview(req: Request, res: Response) {
+  try {
+    const url = typeof req.query?.url === 'string' ? req.query.url.trim() : '';
+    if (!url) {
+      return res.status(400).json({ error: 'Tham số url là bắt buộc.' });
+    }
+    const preview = await fetchLinkPreview(url);
+    if (!preview) {
+      return res.status(404).json({ error: 'Không thể tạo bản xem trước cho URL này.' });
+    }
+    return res.json(preview);
+  } catch (err: any) {
+    console.warn('[LINK PREVIEW ERROR]', err?.message || err);
+    return res.status(500).json({ error: 'Lỗi khi lấy thông tin xem trước liên kết.' });
+  }
+}
+

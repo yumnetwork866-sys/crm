@@ -264,6 +264,27 @@ export function useCentralMessages({
           console.error('[REALTIME SSE] Error processing message:read event:', error);
         }
       });
+      eventSource.addEventListener('message:status', (event: MessageEvent) => {
+        try {
+          const { id, status, errorCode, errorMessage, deliveredAt, readAt } = JSON.parse(event.data);
+          setMessages((previous) =>
+            previous.map((message) => {
+              if (message.id !== id) return message;
+              return {
+                ...message,
+                status: status || message.status,
+                errorCode: errorCode !== undefined ? errorCode : message.errorCode,
+                errorMessage: errorMessage !== undefined ? errorMessage : message.errorMessage,
+                deliveredAt: deliveredAt || message.deliveredAt,
+                readAt: readAt || message.readAt,
+                isRead: status === 'read' ? true : message.isRead,
+              };
+            })
+          );
+        } catch (error) {
+          console.error('[REALTIME SSE] Error processing message:status event:', error);
+        }
+      });
       eventSource.addEventListener('message:thread_deleted', (event: MessageEvent) => {
         try {
           const { customerId, customerPhone } = JSON.parse(event.data);
@@ -375,6 +396,7 @@ export function useCentralMessages({
       content,
       timestamp: new Date().toISOString(),
       isRead: true,
+      status: 'sending',
       businessPhoneNumberId: senderPhoneNumberId,
       replyTo,
     };
@@ -399,14 +421,28 @@ export function useCentralMessages({
                   ...message,
                   id: response.message.id,
                   isRealSent: response.isRealSent,
+                  status: response.message.status || (response.isRealSent ? 'sent' : 'failed'),
+                  errorCode: response.message.errorCode || response.errorCode,
+                  errorMessage: response.message.errorMessage || response.errorMessage,
                   replyTo: response.message.replyTo || message.replyTo,
                 }
               : message
           )
         );
       }
-    } catch {
-      console.log('Real WhatsApp API offline fallback');
+    } catch (sendErr: any) {
+      console.warn('Lỗi khi gửi tin nhắn:', sendErr);
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === temporaryMessage.id
+            ? {
+                ...message,
+                status: 'failed',
+                errorMessage: sendErr?.response?.data?.error || sendErr?.message || 'Không thể gửi tin nhắn đến máy chủ CRM',
+              }
+            : message
+        )
+      );
     }
 
     if (customer || phone) {
@@ -481,6 +517,62 @@ export function useCentralMessages({
     }
   }, [centralMessagesQueryKey, messageDeleteMutation, queryClient, setMessages]);
 
+  const retryMessage = useCallback(async (messageId: string) => {
+    const targetMsg = messages.find((m) => m.id === messageId);
+    if (!targetMsg || targetMsg.sender !== 'agent') return;
+
+    setMessages((previous) =>
+      previous.map((m) =>
+        m.id === messageId
+          ? { ...m, status: 'sending', errorMessage: null, errorCode: null }
+          : m
+      )
+    );
+
+    try {
+      const response = await sendMutation.mutateAsync({
+        customerId: targetMsg.customerId,
+        customerName: targetMsg.customerName,
+        customerPhone: targetMsg.customerPhone,
+        content: targetMsg.content,
+        agentName: targetMsg.agentName || currentUserRef.current?.name || 'Nguyễn Văn Ánh',
+        senderPhoneId: targetMsg.businessPhoneNumberId,
+        contextMessageId: targetMsg.replyTo?.id,
+        replyTo: targetMsg.replyTo,
+      });
+
+      if (response?.message) {
+        setMessages((previous) =>
+          previous.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  id: response.message.id,
+                  isRealSent: response.isRealSent,
+                  status: response.message.status || (response.isRealSent ? 'sent' : 'failed'),
+                  errorCode: response.message.errorCode || response.errorCode,
+                  errorMessage: response.message.errorMessage || response.errorMessage,
+                  replyTo: response.message.replyTo || m.replyTo,
+                }
+              : m
+          )
+        );
+      }
+    } catch (retryErr: any) {
+      setMessages((previous) =>
+        previous.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                status: 'failed',
+                errorMessage: retryErr?.response?.data?.error || retryErr?.message || 'Không thể kết nối máy chủ',
+              }
+            : m
+        )
+      );
+    }
+  }, [messages, sendMutation]);
+
   return {
     messages,
     setMessages,
@@ -490,6 +582,7 @@ export function useCentralMessages({
     selectedCustomerId,
     selectCustomerThread,
     sendMessage,
+    retryMessage,
     deleteThread,
     deleteMessage,
     hasOlderMessages: Boolean(messagesQuery.hasNextPage),

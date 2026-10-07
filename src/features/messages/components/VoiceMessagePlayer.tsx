@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCheck, Mic, Pause, Play } from 'lucide-react';
+import { Mic, Pause, Play } from 'lucide-react';
+import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageDeliveryStatusIcon';
+import type { MessageDeliveryStatus } from '../../../types';
 
 interface VoiceMessagePlayerProps {
   src: string;
   caption?: string | null;
   timeFormatted: string;
   isAgent?: boolean;
+  status?: MessageDeliveryStatus;
+  isRealSent?: boolean;
+  errorMessage?: string | null;
+  onRetry?: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -20,6 +26,10 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
   caption,
   timeFormatted,
   isAgent = false,
+  status,
+  isRealSent,
+  errorMessage,
+  onRetry,
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -189,7 +199,12 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
       <div className="flex justify-end items-center gap-0.5 text-[11px] text-[#667781] mt-1 select-none">
         <span>{timeFormatted}</span>
         {isAgent && (
-          <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0 inline-block" />
+          <MessageDeliveryStatusIcon
+            status={status}
+            isRealSent={isRealSent}
+            errorMessage={errorMessage}
+            onRetry={onRetry}
+          />
         )}
       </div>
 

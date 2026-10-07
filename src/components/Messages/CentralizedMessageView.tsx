@@ -4,6 +4,7 @@ import {
   MessageSquare,
   Search,
   Send,
+  AlertCircle,
   CheckCheck,
   Check,
   User,
@@ -43,7 +44,10 @@ import {
   FileSpreadsheet,
   Edit3,
   SmilePlus,
-  Reply
+  Reply,
+  Pause,
+  Play,
+  Square
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
@@ -51,7 +55,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
-import { extractAudioInfo, extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
+import { extractAudioInfo, extractDocumentInfo, extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
 import { useVoiceRecorder } from '../../features/messages/hooks/useVoiceRecorder';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
@@ -59,10 +63,12 @@ import { useMessagePreferences } from '../../features/messages/hooks/useMessageP
 import { useMessageThreads } from '../../features/messages/hooks/useMessageThreads';
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
 import { VoiceMessagePlayer } from '../../features/messages/components/VoiceMessagePlayer';
+import { DocumentMessageCard } from '../../features/messages/components/DocumentMessageCard';
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { api } from '../../utils/apiClient';
-import { renderFormattedMessage } from '../../utils/formatMessageText';
+import { renderFormattedMessage, extractFirstUrl } from '../../utils/formatMessageText';
+import { LinkPreviewCard } from '../../features/messages/components/LinkPreviewCard';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
@@ -72,6 +78,7 @@ import { MessageSecurityBanner } from '../../features/messages/components/Messag
 import { ThreadListItem } from '../../features/messages/components/ThreadListItem';
 import { CustomerChatDrawer } from '../../features/messages/components/CustomerChatDrawer';
 import { WhatsAppSessionCountdown } from '../../features/messages/components/WhatsAppSessionCountdown';
+import { MessageDeliveryStatusIcon } from './MessageDeliveryStatusIcon';
 
 interface SavedMessageList {
   id: string;
@@ -97,6 +104,7 @@ interface CentralizedMessageViewProps {
     senderPhoneId?: string,
     replyTo?: { id: string; senderName: string; content: string }
   ) => void;
+  onRetryMessage?: (messageId: string) => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
   onDeleteThread?: (customerId: string) => void;
@@ -116,6 +124,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   selectedCustomerId,
   onSelectCustomerThread,
   onSendMessage,
+  onRetryMessage,
   onOpenAddOrder,
   onSelectCustomerDetail,
   onDeleteThread,
@@ -256,16 +265,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     setShowAttachMenu,
     pendingImage,
     setPendingImage,
+    pendingDocument,
+    setPendingDocument,
     replyingToMessage,
     setReplyingToMessage,
     textareaRef,
     fileInputRef,
+    documentInputRef,
     filteredSlashTemplates,
     handleSelectSlashTemplate,
     handleApplyTemplate,
     handleAddEmoji,
     handlePaste,
     handleFileSelect,
+    handleDocumentSelect,
     handleSend,
     handleSendVoiceMessage,
     handleKeyDown,
@@ -273,25 +286,83 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   } = useMessageComposer({ activeThread, selectedPhoneId, soundEnabled, onSendMessage });
 
   const {
+    recordingState,
     isRecording,
+    isRecorded,
     recordingDuration,
+    recordedAudio,
     startRecording,
     stopRecording,
     cancelRecording,
+    resetRecording,
   } = useVoiceRecorder();
 
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
+
   const handleStartVoiceRecord = async () => {
+    setIsPreviewPlaying(false);
+    setPreviewCurrentTime(0);
     await startRecording();
   };
 
+  const handleStopVoiceRecord = async () => {
+    await stopRecording();
+  };
+
   const handleCancelVoiceRecord = () => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
+    setIsPreviewPlaying(false);
+    setPreviewCurrentTime(0);
     cancelRecording();
   };
 
+  const handleTogglePlayPreview = () => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    if (isPreviewPlaying) {
+      audio.pause();
+      setIsPreviewPlaying(false);
+    } else {
+      audio.play().then(() => {
+        setIsPreviewPlaying(true);
+      }).catch((err) => {
+        console.warn('Failed to play preview audio:', err);
+        setIsPreviewPlaying(false);
+      });
+    }
+  };
+
+  const handleSeekPreview = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    const dur = recordedAudio?.duration || audio.duration || 0;
+    if (!dur || !isFinite(dur)) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const newTime = ratio * dur;
+    audio.currentTime = newTime;
+    setPreviewCurrentTime(newTime);
+  };
+
   const handleSendVoiceRecord = async () => {
-    const result = await stopRecording();
-    if (result?.dataUrl) {
-      handleSendVoiceMessage(result.dataUrl);
+    let audioToSend = recordedAudio;
+    if (!audioToSend) {
+      audioToSend = await stopRecording();
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
+    setIsPreviewPlaying(false);
+    setPreviewCurrentTime(0);
+
+    if (audioToSend?.dataUrl) {
+      handleSendVoiceMessage(audioToSend.dataUrl);
+      resetRecording();
     }
   };
 
@@ -300,6 +371,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     const s = seconds % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const previewTotalDuration = recordedAudio?.duration || (previewAudioRef.current && isFinite(previewAudioRef.current.duration) ? previewAudioRef.current.duration : 0);
+  const previewPercent = previewTotalDuration > 0
+    ? Math.min(100, (previewCurrentTime / previewTotalDuration) * 100)
+    : 0;
   const {
     messageReactions,
     activeReactionPickerMsgId,
@@ -348,20 +424,30 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const templatePickerRef = useRef<HTMLDivElement>(null);
+  const templateButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!showEmojiPicker) return;
+    if (!showEmojiPicker && !showTemplatePicker) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (emojiPickerRef.current?.contains(target)) return;
-      if (emojiButtonRef.current?.contains(target)) return;
-      setShowEmojiPicker(false);
+      if (showEmojiPicker) {
+        if (!emojiPickerRef.current?.contains(target) && !emojiButtonRef.current?.contains(target)) {
+          setShowEmojiPicker(false);
+        }
+      }
+      if (showTemplatePicker) {
+        if (!templatePickerRef.current?.contains(target) && !templateButtonRef.current?.contains(target)) {
+          setShowTemplatePicker(false);
+        }
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowEmojiPicker(false);
+        setShowTemplatePicker(false);
       }
     };
 
@@ -371,7 +457,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showEmojiPicker, setShowEmojiPicker]);
+  }, [showEmojiPicker, setShowEmojiPicker, showTemplatePicker, setShowTemplatePicker]);
 
   const filterOptions = [
     { id: 'all', label: `Tất cả (${threads.length})` },
@@ -1035,6 +1121,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     <p className="text-[11.5px] text-[#54656f] truncate leading-tight mt-0.5 max-w-sm">
                                       {replyQuote.content?.startsWith('data:audio/') || (replyQuote.content?.startsWith('/api/meta/media/') && replyQuote.content?.includes('type=audio')) || replyQuote.content?.includes('Tin nhắn thoại')
                                         ? '🎙️ [Tin nhắn thoại]'
+                                        : replyQuote.content?.startsWith('[document:') || (replyQuote.content?.startsWith('/api/meta/media/') && replyQuote.content?.includes('type=document')) || replyQuote.content?.includes('[Tài liệu')
+                                        ? '📄 [Tài liệu đính kèm]'
                                         : replyQuote.content?.startsWith('/uploads/') || replyQuote.content?.startsWith('data:image/') || replyQuote.content?.startsWith('/api/meta/media/')
                                         ? '📷 [Hình ảnh]'
                                         : replyQuote.content || 'Nội dung tin nhắn'}
@@ -1043,9 +1131,33 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 );
                               };
 
+                              const docInfo = extractDocumentInfo(content);
+
+                              // 1. Document / PDF / Quotation / Invoice Message
+                              if (docInfo.isDocument) {
+                                return (
+                                  <div className="space-y-1">
+                                    {renderQuoteHeader()}
+                                    <DocumentMessageCard
+                                      docUrl={docInfo.docUrl}
+                                      filename={docInfo.filename}
+                                      filesize={docInfo.filesize}
+                                      caption={docInfo.caption}
+                                      fileExt={docInfo.fileExt}
+                                      timeFormatted={timeFormatted}
+                                      isAgent={isAgent}
+                                      status={msg.status}
+                                      isRealSent={msg.isRealSent}
+                                      errorMessage={msg.errorMessage}
+                                      onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                    />
+                                  </div>
+                                );
+                              }
+
                               const audioInfo = extractAudioInfo(content);
 
-                              // 1. Voice / Audio Message (Recorded, Uploaded, Meta Media)
+                              // 2. Voice / Audio Message (Recorded, Uploaded, Meta Media)
                               if (audioInfo.isAudio && audioInfo.audioUrl) {
                                 return (
                                   <div className="space-y-1">
@@ -1055,6 +1167,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       caption={audioInfo.caption}
                                       timeFormatted={timeFormatted}
                                       isAgent={isAgent}
+                                      status={msg.status}
+                                      isRealSent={msg.isRealSent}
+                                      errorMessage={msg.errorMessage}
+                                      onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
                                     />
                                   </div>
                                 );
@@ -1080,7 +1196,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1090,7 +1211,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1125,7 +1251,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1135,7 +1266,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1170,7 +1306,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1180,7 +1321,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                         <span className="text-[11px] text-[#667781] flex items-center gap-0.5 select-none">
                                           <span>{timeFormatted}</span>
                                           {isAgent && (
-                                            <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                            <MessageDeliveryStatusIcon
+                                              status={msg.status}
+                                              isRealSent={msg.isRealSent}
+                                              errorMessage={msg.errorMessage}
+                                              onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                            />
                                           )}
                                         </span>
                                       </div>
@@ -1225,7 +1371,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       <span className="float-right ml-2.5 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                         <span>{timeFormatted}</span>
                                         {isAgent && (
-                                          <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0" />
+                                          <MessageDeliveryStatusIcon
+                                            status={msg.status}
+                                            isRealSent={msg.isRealSent}
+                                            errorMessage={msg.errorMessage}
+                                            onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                          />
                                         )}
                                       </span>
                                     </div>
@@ -1233,15 +1384,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 );
                               }
 
+                              const firstUrl = extractFirstUrl(content);
+
                               return (
-                                <div className="space-y-1">
+                                <div className="space-y-1.5">
                                   {renderQuoteHeader()}
+                                  {firstUrl && <LinkPreviewCard url={firstUrl} />}
                                   <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#111b21] wrap-break-word font-normal">
                                     <span>{renderFormattedMessage(content)}</span>
                                     <span className="float-right ml-3 -mb-0.5 mt-1 text-[11px] text-[#667781] flex items-center gap-0.5 select-none font-normal">
                                       <span>{timeFormatted}</span>
                                       {isAgent && (
-                                        <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] shrink-0 inline-block" />
+                                        <MessageDeliveryStatusIcon
+                                          status={msg.status}
+                                          isRealSent={msg.isRealSent}
+                                          errorMessage={msg.errorMessage}
+                                          onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                        />
                                       )}
                                     </span>
                                   </div>
@@ -1257,6 +1416,27 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             )}
 
                           </div>
+
+                          {/* Failure Notice & Retry for Outgoing Agent Messages */}
+                          {isAgent && (msg.status === 'failed' || msg.isRealSent === false) && (
+                            <div className="w-full flex justify-end mt-1">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] shadow-2xs max-w-md">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                <span className="truncate" title={msg.errorMessage || 'Không thể gửi tin nhắn qua Meta'}>
+                                  {msg.errorMessage || 'Meta từ chối gửi tin nhắn'}
+                                </span>
+                                {onRetryMessage && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onRetryMessage(msg.id)}
+                                    className="ml-1 px-1.5 py-0.5 rounded bg-white hover:bg-rose-100 font-bold text-rose-700 border border-rose-300 text-[10px] shrink-0 transition cursor-pointer"
+                                  >
+                                    Thử lại
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Incoming Customer Message: Right side Action Buttons (React + Reply) in a Unified Pill */}
                           {!isAgent && (
@@ -1364,100 +1544,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 </div>
               )}
 
-              {/* Popups: Emoji Picker, Quick Templates, Attach Menu */}
-              {showEmojiPicker && (
-                <div ref={emojiPickerRef} className="absolute bottom-16 left-3 z-30 animate-fadeIn">
-                  <EmojiPicker
-                    onSelect={handleAddEmoji}
-                    onClose={() => setShowEmojiPicker(false)}
-                    theme="whatsapp"
-                    title="Biểu tượng cảm xúc"
-                    className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
-                  />
-                </div>
-              )}
 
-              {showTemplatePicker && (
-                <div className="absolute bottom-16 left-12 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-30 w-80 max-h-72 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
-                  <div className="flex items-center justify-between pb-2 mb-1">
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                      Mẫu Tin Nhắn Nhanh (Canned Reply)
-                    </span>
-                    <button onClick={() => setShowTemplatePicker(false)} className="text-slate-400 hover:text-slate-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  {QUICK_TEMPLATES.map((tmpl) => (
-                    <div
-                      key={tmpl.code}
-                      onClick={() => handleApplyTemplate(tmpl.content)}
-                      className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
-                          {tmpl.title}
-                        </span>
-                        <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                          {tmpl.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {showAttachMenu && (
-                <div className="absolute bottom-16 left-8 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-56 animate-fadeIn space-y-1">
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) fileInputRef.current.click();
-                      setShowAttachMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-slate-50 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                      <ImageIcon className="w-4 h-4" />
-                    </div>
-                    <span>Gửi Hình Ảnh / Bill</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (activeCustomer) onOpenAddOrder(activeCustomer);
-                      setShowAttachMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#1fa855] flex items-center justify-center shrink-0">
-                      <ShoppingBag className="w-4 h-4" />
-                    </div>
-                    <span>Tạo Đơn Hàng Mới</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      handleApplyTemplate('📄 BÁO GIÁ SẢN PHẨM:\n- Combo 2 Hộp Thảo Mộc: 700.000đ\n- Quà tặng: 1 Bình Giữ Nhiệt Cao Cấp\n- Miễn phí vận chuyển tận nhà (COD).');
-                      setShowAttachMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-800 rounded-xl flex items-center space-x-2.5 transition cursor-pointer"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <span>Gửi Báo Giá Mẫu</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Hidden File Input for Media Upload */}
+              {/* Hidden File Input for Unified Upload (Images, PDF, Word, Excel, CSV, TXT) */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
                 className="hidden"
                 onChange={handleFileSelect}
+              />
+
+              {/* Hidden File Input for Document Upload (PDF, Word, Excel, CSV, TXT) */}
+              <input
+                ref={documentInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+                className="hidden"
+                onChange={handleDocumentSelect}
               />
 
               {/* WhatsApp Authentic Reply Preview Banner */}
@@ -1469,7 +1572,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <span>Đang trả lời {replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng')}</span>
                     </div>
                     <p className="text-xs text-slate-600 truncate mt-0.5 max-w-xl">
-                      {replyingToMessage.content.startsWith('/uploads/') || replyingToMessage.content.startsWith('data:image/') || replyingToMessage.content.startsWith('/api/meta/media/')
+                      {replyingToMessage.content.includes('[document:') || replyingToMessage.content.includes('type=document')
+                        ? '📄 [Tài liệu đính kèm]'
+                        : replyingToMessage.content.includes('[audio:') || replyingToMessage.content.includes('type=audio')
+                        ? '🎤 [Tin nhắn thoại]'
+                        : replyingToMessage.content.startsWith('/uploads/') || replyingToMessage.content.startsWith('data:image/') || replyingToMessage.content.startsWith('/api/meta/media/')
                         ? '📷 [Hình ảnh]'
                         : replyingToMessage.content}
                     </p>
@@ -1487,29 +1594,57 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
               {/* Attached Pending Image Thumbnail Strip (Inline inside input bar) */}
               {pendingImage && (
-                <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center gap-3 shrink-0 animate-fadeIn">
-                  <div className="relative group rounded-xl overflow-hidden border-2 border-[#1fa855] bg-white shadow-xs w-14 h-14 shrink-0">
+                <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+                  <div className="relative group rounded-xl overflow-hidden border border-slate-300 bg-white shadow-xs w-14 h-14 shrink-0">
                     <img src={pendingImage} alt="attached thumbnail" className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => setPendingImage(null)}
-                      className="absolute top-0.5 right-0.5 bg-black/75 hover:bg-rose-600 text-white rounded-full p-0.5 shadow transition cursor-pointer"
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 hover:bg-white text-slate-500 hover:text-slate-800 border border-slate-200 shadow-xs flex items-center justify-center transition cursor-pointer"
                       title="Xóa ảnh"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3 h-3 stroke-[2.5]" />
                     </button>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 text-[#1fa855] border border-emerald-200">
-                      Ảnh đính kèm
-                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setPendingImage(null)}
-                    className="text-xs font-semibold text-slate-400 hover:text-rose-600 px-2 py-1 rounded hover:bg-slate-200/50 transition cursor-pointer"
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+                    title="Hủy ảnh đính kèm"
                   >
-                    Xóa
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Attached Pending Document Preview Strip */}
+              {pendingDocument && (
+                <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 border border-rose-200 flex flex-col items-center justify-center shrink-0 shadow-2xs">
+                      <FileText className="w-5 h-5" />
+                      <span className="text-[9px] font-black uppercase tracking-tight">
+                        {(pendingDocument.filename.split('.').pop() || 'FILE').toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate" title={pendingDocument.filename}>
+                        {pendingDocument.filename}
+                      </p>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {pendingDocument.filesize > 1024 * 1024
+                          ? `${(pendingDocument.filesize / (1024 * 1024)).toFixed(1)} MB`
+                          : `${Math.max(1, Math.round(pendingDocument.filesize / 1024))} KB`}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDocument(null)}
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+                    title="Hủy tài liệu đính kèm"
+                  >
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -1594,54 +1729,225 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     </span>
                   </div>
 
-                  {/* Send Voice Recording */}
+                  {/* Stop Recording to Review / Listen */}
+                  <button
+                    type="button"
+                    onClick={handleStopVoiceRecord}
+                    className="w-10 h-10 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-600 border border-rose-300 flex items-center justify-center transition cursor-pointer shrink-0 shadow-2xs"
+                    title="Dừng ghi âm để nghe lại"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                  </button>
+
+                  {/* Send Voice Recording Immediately */}
                   <button
                     type="button"
                     onClick={handleSendVoiceRecord}
-                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 animate-pulse"
-                    title="Gửi tin nhắn thoại"
+                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
+                    title="Gửi ngay tin nhắn thoại"
                   >
                     <Send className="w-4 h-4 ml-0.5" />
                   </button>
                 </div>
+              ) : isRecorded ? (
+                <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-2 z-10">
+                  {/* Cancel / Discard Recording to re-record */}
+                  <button
+                    type="button"
+                    onClick={handleCancelVoiceRecord}
+                    className="w-10 h-10 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-100 flex items-center justify-center transition cursor-pointer shrink-0"
+                    title="Xóa bản ghi âm để thu lại"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+
+                  {/* Audio Preview Player */}
+                  <div className="flex-1 flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-lg border border-emerald-200 shadow-2xs min-w-0">
+                    {/* Play / Pause button */}
+                    <button
+                      type="button"
+                      onClick={handleTogglePlayPreview}
+                      className="w-8 h-8 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-2xs active:scale-95 cursor-pointer shrink-0"
+                      title={isPreviewPlaying ? 'Tạm dừng nghe lại' : 'Nghe lại bản ghi âm'}
+                    >
+                      {isPreviewPlaying ? (
+                        <Pause className="w-4 h-4 fill-current" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      )}
+                    </button>
+
+                    {/* Scrubber / Progress track */}
+                    <div className="flex-1 flex flex-col justify-center gap-1 min-w-0">
+                      <div
+                        onClick={handleSeekPreview}
+                        className="relative w-full h-3 flex items-center cursor-pointer group"
+                        title="Bấm để tua đoạn nghe lại"
+                      >
+                        <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#1fa855] rounded-full transition-all duration-75"
+                            style={{ width: `${previewPercent}%` }}
+                          />
+                        </div>
+                        <div
+                          className="absolute w-2.5 h-2.5 bg-[#1fa855] rounded-full shadow-xs -ml-1 opacity-90 group-hover:scale-125 transition"
+                          style={{ left: `${previewPercent}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                        <span>
+                          {formatRecordingTimer(
+                            isPreviewPlaying || previewCurrentTime > 0
+                              ? previewCurrentTime
+                              : (recordedAudio?.duration || recordingDuration)
+                          )}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-semibold font-sans">
+                          Bản ghi đã sẵn sàng
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Send Recorded Voice Message */}
+                  <button
+                    type="button"
+                    onClick={handleSendVoiceRecord}
+                    className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 animate-bounce duration-1000"
+                    title="Gửi tin nhắn thoại"
+                  >
+                    <Send className="w-4 h-4 ml-0.5" />
+                  </button>
+
+                  {/* Audio Element for Review Playback */}
+                  <audio
+                    ref={previewAudioRef}
+                    src={recordedAudio?.dataUrl}
+                    preload="auto"
+                    onTimeUpdate={(e) => setPreviewCurrentTime(e.currentTarget.currentTime)}
+                    onEnded={() => {
+                      setIsPreviewPlaying(false);
+                      setPreviewCurrentTime(0);
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
                   {/* Emoji Trigger */}
-                  <button
-                    ref={emojiButtonRef}
-                    type="button"
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className={`p-2 rounded-full transition cursor-pointer ${
-                      showEmojiPicker
-                        ? 'bg-slate-200 text-[#1fa855]'
-                        : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
-                    }`}
-                    title="Biểu tượng cảm xúc"
-                    aria-label="Biểu tượng cảm xúc"
-                    aria-expanded={showEmojiPicker}
-                  >
-                    <Smile className="w-5 h-5" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      ref={emojiButtonRef}
+                      type="button"
+                      onClick={() => {
+                        setShowEmojiPicker(!showEmojiPicker);
+                        setShowAttachMenu(false);
+                        setShowTemplatePicker(false);
+                      }}
+                      className={`p-2 rounded-full transition cursor-pointer ${
+                        showEmojiPicker
+                          ? 'bg-slate-200 text-[#1fa855]'
+                          : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
+                      }`}
+                      title="Biểu tượng cảm xúc"
+                      aria-label="Biểu tượng cảm xúc"
+                      aria-expanded={showEmojiPicker}
+                    >
+                      <Smile className="w-5 h-5" />
+                    </button>
 
-                  {/* Attachment Menu Trigger */}
+                    {showEmojiPicker && (
+                      <div ref={emojiPickerRef} className="absolute bottom-full mb-3 left-0 z-50 animate-fadeIn">
+                        <EmojiPicker
+                          onSelect={handleAddEmoji}
+                          onClose={() => setShowEmojiPicker(false)}
+                          theme="whatsapp"
+                          title="Biểu tượng cảm xúc"
+                          className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Attachment Button: Directly opens native file chooser for any file */}
                   <button
                     type="button"
-                    onClick={() => setShowAttachMenu(!showAttachMenu)}
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.click();
+                      setShowEmojiPicker(false);
+                      setShowTemplatePicker(false);
+                    }}
                     className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
-                    title="Đính kèm hình ảnh, đơn hàng"
+                    title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
+                    aria-label="Đính kèm tệp"
                   >
                     <Paperclip className="w-5 h-5" />
                   </button>
 
                   {/* Quick Canned Template Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                    className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/60 rounded-full transition cursor-pointer"
-                    title="Mẫu tin nhắn nhanh (/)"
-                  >
-                    <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      ref={templateButtonRef}
+                      type="button"
+                      onClick={() => {
+                        setShowTemplatePicker(!showTemplatePicker);
+                        setShowEmojiPicker(false);
+                        setShowAttachMenu(false);
+                      }}
+                      className={`p-2 rounded-full transition cursor-pointer ${
+                        showTemplatePicker
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'text-amber-600 hover:text-amber-700 hover:bg-amber-100/60'
+                      }`}
+                      title="Mẫu tin nhắn nhanh (/)"
+                      aria-label="Mẫu tin nhắn nhanh"
+                      aria-expanded={showTemplatePicker}
+                    >
+                      <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
+                    </button>
+
+                    {showTemplatePicker && (
+                      <div
+                        ref={templatePickerRef}
+                        className="absolute bottom-full mb-3 left-0 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-80 max-h-72 overflow-y-auto animate-fadeIn divide-y divide-slate-100"
+                      >
+                        <div className="flex items-center justify-between pb-2 mb-1">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                            Mẫu Tin Nhắn Nhanh (Canned Reply)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowTemplatePicker(false)}
+                            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        {QUICK_TEMPLATES.map((tmpl) => (
+                          <div
+                            key={tmpl.code}
+                            onClick={() => {
+                              handleApplyTemplate(tmpl.content);
+                              setShowTemplatePicker(false);
+                            }}
+                            className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
+                                {tmpl.title}
+                              </span>
+                              <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                                {tmpl.code}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Textarea Input with Clipboard Paste support */}
                   <div className="flex-1 bg-white rounded-lg px-3.5 py-2 transition shadow-2xs">
@@ -1652,13 +1958,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       onChange={(e) => setInputText(e.target.value)}
                       onKeyDown={handleKeyDown}
                       onPaste={handlePaste}
-                      placeholder={pendingImage ? "Nhập chú thích cho ảnh (Tùy chọn)..." : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."}
+                      placeholder={
+                        pendingImage
+                          ? "Nhập chú thích cho ảnh (Tùy chọn)..."
+                          : pendingDocument
+                          ? "Nhập ghi chú cho tài liệu (Tùy chọn)..."
+                          : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."
+                      }
                       className="w-full bg-transparent text-[14px] text-[#111b21] focus:outline-none resize-none placeholder-[#8696a0] max-h-24 leading-5"
                     />
                   </div>
 
                   {/* Mic vs Send Button */}
-                  {inputText.trim() || pendingImage ? (
+                  {inputText.trim() || pendingImage || pendingDocument ? (
                     <button
                       type="button"
                       onClick={() => handleSend()}

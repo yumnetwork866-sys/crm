@@ -596,6 +596,58 @@ export async function dispatchMetaMessage(options: {
         text: { body: caption ? `[Tin nhắn thoại] ${caption}` : '🎙️ [Tin nhắn thoại gửi từ CRM]' }
       };
     }
+  } else if (content.startsWith('[document:')) {
+    const match = content.match(/^\[document:(\{.*?\})\]\n?([\s\S]*)$/);
+    if (match) {
+      try {
+        const meta = JSON.parse(match[1]);
+        const caption = match[2]?.trim() || '';
+        const filename = meta.filename || 'Tài liệu.pdf';
+        const docUrl = meta.url;
+        let uploadedMediaId: string | null = null;
+
+        if (docUrl && docUrl.startsWith('data:')) {
+          const m = docUrl.match(/^data:([-A-Za-z0-9+/;=.]+);base64,(.+)$/);
+          if (m) {
+            const rawMime = m[1].split(';')[0].toLowerCase();
+            const buffer = Buffer.from(m[2], 'base64');
+            uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, rawMime, filename);
+          }
+        } else if (docUrl && docUrl.startsWith('/uploads/')) {
+          const localPath = path.resolve(process.cwd(), 'public', docUrl.replace(/^\//, ''));
+          if (fs.existsSync(localPath)) {
+            const buffer = await fs.promises.readFile(localPath);
+            const ext = path.extname(localPath).toLowerCase().replace('.', '');
+            const mimeType = ext === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+            uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, filename);
+          }
+        }
+
+        if (uploadedMediaId) {
+          payload = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanPhone,
+            type: 'document',
+            document: {
+              id: uploadedMediaId,
+              filename,
+              ...(caption ? { caption } : {})
+            }
+          };
+        } else {
+          payload = {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanPhone,
+            type: 'text',
+            text: { body: caption ? `[Tài liệu: ${filename}]\n${caption}` : `📄 [Tài liệu: ${filename}]` }
+          };
+        }
+      } catch (err) {
+        console.warn('Error processing document for Meta dispatch:', err);
+      }
+    }
   } else if (content.startsWith('/uploads/')) {
     const parts = content.split('\n');
     const imgPath = parts[0];
@@ -1576,7 +1628,7 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
   }
 
   // 1. Check disk cache
-  const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg', 'ogg', 'mp3', 'm4a', 'wav', 'webm', 'aac'];
+  const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg', 'ogg', 'mp3', 'm4a', 'wav', 'webm', 'aac', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
   for (const ext of potentialExtensions) {
     const cachedPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
     if (fs.existsSync(cachedPath)) {
@@ -1589,6 +1641,13 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
       else if (ext === 'wav') mimeType = 'audio/wav';
       else if (ext === 'webm') mimeType = 'audio/webm';
       else if (ext === 'aac') mimeType = 'audio/aac';
+      else if (ext === 'pdf') mimeType = 'application/pdf';
+      else if (ext === 'doc') mimeType = 'application/msword';
+      else if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      else if (ext === 'xls') mimeType = 'application/vnd.ms-excel';
+      else if (ext === 'xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      else if (ext === 'csv') mimeType = 'text/csv';
+      else if (ext === 'txt') mimeType = 'text/plain';
       const buffer = await fs.promises.readFile(cachedPath);
       return { buffer, contentType: mimeType };
     }
@@ -1641,6 +1700,12 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
   else if (contentType.includes('wav')) ext = 'wav';
   else if (contentType.includes('webm')) ext = 'webm';
   else if (contentType.includes('aac')) ext = 'aac';
+  else if (contentType.includes('pdf')) ext = 'pdf';
+  else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
+  else if (contentType.includes('msword')) ext = 'doc';
+  else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
+  else if (contentType.includes('csv')) ext = 'csv';
+  else if (contentType.includes('plain')) ext = 'txt';
   const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
   await fs.promises.writeFile(diskPath, buffer).catch((err) => {
     console.warn('Could not write cache file to disk:', err);

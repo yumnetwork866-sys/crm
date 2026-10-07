@@ -24,7 +24,8 @@ import {
   toggleCustomerAi,
   getCustomerAiStatus,
   getGlobalAiStatus,
-  toggleGlobalAi
+  toggleGlobalAi,
+  getLinkPreview
 } from '../controllers/chatController';
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
@@ -72,6 +73,7 @@ router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAG
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);
 router.delete('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteThread);
 router.delete('/messages/item/:messageId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessage);
+router.get('/link-preview', authenticateToken, getLinkPreview);
 
 // ==========================================
 // 4. Meta Media Proxy & CDN Cache

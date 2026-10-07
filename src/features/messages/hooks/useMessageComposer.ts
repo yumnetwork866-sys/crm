@@ -32,9 +32,16 @@ export function useMessageComposer({
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingDocument, setPendingDocument] = useState<{
+    dataUrl: string;
+    filename: string;
+    filesize: number;
+    mimeType: string;
+  } | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<CentralMessage | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const filteredSlashTemplates = useMemo(() => {
     if (!inputText.startsWith('/')) return [];
@@ -81,18 +88,38 @@ export function useMessageComposer({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') setPendingImage(event.target.result);
+      if (typeof event.target?.result !== 'string') return;
+      const dataUrl = event.target.result;
+      if (file.type.startsWith('image/')) {
+        setPendingImage(dataUrl);
+        setPendingDocument(null);
+      } else {
+        setPendingDocument({
+          dataUrl,
+          filename: file.name,
+          filesize: file.size,
+          mimeType: file.type || 'application/pdf',
+        });
+        setPendingImage(null);
+      }
     };
     reader.readAsDataURL(file);
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageItem = Array.from(event.clipboardData?.items || [])
-      .find((item) => item.type.startsWith('image/'));
-    attachFile(imageItem?.getAsFile() || null);
+    const fileItem = Array.from(event.clipboardData?.items || [])
+      .find((item) => item.type.startsWith('image/') || item.type.includes('pdf') || item.type.includes('sheet') || item.type.includes('document'));
+    if (fileItem) {
+      attachFile(fileItem.getAsFile() || null);
+    }
   };
 
   const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    attachFile(event.target.files?.[0] || null);
+    event.target.value = '';
+  };
+
+  const handleDocumentSelect = (event: ChangeEvent<HTMLInputElement>) => {
     attachFile(event.target.files?.[0] || null);
     event.target.value = '';
   };
@@ -107,7 +134,7 @@ export function useMessageComposer({
     event?.preventDefault();
     if (!activeThread) return;
     const text = inputText.trim();
-    if (!text && !pendingImage) return;
+    if (!text && !pendingImage && !pendingDocument) return;
 
     const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
     const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
@@ -119,7 +146,19 @@ export function useMessageComposer({
         : (replyingToMessage.customerName || 'Khách hàng'),
       content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150),
     } : undefined;
-    let content = pendingImage ? `${pendingImage}${text ? `\n${text}` : ''}` : text;
+
+    let content = text;
+    if (pendingDocument) {
+      content = `[document:${JSON.stringify({
+        url: pendingDocument.dataUrl,
+        filename: pendingDocument.filename,
+        size: pendingDocument.filesize,
+        mimeType: pendingDocument.mimeType,
+      })}]${text ? `\n${text}` : ''}`;
+    } else if (pendingImage) {
+      content = `${pendingImage}${text ? `\n${text}` : ''}`;
+    }
+
     if (replyTo) content = `[reply:${JSON.stringify(replyTo)}]\n${content}`;
 
     onSendMessage(targetId, content, 'WhatsApp', targetPhone, targetName, selectedPhoneId, replyTo);
@@ -127,10 +166,17 @@ export function useMessageComposer({
 
     if (pendingImage?.startsWith('data:image/')) {
       void api.post('/upload', { imageBase64: pendingImage, folder: 'chat' }).catch(() => undefined);
+    } else if (pendingDocument?.dataUrl.startsWith('data:')) {
+      void api.post('/upload', {
+        fileBase64: pendingDocument.dataUrl,
+        customFilename: pendingDocument.filename,
+        folder: 'chat'
+      }).catch(() => undefined);
     }
 
     setInputText('');
     setPendingImage(null);
+    setPendingDocument(null);
     setReplyingToMessage(null);
     closePickers();
   };
@@ -186,16 +232,20 @@ export function useMessageComposer({
     setShowAttachMenu,
     pendingImage,
     setPendingImage,
+    pendingDocument,
+    setPendingDocument,
     replyingToMessage,
     setReplyingToMessage,
     textareaRef,
     fileInputRef,
+    documentInputRef,
     filteredSlashTemplates,
     handleSelectSlashTemplate: selectSlashTemplate,
     handleApplyTemplate: applyTemplate,
     handleAddEmoji: addEmoji,
     handlePaste,
     handleFileSelect,
+    handleDocumentSelect,
     handleSend: send,
     handleSendVoiceMessage: sendVoiceMessage,
     handleKeyDown,
