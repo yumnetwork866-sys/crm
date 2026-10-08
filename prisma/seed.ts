@@ -24,7 +24,7 @@ const DEFAULT_AUTOMATION_STEPS = [
     step: 1,
     dayOffset: 3,
     title: 'Lời Cảm Ơn & HDSD',
-    defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
+    defaultMsg: 'Chào {{Customer Name}}, YumNetwork CRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm. Nhấp vào liên kết sau để xem video hướng dẫn sử dụng chuẩn spa nhé!',
     iconName: 'Heart',
     color: '#e11d48',
     active: true,
@@ -70,7 +70,7 @@ async function main() {
     skipDuplicates: true,
   });
 
-  const adminEmail = process.env.ADMIN?.trim() || 'anh.nguyen@vietcrm.vn';
+  const adminEmail = process.env.ADMIN?.trim() || 'anh.nguyen@yumnetwork.vn';
   const adminPassword = process.env.ADMIN_PASSWORD?.trim() || 'admin123';
   const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
   const hashedDefaultPassword = await bcrypt.hash(adminPassword, 10);

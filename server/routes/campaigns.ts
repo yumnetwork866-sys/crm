@@ -101,7 +101,7 @@ function resolveTemplateData(
   voucherCode = 'VOUCHER30OFF',
   parameterSources: CampaignInput['templateParameterSources'] = [],
 ) {
-  const product = targetProduct || customer.interestedProducts[0] || 'Sản phẩm của VietCRM';
+  const product = targetProduct || customer.interestedProducts[0] || 'Sản phẩm của YumNetwork CRM';
   const values: Record<string, string> = {
     'Customer Name': customer.name,
     Phone: customer.phone,

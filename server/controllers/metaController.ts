@@ -43,6 +43,7 @@ export async function getConfig(req: Request, res: Response) {
       whatsappWabaId: setting.whatsappWabaId || '',
       whatsappVerifyToken: setting.whatsappVerifyToken || 'YUMNETWORK_CRM_META_VERIFY_TOKEN_2026',
       whatsappAppId: setting.whatsappAppId || '',
+      metaCatalogId: setting.metaCatalogId || process.env.META_CATALOG_ID?.trim() || '',
       status: setting.status === 'connected' && !accessToken ? 'error' : setting.status,
       lastConnectedAt: setting.lastConnectedAt,
       hasAccessToken: Boolean(accessToken),
@@ -276,7 +277,8 @@ export async function saveConfig(req: Request, res: Response) {
       whatsappPhoneNumberId,
       whatsappWabaId,
       whatsappVerifyToken,
-      whatsappAppId
+      whatsappAppId,
+      metaCatalogId
     } = req.body;
 
     const existing = await getIntegrationSetting();
@@ -296,6 +298,7 @@ export async function saveConfig(req: Request, res: Response) {
     const updateData = {
       whatsappPhoneNumberId: finalPhoneId,
       whatsappWabaId: finalWabaId,
+      ...(metaCatalogId !== undefined ? { metaCatalogId: metaCatalogId.trim() || null } : {}),
       ...(selectedConnection ? {
         metaBusinessId: selectedConnection.businessId,
         whatsappAccessTokenEncrypted: selectedConnection.accessTokenEncrypted,

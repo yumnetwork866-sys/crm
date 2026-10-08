@@ -1,4 +1,4 @@
-// Prisma Schema for VietCRM (PostgreSQL)
+// Prisma Schema for YumNetwork CRM (PostgreSQL)
 
 generator client {
   provider        = "prisma-client-js"
@@ -103,6 +103,9 @@ model Product {
   sku         String?
   description String?
   image       String?
+  metaRetailerId String? // ID định danh sản phẩm trên Meta Catalog (retailer_id)
+  metaSyncStatus String    @default("not_synced") // 'synced' | 'not_synced' | 'error'
+  lastSyncedAt   DateTime?
 
   orderItems OrderItem[]
 
@@ -111,6 +114,8 @@ model Product {
 
   @@index([category])
   @@index([status])
+  @@index([metaRetailerId])
+  @@index([metaSyncStatus])
 }
 
 model Order {
@@ -256,6 +261,7 @@ model IntegrationSetting {
   whatsappPhoneNumberId String?
   whatsappWabaId        String?
   metaBusinessId        String?
+  metaCatalogId         String? // ID của Meta Commerce Catalog
   whatsappAccessTokenEncrypted String?
   whatsappRegistrationPinEncrypted String?
   whatsappTokenExpiresAt DateTime?

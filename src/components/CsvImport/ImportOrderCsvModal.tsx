@@ -35,7 +35,7 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Nhap_Don_Hang_VietCRM.csv', SAMPLE_CSV_ORDER);
+    downloadCsvFile('Mau_Nhap_Don_Hang_YumNetwork_CRM.csv', SAMPLE_CSV_ORDER);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {
@@ -76,7 +76,7 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
       const code = findValue(r, ['madon', 'code', 'ordercode', 'ma']) || `DH-CSV-${Date.now()}-${idx + 1}`;
       const customerPhone = findValue(r, ['sdt', 'phone', 'dienthoai', 'mobile']) || '0908123456';
       const customerName = findValue(r, ['tenkhachhang', 'khachhang', 'name', 'ten']) || 'Khách Hàng CSV';
-      const productName = findValue(r, ['tensanpham', 'sanpham', 'product', 'item']) || products[0]?.name || 'Sản phẩm VietCRM';
+      const productName = findValue(r, ['tensanpham', 'sanpham', 'product', 'item']) || products[0]?.name || 'Sản phẩm YumNetwork CRM';
       const qtyStr = findValue(r, ['soluong', 'quantity', 'qty']) || '1';
       const quantity = Math.max(1, parseInt(qtyStr, 10) || 1);
 

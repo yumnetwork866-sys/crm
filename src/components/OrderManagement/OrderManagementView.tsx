@@ -655,7 +655,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <div>
-                  <div className="font-extrabold text-lg text-indigo-400 tracking-wide">VIETCRM INVOICE</div>
+                  <div className="font-extrabold text-lg text-indigo-400 tracking-wide">YUMNETWORK CRM INVOICE</div>
                   <div className="text-[10px] text-slate-400">Hóa đơn bán hàng điện tử</div>
                 </div>
                 <div className="text-right">

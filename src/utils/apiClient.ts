@@ -1,11 +1,12 @@
-// API Client wrapper for VietCRM Frontend
+// API Client wrapper for YumNetwork CRM Frontend
 
 const API_BASE_URL = '/api';
 
-const TOKEN_KEY = 'vietcrm_jwt_token';
+const TOKEN_KEY = 'yumnetwork_crm_jwt_token';
+const LEGACY_TOKEN_KEY = 'vietcrm_jwt_token';
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
 }
 
 export function setStoredToken(token: string) {
@@ -14,6 +15,7 @@ export function setStoredToken(token: string) {
 
 export function removeStoredToken() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

@@ -9,6 +9,8 @@ import {
   Link2,
   LoaderCircle,
   Plus,
+  Package,
+  RefreshCw,
 } from 'lucide-react';
 import { getStoredToken } from '../../utils/apiClient';
 
@@ -119,6 +121,13 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
   const [isFetchingPhones, setIsFetchingPhones] = useState(false);
   const [fetchPhonesAlert, setFetchPhonesAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Meta Catalog State
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string>('');
+  const [catalogList, setCatalogList] = useState<Array<{ id: string; name: string; product_count?: number }>>([]);
+  const [isFetchingCatalogs, setIsFetchingCatalogs] = useState(false);
+  const [isSavingCatalog, setIsSavingCatalog] = useState(false);
+  const [catalogAlert, setCatalogAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const safeJsonFetch = useCallback(async (url: string, options?: RequestInit) => {
     const token = getStoredToken();
     const res = await fetch(url, {
@@ -185,13 +194,70 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
         setMetaAppId(data.embeddedSignup?.appId || '');
         setConfigurationId(data.embeddedSignup?.configurationId || '');
         setGraphVersion(data.embeddedSignup?.graphVersion || 'v26.0');
+        if (data.metaCatalogId) {
+          setSelectedCatalogId(data.metaCatalogId);
+        }
 
         await fetchPhoneNumbersList();
+        void fetchCatalogs();
       }
     } catch (err) {
       console.error('Failed to fetch Meta config:', err);
     }
   }, [fetchPhoneNumbersList, safeJsonFetch]);
+
+  const fetchCatalogs = useCallback(async () => {
+    setIsFetchingCatalogs(true);
+    setCatalogAlert(null);
+    try {
+      const { ok, data } = await safeJsonFetch('/api/catalog/list');
+      if (ok && data.success) {
+        setCatalogList(data.catalogs || []);
+        if (data.currentCatalogId) {
+          setSelectedCatalogId(data.currentCatalogId);
+        }
+      } else {
+        setCatalogAlert({
+          type: 'error',
+          message: data.error || 'Không thể lấy danh sách Catalog từ Meta.',
+        });
+      }
+    } catch (err: any) {
+      setCatalogAlert({
+        type: 'error',
+        message: err.message || 'Lỗi khi kết nối lấy danh sách Catalog.',
+      });
+    } finally {
+      setIsFetchingCatalogs(false);
+    }
+  }, [safeJsonFetch]);
+
+  const handleSaveCatalog = async (catalogIdToSave: string) => {
+    setIsSavingCatalog(true);
+    setCatalogAlert(null);
+    try {
+      const { ok, data } = await safeJsonFetch('/api/catalog/select', {
+        method: 'POST',
+        body: JSON.stringify({ catalogId: catalogIdToSave }),
+      });
+      if (ok && data.success) {
+        setSelectedCatalogId(catalogIdToSave);
+        setCatalogAlert({
+          type: 'success',
+          message: 'Đã lưu liên kết Meta Catalog thành công!',
+        });
+      } else {
+        throw new Error(data.error || 'Không thể lưu Catalog ID.');
+      }
+    } catch (err: any) {
+      setCatalogAlert({
+        type: 'error',
+        message: err.message || 'Lỗi khi lưu Meta Catalog.',
+      });
+    } finally {
+      setIsSavingCatalog(false);
+    }
+  };
 
   useEffect(() => {
     void fetchConfig();
@@ -616,6 +682,128 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = () => {
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 3. Liên Kết Meta Commerce Catalog */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Package className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Danh Mục Sản Phẩm Meta (Commerce Catalog)</h3>
+              <p className="text-xs text-slate-500">Liên kết Catalog để gửi thẻ sản phẩm trong chat WhatsApp và đồng bộ kho hàng.</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void fetchCatalogs()}
+            disabled={isFetchingCatalogs}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+            title="Quét lại danh sách Catalog trên Meta"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetchingCatalogs ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>{isFetchingCatalogs ? 'Đang dò tìm...' : 'Dò tìm Catalog'}</span>
+          </button>
+        </div>
+
+        {catalogAlert && (
+          <div className={`p-3 rounded-xl text-xs font-medium border flex items-center gap-2 ${
+            catalogAlert.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-red-50 text-red-800 border-red-200'
+          }`}>
+            {catalogAlert.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+            <span>{catalogAlert.message}</span>
+          </div>
+        )}
+
+        <div className="space-y-3 pt-1">
+          {catalogList.length > 0 ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Chọn danh mục phát hiện được từ Meta Business ({catalogList.length} catalog)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {catalogList.map((cat) => {
+                  const isSelected = selectedCatalogId === cat.id;
+                  return (
+                    <div
+                      key={cat.id}
+                      onClick={() => void handleSaveCatalog(cat.id)}
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50/70 shadow-xs'
+                          : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className={`text-sm font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>
+                          {cat.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-slate-500 mt-0.5">
+                          ID: {cat.id} {typeof cat.product_count === 'number' ? `· (${cat.product_count} sản phẩm)` : ''}
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        {isSelected ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                            <Check className="w-3 h-3" /> Đang dùng
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isSavingCatalog}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                          >
+                            Chọn
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+              {isFetchingCatalogs ? (
+                <div className="flex items-center gap-2 text-indigo-600 font-medium">
+                  <LoaderCircle className="w-4 h-4 animate-spin" />
+                  <span>Đang liên hệ Meta Graph API để dò tìm danh mục thuộc tài khoản...</span>
+                </div>
+              ) : (
+                <span>Chưa tìm thấy Catalog nào tự động qua API. Bạn có thể bấm <b>"Dò tìm Catalog"</b> hoặc nhập trực tiếp ID danh mục bên dưới.</span>
+              )}
+            </div>
+          )}
+
+          {/* Nhập ID Catalog thủ công nếu cần */}
+          <div className="pt-2">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Hoặc nhập mã Meta Catalog ID thủ công:
+            </label>
+            <div className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                value={selectedCatalogId}
+                onChange={(e) => setSelectedCatalogId(e.target.value.trim())}
+                placeholder="Ví dụ: 123456789012345"
+                className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 focus:outline-indigo-500 bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveCatalog(selectedCatalogId)}
+                disabled={isSavingCatalog || !selectedCatalogId}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                {isSavingCatalog ? 'Đang lưu...' : 'Lưu ID'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

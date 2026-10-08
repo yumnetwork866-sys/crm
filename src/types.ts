@@ -70,6 +70,9 @@ export interface Product {
   sku?: string;
   description?: string;
   image?: string;
+  metaRetailerId?: string;
+  metaSyncStatus?: 'synced' | 'not_synced' | 'error';
+  lastSyncedAt?: string;
 }
 
 export type Gender = 'Nam' | 'Nữ' | 'Khác';

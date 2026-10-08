@@ -123,7 +123,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
                 required
                 value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="nguyenvana@vietcrm.vn"
+                placeholder="nguyenvana@yumnetwork.vn"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
               />
             </div>

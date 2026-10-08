@@ -13,6 +13,7 @@ export interface IntegrationSettingData {
   whatsappRegistrationPinEncrypted?: string | null;
   whatsappTokenExpiresAt?: Date | null;
   whatsappAppId?: string | null;
+  metaCatalogId?: string | null;
   difyAiEnabled?: boolean;
   status: string;
   lastConnectedAt?: Date | null;
@@ -28,7 +29,7 @@ let inMemorySetting: IntegrationSettingData = {
   whatsappWabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
   whatsappAppId: process.env.META_APP_ID || process.env.WHATSAPP_APP_ID || '',
   difyAiEnabled: true,
-  status: process.env.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'disconnected',
+  status: (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN) ? 'connected' : 'disconnected',
   lastConnectedAt: null,
   createdAt: new Date(),
   updatedAt: new Date()
@@ -54,7 +55,7 @@ export async function getIntegrationSetting(): Promise<IntegrationSettingData> {
     // remain as a backwards-compatible fallback for installations not onboarded yet.
     const hasEmbeddedConnection = Boolean(setting.whatsappAccessTokenEncrypted);
     const envWabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim();
-    const envToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim();
+    const envToken = (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim();
     const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
     const envVerifyToken = process.env.META_VERIFY_TOKEN?.trim();
     const envAppId = process.env.META_APP_ID?.trim() || process.env.WHATSAPP_APP_ID?.trim();
@@ -129,7 +130,7 @@ export async function getMetaAccessToken(setting?: IntegrationSettingData): Prom
       return '';
     }
   }
-  return process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+  return (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim() || '';
 }
 
 export async function getMetaAccessTokenForPhone(
@@ -156,7 +157,7 @@ export async function getMetaAccessTokenForPhone(
       }
     }
     if (connection.usesEnvironmentToken) {
-      return process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+      return (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim() || '';
     }
   }
 
@@ -169,7 +170,7 @@ export async function getMetaAccessTokenForPhone(
 
 export async function syncEnvironmentWhatsAppConnections(): Promise<void> {
   const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim() || '';
-  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() || '';
+  const token = (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim() || '';
   if (!wabaId || !token) return;
 
   try {

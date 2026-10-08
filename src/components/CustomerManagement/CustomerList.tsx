@@ -213,7 +213,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     const csvContent = `data:text/csv;charset=utf-8,\uFEFF${[headers.join(','), ...rows.map((row) => row.join(','))].join('\n')}`;
     const link = document.createElement('a');
     link.href = encodeURI(csvContent);
-    link.download = `VietCRM_KhachHang_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `YumNetworkCRM_KhachHang_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

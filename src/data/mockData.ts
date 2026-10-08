@@ -168,7 +168,7 @@ export const INITIAL_CUSTOMERS: Customer[] = [
       currentStep: 4,
       startDate: '2026-07-02',
       logs: [
-        { step: 1, stepName: 'Ngày +3 (Lời cảm ơn)', sentAt: '2026-07-05 09:00', message: 'Cảm ơn chị Châu đã ủng hộ VietCRM! Dưới đây là hướng dẫn sử dụng Kem Dưỡng Collagen...', status: 'Read' },
+        { step: 1, stepName: 'Ngày +3 (Lời cảm ơn)', sentAt: '2026-07-05 09:00', message: 'Cảm ơn chị Châu đã ủng hộ YumNetwork! Dưới đây là hướng dẫn sử dụng Kem Dưỡng Collagen...', status: 'Read' },
         { step: 2, stepName: 'Ngày +5 (Hỏi trải nghiệm)', sentAt: '2026-07-07 10:00', message: 'Chào chị Châu, chị dùng sản phẩm thấy làn da có cải thiện ẩm mượt hơn chưa ạ?', status: 'Read' },
         { step: 3, stepName: 'Ngày +7 (Giải đáp & Gợi ý)', sentAt: '2026-07-09 14:00', message: 'Để nhân đôi hiệu quả, chị có thể kết hợp thêm Serum Vitamin C nhé!', status: 'Read' },
         { step: 4, stepName: 'Ngày +15 (Gửi Voucher)', sentAt: '2026-07-17 09:30', message: 'Tặng chị Châu Voucher GIAM20% cho đơn hàng tiếp theo. Mã: VIPCHA20', status: 'Read' }
@@ -416,7 +416,7 @@ export const INITIAL_CAMPAIGNS: BroadcastCampaign[] = [
     name: 'Tri Ân Khách VIP - Flash Sale 30%',
     targetGroup: 'VIP (Mua ≥ 2 lần)',
     category: 'Flash Sale',
-    messageTemplate: 'Chào {{Customer Name}}, VietCRM xin tặng riêng bạn mã FLASH30 giảm 30% cho bộ sản phẩm Serum mới ra mắt!',
+    messageTemplate: 'Chào {{Customer Name}}, YumNetwork CRM xin tặng riêng bạn mã FLASH30 giảm 30% cho bộ sản phẩm Serum mới ra mắt!',
     createdAt: '2026-07-15 10:00',
     status: 'Completed',
     stats: {
@@ -463,7 +463,7 @@ export const INITIAL_USERS: AppUser[] = [
   {
     id: 'usr_001',
     name: 'Nguyễn Văn Ánh',
-    email: 'anh.nguyen@vietcrm.vn',
+    email: 'anh.nguyen@yumnetwork.vn',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
     role: 'Admin',
     phone: '0909123456',
@@ -475,7 +475,7 @@ export const INITIAL_USERS: AppUser[] = [
   {
     id: 'usr_002',
     name: 'Trần Thu Hà',
-    email: 'ha.tran@vietcrm.vn',
+    email: 'ha.tran@yumnetwork.vn',
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=250',
     role: 'Sales Manager',
     phone: '0918234567',
@@ -487,7 +487,7 @@ export const INITIAL_USERS: AppUser[] = [
   {
     id: 'usr_003',
     name: 'Lê Hoàng Nam',
-    email: 'nam.le@vietcrm.vn',
+    email: 'nam.le@yumnetwork.vn',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
     role: 'Sales Rep',
     phone: '0987112233',
@@ -499,7 +499,7 @@ export const INITIAL_USERS: AppUser[] = [
   {
     id: 'usr_004',
     name: 'Phạm Minh Đức',
-    email: 'duc.pham@vietcrm.vn',
+    email: 'duc.pham@yumnetwork.vn',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250',
     role: 'Marketing Lead',
     phone: '0933998877',
@@ -511,7 +511,7 @@ export const INITIAL_USERS: AppUser[] = [
   {
     id: 'usr_005',
     name: 'Vũ Thị Hương',
-    email: 'huong.vu@vietcrm.vn',
+    email: 'huong.vu@yumnetwork.vn',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=250',
     role: 'Customer Support',
     phone: '0977665544',

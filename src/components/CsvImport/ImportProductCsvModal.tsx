@@ -31,7 +31,7 @@ export const ImportProductCsvModal: React.FC<ImportProductCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Danh_Sach_San_Pham_VietCRM.csv', SAMPLE_CSV_PRODUCT);
+    downloadCsvFile('Mau_Danh_Sach_San_Pham_YumNetwork_CRM.csv', SAMPLE_CSV_PRODUCT);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {

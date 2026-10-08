@@ -238,7 +238,7 @@ export const AutomationStepModal: React.FC<AutomationStepModalProps> = ({
     setFormData({
       title: '',
       dayOffset: lastDay,
-      defaultMsg: 'Chào {{Customer Name}}, VietCRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm!',
+      defaultMsg: 'Chào {{Customer Name}}, YumNetwork CRM xin gửi lời cảm ơn chân thành bạn đã tin dùng sản phẩm!',
       iconName: 'Sparkles',
       color: STEP_COLOR_PRESETS[(nextStepNum - 1) % STEP_COLOR_PRESETS.length],
       active: true,

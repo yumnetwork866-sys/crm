@@ -85,6 +85,13 @@ router.put('/:id', requirePermission(Permission.PRODUCTS_UPDATE), async (req: Au
       }
     });
 
+    // Auto-sync update to Meta Commerce Catalog if catalog is linked
+    import('../services/metaCatalogService').then((m) => {
+      m.syncProductsToMetaCatalog([updated.id]).catch((err) => {
+        console.warn('[AUTO SYNC META] Lỗi tự đồng bộ sản phẩm vừa sửa lên Meta:', err?.message || err);
+      });
+    }).catch(() => {});
+
     return res.json(updated);
   } catch (error) {
     return res.status(500).json({ error: 'Lỗi khi cập nhật sản phẩm' });

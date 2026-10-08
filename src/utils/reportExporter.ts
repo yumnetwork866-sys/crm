@@ -25,7 +25,7 @@ export function exportMarketingReportCsv(marketingReports: MarketingCampaignRepo
     `${r.roas}x`,
   ]);
 
-  downloadCsv('Bao_Cao_Marketing_VietCRM', headers, rows);
+  downloadCsv('Bao_Cao_Marketing_YumNetwork_CRM', headers, rows);
 }
 
 // 2. Export Sales Performance Report
@@ -47,7 +47,7 @@ export function exportSalesReportCsv(customers: Customer[]) {
     return [repName, assigned.length, won.length, `${conv}%`, rev];
   });
 
-  downloadCsv('Bao_Cao_Sales_VietCRM', headers, rows);
+  downloadCsv('Bao_Cao_Sales_YumNetwork_CRM', headers, rows);
 }
 
 // 3. Export Customers List
@@ -86,7 +86,7 @@ export function exportCustomersCsv(customers: Customer[]) {
     c.lastPurchaseDate || 'Chưa mua',
   ]);
 
-  downloadCsv('Danh_Sach_Khach_Hang_VietCRM', headers, rows);
+  downloadCsv('Danh_Sach_Khach_Hang_YumNetwork_CRM', headers, rows);
 }
 
 // 4. Export Orders List
@@ -120,7 +120,7 @@ export function exportOrdersCsv(customers: Customer[]) {
     });
   });
 
-  downloadCsv('Danh_Sach_Don_Hang_VietCRM', headers, rows);
+  downloadCsv('Danh_Sach_Don_Hang_YumNetwork_CRM', headers, rows);
 }
 
 // 5. Export WhatsApp Broadcast Report
@@ -156,7 +156,7 @@ export function exportWhatsAppReportCsv(campaigns: BroadcastCampaign[]) {
     c.createdAt || 'Tức thì',
   ]);
 
-  downloadCsv('Bao_Cao_WhatsApp_VietCRM', headers, rows);
+  downloadCsv('Bao_Cao_WhatsApp_YumNetwork_CRM', headers, rows);
 }
 
 // 6. Export Full CRM Executive Summary
@@ -196,5 +196,5 @@ export function exportFullExecutiveSummaryCsv(
     ['Tổng Khách Hàng Phản Hỏi', campaigns.reduce((s, c) => s + c.stats.respondedCount, 0), 'Khách hàng'],
   ];
 
-  downloadCsv('Bao_Cao_Tong_Hop_VietCRM_Executive', headers, rows);
+  downloadCsv('Bao_Cao_Tong_Hop_YumNetwork_CRM_Executive', headers, rows);
 }

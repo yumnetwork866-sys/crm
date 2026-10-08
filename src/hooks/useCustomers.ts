@@ -291,7 +291,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
         await api.post(`/customers/${customer.id}/automation-logs`, {
           step: nextStep,
           stepName,
-          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
+          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, YumNetwork CRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
           status: 'Read',
         });
       }));
@@ -308,7 +308,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
           step: nextStep,
           stepName,
           sentAt: formatDateTime(new Date()),
-          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, VietCRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
+          message: `[Tự Động Kích Hoạt - ${stepName}] Chào ${customer.name}, YumNetwork CRM vừa tự động gửi tin chăm sóc cho bạn theo tiến trình!`,
           status: 'Read' as const,
         }] } };
       }));

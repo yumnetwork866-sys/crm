@@ -32,7 +32,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Nhap_Khach_Hang_VietCRM.csv', SAMPLE_CSV_CUSTOMER);
+    downloadCsvFile('Mau_Nhap_Khach_Hang_YumNetwork_CRM.csv', SAMPLE_CSV_CUSTOMER);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {

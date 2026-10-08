@@ -94,7 +94,7 @@ export type CurrencyUnit = 'RM' | 'VND' | 'USD';
 
 export function getGlobalCurrency(): CurrencyUnit {
   try {
-    const saved = localStorage.getItem('vietcrm_currency_unit') as CurrencyUnit;
+    const saved = (localStorage.getItem('yumnetwork_currency_unit') || localStorage.getItem('vietcrm_currency_unit')) as CurrencyUnit;
     if (saved && ['RM', 'VND', 'USD'].includes(saved)) {
       return saved;
     }
