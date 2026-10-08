@@ -28,8 +28,11 @@ import { Permission } from './lib/permissions';
 const CustomerList = React.lazy(() =>
   import('./components/CustomerManagement/CustomerList').then((m) => ({ default: m.CustomerList }))
 );
-const CommerceManagementView = React.lazy(() =>
-  import('./components/CommerceManagement/CommerceManagementView').then((m) => ({ default: m.CommerceManagementView }))
+const OrderManagementView = React.lazy(() =>
+  import('./components/OrderManagement/OrderManagementView').then((m) => ({ default: m.OrderManagementView }))
+);
+const ProductManagementView = React.lazy(() =>
+  import('./components/ProductManagement/ProductManagementView').then((m) => ({ default: m.ProductManagementView }))
 );
 const SegmentationView = React.lazy(() =>
   import('./components/CustomerSegmentation/SegmentationView').then((m) => ({ default: m.SegmentationView }))
@@ -75,6 +78,7 @@ const getActiveTabFromPath = (pathname: string): ActiveTab => {
     'crm',
     'orders',
     'products',
+    'catalog',
     'segmentation',
     'automation',
     'reports',
@@ -96,7 +100,7 @@ export default function App() {
   const activeTab = useMemo(() => getActiveTabFromPath(location.pathname), [location.pathname]);
   const routeSegment = location.pathname.replace(/^\//, '').split('/')[0];
   const shouldLoadCustomers = ['crm', 'orders', 'segmentation', 'automation', 'reports', 'messages'].includes(routeSegment);
-  const shouldLoadProducts = routeSegment === 'orders';
+  const shouldLoadProducts = routeSegment === 'orders' || routeSegment === 'catalog' || routeSegment === 'products' || routeSegment === 'meta-verification';
   const shouldLoadCampaigns = routeSegment === 'automation' || routeSegment === 'reports';
   const shouldLoadReports = routeSegment === 'reports';
   const shouldLoadFullMessages = routeSegment === 'crm' || routeSegment === 'messages';
@@ -456,13 +460,21 @@ export default function App() {
             <Route
               path="/orders"
               element={
-                <CommerceManagementView
+                <OrderManagementView
                   customers={customers}
                   products={products}
                   onCreateOrder={handleCreateOrderCentral}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onDeleteOrder={handleDeleteOrder}
                   onImportOrders={handleImportOrders}
+                />
+              }
+            />
+            <Route
+              path="/catalog"
+              element={
+                <ProductManagementView
+                  products={products}
                   onAddProduct={handleAddProduct}
                   onEditProduct={handleEditProduct}
                   onDeleteProduct={handleDeleteProduct}
@@ -470,7 +482,7 @@ export default function App() {
                 />
               }
             />
-            <Route path="/products" element={<Navigate to="/orders?tab=products" replace />} />
+            <Route path="/products" element={<Navigate to="/catalog" replace />} />
             <Route
               path="/segmentation"
               element={
@@ -596,6 +608,11 @@ export default function App() {
               element={
                 hasPermission(Permission.ADMINISTRATOR) ? (
                   <MetaVerificationView
+                    products={products}
+                    onAddProduct={handleAddProduct}
+                    onEditProduct={handleEditProduct}
+                    onDeleteProduct={handleDeleteProduct}
+                    onImportProducts={handleImportProducts}
                     onNavigateLegal={(page) => { void navigate(`/${page === 'deletion' ? 'data-deletion' : page}`); }}
                   />
                 ) : (

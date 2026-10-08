@@ -32,6 +32,7 @@ interface ProductManagementViewProps {
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (productId: string) => void;
   onImportProducts?: (products: Product[]) => Promise<unknown> | void;
+  hideOverviewCards?: boolean;
 }
 
 const CATEGORIES = ['Tất cả danh mục', 'Mỹ Phẩm', 'Thực Phẩm Chức Năng', 'Thời Trang', 'Gia Dụng', 'Khác'];
@@ -93,6 +94,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   onEditProduct,
   onDeleteProduct,
   onImportProducts,
+  hideOverviewCards = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Tất cả danh mục');
@@ -174,9 +176,15 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
           catalogs: MetaCatalogOption[];
           currentCatalogId: string | null;
         }>('/catalog/list');
+        const availableCatalogs = response.catalogs || [];
         if (!isMounted) return;
-        setCatalogs(response.catalogs || []);
+        setCatalogs(availableCatalogs);
         setDefaultCatalogId(response.currentCatalogId || '');
+        const firstCatId = availableCatalogs[0]?.id || '';
+        if (firstCatId) {
+          setViewCatalogId(firstCatId);
+          void loadMetaCatalogProducts(firstCatId);
+        }
       } catch (error: any) {
         if (isMounted) {
           setSyncAlert({ type: 'error', message: error?.message || 'Không thể tải danh sách Meta Catalog.' });
@@ -318,7 +326,9 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
       || product.availability === metaAvailabilityFilter;
     return matchesSearch && matchesAvailability;
   });
-  const isMetaView = Boolean(viewCatalogId);
+
+  // Chế độ Catalog Meta luôn là giao diện chính
+  const isMetaView = true;
   const visibleMetaColumnCount = Object.values(visibleMetaColumns).filter(Boolean).length;
   const allVisibleMetaProductsSelected = filteredMetaProducts.length > 0
     && filteredMetaProducts.every((product) => selectedMetaProductIds.includes(product.id));
@@ -379,58 +389,58 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     <div className="space-y-6">
       
       {/* Top Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Tổng Mã Sản Phẩm</div>
-            <div className="text-2xl font-bold text-white mt-1">{totalProductsCount} SKUs</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Danh mục hàng hóa</div>
+      {!hideOverviewCards && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">Tổng Mã Sản Phẩm</div>
+              <div className="text-2xl font-bold text-white mt-1">{totalProductsCount} SKUs</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Danh mục hàng hóa</div>
+            </div>
+            <div className="p-3 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+              <Package className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 bg-indigo-600/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-            <Package className="w-6 h-6" />
+
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">Sẵn Hàng Trong Kho</div>
+              <div className="text-2xl font-bold text-emerald-400 mt-1">{inStockCount} sản phẩm</div>
+              <div className="text-[11px] text-emerald-400 mt-0.5">Sẵn sàng xuất đơn</div>
+            </div>
+            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+              <Boxes className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">Cảnh Báo Sắp Hết Kho</div>
+              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{lowStockCount} sản phẩm</div>
+              <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold mt-0.5">Cần bổ sung hàng gấp</div>
+            </div>
+            <div className="p-3 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-300 dark:border-rose-500/30">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400">Giá Trị Tồn Kho Nguồn</div>
+              <div className="text-2xl font-bold text-[#00793d] dark:text-emerald-400 mt-1">{formatVND(totalStockValue)}</div>
+              <div className="text-[11px] text-[#00793d] dark:text-emerald-400 font-semibold mt-0.5">Tổng trị giá hàng hóa</div>
+            </div>
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-500/20 text-[#00793d] dark:text-emerald-400 rounded-xl border border-emerald-300 dark:border-emerald-500/30">
+              <TrendingUp className="w-6 h-6" />
+            </div>
           </div>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Sẵn Hàng Trong Kho</div>
-            <div className="text-2xl font-bold text-emerald-400 mt-1">{inStockCount} sản phẩm</div>
-            <div className="text-[11px] text-emerald-400 mt-0.5">Sẵn sàng xuất đơn</div>
-          </div>
-          <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
-            <Boxes className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Cảnh Báo Sắp Hết Kho</div>
-            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{lowStockCount} sản phẩm</div>
-            <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold mt-0.5">Cần bổ sung hàng gấp</div>
-          </div>
-          <div className="p-3 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl border border-rose-300 dark:border-rose-500/30">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Giá Trị Tồn Kho Nguồn</div>
-            <div className="text-2xl font-bold text-[#00793d] dark:text-emerald-400 mt-1">{formatVND(totalStockValue)}</div>
-            <div className="text-[11px] text-[#00793d] dark:text-emerald-400 font-semibold mt-0.5">Tổng trị giá hàng hóa</div>
-          </div>
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-500/20 text-[#00793d] dark:text-emerald-400 rounded-xl border border-emerald-300 dark:border-emerald-500/30">
-            <TrendingUp className="w-6 h-6" />
-          </div>
-        </div>
-
-      </div>
+      )}
 
       {/* Product source selector: browsing a catalog does not change the default sync catalog. */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-sm font-bold text-white">Nguồn sản phẩm</div>
+          <div className="text-sm font-bold text-white">Danh mục Meta Catalog</div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:items-center">
           <select
@@ -449,12 +459,12 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
               if (nextCatalogId) void loadMetaCatalogProducts(nextCatalogId);
             }}
             className="min-w-64 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-            aria-label="Chọn nguồn sản phẩm hoặc Meta Catalog"
+            aria-label="Chọn Meta Catalog"
           >
-            <option value="">Sản phẩm CRM</option>
+            {catalogs.length === 0 && <option value="">Đang tải danh mục Catalog...</option>}
             {catalogs.map((catalog) => (
               <option key={catalog.id} value={catalog.id}>
-                {catalog.name}{catalog.id === defaultCatalogId ? ' (mặc định)' : ''}{typeof catalog.product_count === 'number' ? ` — ${catalog.product_count} SP` : ''}
+                {catalog.name}{typeof catalog.product_count === 'number' ? ` — ${catalog.product_count} SP` : ''}
               </option>
             ))}
           </select>
@@ -610,16 +620,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleImportMeta()}
-                disabled={isImportingMeta}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-                title="Kéo sản phẩm từ catalog đang xem về CRM"
-              >
-                <ArrowDownToLine className={`h-4 w-4 ${isImportingMeta ? 'animate-bounce' : ''}`} />
-                Import to CRM
-              </button>
               <div ref={metaColumnsMenuRef} className="relative">
               <button
                 type="button"
@@ -657,9 +657,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
               <h3 className="text-sm font-bold text-slate-900">{metaCatalogName || 'Meta Catalog'}</h3>
               <p className="text-[11px] text-slate-500">{filteredMetaProducts.length} items loaded</p>
             </div>
-            {viewCatalogId === defaultCatalogId && (
-              <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700">Default catalog</span>
-            )}
           </div>
 
           {metaProductsError && (

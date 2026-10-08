@@ -12,6 +12,7 @@ import {
   KeyRound,
   Link2,
   Sparkles,
+  Package,
 } from 'lucide-react';
 import type { AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
@@ -179,8 +180,8 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'orders' as ActiveTab,
-      label: 'Bán Hàng',
-      subtitle: 'Đơn hàng & Sản phẩm',
+      label: 'Đơn Hàng',
+      subtitle: 'Quản lý đơn hàng & Bán hàng',
       icon: ShoppingBag,
       permission: Permission.ORDERS_VIEW,
     },
@@ -215,8 +216,8 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'meta-verification' as ActiveTab,
-      label: 'Kết nối Meta',
-      subtitle: 'Quản lý số WhatsApp',
+      label: 'Meta',
+      subtitle: 'Kết nối WABA & Catalog',
       icon: Link2,
       permission: Permission.ADMINISTRATOR,
     },
