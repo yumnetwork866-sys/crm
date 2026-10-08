@@ -33,6 +33,7 @@ interface ProductManagementViewProps {
   onDeleteProduct: (productId: string) => void;
   onImportProducts?: (products: Product[]) => Promise<unknown> | void;
   hideOverviewCards?: boolean;
+  mode?: 'products' | 'meta-catalog';
 }
 
 const CATEGORIES = ['Tất cả danh mục', 'Mỹ Phẩm', 'Thực Phẩm Chức Năng', 'Thời Trang', 'Gia Dụng', 'Khác'];
@@ -95,6 +96,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   onDeleteProduct,
   onImportProducts,
   hideOverviewCards = false,
+  mode = 'products',
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Tất cả danh mục');
@@ -168,6 +170,10 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   };
 
   useEffect(() => {
+    if (mode !== 'meta-catalog') {
+      setIsLoadingCatalogs(false);
+      return;
+    }
     let isMounted = true;
     const loadCatalogs = async () => {
       setIsLoadingCatalogs(true);
@@ -327,8 +333,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     return matchesSearch && matchesAvailability;
   });
 
-  // Chế độ Catalog Meta luôn là giao diện chính
-  const isMetaView = true;
+  // Chế độ Catalog Meta chỉ bật khi mode === 'meta-catalog'
+  const isMetaView = mode === 'meta-catalog';
   const visibleMetaColumnCount = Object.values(visibleMetaColumns).filter(Boolean).length;
   const allVisibleMetaProductsSelected = filteredMetaProducts.length > 0
     && filteredMetaProducts.every((product) => selectedMetaProductIds.includes(product.id));
@@ -437,109 +443,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
         </div>
       )}
 
-      {/* Product source selector: browsing a catalog does not change the default sync catalog. */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="text-sm font-bold text-white">Danh mục Meta Catalog</div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:items-center">
-          <select
-            value={viewCatalogId}
-            disabled={isLoadingCatalogs}
-            onChange={(event) => {
-              const nextCatalogId = event.target.value;
-              setViewCatalogId(nextCatalogId);
-              setSearchTerm('');
-              setSelectedProductIds([]);
-              setSelectedMetaProductIds([]);
-              setMetaProducts([]);
-              setMetaNextCursor(null);
-              setMetaHasNextPage(false);
-              setMetaProductsError(null);
-              if (nextCatalogId) void loadMetaCatalogProducts(nextCatalogId);
-            }}
-            className="min-w-64 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-            aria-label="Chọn Meta Catalog"
-          >
-            {catalogs.length === 0 && <option value="">Đang tải danh mục Catalog...</option>}
-            {catalogs.map((catalog) => (
-              <option key={catalog.id} value={catalog.id}>
-                {catalog.name}{typeof catalog.product_count === 'number' ? ` — ${catalog.product_count} SP` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Control Bar */}
-      <div className={`${isMetaView ? 'hidden' : ''} bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4`}>
-        
-        {/* Search Input */}
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={isMetaView ? 'Tìm tên hoặc Content ID trong trang đã tải...' : 'Tìm theo tên SP, Mã SP, SKU...'}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-
-        {/* Filters & Add button */}
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          
-          {!isMetaView && <div className="flex items-center space-x-1.5 text-xs text-slate-400">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Danh mục:</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>}
-
-          {!isMetaView && <div className="flex items-center space-x-1.5 text-xs text-slate-400">
-            <span>Tồn kho:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="In Stock">Sẵn Hàng (In Stock)</option>
-              <option value="Low Stock">Sắp Hết (Low Stock)</option>
-              <option value="Out of Stock">Hết Hàng (Out of Stock)</option>
-            </select>
-          </div>}
-
-          {!isMetaView && <button
-            onClick={() => setIsImportCsvOpen(true)}
-            className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
-            title="Nhập danh sách sản phẩm hàng loạt bằng file CSV"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Nhập CSV</span>
-          </button>}
-
-          {!isMetaView && <button
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer ml-auto md:ml-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Sản Phẩm</span>
-          </button>}
-
-        </div>
-
-      </div>
-
       {syncAlert && (
         <div className={`p-4 rounded-2xl text-xs font-semibold border flex items-center justify-between gap-3 ${
           syncAlert.type === 'success'
@@ -564,6 +467,33 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
         <div className="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-200 p-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
+              {/* Dropdown chọn Catalog */}
+              <select
+                value={viewCatalogId}
+                disabled={isLoadingCatalogs}
+                onChange={(event) => {
+                  const nextCatalogId = event.target.value;
+                  setViewCatalogId(nextCatalogId);
+                  setSearchTerm('');
+                  setSelectedProductIds([]);
+                  setSelectedMetaProductIds([]);
+                  setMetaProducts([]);
+                  setMetaNextCursor(null);
+                  setMetaHasNextPage(false);
+                  setMetaProductsError(null);
+                  if (nextCatalogId) void loadMetaCatalogProducts(nextCatalogId);
+                }}
+                className="h-9 min-w-56 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-none disabled:opacity-50 cursor-pointer"
+                aria-label="Chọn Meta Catalog"
+              >
+                {catalogs.length === 0 && <option value="">Đang tải danh mục Catalog...</option>}
+                {catalogs.map((catalog) => (
+                  <option key={catalog.id} value={catalog.id}>
+                    {catalog.name}{typeof catalog.product_count === 'number' ? ` — ${catalog.product_count} SP` : ''}
+                  </option>
+                ))}
+              </select>
+
               <a
                 href={`https://business.facebook.com/commerce/catalogs/${encodeURIComponent(viewCatalogId)}/products`}
                 target="_blank"

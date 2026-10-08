@@ -28,8 +28,8 @@ import { Permission } from './lib/permissions';
 const CustomerList = React.lazy(() =>
   import('./components/CustomerManagement/CustomerList').then((m) => ({ default: m.CustomerList }))
 );
-const OrderManagementView = React.lazy(() =>
-  import('./components/OrderManagement/OrderManagementView').then((m) => ({ default: m.OrderManagementView }))
+const CommerceManagementView = React.lazy(() =>
+  import('./components/CommerceManagement/CommerceManagementView').then((m) => ({ default: m.CommerceManagementView }))
 );
 const ProductManagementView = React.lazy(() =>
   import('./components/ProductManagement/ProductManagementView').then((m) => ({ default: m.ProductManagementView }))
@@ -460,13 +460,17 @@ export default function App() {
             <Route
               path="/orders"
               element={
-                <OrderManagementView
+                <CommerceManagementView
                   customers={customers}
                   products={products}
                   onCreateOrder={handleCreateOrderCentral}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onDeleteOrder={handleDeleteOrder}
                   onImportOrders={handleImportOrders}
+                  onAddProduct={handleAddProduct}
+                  onEditProduct={handleEditProduct}
+                  onDeleteProduct={handleDeleteProduct}
+                  onImportProducts={handleImportProducts}
                 />
               }
             />
@@ -482,7 +486,7 @@ export default function App() {
                 />
               }
             />
-            <Route path="/products" element={<Navigate to="/catalog" replace />} />
+            <Route path="/products" element={<Navigate to="/orders?tab=products" replace />} />
             <Route
               path="/segmentation"
               element={

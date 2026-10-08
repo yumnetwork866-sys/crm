@@ -180,8 +180,8 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'orders' as ActiveTab,
-      label: 'Đơn Hàng',
-      subtitle: 'Quản lý đơn hàng & Bán hàng',
+      label: 'Bán Hàng',
+      subtitle: 'Đơn hàng & Sản phẩm',
       icon: ShoppingBag,
       permission: Permission.ORDERS_VIEW,
     },

@@ -767,6 +767,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({
         onDeleteProduct={onDeleteProduct}
         onImportProducts={onImportProducts}
         hideOverviewCards={true}
+        mode="meta-catalog"
       />
     </div>
   )}
