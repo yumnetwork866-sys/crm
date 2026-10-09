@@ -9,6 +9,8 @@ export const queryKeys = {
   centralMessages: (phoneNumberId: string) => ['central-messages', phoneNumberId] as const,
   messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
   messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,
+  metaCatalogs: (scopeId: string) => ['meta-catalogs', scopeId] as const,
+  metaCatalogProducts: (scopeId: string, catalogId: string) => ['meta-catalog-products', scopeId, catalogId] as const,
   marketingReports: ['marketing-reports'] as const,
 };
 

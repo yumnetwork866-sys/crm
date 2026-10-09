@@ -21,9 +21,12 @@ router.use(authenticateToken);
 router.get(
   '/list',
   requirePermission(Permission.PRODUCTS_VIEW),
-  async (_req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const result = await fetchMetaCatalogs();
+      const phoneNumberId = typeof req.query.phoneNumberId === 'string'
+        ? req.query.phoneNumberId.trim()
+        : undefined;
+      const result = await fetchMetaCatalogs(phoneNumberId);
       return res.json({
         success: true,
         ...result,
@@ -51,7 +54,10 @@ router.get(
       const after = typeof req.query.after === 'string' ? req.query.after : undefined;
       const requestedLimit = Number(req.query.limit);
       const limit = Number.isFinite(requestedLimit) ? requestedLimit : 50;
-      const result = await fetchMetaCatalogProducts(catalogId, { limit, after });
+      const phoneNumberId = typeof req.query.phoneNumberId === 'string'
+        ? req.query.phoneNumberId.trim()
+        : undefined;
+      const result = await fetchMetaCatalogProducts(catalogId, { limit, after }, phoneNumberId);
       return res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('[API CATALOG] Lỗi khi lấy sản phẩm catalog:', error?.message || error);

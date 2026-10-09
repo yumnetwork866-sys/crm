@@ -4,6 +4,7 @@ export type ActiveMessageFilter = 'all' | 'unread' | 'vip' | 'repeat' | 'new';
 
 export interface BusinessPhoneNumber {
   id: string;
+  wabaId?: string;
   verifiedName: string;
   displayPhoneNumber: string;
   profilePictureUrl?: string;

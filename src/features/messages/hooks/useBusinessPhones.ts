@@ -25,6 +25,7 @@ export function useBusinessPhones(enabled = true) {
         if (!payload.success || !isMounted) return;
         const phones: BusinessPhoneNumber[] = (payload.phoneNumbers || []).map((phone) => ({
           id: phone.id,
+          wabaId: phone.wabaId,
           verifiedName: phone.verifiedName || 'WhatsApp Business',
           displayPhoneNumber: phone.displayPhoneNumber || phone.id,
           profilePictureUrl: phone.profilePictureUrl,

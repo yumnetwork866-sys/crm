@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   X,
   Search,
@@ -11,6 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { api } from '../../../utils/apiClient';
+import { queryKeys } from '../../../lib/queryClient';
 
 export interface MetaCatalogProduct {
   id: string;
@@ -33,6 +35,8 @@ interface MetaCatalogOption {
 
 interface ProductPickerModalProps {
   isOpen: boolean;
+  phoneNumberId: string;
+  catalogScopeId: string;
   onClose: () => void;
   onSendProduct: (product: MetaCatalogProduct, catalogId: string, customText: string) => void;
 }
@@ -48,77 +52,70 @@ function formatProductPrice(price?: string | number, currency?: string): string 
 
 export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
   isOpen,
+  phoneNumberId,
+  catalogScopeId,
   onClose,
   onSendProduct,
 }) => {
-  const [catalogs, setCatalogs] = useState<MetaCatalogOption[]>([]);
   const [selectedCatalogId, setSelectedCatalogId] = useState('');
-  const [products, setProducts] = useState<MetaCatalogProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<MetaCatalogProduct | null>(null);
   const [customMessage, setCustomMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(false);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Load catalogs on open
+  const catalogsQuery = useQuery({
+    queryKey: queryKeys.metaCatalogs(catalogScopeId),
+    queryFn: () => api.get<{ catalogs: MetaCatalogOption[]; currentCatalogId: string | null }>(
+      `/catalog/list?phoneNumberId=${encodeURIComponent(phoneNumberId)}`,
+    ),
+    enabled: Boolean(phoneNumberId && catalogScopeId),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  const catalogs = catalogsQuery.data?.catalogs || [];
+
   useEffect(() => {
-    if (!isOpen) return;
-    let isMounted = true;
-    const fetchCatalogs = async () => {
-      setIsLoadingCatalogs(true);
-      setError(null);
-      try {
-        const res = await api.get<{ catalogs: MetaCatalogOption[]; currentCatalogId: string | null }>('/catalog/list');
-        if (!isMounted) return;
-        const list = res.catalogs || [];
-        setCatalogs(list);
-        const defaultId = res.currentCatalogId || list[0]?.id || '';
-        setSelectedCatalogId(defaultId);
-        if (defaultId) {
-          void loadProducts(defaultId);
-        }
-      } catch (err: any) {
-        if (isMounted) setError(err?.message || 'Không thể tải danh sách catalog.');
-      } finally {
-        if (isMounted) setIsLoadingCatalogs(false);
-      }
-    };
+    const defaultId = catalogsQuery.data?.currentCatalogId || catalogs[0]?.id || '';
+    setSelectedCatalogId((current) => catalogs.some((catalog) => catalog.id === current) ? current : defaultId);
+  }, [catalogs, catalogsQuery.data?.currentCatalogId]);
 
-    void fetchCatalogs();
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen]);
+  const productsQuery = useQuery({
+    queryKey: queryKeys.metaCatalogProducts(catalogScopeId, selectedCatalogId),
+    queryFn: () => api.get<{ products: MetaCatalogProduct[] }>(
+      `/catalog/${encodeURIComponent(selectedCatalogId)}/products?limit=50&phoneNumberId=${encodeURIComponent(phoneNumberId)}`,
+    ),
+    enabled: Boolean(phoneNumberId && catalogScopeId && selectedCatalogId),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  const products = productsQuery.data?.products || [];
+  const isLoadingCatalogs = catalogsQuery.isPending && Boolean(phoneNumberId);
+  const isLoadingProducts = productsQuery.isPending && Boolean(selectedCatalogId);
+  const error = catalogsQuery.error?.message || productsQuery.error?.message || null;
 
-  const loadProducts = async (catalogId: string) => {
-    if (!catalogId) return;
-    setIsLoadingProducts(true);
-    setError(null);
+  useEffect(() => {
     setSelectedProduct(null);
-    try {
-      const res = await api.get<{ products: MetaCatalogProduct[] }>(
-        `/catalog/${encodeURIComponent(catalogId)}/products?limit=50`
-      );
-      setProducts(res.products || []);
-    } catch (err: any) {
-      setError(err?.message || 'Không thể tải sản phẩm của catalog.');
-      setProducts([]);
-    } finally {
-      setIsLoadingProducts(false);
-    }
-  };
+    setSearchTerm('');
+  }, [catalogScopeId, selectedCatalogId]);
 
   const handleCatalogChange = (catId: string) => {
     setSelectedCatalogId(catId);
     setSearchTerm('');
-    void loadProducts(catId);
+  };
+
+  const handleClose = () => {
+    setCustomMessage('');
+    setSelectedProduct(null);
+    onClose();
   };
 
   const handleSend = () => {
     if (!selectedProduct || !selectedCatalogId) return;
     onSendProduct(selectedProduct, selectedCatalogId, customMessage);
-    onClose();
+    handleClose();
   };
 
   if (!isOpen) return null;
@@ -134,7 +131,12 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) handleClose();
+      }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
@@ -144,12 +146,11 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">Gửi Sản Phẩm Từ Meta Catalog</h3>
-              <p className="text-[11px] text-slate-500">Tin nhắn dạng thẻ sản phẩm tương tác (Single Product Message)</p>
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -159,13 +160,15 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
         {/* Toolbar: Catalog Selector + Search */}
         <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-3">
           <div className="sm:w-1/2">
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Chọn Catalog:</label>
             <select
               value={selectedCatalogId}
               disabled={isLoadingCatalogs}
               onChange={(e) => handleCatalogChange(e.target.value)}
               className="w-full text-xs font-semibold px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-indigo-500 cursor-pointer disabled:opacity-50"
             >
+              {catalogs.length === 0 && (
+                <option value="">Không có catalog liên kết với số này</option>
+              )}
               {catalogs.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} {typeof c.product_count === 'number' ? `(${c.product_count} SP)` : ''}
@@ -175,7 +178,6 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
           </div>
 
           <div className="sm:w-1/2">
-            <label className="block text-[11px] font-bold text-slate-600 mb-1">Tìm kiếm sản phẩm:</label>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input
@@ -198,7 +200,7 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
             </div>
           )}
 
-          {isLoadingProducts ? (
+          {isLoadingCatalogs || isLoadingProducts ? (
             <div className="py-16 flex flex-col items-center justify-center text-slate-400 text-xs gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
               <span>Đang tải danh sách sản phẩm từ Meta...</span>
@@ -206,7 +208,11 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
           ) : filteredProducts.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-xs">
               <Package className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <span>Không tìm thấy sản phẩm nào trong catalog này.</span>
+              <span>
+                {selectedCatalogId
+                  ? 'Không tìm thấy sản phẩm nào trong catalog này.'
+                  : 'Số WhatsApp này chưa được liên kết với Meta Catalog.'}
+              </span>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -215,7 +221,7 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
                 return (
                   <div
                     key={p.id}
-                    onClick={() => setSelectedProduct(p)}
+                    onClick={() => setSelectedProduct((current) => current?.id === p.id ? null : p)}
                     className={`p-3 rounded-xl border transition cursor-pointer flex gap-3 relative ${
                       isSelected
                         ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20 shadow-xs'
@@ -252,37 +258,14 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
           )}
         </div>
 
-        {/* Selected Product Summary & Custom Message Input */}
-        <div className="p-4 border-t border-slate-100 bg-white space-y-3">
-          {selectedProduct ? (
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md shrink-0">
-                  Đã chọn
-                </span>
-                <span className="text-xs font-bold text-slate-800 truncate">{selectedProduct.name}</span>
-                <span className="text-xs font-bold text-emerald-600 shrink-0">
-                  {formatProductPrice(selectedProduct.price, selectedProduct.currency)}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedProduct(null)}
-                className="text-xs font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                Bỏ chọn
-              </button>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 italic">Vui lòng nhấp chọn 1 sản phẩm ở bảng trên để gửi.</p>
-          )}
-
+        {/* Custom Message Input */}
+        <div className="p-4 border-t border-slate-100 bg-white">
           <div className="flex items-center gap-2">
             <input
               type="text"
               value={customMessage}
               onChange={(e) => setCustomMessage(e.target.value)}
-              placeholder="Lời nhắn kèm sản phẩm (ví dụ: Sản phẩm này đang có sẵn hàng bạn nhé!)..."
+              placeholder="Lời nhắn đi kèm..."
               className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-emerald-500"
             />
             <button
@@ -292,7 +275,7 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md shadow-emerald-600/20 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Gửi thẻ SP</span>
+              <span>Gửi</span>
             </button>
           </div>
         </div>

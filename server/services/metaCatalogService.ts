@@ -1,5 +1,9 @@
 import { prisma } from '../lib/prisma';
-import { getIntegrationSetting, getMetaAccessToken } from './metaApiClient';
+import {
+  getIntegrationSetting,
+  getMetaAccessToken,
+  getMetaAccessTokenForPhone,
+} from './metaApiClient';
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -63,6 +67,31 @@ function normalizeCatalogId(catalogId: string): string {
   return normalizedId;
 }
 
+async function getAcceptedCatalogIdsForPhone(phoneNumberId: string): Promise<string[]> {
+  const messages = await prisma.whatsAppMessage.findMany({
+    where: {
+      businessPhoneNumberId: phoneNumberId,
+      isRealSent: true,
+      content: { contains: '[product:' },
+    },
+    select: { content: true },
+    orderBy: { timestamp: 'desc' },
+    take: 500,
+  });
+  const catalogIds = new Set<string>();
+  messages.forEach(({ content }) => {
+    const match = content.match(/\[product:(\{.*?\})\]/s);
+    if (!match) return;
+    try {
+      const catalogId = String(JSON.parse(match[1])?.catalog_id || '').trim();
+      if (/^\d+$/.test(catalogId)) catalogIds.add(catalogId);
+    } catch {
+      // Ignore malformed historical product tags.
+    }
+  });
+  return Array.from(catalogIds);
+}
+
 /**
  * Fetch a cursor-paginated page of products from a specific catalog.
  * Merely viewing another catalog must not change the configured default catalog.
@@ -70,14 +99,22 @@ function normalizeCatalogId(catalogId: string): string {
 export async function fetchMetaCatalogProducts(
   catalogId: string,
   options: { limit?: number; after?: string } = {},
+  phoneNumberId?: string,
 ): Promise<MetaCatalogProductsPage> {
   const setting = await getIntegrationSetting();
-  const token = await getMetaAccessToken(setting);
+  const token = await getMetaAccessToken(setting)
+    || (phoneNumberId ? await getMetaAccessTokenForPhone(phoneNumberId, setting) : '');
   if (!token) {
     throw new Error('Chưa cấu hình META_ACCESS_TOKEN hoặc kết nối Meta.');
   }
 
   const normalizedCatalogId = normalizeCatalogId(catalogId);
+  if (phoneNumberId) {
+    const { catalogs } = await fetchMetaCatalogs(phoneNumberId);
+    if (!catalogs.some((catalog) => catalog.id === normalizedCatalogId)) {
+      throw new Error('Catalog này không thuộc số WhatsApp Business đang chọn.');
+    }
+  }
   const limit = Math.min(Math.max(Math.trunc(options.limit || 50), 1), 100);
   const fields = [
     'id',
@@ -169,17 +206,77 @@ export async function fetchMetaCatalogProducts(
 /**
  * Fetch all Catalogs accessible by the business account or system user
  */
-export async function fetchMetaCatalogs(): Promise<{
+export async function fetchMetaCatalogs(phoneNumberId?: string): Promise<{
   catalogs: MetaCatalogInfo[];
   currentCatalogId: string | null;
 }> {
   const setting = await getIntegrationSetting();
-  const token = await getMetaAccessToken(setting);
+  const normalizedPhoneId = phoneNumberId?.trim();
+  const token = normalizedPhoneId
+    ? await getMetaAccessTokenForPhone(normalizedPhoneId, setting)
+    : await getMetaAccessToken(setting);
   if (!token) {
     throw new Error('Chưa cấu hình META_ACCESS_TOKEN hoặc kết nối Meta.');
   }
 
   const catalogs: MetaCatalogInfo[] = [];
+  if (normalizedPhoneId) {
+    const connection = await prisma.whatsAppConnection.findUnique({
+      where: { phoneNumberId: normalizedPhoneId },
+      select: { wabaId: true },
+    });
+    if (!connection) {
+      throw new Error('Không tìm thấy kết nối cho số WhatsApp Business đang chọn.');
+    }
+
+    const response = await fetch(
+      `${GRAPH_BASE_URL}/${connection.wabaId}/product_catalogs?fields=id,name,vertical,product_count,feed_count&limit=50`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    const data: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error?.message || 'Không thể lấy catalog của số WhatsApp Business đang chọn.');
+    }
+    if (Array.isArray(data?.data)) {
+      data.data.forEach((catalog: MetaCatalogInfo) => {
+        if (catalog?.id && !catalogs.some((item) => item.id === catalog.id)) catalogs.push(catalog);
+      });
+    }
+
+    // Some WhatsApp tokens can send an interactive product message but cannot
+    // read Commerce catalog objects. Preserve per-number isolation by learning
+    // catalog IDs only from product messages Meta previously accepted for this phone.
+    const acceptedCatalogIds = await getAcceptedCatalogIdsForPhone(normalizedPhoneId);
+    const catalogReadToken = await getMetaAccessToken(setting) || token;
+    for (const catalogId of acceptedCatalogIds) {
+      if (catalogs.some((catalog) => catalog.id === catalogId)) continue;
+      const catalogResponse = await fetch(
+        `${GRAPH_BASE_URL}/${catalogId}?fields=id,name,vertical,product_count,feed_count`,
+        {
+          headers: {
+            Authorization: `Bearer ${catalogReadToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      const catalog = await catalogResponse.json().catch(() => ({}));
+      if (catalogResponse.ok && catalog?.id) catalogs.push(catalog as MetaCatalogInfo);
+    }
+
+    const configuredCatalogId = setting.metaCatalogId || process.env.META_CATALOG_ID?.trim() || null;
+    return {
+      catalogs,
+      currentCatalogId: catalogs.some((catalog) => catalog.id === configuredCatalogId)
+        ? configuredCatalogId
+        : catalogs[0]?.id || null,
+    };
+  }
+
   const businessId = setting.metaBusinessId || process.env.META_BUSINESS_ID?.trim();
 
   // 1. Primary for System User: Query /me/assigned_product_catalogs

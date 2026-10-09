@@ -2060,6 +2060,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       {/* Meta Catalog Product Picker Modal */}
       <ProductPickerModal
         isOpen={isProductPickerOpen}
+        phoneNumberId={selectedPhoneId}
+        catalogScopeId={businessPhones.find((phone) => phone.id === selectedPhoneId)?.wabaId || selectedPhoneId}
         onClose={() => setIsProductPickerOpen(false)}
         onSendProduct={(product, catalogId, customText) => {
           if (!activeThread) return;
