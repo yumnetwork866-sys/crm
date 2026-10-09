@@ -597,9 +597,9 @@ export async function dispatchMetaMessage(options: {
         text: { body: caption ? `[Tin nhắn thoại] ${caption}` : '🎙️ [Tin nhắn thoại gửi từ CRM]' }
       };
     }
-  } else if (content.startsWith('[product:')) {
+  } else if (/^\[product(?::\s*|\s*)\{/i.test(content)) {
     // Single Product Message: [product:{"catalog_id":"...","product_retailer_id":"...","name":"...","price":"...","image":"..."}]\nOptional body text
-    const match = content.match(/^\[product:(\{.*?\})\]\n?([\s\S]*)$/);
+    const match = content.match(/^\[product(?::\s*|\s*)(\{.*?\})\]\n?([\s\S]*)$/i);
     if (match) {
       try {
         const productData = JSON.parse(match[1]);
@@ -629,9 +629,9 @@ export async function dispatchMetaMessage(options: {
         };
       }
     }
-  } else if (content.startsWith('[product_list:')) {
+  } else if (/^\[product_list(?::\s*|\s*)\{/i.test(content)) {
     // Multi-Product Message: [product_list:{"catalog_id":"...","header":"...","title":"...","sections":[...]}]\nOptional body text
-    const match = content.match(/^\[product_list:(\{.*?\})\]\n?([\s\S]*)$/);
+    const match = content.match(/^\[product_list(?::\s*|\s*)(\{.*?\})\]\n?([\s\S]*)$/i);
     if (match) {
       try {
         const listData = JSON.parse(match[1]);

@@ -127,17 +127,20 @@ export function formatMessagePreview(rawContent: string | null | undefined): str
   // 2. Product message
   if (isProductContent(clean)) {
     const prod = extractProductInfo(clean);
-    const prodName = prod.name && prod.name !== 'Sản phẩm Catalog' && prod.name !== 'Danh mục sản phẩm'
-      ? prod.name
-      : (prod.name || 'Sản phẩm');
-    if (prodName) {
-      return prod.caption ? `🛍️ [Sản phẩm] ${prodName}: ${prod.caption}` : `🛍️ [Sản phẩm] ${prodName}`;
+    const hasSpecificName = Boolean(
+      prod.name &&
+      prod.name !== 'Sản phẩm Catalog' &&
+      prod.name !== 'Sản phẩm' &&
+      prod.name !== 'Danh mục sản phẩm'
+    );
+    if (hasSpecificName) {
+      return prod.caption ? `[Sản phẩm] ${prod.name}: ${prod.caption}` : `[Sản phẩm] ${prod.name}`;
     }
-    return prod.caption ? `🛍️ [Sản phẩm] ${prod.caption}` : '🛍️ [Sản phẩm]';
+    return prod.caption ? `[Sản phẩm] ${prod.caption}` : '[Sản phẩm]';
   }
 
   if (/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(clean)) {
-    return '🛍️ [Sản phẩm]';
+    return '[Sản phẩm]';
   }
 
   // 3. Image message

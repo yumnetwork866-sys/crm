@@ -3,8 +3,11 @@ import {
   extractAudioInfo,
   extractDocumentInfo,
   extractImageInfo,
+  extractProductInfo,
+  formatMessagePreview,
   isAudioContent,
   isDocumentContent,
+  isProductContent,
   parseMessageContent,
 } from './messageContent';
 
@@ -122,6 +125,100 @@ describe('messageContent utility', () => {
       const parsed = parseMessageContent(raw);
       expect(parsed.replyTo).toEqual(replyData);
       expect(parsed.cleanContent).toBe('Chào bạn!');
+    });
+  });
+
+  describe('isProductContent and extractProductInfo', () => {
+    it('detects product with colon [product:...]', () => {
+      const raw = '[product:{"catalog_id":"cat_1","product_retailer_id":"p_1","name":"Trà Shan Tuyết","price":200000,"currency":"VND"}]';
+      expect(isProductContent(raw)).toBe(true);
+
+      const info = extractProductInfo(raw);
+      expect(info.isProduct).toBe(true);
+      expect(info.catalogId).toBe('cat_1');
+      expect(info.retailerId).toBe('p_1');
+      expect(info.name).toBe('Trà Shan Tuyết');
+      expect(info.price).toBe(200000);
+      expect(info.caption).toBeNull();
+    });
+
+    it('detects product without colon [product{...]', () => {
+      const raw = '[product{"catalog_id":"cat_1","product_retailer_id":"p_1","name":"Cà phê Arabica"}]\nXin chào';
+      expect(isProductContent(raw)).toBe(true);
+
+      const info = extractProductInfo(raw);
+      expect(info.isProduct).toBe(true);
+      expect(info.name).toBe('Cà phê Arabica');
+      expect(info.caption).toBe('Xin chào');
+    });
+
+    it('detects product inside reply quote', () => {
+      const replyData = { id: '1', senderName: 'Khách', content: 'Hỏi giá' };
+      const raw = `[reply:${JSON.stringify(replyData)}]\n[product:{"catalog_id":"cat_1","name":"Trà Ô Long"}]`;
+      expect(isProductContent(raw)).toBe(true);
+
+      const info = extractProductInfo(raw);
+      expect(info.isProduct).toBe(true);
+      expect(info.name).toBe('Trà Ô Long');
+    });
+
+    it('handles malformed product tags gracefully', () => {
+      const raw = '[product{"catalog_id":"cat_1","name":"Bột Cacao"';
+      expect(isProductContent(raw)).toBe(true);
+
+      const info = extractProductInfo(raw);
+      expect(info.isProduct).toBe(true);
+      expect(info.name).toBe('Bột Cacao');
+    });
+  });
+
+  describe('formatMessagePreview', () => {
+    it('formats single product message without showing raw [product{"catalog_id".. JSON', () => {
+      const raw = '[product:{"catalog_id":"cat_999","product_retailer_id":"sku_123","name":"Trà Ô Long Cao Cấp","price":250000,"currency":"VND"}]';
+      const preview = formatMessagePreview(raw);
+      expect(preview).toBe('[Sản phẩm] Trà Ô Long Cao Cấp');
+      expect(preview).not.toContain('catalog_id');
+      expect(preview).not.toContain('[product');
+    });
+
+    it('formats single product with custom text / caption', () => {
+      const raw = '[product:{"catalog_id":"cat_999","name":"Trà Ô Long"}]\nDạ shop gửi bạn thông tin sản phẩm ạ';
+      const preview = formatMessagePreview(raw);
+      expect(preview).toBe('[Sản phẩm] Trà Ô Long: Dạ shop gửi bạn thông tin sản phẩm ạ');
+      expect(preview).not.toContain('catalog_id');
+    });
+
+    it('formats product without colon [product{"catalog_id"..', () => {
+      const raw = '[product{"catalog_id":"cat_888","product_retailer_id":"sku_456","name":"Cà phê Robusta"}]';
+      const preview = formatMessagePreview(raw);
+      expect(preview).toBe('[Sản phẩm] Cà phê Robusta');
+      expect(preview).not.toContain('catalog_id');
+    });
+
+    it('formats malformed product tag without leaking raw code', () => {
+      const raw = '[product{"catalog_id":"cat_777", broken json...';
+      const preview = formatMessagePreview(raw);
+      expect(preview).toBe('[Sản phẩm]');
+      expect(preview).not.toContain('catalog_id');
+    });
+
+    it('formats product message wrapped in a reply tag', () => {
+      const replyData = { id: 'm1', senderName: 'Alice', content: 'Có mẫu này không?' };
+      const raw = `[reply:${JSON.stringify(replyData)}]\n[product:{"catalog_id":"cat_1","name":"Váy dạ hội"}]`;
+      const preview = formatMessagePreview(raw);
+      expect(preview).toBe('[Sản phẩm] Váy dạ hội');
+      expect(preview).not.toContain('[reply:');
+    });
+
+    it('formats image, audio, and document previews', () => {
+      expect(formatMessagePreview('data:image/png;base64,abc\nẢnh mẫu')).toBe('📷 Ảnh mẫu');
+      expect(formatMessagePreview('/uploads/test.jpg')).toBe('📷 [Hình ảnh]');
+      expect(formatMessagePreview('data:audio/webm;base64,xyz')).toBe('🎙️ [Tin nhắn thoại]');
+      expect(formatMessagePreview('[document:{"filename":"BaoGia.pdf"}]')).toBe('📄 [Tài liệu] BaoGia.pdf');
+    });
+
+    it('formats regular plain text flattening newlines', () => {
+      expect(formatMessagePreview('Xin chào\nShop có ưu đãi gì không?')).toBe('Xin chào Shop có ưu đãi gì không?');
     });
   });
 });

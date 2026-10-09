@@ -7,6 +7,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getUserRoleTextStyle } from '../../utils/roleColors';
 import { renderFormattedMessage, extractFirstUrl } from '../../utils/formatMessageText';
 import { LinkPreviewCard } from '../../features/messages/components/LinkPreviewCard';
+import { ProductMessageCard } from '../../features/messages/components/ProductMessageCard';
+import { extractProductInfo, isProductContent } from '../../features/messages/utils/messageContent';
 
 interface CustomerChatModalProps {
   isOpen: boolean;
@@ -157,9 +159,22 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                     {extractFirstUrl(msg.content) && (
                       <LinkPreviewCard url={extractFirstUrl(msg.content)!} />
                     )}
-                    <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-900">
-                      {renderFormattedMessage(msg.content)}
-                    </p>
+                    {isProductContent(msg.content) ? (
+                      <div className="pt-0.5">
+                        <ProductMessageCard
+                          productInfo={extractProductInfo(msg.content)}
+                          timeFormatted={msg.time}
+                          isAgent={msg.isAgent}
+                          status={msg.status}
+                          isRealSent={msg.isRealSent}
+                          errorMessage={msg.errorMessage}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-900">
+                        {renderFormattedMessage(msg.content)}
+                      </p>
+                    )}
                     {msg.isAgent && (
                       <div className="flex items-center justify-end space-x-1 text-[10px] text-[#00793d] pt-0.5">
                         <MessageDeliveryStatusIcon

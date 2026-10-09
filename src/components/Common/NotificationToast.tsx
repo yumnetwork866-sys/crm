@@ -17,13 +17,22 @@ interface NotificationToastProps {
 const DISPLAY_DURATION_MS = 7000;
 
 function parseToastMessageSnippet(content: string): {
-  type: 'text' | 'image' | 'audio' | 'document';
+  type: 'text' | 'image' | 'audio' | 'document' | 'product';
   text: string;
 } {
   if (!content) return { type: 'text', text: 'Tin nhắn mới' };
 
   // Strip reply quote header if present
   const clean = content.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+
+  if (isProductContent(clean) || /^\[product(?:_list)?(?::\s*|\s*)\{/i.test(clean)) {
+    const prod = extractProductInfo(clean);
+    const prodName = prod.name && prod.name !== 'Sản phẩm Catalog' ? prod.name : '';
+    return {
+      type: 'product',
+      text: prodName ? `[Sản phẩm] ${prodName}` : 'Sản phẩm từ danh mục',
+    };
+  }
 
   if (
     clean.startsWith('data:image/') ||
@@ -176,6 +185,9 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
             )}
             {snippet.type === 'document' && (
               <FileText className="w-3.5 h-3.5 inline text-emerald-600 mr-1 -mt-0.5 shrink-0" />
+            )}
+            {snippet.type === 'product' && (
+              <Package className="w-3.5 h-3.5 inline text-emerald-600 mr-1 -mt-0.5 shrink-0" />
             )}
             <span>{snippet.text}</span>
           </p>

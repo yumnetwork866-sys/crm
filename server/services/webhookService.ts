@@ -543,7 +543,11 @@ export async function processWebhookPayload(body: any): Promise<number> {
       const origMsg = messageStore.find((m) => m.id === msgData.context.id) ||
         await prisma.whatsAppMessage.findUnique({ where: { id: msgData.context.id } }).catch(() => null);
       if (origMsg) {
-        const rawOrigContent = (origMsg.content || '').replace(/^\[reply:\{.*?\}\]\n/, '');
+        let rawOrigContent = (origMsg.content || '').replace(/^\[reply:\{.*?\}\]\n/, '');
+        if (/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(rawOrigContent)) {
+          const nameMatch = rawOrigContent.match(/"name"\s*:\s*"([^"]+)"/i);
+          rawOrigContent = nameMatch ? `[Sản phẩm] ${nameMatch[1]}` : '[Sản phẩm]';
+        }
         replyContext = {
           id: origMsg.id,
           senderName: origMsg.agentName || origMsg.customerName || (origMsg.sender === 'agent' ? 'Nhân viên' : 'Khách hàng'),
