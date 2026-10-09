@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Check, Dices, Loader2, ShieldCheck, Upload, X, Trash2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRoleTextStyle } from '../../utils/roleColors';
+import { getDiceBearAvatar } from '../../utils/crmUtils';
 
 interface ChangeAvatarModalProps {
   isOpen: boolean;
@@ -17,10 +18,10 @@ const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150',
   'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150',
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-  'https://api.dicebear.com/10.x/cutouts/svg?seed=Felix',
-  'https://api.dicebear.com/10.x/cutouts/svg?seed=Aneka',
-  'https://api.dicebear.com/10.x/cutouts/svg?seed=Oliver',
-  'https://api.dicebear.com/10.x/cutouts/svg?seed=Zoe',
+  getDiceBearAvatar('Felix'),
+  getDiceBearAvatar('Aneka'),
+  getDiceBearAvatar('Oliver'),
+  getDiceBearAvatar('Zoe'),
 ];
 
 const processImageFile = (file: File): Promise<string> => {
@@ -108,7 +109,7 @@ export const ChangeAvatarModal: React.FC<ChangeAvatarModalProps> = ({ isOpen, on
 
   const handleRandomAvatar = () => {
     const randomSeed = Math.random().toString(36).substring(2, 8);
-    const generated = `https://api.dicebear.com/10.x/cutouts/svg?seed=${randomSeed}`;
+    const generated = getDiceBearAvatar(randomSeed);
     setSelectedAvatar(generated);
     setUploadedFileName(null);
   };

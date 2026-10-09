@@ -17,6 +17,9 @@ import {
   formatVND,
   getCustomerGroup,
   getOwnerAvatar,
+  getCustomerAvatar,
+  getDiceBearAvatar,
+  STAFF_DICEBEAR_STYLE,
 } from '../../../utils/crmUtils';
 import { findUserByName, getUserRoleTextStyle } from '../../../utils/roleColors';
 import type { InternalNote, MessageThread } from '../types';
@@ -121,15 +124,13 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
             <div className="text-center pb-3 border-b border-slate-200">
               <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
                 <img
-                  src={
-                    activeCustomer?.avatar ||
-                    `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
-                      activeCustomer?.phone ||
-                        activeThread.customerPhone ||
-                        activeThread.customerName ||
-                        activeThread.threadId
-                    )}`
-                  }
+                  src={getCustomerAvatar(
+                    activeCustomer?.avatar,
+                    activeCustomer?.phone ||
+                      activeThread.customerPhone ||
+                      activeThread.customerName ||
+                      activeThread.threadId
+                  )}
                   alt="avatar"
                   className="w-full h-full object-cover"
                 />
@@ -201,9 +202,7 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
                           alt={activeCustomer.owner}
                           className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
                           onError={(e) => {
-                            e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(
-                              activeCustomer.owner
-                            )}`;
+                            e.currentTarget.src = getDiceBearAvatar(activeCustomer.owner, STAFF_DICEBEAR_STYLE);
                           }}
                         />
                         <button

@@ -135,8 +135,8 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
 
               const agentAvatar = (isCurrentAgent && effectiveCurrentUser?.avatar)
                 ? effectiveCurrentUser.avatar
-                : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`);
-              const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`;
+                : (matchedUser?.avatar || effectiveCurrentUser?.avatar || getDiceBearAvatar(msg.senderName, STAFF_DICEBEAR_STYLE));
+              const customerAvatar = getCustomerAvatar(customer.avatar, customer.phone || customer.name);
 
               return (
                 <div key={index} className={`flex items-end gap-2 ${msg.isAgent ? 'justify-end' : 'justify-start'}`}>
@@ -192,7 +192,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                         alt={msg.senderName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`;
+                          e.currentTarget.src = getDiceBearAvatar(msg.senderName, STAFF_DICEBEAR_STYLE);
                         }}
                       />
                     </div>
@@ -208,11 +208,11 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
         <div className="px-4 py-1.5 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600 shrink-0 select-none">
           <div className="flex items-center space-x-2 truncate">
             <img
-              src={effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`}
+              src={effectiveCurrentUser?.avatar || getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE)}
               alt={effectiveCurrentUser?.name || 'User'}
               className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
               onError={(e) => {
-                e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`;
+                e.currentTarget.src = getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE);
               }}
             />
             <span className="text-[11px] truncate">

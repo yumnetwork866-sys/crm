@@ -50,7 +50,7 @@ import {
   Package
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
-import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
+import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, getCustomerAvatar, getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import { EmojiPicker } from '../Common/EmojiPicker';
@@ -769,7 +769,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
                       <img
-                        src={activeCustomer?.avatar || `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}`}
+                        src={getCustomerAvatar(activeCustomer?.avatar, activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}
                         alt="avatar"
                         className="w-full h-full object-cover"
                       />
@@ -818,7 +818,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             alt={activeCustomer.owner}
                             className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100 inline-block"
                             onError={(e) => {
-                              e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(activeCustomer.owner)}`;
+                              e.currentTarget.src = getDiceBearAvatar(activeCustomer.owner, STAFF_DICEBEAR_STYLE);
                             }}
                           />
                           <button
@@ -966,7 +966,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const isHighlighted = highlightedMessageId === msg.id;
 
                       // Dynamic avatar sources with robust fallbacks
-                      const customerAvatarSrc = activeCustomer?.avatar || `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(activeCustomer?.phone || msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer')}`;
+                      const customerAvatarSrc = getCustomerAvatar(activeCustomer?.avatar, activeCustomer?.phone || msg.customerPhone || msg.customerName || activeThread?.customerPhone || activeThread?.threadId || 'Customer');
 
                       const isCurrentAgent = Boolean(
                         isAgent &&
@@ -988,7 +988,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                       const agentAvatarSrc = (isCurrentAgent && effectiveCurrentUser?.avatar)
                         ? effectiveCurrentUser.avatar
-                        : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
+                        : (matchedUser?.avatar || effectiveCurrentUser?.avatar || getDiceBearAvatar(senderName || 'Agent', STAFF_DICEBEAR_STYLE));
                       const displayedAgentAvatarSrc = isAiMessage ? aiProfile?.avatarUrl : agentAvatarSrc;
 
                       const renderReactionPicker = (agentMsg: boolean) => (
@@ -1074,7 +1074,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     className="w-full h-full object-cover"
                                     loading="lazy"
                                     onError={(e) => {
-                                      e.currentTarget.src = `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(activeCustomer?.phone || msg.customerPhone || msg.customerName || 'C')}`;
+                                      e.currentTarget.src = getDiceBearAvatar(activeCustomer?.phone || msg.customerPhone || msg.customerName || 'C');
                                     }}
                                   />
                                 </div>
@@ -1555,7 +1555,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                     loading="lazy"
                                     onError={(e) => {
                                       if (isAiMessage) e.currentTarget.style.display = 'none';
-                                      else e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'A')}`;
+                                      else e.currentTarget.src = getDiceBearAvatar(senderName || 'A', STAFF_DICEBEAR_STYLE);
                                     }}
                                   />
                                 </div>
@@ -1719,11 +1719,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 <div className="flex items-center space-x-2 min-w-0">
                   <div className="relative shrink-0">
                     <img
-                      src={effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`}
+                      src={effectiveCurrentUser?.avatar || getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE)}
                       alt={effectiveCurrentUser?.name || 'User'}
                       className="w-5 h-5 rounded-full object-cover border border-slate-300 shadow-2xs"
                       onError={(e) => {
-                        e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(effectiveCurrentUser?.name || 'Agent')}`;
+                        e.currentTarget.src = getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE);
                       }}
                     />
                     <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>

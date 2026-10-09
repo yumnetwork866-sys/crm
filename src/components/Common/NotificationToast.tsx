@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Camera, FileText, MessageSquare, Mic, Package, X } from 'lucide-react';
 import type { CentralMessage, Customer } from '../../types';
-import { isSamePhoneNumber } from '../../utils/crmUtils';
+import { isSamePhoneNumber, getCustomerAvatar } from '../../utils/crmUtils';
 import { extractProductInfo, isProductContent } from '../../features/messages/utils/messageContent';
 
 interface NotificationToastProps {
@@ -130,10 +130,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   const { message } = toast;
   const customerName = matchedCustomer?.name || message.customerName || 'Khách Hàng';
   const customerPhone = matchedCustomer?.phone || message.customerPhone || '';
-  const fallbackAvatar = `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
-    customerPhone || customerName
-  )}`;
-  const avatarUrl = matchedCustomer?.avatar || fallbackAvatar;
+  const avatarUrl = getCustomerAvatar(matchedCustomer?.avatar, customerPhone || customerName);
   const snippet = parseToastMessageSnippet(message.content);
 
   return (

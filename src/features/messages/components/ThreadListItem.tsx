@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Pin, Trash2 } from 'lucide-react';
 import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageDeliveryStatusIcon';
-import { formatDate, formatPhoneWithCountryCode } from '../../../utils/crmUtils';
+import { formatDate, formatPhoneWithCountryCode, getCustomerAvatar } from '../../../utils/crmUtils';
 import { STATUS_CONFIG } from '../constants';
 import type { ConversationStatus, MessageThread } from '../types';
 import { formatMessagePreview } from '../utils/messageContent';
@@ -55,12 +55,10 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
       <div className="relative shrink-0 mt-0.5">
         <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center shadow-sm overflow-hidden">
           <img
-            src={
-              thread.customer?.avatar ||
-              `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
-                thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId
-              )}`
-            }
+            src={getCustomerAvatar(
+              thread.customer?.avatar,
+              thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId
+            )}
             alt="avatar"
             className="w-full h-full object-cover"
             loading="lazy"

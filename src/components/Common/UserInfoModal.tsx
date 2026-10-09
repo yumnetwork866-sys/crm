@@ -1,6 +1,7 @@
 import { Activity, Mail, Phone, ShieldCheck, X } from 'lucide-react';
 import type { AppUser } from '../../types';
 import { getUserRoleColor, getUserRoleTextStyle } from '../../utils/roleColors';
+import { getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../utils/crmUtils';
 
 interface UserInfoModalProps {
   user: AppUser | null;
@@ -41,7 +42,7 @@ export const UserInfoModal: React.FC<UserInfoModalProps> = ({ user, onClose }) =
         <div className="p-6">
           <div className="flex items-center gap-4 pr-8">
             <img
-              src={user.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+              src={user.avatar || getDiceBearAvatar(user.name, STAFF_DICEBEAR_STYLE)}
               alt={user.name}
               className="h-16 w-16 shrink-0 rounded-2xl border border-slate-200 object-cover shadow-sm"
             />

@@ -17,7 +17,7 @@ export function getStatusColorClass(status: CustomerStatus | string): string {
   }
 }
 
-export const DICEBEAR_STYLE = 'cutouts';
+export const DICEBEAR_STYLE = 'moods';
 export const STAFF_DICEBEAR_STYLE = 'avataaars';
 
 export function getDiceBearAvatar(seed: string, style: string = DICEBEAR_STYLE): string {

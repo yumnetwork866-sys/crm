@@ -25,6 +25,8 @@ import {
   getCustomerGroup,
   getCustomerAvatar,
   getOwnerAvatar,
+  getDiceBearAvatar,
+  STAFF_DICEBEAR_STYLE,
   getStatusColorClass,
   isSamePhoneNumber,
 } from '../../utils/crmUtils';
@@ -607,7 +609,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                             alt={customer.owner}
                             className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover shrink-0"
                             onError={(e) => {
-                              e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(customer.owner)}`;
+                              e.currentTarget.src = getDiceBearAvatar(customer.owner, STAFF_DICEBEAR_STYLE);
                             }}
                           />
                           <button
