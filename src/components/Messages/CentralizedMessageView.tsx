@@ -193,8 +193,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const activeCustomer = activeThread?.customer || null;
   const { typingUsers, notifyTyping, stopTyping } = useThreadTyping({
     threadId: activeThread?.threadId,
+    customerPhone: activeThread?.customerPhone,
     businessPhoneNumberId: selectedPhoneId,
     currentUserId: effectiveCurrentUser?.id,
+    currentUserEmail: effectiveCurrentUser?.email,
   });
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
@@ -779,7 +781,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <div className="relative shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
                       <img
                         src={getCustomerAvatar(activeCustomer?.avatar, activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}
                         alt="avatar"
@@ -828,7 +830,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           <img
                             src={getOwnerAvatar(activeCustomer.owner)}
                             alt={activeCustomer.owner}
-                            className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100 inline-block"
+                            className="w-4 h-4 rounded-full object-cover shrink-0 bg-slate-100 inline-block"
                             onError={(e) => {
                               e.currentTarget.src = getDiceBearAvatar(activeCustomer.owner, STAFF_DICEBEAR_STYLE);
                             }}
@@ -1092,7 +1094,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           {!isAgent && (
                             <div className="w-8 h-8 mr-2 shrink-0 self-end mb-0.5">
                               {shouldShowAvatar ? (
-                                <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-slate-200 shadow-2xs flex items-center justify-center" title={msg.customerName || 'Khách hàng'}>
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-white shadow-2xs flex items-center justify-center" title={msg.customerName || 'Khách hàng'}>
                                   <img
                                     src={customerAvatarSrc}
                                     alt={msg.customerName || 'Customer'}
@@ -1572,7 +1574,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           {isAgent && displayedAgentAvatarSrc && (
                             <div className="w-8 h-8 ml-2 shrink-0 self-end mb-0.5">
                               {shouldShowAvatar ? (
-                                <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shadow-2xs flex items-center justify-center" title={senderName}>
+                                <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-50 shadow-2xs flex items-center justify-center" title={senderName}>
                                   <img
                                     src={displayedAgentAvatarSrc}
                                     alt={senderName}
@@ -2052,7 +2054,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         if (event.key === 'Enter' && !event.shiftKey) stopTyping();
                         handleKeyDown(event);
                       }}
-                      onBlur={stopTyping}
                       onPaste={handlePaste}
                       placeholder={
                         pendingImage

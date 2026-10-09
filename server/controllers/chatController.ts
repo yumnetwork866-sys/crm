@@ -620,6 +620,8 @@ export function updateTypingStatus(req: AuthenticatedRequest, res: Response) {
   const businessPhoneNumberId = typeof req.body?.businessPhoneNumberId === 'string'
     ? req.body.businessPhoneNumberId.trim()
     : '';
+  const customerPhone = typeof req.body?.customerPhone === 'string' ? req.body.customerPhone.trim() : '';
+  const sourceId = typeof req.body?.sourceId === 'string' ? req.body.sourceId.trim().slice(0, 100) : '';
   const isTyping = req.body?.isTyping === true;
 
   if (!threadId || !businessPhoneNumberId || !req.user) {
@@ -628,11 +630,14 @@ export function updateTypingStatus(req: AuthenticatedRequest, res: Response) {
 
   realtimeHub.broadcast('message:typing', {
     threadId,
+    customerPhone,
     businessPhoneNumberId,
     userId: req.user.id,
     userName: req.user.name,
+    userEmail: req.user.email,
+    sourceId,
     isTyping,
-    expiresAt: new Date(Date.now() + 5_000).toISOString(),
+    expiresAt: new Date(Date.now() + 6_500).toISOString(),
   });
 
   return res.json({ success: true });

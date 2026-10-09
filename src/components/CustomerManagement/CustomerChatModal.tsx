@@ -67,7 +67,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
         <div className="px-5 py-3.5 bg-white border-b border-slate-200/90 flex items-center justify-between shrink-0 shadow-2xs">
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-slate-100 ring-2 ring-emerald-500/20 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                 <img
                   src={getCustomerAvatar(customer.avatar, customer.phone || customer.name)}
                   alt="avatar"
@@ -141,7 +141,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
               return (
                 <div key={index} className={`flex items-end gap-2 ${msg.isAgent ? 'justify-end' : 'justify-start'}`}>
                   {!msg.isAgent && (
-                    <div className="w-7 h-7 rounded-full overflow-hidden bg-white border border-slate-200 shrink-0 shadow-2xs mb-0.5">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-white shrink-0 shadow-2xs mb-0.5">
                       <img src={customerAvatar} alt={customer.name} className="w-full h-full object-cover" />
                     </div>
                   )}
@@ -210,7 +210,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
             <img
               src={effectiveCurrentUser?.avatar || getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE)}
               alt={effectiveCurrentUser?.name || 'User'}
-              className="w-4 h-4 rounded-full object-cover border border-slate-300 shrink-0"
+              className="w-4 h-4 rounded-full object-cover shrink-0"
               onError={(e) => {
                 e.currentTarget.src = getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE);
               }}

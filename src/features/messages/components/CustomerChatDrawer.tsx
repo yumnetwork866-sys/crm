@@ -122,7 +122,7 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
           <>
             {/* Profile Card */}
             <div className="text-center pb-3 border-b border-slate-200">
-              <div className="w-16 h-16 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
                 <img
                   src={getCustomerAvatar(
                     activeCustomer?.avatar,
@@ -200,7 +200,7 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
                         <img
                           src={getOwnerAvatar(activeCustomer.owner)}
                           alt={activeCustomer.owner}
-                          className="w-4 h-4 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
+                          className="w-4 h-4 rounded-full object-cover shrink-0 bg-slate-100"
                           onError={(e) => {
                             e.currentTarget.src = getDiceBearAvatar(activeCustomer.owner, STAFF_DICEBEAR_STYLE);
                           }}

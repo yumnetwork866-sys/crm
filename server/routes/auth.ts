@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { Permission, getEffectivePermissions } from '../auth/permissions';
 import { getRoleColor } from '../auth/roleColors';
+import { realtimeHub } from '../services/realtimeHub';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
@@ -306,6 +307,16 @@ router.post('/change-avatar', authenticateToken, async (req: AuthenticatedReques
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { avatar: avatar.trim() }
+    });
+
+    realtimeHub.broadcast('user:profile_updated', {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      avatar: updatedUser.avatar,
+      role: updatedUser.role,
+      roleColor: await getRoleColor(updatedUser.role),
+      status: updatedUser.status,
+      lastActive: updatedUser.lastActive.toISOString(),
     });
 
     return res.json({

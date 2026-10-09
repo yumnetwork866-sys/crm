@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { realtimeClient } from '../../../services/realtimeClient';
 import { api } from '../../../utils/apiClient';
+import { isSamePhoneNumber } from '../../../utils/crmUtils';
 
 interface TypingEvent {
   threadId: string;
+  customerPhone: string;
   businessPhoneNumberId: string;
   userId: string;
   userName: string;
+  userEmail: string;
+  sourceId: string;
   isTyping: boolean;
   expiresAt: string;
 }
@@ -19,22 +23,29 @@ export interface TypingUser {
 
 interface UseThreadTypingOptions {
   threadId?: string;
+  customerPhone?: string;
   businessPhoneNumberId: string;
   currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 const TYPING_HEARTBEAT_MS = 2_000;
-const TYPING_IDLE_MS = 3_500;
+const TYPING_IDLE_MS = 5_000;
 
 export function useThreadTyping({
   threadId,
+  customerPhone,
   businessPhoneNumberId,
   currentUserId,
+  currentUserEmail,
 }: UseThreadTypingOptions) {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const lastHeartbeatAtRef = useRef(0);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPublishingRef = useRef(false);
+  const sourceIdRef = useRef(
+    globalThis.crypto?.randomUUID?.() || `typing_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+  );
 
   const publish = useCallback((isTyping: boolean) => {
     if (!threadId || !businessPhoneNumberId) return;
@@ -43,10 +54,12 @@ export function useThreadTyping({
     if (!isTyping) lastHeartbeatAtRef.current = 0;
     void api.post('/meta/messages/typing', {
       threadId,
+      customerPhone,
       businessPhoneNumberId,
       isTyping,
+      sourceId: sourceIdRef.current,
     }).catch(() => undefined);
-  }, [businessPhoneNumberId, threadId]);
+  }, [businessPhoneNumberId, customerPhone, threadId]);
 
   const stopTyping = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -82,10 +95,15 @@ export function useThreadTyping({
     'message:typing': (event) => {
       try {
         const payload = JSON.parse(event.data) as TypingEvent;
+        const matchesThread = payload.threadId === threadId
+          || Boolean(customerPhone && payload.customerPhone && isSamePhoneNumber(payload.customerPhone, customerPhone));
         if (
           !payload.userId
+          || payload.sourceId === sourceIdRef.current
           || payload.userId === currentUserId
-          || payload.threadId !== threadId
+          || Boolean(currentUserEmail && payload.userEmail
+            && payload.userEmail.trim().toLowerCase() === currentUserEmail.trim().toLowerCase())
+          || !matchesThread
           || payload.businessPhoneNumberId !== businessPhoneNumberId
         ) return;
 
@@ -102,7 +120,7 @@ export function useThreadTyping({
         // Ignore malformed realtime typing events.
       }
     },
-  }), [businessPhoneNumberId, currentUserId, threadId]);
+  }), [businessPhoneNumberId, currentUserEmail, currentUserId, customerPhone, threadId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

@@ -9,6 +9,7 @@ import { Permission, getEffectivePermissions, parsePermissionMask } from '../aut
 import { getRoleColor } from '../auth/roleColors';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
+import { realtimeHub } from '../services/realtimeHub';
 
 const router = Router();
 const userRoleSchema = z.string().trim().min(2).max(50);
@@ -57,6 +58,18 @@ async function serializeUser(user: User) {
   };
 }
 
+async function serializeMessageProfile(user: User) {
+  return {
+    id: user.id,
+    name: user.name,
+    avatar: user.avatar,
+    role: user.role,
+    roleColor: await getRoleColor(user.role),
+    status: user.status,
+    lastActive: user.lastActive.toISOString(),
+  };
+}
+
 async function ensureAnotherActiveAdmin(targetId: string): Promise<boolean> {
   const count = await prisma.user.count({
     where: {
@@ -82,6 +95,17 @@ router.get('/', requirePermission(Permission.USERS_READ), async (_req: Authentic
   } catch (error) {
     console.error('Lỗi khi lấy danh sách người dùng:', error);
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách người dùng' });
+  }
+});
+
+// Safe staff identity data used to attribute names and avatars in shared messages.
+router.get('/message-profiles', async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    return res.json(await Promise.all(users.map(serializeMessageProfile)));
+  } catch (error) {
+    console.error('Lỗi khi lấy hồ sơ nhân viên cho tin nhắn:', error);
+    return res.status(500).json({ error: 'Không thể tải hồ sơ nhân viên.' });
   }
 });
 
@@ -113,7 +137,9 @@ router.post('/', requirePermission(Permission.USERS_MANAGE), async (req: Authent
       },
     });
 
-    return res.status(201).json(await serializeUser(newUser));
+    const serialized = await serializeUser(newUser);
+    realtimeHub.broadcast('user:profile_updated', await serializeMessageProfile(newUser));
+    return res.status(201).json(serialized);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi tạo người dùng mới';
     return res.status(500).json({ error: message });
@@ -187,7 +213,9 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     });
 
     invalidateAuthCache(target.id);
-    return res.json(await serializeUser(updated));
+    const serialized = await serializeUser(updated);
+    realtimeHub.broadcast('user:profile_updated', await serializeMessageProfile(updated));
+    return res.json(serialized);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi cập nhật người dùng';
     return res.status(500).json({ error: message });

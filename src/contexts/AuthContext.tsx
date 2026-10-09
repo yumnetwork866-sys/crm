@@ -12,9 +12,26 @@ import type { AppUser, UserRole } from '../types';
 import { Permission, hasPermission as maskHasPermission } from '../lib/permissions';
 import { api, getStoredToken, removeStoredToken, setStoredToken } from '../utils/apiClient';
 import { cacheUserRoleColors } from '../utils/roleColors';
+import { realtimeClient } from '../services/realtimeClient';
 
 const STORAGE_KEY_USERS = 'yumcrm_users_v2';
 const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
+
+type MessageUserProfile = Pick<AppUser, 'id' | 'name' | 'avatar' | 'role' | 'roleColor' | 'status' | 'lastActive'>;
+
+const mergeMessageProfiles = (current: AppUser[], profiles: MessageUserProfile[]): AppUser[] =>
+  profiles.map((profile) => {
+    const existing = current.find((user) => user.id === profile.id);
+    return {
+      ...(existing || {
+        email: '',
+        phone: '',
+        assignedLeadsCount: 0,
+        totalRevenue: 0,
+      }),
+      ...profile,
+    };
+  });
 
 const loadUsers = (): AppUser[] => {
   try {
@@ -119,6 +136,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser || !getStoredToken()) return;
+
+    let isCancelled = false;
+    const refreshMessageProfiles = () => {
+      void api.get<MessageUserProfile[]>('/users/message-profiles')
+        .then((profiles) => {
+          if (!isCancelled && Array.isArray(profiles)) {
+            setUsers((current) => mergeMessageProfiles(current, profiles));
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    refreshMessageProfiles();
+    const unsubscribe = realtimeClient.subscribe({
+      'user:profile_updated': (event) => {
+        try {
+          const profile = JSON.parse(event.data) as MessageUserProfile;
+          if (!profile?.id) return;
+          setUsers((current) => mergeMessageProfiles(current, [
+            ...current
+              .filter((user) => user.id !== profile.id)
+              .map((user) => ({
+                id: user.id,
+                name: user.name,
+                avatar: user.avatar,
+                role: user.role,
+                roleColor: user.roleColor,
+                status: user.status,
+                lastActive: user.lastActive,
+              })),
+            profile,
+          ]));
+          setCurrentUser((current) => current?.id === profile.id ? { ...current, ...profile } : current);
+        } catch {
+          // Ignore malformed realtime profile events.
+        }
+      },
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubscribe();
+    };
+  }, [currentUser?.id]);
 
   const selectUser = useCallback((user: AppUser | null) => {
     if (!user) {

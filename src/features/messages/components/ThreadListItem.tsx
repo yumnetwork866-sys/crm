@@ -53,7 +53,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
     >
       {/* Avatar with Dicebear Cutouts / custom photo & online dot */}
       <div className="relative shrink-0 mt-0.5">
-        <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center shadow-sm overflow-hidden">
+        <div className="w-11 h-11 rounded-full bg-emerald-50 flex items-center justify-center shadow-sm overflow-hidden">
           <img
             src={getCustomerAvatar(
               thread.customer?.avatar,
