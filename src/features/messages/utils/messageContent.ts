@@ -37,39 +37,152 @@ const DOC_EXTENSIONS_REGEX = /\.(pdf|doc|docx|xls|xlsx|csv|txt)(\?[^\s\n]*)?$/i;
 
 export function isProductContent(rawContent: string): boolean {
   if (!rawContent) return false;
-  const content = rawContent.trim();
-  return content.startsWith('[product:');
+  const content = rawContent.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+  return /^\[product(?:_list)?(?::\s*|\s*)\{/i.test(content);
 }
 
 export function extractProductInfo(rawContent: string): ProductMessageInfo {
   if (!rawContent) {
     return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
   }
-  const content = rawContent.trim();
-  if (!content.startsWith('[product:')) {
+  const content = rawContent.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+  if (!/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(content)) {
     return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
   }
-  const match = content.match(/^\[product:(\{.*?\})\]\n?([\s\S]*)$/);
-  if (!match) {
-    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+
+  // 1. Single product: [product:{"catalog_id":"..."}] or [product{"catalog_id":"..."}]
+  const match = content.match(/^\[product(?::\s*|\s*)(\{[\s\S]*?\})\]\n?([\s\S]*)$/i);
+  if (match) {
+    try {
+      const meta = JSON.parse(match[1]);
+      const caption = match[2]?.trim() || null;
+      return {
+        isProduct: true,
+        catalogId: String(meta.catalog_id || ''),
+        retailerId: String(meta.product_retailer_id || ''),
+        name: String(meta.name || meta.title || meta.product_retailer_id || 'Sản phẩm Catalog'),
+        price: meta.price,
+        currency: meta.currency,
+        imageUrl: meta.image || meta.imageUrl,
+        caption,
+      };
+    } catch {
+      const caption = match[2]?.trim() || null;
+      return {
+        isProduct: true,
+        catalogId: '',
+        retailerId: '',
+        name: 'Sản phẩm Catalog',
+        caption,
+      };
+    }
   }
-  try {
-    const meta = JSON.parse(match[1]);
-    const caption = match[2]?.trim() || null;
-    return {
-      isProduct: true,
-      catalogId: String(meta.catalog_id || ''),
-      retailerId: String(meta.product_retailer_id || ''),
-      name: String(meta.name || meta.product_retailer_id || 'Sản phẩm Catalog'),
-      price: meta.price,
-      currency: meta.currency,
-      imageUrl: meta.image || meta.imageUrl,
-      caption,
-    };
-  } catch {
-    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+
+  // 2. Product list: [product_list:{"catalog_id":"..."}] or [product_list{"catalog_id":"..."}]
+  const listMatch = content.match(/^\[product_list(?::\s*|\s*)(\{[\s\S]*?\})\]\n?([\s\S]*)$/i);
+  if (listMatch) {
+    try {
+      const meta = JSON.parse(listMatch[1]);
+      const caption = listMatch[2]?.trim() || null;
+      return {
+        isProduct: true,
+        catalogId: String(meta.catalog_id || ''),
+        retailerId: '',
+        name: String(meta.header || meta.title || 'Danh mục sản phẩm'),
+        caption,
+      };
+    } catch {
+      const caption = listMatch[2]?.trim() || null;
+      return {
+        isProduct: true,
+        catalogId: '',
+        retailerId: '',
+        name: 'Danh mục sản phẩm',
+        caption,
+      };
+    }
   }
+
+  // 3. Fallback for malformed or truncated tag
+  const nameMatch = content.match(/"name"\s*:\s*"([^"]+)"/i);
+  return {
+    isProduct: true,
+    catalogId: '',
+    retailerId: '',
+    name: nameMatch ? nameMatch[1] : 'Sản phẩm Catalog',
+    caption: null,
+  };
 }
+
+/**
+ * Generates a clean human-readable preview text for a message (for thread lists, reply banners, toasts, quotes, etc.)
+ */
+export function formatMessagePreview(rawContent: string | null | undefined): string {
+  if (!rawContent) return '';
+
+  // 1. Strip reply reference if present at start
+  const clean = rawContent.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+  if (!clean) return '';
+
+  // 2. Product message
+  if (isProductContent(clean)) {
+    const prod = extractProductInfo(clean);
+    const prodName = prod.name && prod.name !== 'Sản phẩm Catalog' && prod.name !== 'Danh mục sản phẩm'
+      ? prod.name
+      : (prod.name || 'Sản phẩm');
+    if (prodName) {
+      return prod.caption ? `🛍️ [Sản phẩm] ${prodName}: ${prod.caption}` : `🛍️ [Sản phẩm] ${prodName}`;
+    }
+    return prod.caption ? `🛍️ [Sản phẩm] ${prod.caption}` : '🛍️ [Sản phẩm]';
+  }
+
+  if (/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(clean)) {
+    return '🛍️ [Sản phẩm]';
+  }
+
+  // 3. Image message
+  if (
+    clean.startsWith('data:image/') ||
+    clean.startsWith('/uploads/') ||
+    clean.startsWith('/api/meta/media/') ||
+    /^https?:\/\/[^\s\n]+\.(png|jpg|jpeg|gif|webp)(\?[^\s\n]*)?$/i.test(clean)
+  ) {
+    const parts = clean.split('\n');
+    const cap = parts.slice(1).join(' ').trim();
+    return cap ? `📷 ${cap}` : '📷 [Hình ảnh]';
+  }
+  if (
+    clean.toLowerCase().startsWith('[image') ||
+    clean.toLowerCase().startsWith('[hình ảnh') ||
+    clean.toLowerCase() === '[photo]'
+  ) {
+    const cleanedImg = clean
+      .replace(/\[image message\]/gi, '[Hình ảnh]')
+      .replace(/\[image\]/gi, '[Hình ảnh]')
+      .replace(/\[photo\]/gi, '[Hình ảnh]');
+    return `📷 ${cleanedImg.replace(/^📷\s*/, '')}`;
+  }
+
+  // 4. Audio / Voice note
+  if (isAudioContent(clean)) {
+    const audio = extractAudioInfo(clean);
+    return audio.caption ? `🎙️ [Tin nhắn thoại] ${audio.caption}` : '🎙️ [Tin nhắn thoại]';
+  }
+
+  // 5. Document message
+  if (isDocumentContent(clean)) {
+    const doc = extractDocumentInfo(clean);
+    const docName = doc.filename && doc.filename !== 'Tài liệu đính kèm' ? doc.filename : '';
+    if (docName) {
+      return doc.caption ? `📄 [Tài liệu] ${docName}: ${doc.caption}` : `📄 [Tài liệu] ${docName}`;
+    }
+    return doc.caption ? `📄 [Tài liệu] ${doc.caption}` : '📄 [Tài liệu]';
+  }
+
+  // 6. Regular text message - flatten multi-line to single line for preview
+  return clean.replace(/\r?\n+/g, ' ');
+}
+
 
 export function isAudioContent(rawContent: string): boolean {
   if (!rawContent) return false;

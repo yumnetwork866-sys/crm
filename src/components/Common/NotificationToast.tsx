@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, FileText, MessageSquare, Mic, X } from 'lucide-react';
+import { Camera, FileText, MessageSquare, Mic, Package, X } from 'lucide-react';
 import type { CentralMessage, Customer } from '../../types';
 import { isSamePhoneNumber } from '../../utils/crmUtils';
+import { extractProductInfo, isProductContent } from '../../features/messages/utils/messageContent';
 
 interface NotificationToastProps {
   toast: {

@@ -56,7 +56,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
-import { extractAudioInfo, extractDocumentInfo, extractImageInfo, extractProductInfo, isProductContent, parseMessageContent } from '../../features/messages/utils/messageContent';
+import { extractAudioInfo, extractDocumentInfo, extractImageInfo, extractProductInfo, formatMessagePreview, isProductContent, parseMessageContent } from '../../features/messages/utils/messageContent';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
 import { useVoiceRecorder } from '../../features/messages/hooks/useVoiceRecorder';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
@@ -1125,13 +1125,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                       <span>{replyQuote.senderName || 'Tin nhắn được trả lời'}</span>
                                     </div>
                                     <p className="text-[11.5px] text-[#54656f] truncate leading-tight mt-0.5 max-w-sm">
-                                      {replyQuote.content?.startsWith('data:audio/') || (replyQuote.content?.startsWith('/api/meta/media/') && replyQuote.content?.includes('type=audio')) || replyQuote.content?.includes('Tin nhắn thoại')
-                                        ? '🎙️ [Tin nhắn thoại]'
-                                        : replyQuote.content?.startsWith('[document:') || (replyQuote.content?.startsWith('/api/meta/media/') && replyQuote.content?.includes('type=document')) || replyQuote.content?.includes('[Tài liệu')
-                                        ? '📄 [Tài liệu đính kèm]'
-                                        : replyQuote.content?.startsWith('/uploads/') || replyQuote.content?.startsWith('data:image/') || replyQuote.content?.startsWith('/api/meta/media/')
-                                        ? '📷 [Hình ảnh]'
-                                        : replyQuote.content || 'Nội dung tin nhắn'}
+                                      {formatMessagePreview(replyQuote.content) || 'Nội dung tin nhắn'}
                                     </p>
                                   </div>
                                 );
@@ -1598,13 +1592,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       <span>Đang trả lời {replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng')}</span>
                     </div>
                     <p className="text-xs text-slate-600 truncate mt-0.5 max-w-xl">
-                      {replyingToMessage.content.includes('[document:') || replyingToMessage.content.includes('type=document')
-                        ? '📄 [Tài liệu đính kèm]'
-                        : replyingToMessage.content.includes('[audio:') || replyingToMessage.content.includes('type=audio')
-                        ? '🎤 [Tin nhắn thoại]'
-                        : replyingToMessage.content.startsWith('/uploads/') || replyingToMessage.content.startsWith('data:image/') || replyingToMessage.content.startsWith('/api/meta/media/')
-                        ? '📷 [Hình ảnh]'
-                        : replyingToMessage.content}
+                      {formatMessagePreview(replyingToMessage.content)}
                     </p>
                   </div>
                   <button

@@ -4,6 +4,7 @@ import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageD
 import { formatDate, formatPhoneWithCountryCode } from '../../../utils/crmUtils';
 import { STATUS_CONFIG } from '../constants';
 import type { ConversationStatus, MessageThread } from '../types';
+import { formatMessagePreview } from '../utils/messageContent';
 
 export interface SlaWarning {
   label: string;
@@ -126,27 +127,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
               />
             )}
             <span className="truncate">
-              {(() => {
-                const c = thread.lastMessage.content;
-                if (
-                  c.startsWith('data:image/') ||
-                  c.startsWith('/uploads/') ||
-                  c.startsWith('/api/meta/media/') ||
-                  c.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif|webp)/i)
-                ) {
-                  const parts = c.split('\n');
-                  const cap = parts.slice(1).join(' ');
-                  return cap ? `📷 ${cap}` : '📷 [Hình ảnh]';
-                }
-                if (
-                  c.toLowerCase().startsWith('[image') ||
-                  c.toLowerCase().startsWith('[hình ảnh') ||
-                  c.toLowerCase() === '[photo]'
-                ) {
-                  return `📷 ${c.replace(/\[image message\]/gi, '[Hình ảnh]').replace(/\[image\]/gi, '[Hình ảnh]')}`;
-                }
-                return c;
-              })()}
+              {formatMessagePreview(thread.lastMessage.content)}
             </span>
           </p>
 

@@ -4,6 +4,7 @@ import type { CentralMessage, MessageChannel } from '../../../types';
 import { QUICK_TEMPLATES } from '../constants';
 import type { MessageThread } from '../types';
 import { playPopSound } from '../utils/playPopSound';
+import { formatMessagePreview } from '../utils/messageContent';
 import { api } from '../../../utils/apiClient';
 
 interface UseMessageComposerOptions {
@@ -144,7 +145,7 @@ export function useMessageComposer({
       senderName: replyingToMessage.sender === 'agent'
         ? 'Chính mình'
         : (replyingToMessage.customerName || 'Khách hàng'),
-      content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150),
+      content: formatMessagePreview(replyingToMessage.content).slice(0, 150),
     } : undefined;
 
     let content = text;
@@ -192,7 +193,7 @@ export function useMessageComposer({
       senderName: replyingToMessage.sender === 'agent'
         ? 'Chính mình'
         : (replyingToMessage.customerName || 'Khách hàng'),
-      content: (replyingToMessage.content || '').replace(/^\[reply:\{.*?\}\]\n/, '').slice(0, 150),
+      content: formatMessagePreview(replyingToMessage.content).slice(0, 150),
     } : undefined;
 
     let content = dataUrl;
