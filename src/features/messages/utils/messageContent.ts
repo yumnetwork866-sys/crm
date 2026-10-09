@@ -21,8 +21,55 @@ export interface DocumentInfo {
   fileExt: string;
 }
 
+export interface ProductMessageInfo {
+  isProduct: boolean;
+  catalogId: string;
+  retailerId: string;
+  name: string;
+  price?: string | number;
+  currency?: string;
+  imageUrl?: string;
+  caption: string | null;
+}
+
 const AUDIO_EXTENSIONS_REGEX = /\.(mp3|ogg|wav|m4a|aac|webm|opus)(\?[^\s\n]*)?$/i;
 const DOC_EXTENSIONS_REGEX = /\.(pdf|doc|docx|xls|xlsx|csv|txt)(\?[^\s\n]*)?$/i;
+
+export function isProductContent(rawContent: string): boolean {
+  if (!rawContent) return false;
+  const content = rawContent.trim();
+  return content.startsWith('[product:');
+}
+
+export function extractProductInfo(rawContent: string): ProductMessageInfo {
+  if (!rawContent) {
+    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+  }
+  const content = rawContent.trim();
+  if (!content.startsWith('[product:')) {
+    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+  }
+  const match = content.match(/^\[product:(\{.*?\})\]\n?([\s\S]*)$/);
+  if (!match) {
+    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+  }
+  try {
+    const meta = JSON.parse(match[1]);
+    const caption = match[2]?.trim() || null;
+    return {
+      isProduct: true,
+      catalogId: String(meta.catalog_id || ''),
+      retailerId: String(meta.product_retailer_id || ''),
+      name: String(meta.name || meta.product_retailer_id || 'Sản phẩm Catalog'),
+      price: meta.price,
+      currency: meta.currency,
+      imageUrl: meta.image || meta.imageUrl,
+      caption,
+    };
+  } catch {
+    return { isProduct: false, catalogId: '', retailerId: '', name: '', caption: null };
+  }
+}
 
 export function isAudioContent(rawContent: string): boolean {
   if (!rawContent) return false;

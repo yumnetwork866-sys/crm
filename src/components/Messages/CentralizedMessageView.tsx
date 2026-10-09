@@ -47,7 +47,8 @@ import {
   Reply,
   Pause,
   Play,
-  Square
+  Square,
+  Package
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar } from '../../utils/crmUtils';
@@ -55,7 +56,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
 import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
-import { extractAudioInfo, extractDocumentInfo, extractImageInfo, parseMessageContent } from '../../features/messages/utils/messageContent';
+import { extractAudioInfo, extractDocumentInfo, extractImageInfo, extractProductInfo, isProductContent, parseMessageContent } from '../../features/messages/utils/messageContent';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
 import { useVoiceRecorder } from '../../features/messages/hooks/useVoiceRecorder';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
@@ -64,6 +65,8 @@ import { useMessageThreads } from '../../features/messages/hooks/useMessageThrea
 import { useMessageViewport } from '../../features/messages/hooks/useMessageViewport';
 import { VoiceMessagePlayer } from '../../features/messages/components/VoiceMessagePlayer';
 import { DocumentMessageCard } from '../../features/messages/components/DocumentMessageCard';
+import { ProductMessageCard } from '../../features/messages/components/ProductMessageCard';
+import { ProductPickerModal } from '../../features/messages/components/ProductPickerModal';
 import { Permission } from '../../lib/permissions';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { api } from '../../utils/apiClient';
@@ -297,6 +300,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     resetRecording,
   } = useVoiceRecorder();
 
+  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
@@ -1064,19 +1068,21 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             </div>
                           )}
 
-                          {/* Authentic WhatsApp Message Bubble */}
-                          <div
-                            data-msg-id={msg.id}
-                            className={`relative max-w-[80%] sm:max-w-[62%] px-3 pt-1.5 pb-1.5 text-xs select-text transition-all duration-300 ${
-                              isAgent
-                                ? 'whatsapp-bubble-out rounded-[7.5px]'
-                                : 'whatsapp-bubble-in rounded-[7.5px]'
-                            } ${
-                              isHighlighted
-                                ? 'scale-[1.04] shadow-md z-20 origin-center'
-                                : ''
-                            }`}
-                          >
+                          {/* Message Bubble + Error Container */}
+                          <div className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'} max-w-[80%] sm:max-w-[62%]`}>
+                            {/* Authentic WhatsApp Message Bubble */}
+                            <div
+                              data-msg-id={msg.id}
+                              className={`relative px-3 pt-1.5 pb-1.5 text-xs select-text transition-all duration-300 ${
+                                isAgent
+                                  ? 'whatsapp-bubble-out rounded-[7.5px]'
+                                  : 'whatsapp-bubble-in rounded-[7.5px]'
+                              } ${
+                                isHighlighted
+                                  ? 'scale-[1.04] shadow-md z-20 origin-center'
+                                  : ''
+                              }`}
+                            >
                             {/* Sender Info for Outgoing Agent Message */}
                             {isAgent && (
                               <div className="flex items-center justify-between gap-2 mb-1 pb-0.5 border-b border-emerald-600/30 text-[10.5px] select-none">
@@ -1130,6 +1136,25 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                   </div>
                                 );
                               };
+
+                              // 0. Catalog Single Product Message
+                              const productInfo = extractProductInfo(content);
+                              if (productInfo.isProduct) {
+                                return (
+                                  <div className="space-y-1">
+                                    {renderQuoteHeader()}
+                                    <ProductMessageCard
+                                      productInfo={productInfo}
+                                      timeFormatted={timeFormatted}
+                                      isAgent={isAgent}
+                                      status={msg.status}
+                                      isRealSent={msg.isRealSent}
+                                      errorMessage={msg.errorMessage}
+                                      onRetry={onRetryMessage ? () => onRetryMessage(msg.id) : undefined}
+                                    />
+                                  </div>
+                                );
+                              }
 
                               const docInfo = extractDocumentInfo(content);
 
@@ -1417,19 +1442,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                           </div>
 
-                          {/* Failure Notice & Retry for Outgoing Agent Messages */}
+                          {/* Failure Notice & Retry for Outgoing Agent Messages (Placed BELOW message bubble) */}
                           {isAgent && (msg.status === 'failed' || msg.isRealSent === false) && (
                             <div className="w-full flex justify-end mt-1">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] shadow-2xs max-w-md">
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                <span className="truncate" title={msg.errorMessage || 'Không thể gửi tin nhắn qua Meta'}>
+                              <div className="inline-flex items-start sm:items-center gap-1.5 text-rose-600 text-[11px] text-right max-w-full">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5 sm:mt-0" />
+                                <span className="leading-snug break-words">
                                   {msg.errorMessage || 'Meta từ chối gửi tin nhắn'}
                                 </span>
                                 {onRetryMessage && (
                                   <button
                                     type="button"
                                     onClick={() => onRetryMessage(msg.id)}
-                                    className="ml-1 px-1.5 py-0.5 rounded bg-white hover:bg-rose-100 font-bold text-rose-700 border border-rose-300 text-[10px] shrink-0 transition cursor-pointer"
+                                    className="ml-1 font-bold text-rose-600 hover:text-rose-800 underline underline-offset-2 text-[11px] shrink-0 transition cursor-pointer whitespace-nowrap"
                                   >
                                     Thử lại
                                   </button>
@@ -1437,6 +1462,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                               </div>
                             </div>
                           )}
+                        </div>
 
                           {/* Incoming Customer Message: Right side Action Buttons (React + Reply) in a Unified Pill */}
                           {!isAgent && (
@@ -1885,6 +1911,21 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <Paperclip className="w-5 h-5" />
                   </button>
 
+                  {/* Catalog Product Picker Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProductPickerOpen(true);
+                      setShowEmojiPicker(false);
+                      setShowTemplatePicker(false);
+                    }}
+                    className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/70 rounded-full transition cursor-pointer"
+                    title="Gửi sản phẩm từ Meta Catalog"
+                    aria-label="Gửi sản phẩm Meta Catalog"
+                  >
+                    <Package className="w-5 h-5" />
+                  </button>
+
                   {/* Quick Canned Template Trigger */}
                   <div className="relative">
                     <button
@@ -2027,6 +2068,35 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
       <MessageLightbox imageUrl={previewLightboxImg} onClose={() => setPreviewLightboxImg(null)} />
       <UserInfoModal user={selectedInfoUser} onClose={() => setSelectedInfoUser(null)} />
+
+      {/* Meta Catalog Product Picker Modal */}
+      <ProductPickerModal
+        isOpen={isProductPickerOpen}
+        onClose={() => setIsProductPickerOpen(false)}
+        onSendProduct={(product, catalogId, customText) => {
+          if (!activeThread) return;
+          const tag = `[product:${JSON.stringify({
+            catalog_id: catalogId,
+            product_retailer_id: product.retailerId,
+            name: product.name,
+            price: product.price,
+            currency: product.currency,
+            image: product.imageUrl,
+          })}]`;
+          const finalContent = customText ? `${tag}\n${customText}` : tag;
+          const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
+          const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;
+          const targetName = activeThread.customerName || activeThread.customer?.name || activeThread.lastMessage.customerName;
+          onSendMessage(
+            targetId,
+            finalContent,
+            'WhatsApp',
+            targetPhone,
+            targetName,
+            selectedPhoneId
+          );
+        }}
+      />
 
     </div>
   );

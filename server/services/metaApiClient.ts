@@ -597,6 +597,74 @@ export async function dispatchMetaMessage(options: {
         text: { body: caption ? `[Tin nhắn thoại] ${caption}` : '🎙️ [Tin nhắn thoại gửi từ CRM]' }
       };
     }
+  } else if (content.startsWith('[product:')) {
+    // Single Product Message: [product:{"catalog_id":"...","product_retailer_id":"...","name":"...","price":"...","image":"..."}]\nOptional body text
+    const match = content.match(/^\[product:(\{.*?\})\]\n?([\s\S]*)$/);
+    if (match) {
+      try {
+        const productData = JSON.parse(match[1]);
+        const bodyText = match[2]?.trim() || `Sản phẩm từ danh mục: ${productData.name || productData.product_retailer_id}`;
+        payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'interactive',
+          interactive: {
+            type: 'product',
+            body: { text: bodyText },
+            action: {
+              catalog_id: String(productData.catalog_id),
+              product_retailer_id: String(productData.product_retailer_id)
+            }
+          }
+        };
+      } catch (err) {
+        console.warn('[META DISPATCH] Lỗi phân tích [product:...]:', err);
+        payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'text',
+          text: { body: content }
+        };
+      }
+    }
+  } else if (content.startsWith('[product_list:')) {
+    // Multi-Product Message: [product_list:{"catalog_id":"...","header":"...","title":"...","sections":[...]}]\nOptional body text
+    const match = content.match(/^\[product_list:(\{.*?\})\]\n?([\s\S]*)$/);
+    if (match) {
+      try {
+        const listData = JSON.parse(match[1]);
+        const bodyText = match[2]?.trim() || 'Xin gửi quý khách danh sách sản phẩm nổi bật của cửa hàng:';
+        payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'interactive',
+          interactive: {
+            type: 'product_list',
+            header: {
+              type: 'text',
+              text: listData.header || 'Danh Mục Sản Phẩm'
+            },
+            body: { text: bodyText },
+            action: {
+              catalog_id: String(listData.catalog_id),
+              sections: listData.sections
+            }
+          }
+        };
+      } catch (err) {
+        console.warn('[META DISPATCH] Lỗi phân tích [product_list:...]:', err);
+        payload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'text',
+          text: { body: content }
+        };
+      }
+    }
   } else if (content.startsWith('[document:')) {
     const match = content.match(/^\[document:(\{.*?\})\]\n?([\s\S]*)$/);
     if (match) {
