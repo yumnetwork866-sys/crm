@@ -30,6 +30,13 @@ import {
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
+import {
+  createMessageInternalNote,
+  deleteMessageInternalNote,
+  getMessagePreferences,
+  importLegacyMessagePreferences,
+  updateMessageThreadState,
+} from '../controllers/messagePreferenceController';
 
 const router = Router();
 
@@ -68,6 +75,11 @@ router.post('/messages/send', authenticateToken, requirePermission(Permission.ME
 router.post('/messages/react', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendReaction);
 router.post('/messages/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleCustomerAi);
 router.get('/messages/ai-status/:phone', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getCustomerAiStatus);
+router.get('/messages/preferences', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessagePreferences);
+router.post('/messages/preferences/import', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), importLegacyMessagePreferences);
+router.patch('/messages/preferences/thread', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateMessageThreadState);
+router.post('/messages/preferences/notes', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), createMessageInternalNote);
+router.delete('/messages/preferences/notes/:noteId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessageInternalNote);
 router.get('/ai-status', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getGlobalAiStatus);
 router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleGlobalAi);
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);

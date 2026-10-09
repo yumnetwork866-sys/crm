@@ -166,7 +166,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     updateThreadStatus: handleUpdateThreadStatus,
     addInternalNote,
     deleteInternalNote: handleDeleteInternalNote,
-  } = useMessagePreferences();
+  } = useMessagePreferences(selectedPhoneId);
 
   // Media lightbox is view-only state; composer media state lives in useMessageComposer.
   const [previewLightboxImg, setPreviewLightboxImg] = useState<string | null>(null);

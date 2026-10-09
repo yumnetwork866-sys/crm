@@ -7,6 +7,7 @@ import { api } from '../utils/apiClient';
 import { playNotificationSound } from '../utils/audioUtils';
 import { formatDateTime, isSamePhoneNumber } from '../utils/crmUtils';
 import { queryKeys } from '../lib/queryClient';
+import { realtimeClient } from '../services/realtimeClient';
 
 interface MessagePage {
   messages: CentralMessage[];
@@ -15,7 +16,6 @@ interface MessagePage {
   limit: number;
   direction: string;
 }
-
 const flattenMessagePages = (data?: InfiniteData<MessagePage, string | null>) => {
   const byId = new Map<string, CentralMessage>();
   data?.pages.forEach((page) => page.messages.forEach((message) => byId.set(message.id, message)));
@@ -195,40 +195,45 @@ export function useCentralMessages({
       .forEach((message) => knownMessageIds.add(message.id));
 
 
-    let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource('/api/meta/messages/stream');
-      eventSource.addEventListener('connected', (event: MessageEvent) => {
+    return realtimeClient.subscribe({
+      connected: (event) => {
         console.log('[REALTIME SSE] Connected to server event stream:', event.data);
-      });
-      eventSource.addEventListener('message:new', (event: MessageEvent) => {
+      },
+      'message:new': (event) => {
         try {
           const newMessage: CentralMessage = JSON.parse(event.data);
           if (!newMessage?.id) return;
-          if (newMessage.businessPhoneNumberId && newMessage.businessPhoneNumberId !== phoneNumberId) return;
+          if (
+            newMessage.businessPhoneNumberId &&
+            newMessage.businessPhoneNumberId !== phoneNumberId
+          )
+            return;
           const wasKnown = knownMessageIds.has(newMessage.id);
           knownMessageIds.add(newMessage.id);
 
           setMessages((previous) => {
             const selected = selectedCustomerIdRef.current;
             const isSelected = Boolean(
-              selected
-              && (newMessage.customerId === selected
-                || isSamePhoneNumber(newMessage.customerPhone, selected))
+              selected &&
+              (newMessage.customerId === selected ||
+                isSamePhoneNumber(newMessage.customerPhone, selected)),
             );
             const enrichedMessage: CentralMessage = {
               ...newMessage,
               isRead: isSelected || Boolean(newMessage.isRead),
-              readBy: newMessage.readBy
-                || (isSelected ? currentUserRef.current?.name || 'Nhân viên' : undefined),
+              readBy:
+                newMessage.readBy ||
+                (isSelected ? currentUserRef.current?.name || 'Nhân viên' : undefined),
               readAt: newMessage.readAt || (isSelected ? new Date().toISOString() : undefined),
             };
             const withoutDuplicate = previous.filter(
-              (message) => message.id !== enrichedMessage.id
-                && !(message.id.startsWith('msg_') && message.content === enrichedMessage.content)
+              (message) =>
+                message.id !== enrichedMessage.id &&
+                !(message.id.startsWith('msg_') && message.content === enrichedMessage.content),
             );
             return [...withoutDuplicate, enrichedMessage].sort(
-              (first, second) => new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime()
+              (first, second) =>
+                new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime(),
             );
           });
 
@@ -240,15 +245,16 @@ export function useCentralMessages({
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:new event:', error);
         }
-      });
-      eventSource.addEventListener('message:read', (event: MessageEvent) => {
+      },
+      'message:read': (event) => {
         try {
           const { messageIds, customerId, customerPhone, readBy, readAt } = JSON.parse(event.data);
           setMessages((previous) =>
             previous.map((message) => {
-              const matches = (Array.isArray(messageIds) && messageIds.includes(message.id))
-                || (customerId && message.customerId === customerId)
-                || (customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone));
+              const matches =
+                (Array.isArray(messageIds) && messageIds.includes(message.id)) ||
+                (customerId && message.customerId === customerId) ||
+                (customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone));
               return matches
                 ? {
                     ...message,
@@ -257,16 +263,18 @@ export function useCentralMessages({
                     readAt: message.readAt || readAt || new Date().toISOString(),
                   }
                 : message;
-            })
+            }),
           );
           void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:read event:', error);
         }
-      });
-      eventSource.addEventListener('message:status', (event: MessageEvent) => {
+      },
+      'message:status': (event) => {
         try {
-          const { id, status, errorCode, errorMessage, deliveredAt, readAt } = JSON.parse(event.data);
+          const { id, status, errorCode, errorMessage, deliveredAt, readAt } = JSON.parse(
+            event.data,
+          );
           setMessages((previous) =>
             previous.map((message) => {
               if (message.id !== id) return message;
@@ -279,27 +287,28 @@ export function useCentralMessages({
                 readAt: readAt || message.readAt,
                 isRead: status === 'read' ? true : message.isRead,
               };
-            })
+            }),
           );
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:status event:', error);
         }
-      });
-      eventSource.addEventListener('message:thread_deleted', (event: MessageEvent) => {
+      },
+      'message:thread_deleted': (event) => {
         try {
           const { customerId, customerPhone } = JSON.parse(event.data);
           setMessages((previous) =>
             previous.filter(
-              (message) => message.customerId !== customerId
-                && !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone))
-            )
+              (message) =>
+                message.customerId !== customerId &&
+                !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone)),
+            ),
           );
           void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch {
           // Ignore malformed realtime events.
         }
-      });
-      eventSource.addEventListener('message:deleted', (event: MessageEvent) => {
+      },
+      'message:deleted': (event) => {
         try {
           const { messageId } = JSON.parse(event.data);
           setMessages((previous) => previous.filter((message) => message.id !== messageId));
@@ -307,35 +316,27 @@ export function useCentralMessages({
         } catch {
           // Ignore malformed realtime events.
         }
-      });
-      eventSource.addEventListener('message:cleared', () => {
+      },
+      'message:cleared': () => {
         setMessages([]);
         void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
-      });
-      eventSource.addEventListener('messages:sync', () => {
+      },
+      'messages:sync': () => {
         void queryClient.invalidateQueries({ queryKey: centralMessagesQueryKey });
         void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
-      });
-      eventSource.addEventListener('customers:sync', () => {
+      },
+      'customers:sync': () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
-      });
-      eventSource.addEventListener('ai:status', (event: MessageEvent) => {
+      },
+      'ai:status': (event) => {
         try {
           const detail = JSON.parse(event.data);
           window.dispatchEvent(new CustomEvent('ai:status_change', { detail }));
         } catch {
           // Ignore
         }
-      });
-
-      eventSource.onerror = (error) => {
-        console.warn('[REALTIME SSE] EventSource disconnected, browser will auto-reconnect...', error);
-      };
-    } catch (error) {
-      console.warn('[REALTIME SSE] Failed to initialize EventSource:', error);
-    }
-
-    return () => eventSource?.close();
+      },
+    });
   }, [centralMessagesQueryKey, phoneNumberId, queryClient, setCustomers, setMessages, unreadSummaryQueryKey]);
 
   const sendMutation = useMutation({

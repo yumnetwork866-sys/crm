@@ -26,6 +26,9 @@ model User {
   totalRevenue       Float    @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  updatedMessageThreadStates MessageThreadState[] @relation("MessageThreadStateUpdatedBy")
+  messageInternalNotes       MessageInternalNote[]
 }
 
 model RolePermission {
@@ -337,6 +340,39 @@ model WhatsAppMessage {
   @@index([customerId, sender, channel, timestamp(sort: Desc)])
   @@index([isRead, sender])
   @@index([status])
+}
+
+// Shared inbox metadata. These records replace the browser-local
+// threadStatuses and pinnedThreads maps.
+model MessageThreadState {
+  id                    String   @id @default(uuid())
+  businessPhoneNumberId String
+  threadId              String
+  status                String   @default("consulting")
+  isPinned              Boolean  @default(false)
+  updatedById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  updatedBy User? @relation("MessageThreadStateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([businessPhoneNumberId, threadId])
+  @@index([businessPhoneNumberId, isPinned])
+}
+
+// Notes belong to a shared inbox thread and retain their author for auditing.
+model MessageInternalNote {
+  id                    String   @id @default(uuid())
+  businessPhoneNumberId String
+  threadId              String
+  authorId              String?
+  author                String
+  content               String
+  createdAt             DateTime @default(now())
+
+  authorUser User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([businessPhoneNumberId, threadId, createdAt(sort: Desc)])
 }
 
 model MarketingReport {

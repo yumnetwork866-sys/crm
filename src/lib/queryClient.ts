@@ -8,6 +8,7 @@ export const queryKeys = {
   automationSteps: ['automation-steps'] as const,
   centralMessages: (phoneNumberId: string) => ['central-messages', phoneNumberId] as const,
   messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
+  messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,
   marketingReports: ['marketing-reports'] as const,
 };
 
