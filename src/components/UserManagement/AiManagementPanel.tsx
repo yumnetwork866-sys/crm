@@ -104,10 +104,7 @@ export const AiManagementPanel: React.FC = () => {
   return (
     <section className="rounded-3xl border border-slate-300 bg-white p-5 shadow-lg sm:p-6">
       <div className="border-b border-slate-200 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-            <Bot className="h-5 w-5" />
-          </div>
+        <div>
           <h2 className="text-base font-black text-slate-950 sm:text-lg">Trợ lý AI</h2>
         </div>
       </div>
