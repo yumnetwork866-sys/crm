@@ -73,7 +73,7 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
   };
 
   return (
-    <div className="w-full lg:w-80 xl:w-88 bg-white border-l border-slate-200 flex flex-col h-full shadow-lg z-20 shrink-0 select-none animate-in slide-in-from-right duration-200">
+    <div className="absolute inset-y-0 right-0 z-30 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-xl select-none animate-in slide-in-from-right duration-200 sm:w-80 xl:static xl:z-20 xl:w-88 xl:shrink-0 xl:shadow-lg">
       {/* Drawer Header */}
       <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-[#f0f2f5]">
         <div className="flex items-center space-x-2">

@@ -157,7 +157,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [isChatSearchOpen, setIsChatSearchOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => (
+    typeof window === 'undefined' || window.innerWidth >= 1024
+  ));
+  const [isCompactChatOpen, setIsCompactChatOpen] = useState(() => (
+    Boolean(selectedCustomerId) && (typeof window === 'undefined' || window.innerWidth >= 640)
+  ));
   const [selectedInfoUser, setSelectedInfoUser] = useState<AppUser | null>(null);
   const {
     soundEnabled,
@@ -204,6 +209,32 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     () => groupedMessagesByDate.flatMap((group) => group.msgs),
     [groupedMessagesByDate],
   );
+
+  const handleSelectThread = useCallback((threadId: string, phone: string, messageIds: string[]) => {
+    setIsCompactChatOpen(true);
+    onSelectCustomerThread(threadId, phone, messageIds);
+  }, [onSelectCustomerThread]);
+
+  useEffect(() => {
+    const compactQuery = window.matchMedia('(max-width: 1023px)');
+    const mobileQuery = window.matchMedia('(max-width: 639px)');
+    const handleLayoutChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsDrawerOpen(false);
+    };
+    const handleMobileLayoutChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setIsCompactChatOpen(false);
+        setIsDrawerOpen(false);
+      }
+    };
+    compactQuery.addEventListener('change', handleLayoutChange);
+    mobileQuery.addEventListener('change', handleMobileLayoutChange);
+    if (mobileQuery.matches) setIsCompactChatOpen(false);
+    return () => {
+      compactQuery.removeEventListener('change', handleLayoutChange);
+      mobileQuery.removeEventListener('change', handleMobileLayoutChange);
+    };
+  }, []);
   const virtualMessageRows = useMemo(() => {
     const rows: Array<{
       key: string;
@@ -523,12 +554,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   return (
     <div className="whatsapp-page flex-1 flex flex-col min-h-0 h-full w-full overflow-hidden">
       {/* Main WhatsApp 3-Column Studio */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 h-full w-full bg-white overflow-hidden">
+      <div className="relative flex min-h-0 h-full w-full flex-1 flex-row overflow-hidden bg-white">
 
         {/* ========================================================
             COLUMN 1: THREAD LIST & SEARCH (Fixed width flex panel)
            ======================================================== */}
-        <div className={`${isDrawerOpen ? 'w-full lg:w-[320px] xl:w-90' : 'w-full lg:w-95 xl:w-105'} bg-[#f0f2f5] border-r border-slate-300 flex flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
+        <div className={`${isCompactChatOpen ? 'hidden sm:flex' : 'flex'} ${isDrawerOpen ? 'w-full sm:w-2/5 lg:w-[320px] xl:w-90' : 'w-full sm:w-2/5 lg:w-95 xl:w-105'} bg-[#f0f2f5] border-r border-slate-300 flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
 
           {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
           <div className="p-2.5 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
@@ -701,7 +732,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         thread={thread}
                         isSelected={activeThread?.threadId === thread.threadId}
                         status={threadStatuses[thread.threadId]}
-                        onSelectThread={onSelectCustomerThread}
+                        onSelectThread={handleSelectThread}
                         togglePinThread={togglePinThread}
                         onDeleteThread={onDeleteThread}
                         isAdmin={isAdmin}
@@ -718,12 +749,24 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
         {/* ========================================================
             COLUMN 2: AUTHENTIC WHATSAPP CHAT CANVAS
            ======================================================== */}
-        <div className="flex-1 bg-[#efeae2] flex flex-col h-full overflow-hidden min-w-0 relative">
+        <div className={`${isCompactChatOpen ? 'flex' : 'hidden sm:flex'} w-full flex-1 sm:w-3/5 sm:flex-none lg:w-auto lg:flex-1 bg-[#efeae2] flex-col h-full overflow-hidden min-w-0 relative`}>
           {activeThread ? (
             <>
               {/* WhatsApp Active Chat Header */}
-              <div className="p-3 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0 shadow-sm z-10">
+              <div className="p-2 sm:p-3 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0 shadow-sm z-10">
                 <div className="flex items-center space-x-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCompactChatOpen(false);
+                      setIsDrawerOpen(false);
+                    }}
+                    className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-200 sm:hidden"
+                    title="Quay lại danh sách hội thoại"
+                    aria-label="Quay lại danh sách hội thoại"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
                       <img
@@ -1448,20 +1491,20 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           {/* Failure Notice & Retry for Outgoing Agent Messages (Placed BELOW message bubble) */}
                           {isAgent && (msg.status === 'failed' || msg.isRealSent === false) && (
                             <div className="w-full flex justify-end mt-1">
-                              <div className="inline-flex items-start sm:items-center gap-1.5 text-rose-600 text-[11px] text-right max-w-full">
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5 sm:mt-0" />
+                              <div className="inline-flex max-w-full items-start gap-1.5 text-right text-[11px] text-rose-600">
+                                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
                                 <span className="leading-snug break-words">
                                   {msg.errorMessage || 'Meta từ chối gửi tin nhắn'}
+                                  {onRetryMessage && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onRetryMessage(msg.id)}
+                                      className="ml-1 inline cursor-pointer whitespace-nowrap text-[11px] font-bold text-rose-600 underline underline-offset-2 transition hover:text-rose-800"
+                                    >
+                                      Thử lại
+                                    </button>
+                                  )}
                                 </span>
-                                {onRetryMessage && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onRetryMessage(msg.id)}
-                                    className="ml-1 font-bold text-rose-600 hover:text-rose-800 underline underline-offset-2 text-[11px] shrink-0 transition cursor-pointer whitespace-nowrap"
-                                  >
-                                    Thử lại
-                                  </button>
-                                )}
                               </div>
                             </div>
                           )}
