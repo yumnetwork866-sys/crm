@@ -1628,32 +1628,50 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       return (
                         <div
                           key={tUser.id}
-                          className="flex items-end justify-end gap-2 animate-fadeIn"
+                          className="flex flex-col items-end animate-fadeIn select-none"
                           title={`${tUser.name} đang soạn tin...`}
                         >
-                          {/* Typing Bubble with 3 animated bouncing dots */}
-                          <div
-                            className="flex items-center gap-1.5 rounded-2xl rounded-br-xs bg-[#d9fdd3] px-3.5 py-2.5 shadow-2xs select-none min-h-[34px]"
-                            aria-label={`${tUser.name} đang soạn tin`}
-                          >
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                          </div>
+                          {/* Staff Name Tag */}
+                          <span className="text-[10px] font-semibold text-slate-500 mr-9 mb-1 leading-none">
+                            {tUser.name}
+                          </span>
 
-                          {/* Staff Avatar */}
-                          <div
-                            className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 shrink-0 shadow-2xs mb-0.5"
-                            title={tUser.name}
-                          >
-                            <img
-                              src={avatarSrc}
-                              alt={tUser.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = getDiceBearAvatar(tUser.name || 'Agent', STAFF_DICEBEAR_STYLE);
-                              }}
-                            />
+                          <div className="flex items-end justify-end gap-2">
+                            {/* Typing Bubble with 3 animated bouncing dots */}
+                            <div
+                              className="flex items-center justify-center rounded-2xl rounded-br-xs bg-[#d9fdd3] px-3.5 py-2.5 shadow-2xs min-h-[34px]"
+                              aria-label={`${tUser.name} đang soạn tin`}
+                            >
+                              <svg className="w-7 h-3.5 text-[#54656f]" viewBox="0 0 24 12" fill="currentColor">
+                                <circle cx="4" cy="6" r="2.5">
+                                  <animate attributeName="cy" values="6;2;6;6" dur="1s" repeatCount="indefinite" begin="0s" />
+                                  <animate attributeName="opacity" values="0.4;1;0.4;0.4" dur="1s" repeatCount="indefinite" begin="0s" />
+                                </circle>
+                                <circle cx="12" cy="6" r="2.5">
+                                  <animate attributeName="cy" values="6;2;6;6" dur="1s" repeatCount="indefinite" begin="0.2s" />
+                                  <animate attributeName="opacity" values="0.4;1;0.4;0.4" dur="1s" repeatCount="indefinite" begin="0.2s" />
+                                </circle>
+                                <circle cx="20" cy="6" r="2.5">
+                                  <animate attributeName="cy" values="6;2;6;6" dur="1s" repeatCount="indefinite" begin="0.4s" />
+                                  <animate attributeName="opacity" values="0.4;1;0.4;0.4" dur="1s" repeatCount="indefinite" begin="0.4s" />
+                                </circle>
+                              </svg>
+                            </div>
+
+                            {/* Staff Avatar */}
+                            <div
+                              className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 shrink-0 shadow-2xs mb-0.5"
+                              title={tUser.name}
+                            >
+                              <img
+                                src={avatarSrc}
+                                alt={tUser.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = getDiceBearAvatar(tUser.name || 'Agent', STAFF_DICEBEAR_STYLE);
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
