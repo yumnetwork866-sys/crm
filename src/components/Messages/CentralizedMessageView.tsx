@@ -82,6 +82,7 @@ import { ThreadListItem } from '../../features/messages/components/ThreadListIte
 import { CustomerChatDrawer } from '../../features/messages/components/CustomerChatDrawer';
 import { WhatsAppSessionCountdown } from '../../features/messages/components/WhatsAppSessionCountdown';
 import { MessageDeliveryStatusIcon } from './MessageDeliveryStatusIcon';
+import { useAiProfile } from '../../features/messages/hooks/useAiProfile';
 
 interface SavedMessageList {
   id: string;
@@ -138,6 +139,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 }) => {
   const { currentUser: authCurrentUser, users, hasPermission } = useAuth();
   const effectiveCurrentUser = authCurrentUser || currentUser;
+  const aiProfile = useAiProfile().data;
 
   const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
@@ -898,7 +900,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
                     {row.messages.map((msg, msgIdx) => {
                       const isAgent = msg.sender === 'agent';
-                      const senderName = isAgent ? (msg.agentName || effectiveCurrentUser?.name || 'Nguyễn Văn Ánh') : (msg.customerName || 'Khách Hàng');
+                      const isAiMessage = Boolean(
+                        msg.isAi
+                        || (msg.agentName && /trợ lý ai|ai assistant|yum assistant|^🤖/i.test(msg.agentName.trim()))
+                      );
+                      const senderName = isAgent
+                        ? (isAiMessage ? (aiProfile?.name || msg.agentName || 'Trợ lý AI') : (msg.agentName || effectiveCurrentUser?.name || 'Nguyễn Văn Ánh'))
+                        : (msg.customerName || 'Khách Hàng');
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
 
@@ -939,6 +947,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const agentAvatarSrc = (isCurrentAgent && effectiveCurrentUser?.avatar)
                         ? effectiveCurrentUser.avatar
                         : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'Agent')}`);
+                      const displayedAgentAvatarSrc = isAiMessage ? aiProfile?.avatarUrl : agentAvatarSrc;
 
                       const renderReactionPicker = (agentMsg: boolean) => (
                         <div
@@ -1493,18 +1502,19 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             </div>
                           )}
 
-                          {/* Agent Avatar on the Right (Outgoing) */}
-                          {isAgent && (
+                          {/* Agent / configured AI avatar on the right. */}
+                          {isAgent && displayedAgentAvatarSrc && (
                             <div className="w-8 h-8 ml-2 shrink-0 self-end mb-0.5">
                               {shouldShowAvatar ? (
                                 <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-50 border border-emerald-300 shadow-2xs flex items-center justify-center" title={senderName}>
                                   <img
-                                    src={agentAvatarSrc}
+                                    src={displayedAgentAvatarSrc}
                                     alt={senderName}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
                                     onError={(e) => {
-                                      e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'A')}`;
+                                      if (isAiMessage) e.currentTarget.style.display = 'none';
+                                      else e.currentTarget.src = `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(senderName || 'A')}`;
                                     }}
                                   />
                                 </div>

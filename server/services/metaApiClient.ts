@@ -15,6 +15,8 @@ export interface IntegrationSettingData {
   whatsappAppId?: string | null;
   metaCatalogId?: string | null;
   difyAiEnabled?: boolean;
+  aiAvatarUrl?: string | null;
+  aiName?: string | null;
   status: string;
   lastConnectedAt?: Date | null;
   createdAt?: Date;

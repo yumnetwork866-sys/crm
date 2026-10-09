@@ -14,6 +14,7 @@ export interface CentralMessage {
   businessPhoneNumberId?: string;
   sender: 'customer' | 'agent' | 'system';
   agentName?: string;
+  isAi?: boolean;
   channel: MessageChannel;
   content: string;
   timestamp: string;

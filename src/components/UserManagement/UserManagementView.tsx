@@ -32,7 +32,9 @@ import {
   Plus,
   X,
   Check,
+  Bot,
 } from 'lucide-react';
+import { AiManagementPanel } from './AiManagementPanel';
 
 const ROLE_COLOR_PRESETS = [
   '#e11d48',
@@ -68,17 +70,19 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const activeSubTab = useMemo<'accounts' | 'permissions' | 'audit'>(() => {
+  const activeSubTab = useMemo<'accounts' | 'permissions' | 'ai' | 'audit'>(() => {
     const segments = location.pathname.replace(/^\//, '').split('/');
     if (segments[0] === 'users') {
       const sub = segments[1];
       if (sub === 'permissions') return 'permissions';
+      if (sub === 'ai') return 'ai';
       if (sub === 'logs' || sub === 'audit') return 'audit';
       if (sub === 'accounts') return 'accounts';
     }
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam === 'permissions') return 'permissions';
+    if (tabParam === 'ai') return 'ai';
     if (tabParam === 'logs' || tabParam === 'audit') return 'audit';
     return 'accounts';
   }, [location.pathname, location.search]);
@@ -391,6 +395,18 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         >
           <ShieldCheck className="w-4 h-4" />
           Phân Quyền
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/users/ai')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+            activeSubTab === 'ai'
+              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+              : 'text-slate-700 hover:text-slate-950'
+          }`}
+        >
+          <Bot className="w-4 h-4" />
+          AI
         </button>
         <button
           type="button"
@@ -941,7 +957,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         </div>
       )}
 
-      {/* SUB-TAB 3: AUTH SECURITY LOGS */}
+      {/* SUB-TAB 3: AI PROFILE */}
+      {activeSubTab === 'ai' && <AiManagementPanel />}
+
+      {/* SUB-TAB 4: AUTH SECURITY LOGS */}
       {activeSubTab === 'audit' && (
         <div className="bg-white border border-slate-300 rounded-3xl p-6 shadow-lg space-y-6">
           <div className="border-b border-slate-200 pb-4 flex justify-between items-center">

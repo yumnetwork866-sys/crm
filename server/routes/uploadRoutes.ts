@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken } from '../middleware/authMiddleware';
+import { hasPermission, Permission } from '../auth/permissions';
 
 const router = Router();
 
@@ -14,8 +15,9 @@ router.use(authenticateToken);
 const BASE_UPLOAD_DIR = path.resolve(process.cwd(), 'public/uploads');
 const CHAT_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'chat');
 const PRODUCTS_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'products');
+const AI_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'ai');
 
-[BASE_UPLOAD_DIR, CHAT_UPLOAD_DIR, PRODUCTS_UPLOAD_DIR].forEach((dir) => {
+[BASE_UPLOAD_DIR, CHAT_UPLOAD_DIR, PRODUCTS_UPLOAD_DIR, AI_UPLOAD_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -51,6 +53,9 @@ const MAX_UPLOAD_SIZE = 25 * 1024 * 1024; // 25 MB
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { imageBase64, audioBase64, fileBase64, folder = 'chat', customFilename } = req.body;
+    if (folder === 'ai' && !hasPermission(req.user?.permissions || 0n, Permission.USERS_MANAGE)) {
+      return res.status(403).json({ success: false, error: 'Bạn không có quyền cập nhật ảnh đại diện AI.' });
+    }
     const rawData = imageBase64 || audioBase64 || fileBase64;
 
     if (!rawData || typeof rawData !== 'string') {
@@ -84,8 +89,12 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Choose target directory and sanitize folder name
-    const cleanFolder = folder === 'products' ? 'products' : 'chat';
-    const targetSubdir = cleanFolder === 'products' ? PRODUCTS_UPLOAD_DIR : CHAT_UPLOAD_DIR;
+    const cleanFolder = folder === 'products' ? 'products' : folder === 'ai' ? 'ai' : 'chat';
+    const targetSubdir = cleanFolder === 'products'
+      ? PRODUCTS_UPLOAD_DIR
+      : cleanFolder === 'ai'
+        ? AI_UPLOAD_DIR
+        : CHAT_UPLOAD_DIR;
 
     // Generate unique safe filename without path traversal vulnerabilities
     const rand = Math.random().toString(36).substring(2, 8);

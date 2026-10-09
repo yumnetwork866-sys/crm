@@ -271,6 +271,8 @@ model IntegrationSetting {
   whatsappVerifyToken   String?   @default("YUMNETWORK_CRM_META_VERIFY_TOKEN_2026")
   whatsappAppId         String?
   difyAiEnabled          Boolean   @default(true)
+  aiName                 String?
+  aiAvatarUrl            String?
   status                String    @default("disconnected") // 'connected' | 'disconnected' | 'error'
   lastConnectedAt       DateTime?
   createdAt             DateTime  @default(now())
@@ -318,6 +320,7 @@ model WhatsAppMessage {
   businessPhoneNumberId String?
   sender        String // 'customer' | 'agent'
   agentName     String?
+  isAi          Boolean   @default(false)
   channel       String    @default("WhatsApp")
   content       String
   status        String    @default("sent") // 'sending' | 'sent' | 'delivered' | 'read' | 'failed'

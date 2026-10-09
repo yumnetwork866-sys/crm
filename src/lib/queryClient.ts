@@ -11,6 +11,7 @@ export const queryKeys = {
   messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,
   metaCatalogs: (scopeId: string) => ['meta-catalogs', scopeId] as const,
   metaCatalogProducts: (scopeId: string, catalogId: string) => ['meta-catalog-products', scopeId, catalogId] as const,
+  aiProfile: ['ai-profile'] as const,
   marketingReports: ['marketing-reports'] as const,
 };
 

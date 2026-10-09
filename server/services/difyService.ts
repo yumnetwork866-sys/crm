@@ -571,7 +571,7 @@ export async function autoReplyWithDify(params: {
     }
 
     // 5. Create in-memory message for CRM UI
-    const configuredAgentName = process.env.DIFY_AGENT_NAME?.trim() || '🤖 Trợ lý AI';
+    const configuredAgentName = setting.aiName?.trim() || process.env.DIFY_AGENT_NAME?.trim() || '🤖 Trợ lý AI';
     const aiMsg: InMemoryMessage = {
       id: metaSentId || `msg_dify_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId,
@@ -580,6 +580,7 @@ export async function autoReplyWithDify(params: {
       businessPhoneNumberId: phoneId || undefined,
       sender: 'agent',
       agentName: configuredAgentName,
+      isAi: true,
       channel: 'WhatsApp',
       content: answer,
       timestamp: new Date().toISOString(),
@@ -608,6 +609,7 @@ export async function autoReplyWithDify(params: {
         businessPhoneNumberId: phoneId || null,
         sender: 'agent',
         agentName: aiMsg.agentName,
+        isAi: true,
         channel: 'WhatsApp',
         content: aiMsg.content,
         isRead: true,

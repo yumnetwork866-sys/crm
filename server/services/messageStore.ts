@@ -7,6 +7,7 @@ export interface InMemoryMessage {
   businessPhoneNumberId?: string;
   sender: 'customer' | 'agent';
   agentName?: string | null;
+  isAi?: boolean;
   channel: string;
   content: string;
   timestamp: string;
