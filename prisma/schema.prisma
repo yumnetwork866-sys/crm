@@ -29,6 +29,7 @@ model User {
 
   updatedMessageThreadStates MessageThreadState[] @relation("MessageThreadStateUpdatedBy")
   messageInternalNotes       MessageInternalNote[]
+  messageSavedFilters        MessageSavedFilter[]
 }
 
 model RolePermission {
@@ -378,6 +379,19 @@ model MessageInternalNote {
   authorUser User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([businessPhoneNumberId, threadId, createdAt(sort: Desc)])
+}
+
+model MessageSavedFilter {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  filter    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model MarketingReport {

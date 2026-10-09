@@ -10,6 +10,7 @@ interface TypingEvent {
   userId: string;
   userName: string;
   userEmail: string;
+  userAvatar?: string;
   sourceId: string;
   isTyping: boolean;
   expiresAt: string;
@@ -18,6 +19,7 @@ interface TypingEvent {
 export interface TypingUser {
   id: string;
   name: string;
+  avatar?: string;
   expiresAt: number;
 }
 
@@ -100,11 +102,8 @@ export function useThreadTyping({
         if (
           !payload.userId
           || payload.sourceId === sourceIdRef.current
-          || payload.userId === currentUserId
-          || Boolean(currentUserEmail && payload.userEmail
-            && payload.userEmail.trim().toLowerCase() === currentUserEmail.trim().toLowerCase())
           || !matchesThread
-          || payload.businessPhoneNumberId !== businessPhoneNumberId
+          || (businessPhoneNumberId && payload.businessPhoneNumberId && payload.businessPhoneNumberId !== businessPhoneNumberId)
         ) return;
 
         setTypingUsers((current) => {
@@ -113,6 +112,7 @@ export function useThreadTyping({
           return [...withoutUser, {
             id: payload.userId,
             name: payload.userName || 'Nhân viên',
+            avatar: payload.userAvatar,
             expiresAt: new Date(payload.expiresAt).getTime(),
           }];
         });

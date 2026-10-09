@@ -7,15 +7,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { INITIAL_USERS } from '../data/mockData';
 import type { AppUser, UserRole } from '../types';
 import { Permission, hasPermission as maskHasPermission } from '../lib/permissions';
-import { api, getStoredToken, removeStoredToken, setStoredToken } from '../utils/apiClient';
+import { api, clearLegacyStoredTokens } from '../utils/apiClient';
 import { cacheUserRoleColors } from '../utils/roleColors';
 import { realtimeClient } from '../services/realtimeClient';
-
-const STORAGE_KEY_USERS = 'yumcrm_users_v2';
-const STORAGE_KEY_CURRENT_USER = 'yumcrm_current_user_v2';
 
 type MessageUserProfile = Pick<AppUser, 'id' | 'name' | 'avatar' | 'role' | 'roleColor' | 'status' | 'lastActive'>;
 
@@ -33,31 +29,10 @@ const mergeMessageProfiles = (current: AppUser[], profiles: MessageUserProfile[]
     };
   });
 
-const loadUsers = (): AppUser[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_USERS);
-    const users: AppUser[] = saved ? JSON.parse(saved) : INITIAL_USERS;
-    cacheUserRoleColors(users);
-    return users;
-  } catch {
-    return INITIAL_USERS;
-  }
-};
-
-const loadCurrentUser = (): AppUser | null => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-    const user: AppUser | null = saved ? JSON.parse(saved) : null;
-    cacheUserRoleColors([user]);
-    return user;
-  } catch {
-    return null;
-  }
-};
-
 interface AuthContextValue {
   users: AppUser[];
   currentUser: AppUser | null;
+  isAuthLoading: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<AppUser>;
   logout: () => void;
@@ -67,7 +42,6 @@ interface AuthContextValue {
   saveUser: (data: Partial<AppUser> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
   toggleUserStatus: (userId: string) => Promise<void>;
-  resetAuth: () => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   changeAvatar: (avatarUrl: string) => Promise<void>;
   refreshCurrentUser: () => Promise<AppUser>;
@@ -77,44 +51,26 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState<AppUser[]>(loadUsers);
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => (
-    getStoredToken() ? loadCurrentUser() : null
-  ));
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => cacheUserRoleColors(users), [users]);
 
   useEffect(() => {
-    cacheUserRoleColors(users);
-    try {
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-    } catch (error) {
-      console.error('Error saving users to localStorage', error);
-    }
-  }, [users]);
-
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        cacheUserRoleColors([currentUser]);
-        localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
-      }
-    } catch (error) {
-      console.error('Error saving current user to localStorage', error);
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!getStoredToken()) {
-      setCurrentUser(null);
-      return;
-    }
-
+    [
+      'yumcrm_users_v2',
+      'yumcrm_current_user_v2',
+      'yumcrm_customers_v2',
+      'yumcrm_products_v2',
+      'yumcrm_central_messages_v2',
+    ].forEach((key) => localStorage.removeItem(key));
     let isCancelled = false;
     void api.get<AppUser>('/auth/me')
       .then((user) => {
         if (isCancelled) return;
         if (!user?.id) throw new Error('Phiên đăng nhập không hợp lệ.');
+        clearLegacyStoredTokens();
         setCurrentUser(user);
 
         // Chỉ tải dữ liệu bảo vệ khi tài khoản có quyền xem danh sách nhân sự.
@@ -128,8 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (isCancelled) return;
-        removeStoredToken();
+        clearLegacyStoredTokens();
         setCurrentUser(null);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsAuthLoading(false);
       });
 
     return () => {
@@ -138,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!currentUser || !getStoredToken()) return;
+    if (!currentUser) return;
 
     let isCancelled = false;
     const refreshMessageProfiles = () => {
@@ -186,12 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const selectUser = useCallback((user: AppUser | null) => {
     if (!user) {
-      removeStoredToken();
-      setCurrentUser(null);
-      return;
-    }
-    if (!getStoredToken()) {
-      console.warn('[AUTH] Không thể chọn user khi chưa có JWT hợp lệ.');
       setCurrentUser(null);
       return;
     }
@@ -216,10 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!response.ok) {
       throw new Error(data.error || 'Email hoặc mật khẩu không chính xác.');
     }
-    if (!data.token || !data.user?.id) {
+    if (!data.user?.id) {
       throw new Error('Máy chủ không trả về phiên đăng nhập hợp lệ.');
     }
-    setStoredToken(data.token);
 
     const authenticatedUser: AppUser = {
       id: data.user.id,
@@ -262,8 +214,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    removeStoredToken();
+    void api.post('/auth/logout').catch(() => undefined);
+    clearLegacyStoredTokens();
     setCurrentUser(null);
+    setUsers([]);
   }, []);
 
   const hasRole = useCallback(
@@ -321,10 +275,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [users]);
 
 
-  const resetAuth = useCallback(() => {
-    setUsers(INITIAL_USERS);
-  }, []);
-
   const refreshCurrentUser = useCallback(async () => {
     const user = await api.get<AppUser>('/auth/me');
     setCurrentUser(user);
@@ -356,6 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       users,
       currentUser,
+      isAuthLoading,
       isAdmin: hasPermission(Permission.USERS_MANAGE),
       login,
       logout,
@@ -365,7 +316,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       saveUser,
       deleteUser,
       toggleUserStatus,
-      resetAuth,
       changePassword,
       changeAvatar,
       refreshCurrentUser,
@@ -374,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       users,
       currentUser,
+      isAuthLoading,
       login,
       logout,
       selectUser,
@@ -382,7 +333,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       saveUser,
       deleteUser,
       toggleUserStatus,
-      resetAuth,
       changePassword,
       changeAvatar,
       refreshCurrentUser,

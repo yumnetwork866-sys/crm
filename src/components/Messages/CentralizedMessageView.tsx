@@ -144,15 +144,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<ActiveMessageFilter>('all');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
-  const [savedFilterLists, setSavedFilterLists] = useState<SavedMessageList[]>(() => {
-    try {
-      const savedLists = localStorage.getItem('whatsapp-saved-filter-lists');
-      const parsedLists: unknown = savedLists ? JSON.parse(savedLists) : [];
-      return Array.isArray(parsedLists) ? parsedLists as SavedMessageList[] : [];
-    } catch {
-      return [];
-    }
-  });
+  const [savedFilterLists, setSavedFilterLists] = useState<SavedMessageList[]>([]);
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -452,12 +444,35 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   }, [jumpToQuotedMessage, messageRowIndexById, messageVirtualizer]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('whatsapp-saved-filter-lists', JSON.stringify(savedFilterLists));
-    } catch {
-      // Keep saved lists available for this session when browser storage is unavailable.
-    }
-  }, [savedFilterLists]);
+    if (!effectiveCurrentUser) return;
+    let cancelled = false;
+    void api.get<SavedMessageList[]>('/meta/messages/preferences/filters')
+      .then(async (databaseLists) => {
+        let legacyLists: SavedMessageList[] = [];
+        try {
+          const raw = localStorage.getItem('whatsapp-saved-filter-lists');
+          const parsed: unknown = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(parsed)) legacyLists = parsed as SavedMessageList[];
+        } catch {
+          legacyLists = [];
+        }
+
+        if (databaseLists.length === 0 && legacyLists.length > 0) {
+          const imported = await Promise.all(legacyLists.map((list) =>
+            api.post<SavedMessageList>('/meta/messages/preferences/filters', {
+              name: list.name,
+              filter: list.filter,
+            })
+          ));
+          if (!cancelled) setSavedFilterLists(imported);
+        } else if (!cancelled) {
+          setSavedFilterLists(databaseLists);
+        }
+        localStorage.removeItem('whatsapp-saved-filter-lists');
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [effectiveCurrentUser]);
 
   useEffect(() => {
     if (!isFilterMenuOpen) return;
@@ -538,15 +553,14 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     setActiveSavedListId(null);
   };
 
-  const handleCreateSavedList = () => {
+  const handleCreateSavedList = async () => {
     const name = window.prompt('Tên danh sách mới:')?.trim();
     if (!name) return;
 
-    const newList: SavedMessageList = {
-      id: `list_${Date.now()}`,
+    const newList = await api.post<SavedMessageList>('/meta/messages/preferences/filters', {
       name,
       filter: activeFilter,
-    };
+    });
     setSavedFilterLists((currentLists) => [...currentLists, newList]);
     setActiveSavedListId(newList.id);
     setIsFilterMenuOpen(false);
@@ -708,7 +722,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={handleCreateSavedList}
+                      onClick={() => void handleCreateSavedList()}
                       className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-800 transition hover:bg-slate-100 cursor-pointer"
                     >
                       <Plus className="h-4 w-4 shrink-0" />
@@ -1601,23 +1615,49 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 </div>
 
                 {typingUsers.length > 0 && (
-                  <div className="flex justify-end px-4 pb-2 pt-1">
-                    <div className="flex items-center gap-2 rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-2 shadow-sm">
-                      <span className="max-w-36 truncate text-[10px] font-semibold text-[#54656f]">
-                        {typingUsers.length === 1
-                          ? `${typingUsers[0].name} đang nhập`
-                          : `${typingUsers.length} nhân viên đang nhập`}
-                      </span>
-                      <span className="flex h-4 items-center gap-1" aria-label="Đang nhập">
-                        {[0, 1, 2].map((dot) => (
-                          <span
-                            key={dot}
-                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#667781]"
-                            style={{ animationDelay: `${dot * 140}ms` }}
-                          />
-                        ))}
-                      </span>
-                    </div>
+                  <div className="flex flex-col items-end gap-1 px-4 pb-2 pt-1">
+                    {typingUsers.map((tUser) => {
+                      const matchedUser = users.find(
+                        (u) => u.id === tUser.id || u.name?.trim().toLowerCase() === tUser.name?.trim().toLowerCase()
+                      );
+                      const avatarSrc =
+                        tUser.avatar ||
+                        matchedUser?.avatar ||
+                        getDiceBearAvatar(tUser.name || 'Agent', STAFF_DICEBEAR_STYLE);
+
+                      return (
+                        <div
+                          key={tUser.id}
+                          className="flex items-end justify-end gap-2 animate-fadeIn"
+                          title={`${tUser.name} đang soạn tin...`}
+                        >
+                          {/* Typing Bubble with 3 animated bouncing dots */}
+                          <div
+                            className="flex items-center gap-1.5 rounded-2xl rounded-br-xs bg-[#d9fdd3] px-3.5 py-2.5 shadow-2xs select-none min-h-[34px]"
+                            aria-label={`${tUser.name} đang soạn tin`}
+                          >
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                          </div>
+
+                          {/* Staff Avatar */}
+                          <div
+                            className="w-7 h-7 rounded-full overflow-hidden bg-emerald-50 shrink-0 shadow-2xs mb-0.5"
+                            title={tUser.name}
+                          >
+                            <img
+                              src={avatarSrc}
+                              alt={tUser.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = getDiceBearAvatar(tUser.name || 'Agent', STAFF_DICEBEAR_STYLE);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

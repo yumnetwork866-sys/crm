@@ -37,6 +37,9 @@ import {
   getMessagePreferences,
   importLegacyMessagePreferences,
   updateMessageThreadState,
+  getMessageSavedFilters,
+  createMessageSavedFilter,
+  deleteMessageSavedFilter,
 } from '../controllers/messagePreferenceController';
 
 const router = Router();
@@ -44,8 +47,8 @@ const router = Router();
 // ==========================================
 // 1. Real-time SSE Streaming
 // ==========================================
-router.get('/messages/stream', getRealtimeStream);
-router.get('/stream', getRealtimeStream);
+router.get('/messages/stream', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getRealtimeStream);
+router.get('/stream', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getRealtimeStream);
 
 // ==========================================
 // 2. Meta Integration & Configuration Routes
@@ -82,6 +85,9 @@ router.post('/messages/preferences/import', authenticateToken, requirePermission
 router.patch('/messages/preferences/thread', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateMessageThreadState);
 router.post('/messages/preferences/notes', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), createMessageInternalNote);
 router.delete('/messages/preferences/notes/:noteId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessageInternalNote);
+router.get('/messages/preferences/filters', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessageSavedFilters);
+router.post('/messages/preferences/filters', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), createMessageSavedFilter);
+router.delete('/messages/preferences/filters/:id', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), deleteMessageSavedFilter);
 router.get('/ai-status', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getGlobalAiStatus);
 router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleGlobalAi);
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);

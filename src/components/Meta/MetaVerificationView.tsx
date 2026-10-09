@@ -12,7 +12,6 @@ import {
   Package,
   RefreshCw,
 } from 'lucide-react';
-import { getStoredToken } from '../../utils/apiClient';
 
 type EmbeddedSignupSession = {
   wabaId: string;
@@ -146,12 +145,11 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({
   const [catalogAlert, setCatalogAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const safeJsonFetch = useCallback(async (url: string, options?: RequestInit) => {
-    const token = getStoredToken();
     const res = await fetch(url, {
       ...options,
+      credentials: 'same-origin',
       headers: {
         ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options?.headers || {}),
       },
     });

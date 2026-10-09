@@ -9,6 +9,10 @@ import { createHash, randomUUID } from 'node:crypto';
 const conversationStatuses = ['consulting', 'ordered', 'callback', 'completed'] as const;
 const phoneNumberIdSchema = z.string().trim().min(1).max(128);
 const threadIdSchema = z.string().trim().min(1).max(255);
+const savedFilterSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  filter: z.enum(['all', 'unread', 'vip', 'repeat', 'new']),
+});
 
 const updateThreadSchema = z.object({
   businessPhoneNumberId: phoneNumberIdSchema,
@@ -226,4 +230,33 @@ export async function deleteMessageInternalNote(req: AuthenticatedRequest, res: 
     console.error('[MESSAGE INTERNAL NOTE DELETE ERROR]', error);
     return res.status(500).json({ error: 'Không thể xóa ghi chú nội bộ.' });
   }
+}
+
+export async function getMessageSavedFilters(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) return res.status(401).json({ error: 'Chưa xác thực người dùng.' });
+  const filters = await prisma.messageSavedFilter.findMany({
+    where: { userId: req.user.id },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, name: true, filter: true },
+  });
+  return res.json(filters);
+}
+
+export async function createMessageSavedFilter(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) return res.status(401).json({ error: 'Chưa xác thực người dùng.' });
+  const parsed = savedFilterSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Bộ lọc không hợp lệ.' });
+  const filter = await prisma.messageSavedFilter.create({
+    data: { userId: req.user.id, ...parsed.data },
+    select: { id: true, name: true, filter: true },
+  });
+  return res.status(201).json(filter);
+}
+
+export async function deleteMessageSavedFilter(req: AuthenticatedRequest, res: Response) {
+  if (!req.user) return res.status(401).json({ error: 'Chưa xác thực người dùng.' });
+  const id = getRouteParam(req.params.id);
+  const result = await prisma.messageSavedFilter.deleteMany({ where: { id, userId: req.user.id } });
+  if (result.count === 0) return res.status(404).json({ error: 'Không tìm thấy bộ lọc.' });
+  return res.json({ id });
 }

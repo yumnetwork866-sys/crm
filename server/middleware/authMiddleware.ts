@@ -9,17 +9,36 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     role: string;
     name: string;
+    avatar: string | null;
     permissions: bigint;
   };
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
+const AUTH_COOKIE_NAME = 'yumcrm_session';
+
+function getCookie(req: Request, name: string): string | null {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [rawName, ...rawValue] = part.trim().split('=');
+    if (rawName === name) {
+      try {
+        return decodeURIComponent(rawValue.join('='));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
 
 interface CachedAuthUser {
   id: string;
   email: string;
   role: string;
   name: string;
+  avatar: string | null;
   status: string;
   permissions: bigint;
   cachedAt: number;
@@ -38,7 +57,9 @@ export function invalidateAuthCache(userId?: string): void {
 
 export async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : getCookie(req, AUTH_COOKIE_NAME);
 
   if (!token) {
     return res.status(401).json({ error: 'Truy cập bị từ chối. Token xác thực không tồn tại.' });
@@ -60,6 +81,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
         email: cached.email,
         role: cached.role,
         name: cached.name,
+        avatar: cached.avatar,
         permissions: cached.permissions,
       };
       return next();
@@ -72,6 +94,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
         email: true,
         role: true,
         name: true,
+        avatar: true,
         status: true,
         permissionAllow: true,
         permissionDeny: true,
@@ -89,6 +112,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
       email: user.email,
       role: user.role,
       name: user.name,
+      avatar: user.avatar,
       status: user.status,
       permissions,
       cachedAt: now,
@@ -99,6 +123,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
       email: user.email,
       role: user.role,
       name: user.name,
+      avatar: user.avatar,
       permissions,
     };
     next();

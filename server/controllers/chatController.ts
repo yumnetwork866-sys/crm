@@ -635,6 +635,7 @@ export function updateTypingStatus(req: AuthenticatedRequest, res: Response) {
     userId: req.user.id,
     userName: req.user.name,
     userEmail: req.user.email,
+    userAvatar: req.user.avatar,
     sourceId,
     isTyping,
     expiresAt: new Date(Date.now() + 6_500).toISOString(),

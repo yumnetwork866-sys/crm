@@ -117,6 +117,7 @@ export default function App() {
   const {
     users,
     currentUser,
+    isAuthLoading,
     hasPermission,
     saveUser: handleSaveUser,
     deleteUser: handleDeleteUser,
@@ -291,7 +292,9 @@ export default function App() {
           element={<DataDeletionView onBackToApp={() => { void navigate(currentUser ? '/crm' : '/'); }} />}
         />
         {/* Public Landing & Login flow for unauthenticated users */}
-        {!currentUser ? (
+        {isAuthLoading ? (
+          <Route path="*" element={<RouteLoading />} />
+        ) : !currentUser ? (
           <Route
             path="*"
             element={

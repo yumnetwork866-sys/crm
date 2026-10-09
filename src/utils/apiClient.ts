@@ -2,39 +2,26 @@
 
 const API_BASE_URL = '/api';
 
-const TOKEN_KEY = 'yumnetwork_crm_jwt_token';
-const LEGACY_TOKEN_KEY = 'vietcrm_jwt_token';
-
-export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
-}
-
-export function setStoredToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function removeStoredToken() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(LEGACY_TOKEN_KEY);
+export function clearLegacyStoredTokens() {
+  localStorage.removeItem('yumnetwork_crm_jwt_token');
+  localStorage.removeItem('vietcrm_jwt_token');
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getStoredToken();
-
+  const legacyToken = localStorage.getItem('yumnetwork_crm_jwt_token')
+    || localStorage.getItem('vietcrm_jwt_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
     ...(options.headers as Record<string, string>)
   };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
   const method = options.method || 'GET';
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      credentials: 'same-origin',
       headers
     });
   } catch (error) {
@@ -45,7 +32,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (response.status === 401) {
     // Chỉ token không hợp lệ/hết hạn mới kết thúc phiên; 403 chỉ là thiếu quyền.
     if (endpoint !== '/auth/login') {
-      removeStoredToken();
+      clearLegacyStoredTokens();
     }
   }
 

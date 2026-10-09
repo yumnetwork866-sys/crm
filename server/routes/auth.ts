@@ -13,6 +13,16 @@ import { realtimeHub } from '../services/realtimeHub';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'vietcrm_super_secret_jwt_key_2026_change_in_production';
+const AUTH_COOKIE_NAME = 'yumcrm_session';
+const AUTH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+const authCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: AUTH_COOKIE_MAX_AGE_MS,
+};
 
 // Input Schemas
 const loginSchema = z.object({
@@ -190,16 +200,26 @@ router.post('/login', async (req: Request, res: Response) => {
     };
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
 
     return res.json({
       message: 'Đăng nhập thành công',
-      token,
       user: await serializeUser(user)
     });
   } catch (error) {
     console.error('Lỗi khi đăng nhập:', error);
     return res.status(500).json({ error: 'Lỗi hệ thống khi đăng nhập.' });
   }
+});
+
+router.post('/logout', (_req: Request, res: Response) => {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  });
+  return res.json({ success: true });
 });
 
 // POST /api/auth/register - kept for compatibility, but no longer public.
@@ -246,6 +266,9 @@ router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res: Resp
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ error: 'Không tìm thấy thông tin người dùng' });
+
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
 
     return res.json(await serializeUser(user));
   } catch (error) {

@@ -1,26 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { INITIAL_CUSTOMERS } from '../data/mockData';
 import type { AppUser, Customer, CustomerGroupId, CustomerStatus } from '../types';
 import { compareVietnameseNames, formatDateTime, getCustomerGroup } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
 
-const STORAGE_KEY_CUSTOMERS = 'yumcrm_customers_v2';
-
 export const sortCustomersByName = (list: Customer[]): Customer[] => {
   return [...list].sort((a, b) => compareVietnameseNames(a.name, b.name));
-};
-
-const loadCustomers = (): Customer[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_CUSTOMERS);
-    return sortCustomersByName(saved ? JSON.parse(saved) : INITIAL_CUSTOMERS);
-  } catch {
-    return sortCustomersByName(INITIAL_CUSTOMERS);
-  }
 };
 
 export interface CustomerFilterModel {
@@ -74,8 +62,6 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
       return sortCustomersByName(customerList.map(mapApiCustomerToFrontend));
     },
     enabled: Boolean(currentUser) && enabled,
-    initialData: loadCustomers,
-    initialDataUpdatedAt: 0,
   });
   const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
   const setCustomers: Dispatch<SetStateAction<Customer[]>> = useCallback((update) => {
@@ -92,14 +78,6 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   const [selectedOwner, setSelectedOwner] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CUSTOMERS, JSON.stringify(customers));
-    } catch (error) {
-      console.error('Error saving customers to localStorage', error);
-    }
-  }, [customers]);
 
   const fetchCustomers = useCallback(async () => {
     await customersQuery.refetch();
@@ -361,8 +339,9 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   );
 
   const resetCustomers = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY_CUSTOMERS);
-    queryClient.setQueryData(queryKeys.customers, INITIAL_CUSTOMERS);
+    localStorage.removeItem('yumcrm_customers_v2');
+    queryClient.removeQueries({ queryKey: queryKeys.customers });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
   }, [queryClient]);
 
   const buildFilterModel = useCallback((): CustomerFilterModel => {
