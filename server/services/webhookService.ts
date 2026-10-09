@@ -442,7 +442,7 @@ async function processWebhookStatuses(body: any) {
         const errCode = error?.code ? String(error.code) : 'META_FAILED';
         let errMsg = error?.title || error?.message || 'Meta báo gửi thất bại.';
         if (error?.code === 131047) {
-          errMsg = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Cần dùng tin nhắn mẫu (Template) để mở lại hội thoại.';
+          errMsg = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Hãy dùng tin nhắn mẫu (template).';
         } else if (error?.code === 131026) {
           errMsg = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
         }

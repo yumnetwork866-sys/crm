@@ -4,7 +4,6 @@ import {
   MessageSquare,
   Search,
   Send,
-  AlertCircle,
   CheckCheck,
   Check,
   User,
@@ -1492,7 +1491,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           {isAgent && (msg.status === 'failed' || msg.isRealSent === false) && (
                             <div className="w-full flex justify-end mt-1">
                               <div className="inline-flex max-w-full items-start gap-1.5 text-right text-[11px] text-rose-600">
-                                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
                                 <span className="leading-snug break-words">
                                   {msg.errorMessage || 'Meta từ chối gửi tin nhắn'}
                                   {onRetryMessage && (

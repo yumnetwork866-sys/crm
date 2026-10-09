@@ -345,7 +345,7 @@ export async function sendMessage(req: Request, res: Response) {
       const metaError = metaResult?.error;
       initialErrorCode = metaError?.code ? String(metaError.code) : 'META_DISPATCH_FAILED';
       if (metaError?.code === 131047 || metaError?.error_subcode === 131047) {
-        initialErrorMessage = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Cần gửi tin nhắn mẫu (Template) để mở lại hội thoại.';
+        initialErrorMessage = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Hãy dùng tin nhắn mẫu (template).';
       } else if (metaError?.code === 131026) {
         initialErrorMessage = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
       } else if (metaError?.code === 190) {
