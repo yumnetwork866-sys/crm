@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Customer, CustomerStatus } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getCustomerAvatar, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { UserInfoModal } from '../Common/UserInfoModal';
@@ -76,7 +76,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
             <div className="flex min-w-0 flex-1 items-start gap-3.5">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
                 <img
-                  src={customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`}
+                  src={getCustomerAvatar(customer.avatar, customer.phone || customer.name)}
                   alt={customer.name}
                   className="h-full w-full object-cover"
                 />

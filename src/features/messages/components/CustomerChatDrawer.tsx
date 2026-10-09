@@ -123,7 +123,7 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
                 <img
                   src={
                     activeCustomer?.avatar ||
-                    `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(
+                    `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
                       activeCustomer?.phone ||
                         activeThread.customerPhone ||
                         activeThread.customerName ||

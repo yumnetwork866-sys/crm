@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, MessageSquare } from 'lucide-react';
 import { MessageDeliveryStatusIcon } from '../Messages/MessageDeliveryStatusIcon';
 import type { Customer, CentralMessage, AppUser } from '../../types';
-import { isSamePhoneNumber, formatPhoneWithCountryCode } from '../../utils/crmUtils';
+import { isSamePhoneNumber, formatPhoneWithCountryCode, getCustomerAvatar, getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRoleTextStyle } from '../../utils/roleColors';
 import { renderFormattedMessage, extractFirstUrl } from '../../utils/formatMessageText';
@@ -69,7 +69,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
             <div className="relative">
               <div className="w-10 h-10 rounded-full bg-slate-100 ring-2 ring-emerald-500/20 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
                 <img
-                  src={customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`}
+                  src={getCustomerAvatar(customer.avatar, customer.phone || customer.name)}
                   alt="avatar"
                   className="w-full h-full object-cover"
                 />
@@ -136,7 +136,7 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
               const agentAvatar = (isCurrentAgent && effectiveCurrentUser?.avatar)
                 ? effectiveCurrentUser.avatar
                 : (matchedUser?.avatar || effectiveCurrentUser?.avatar || `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(msg.senderName)}`);
-              const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(customer.phone || customer.name)}`;
+              const customerAvatar = customer.avatar || `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(customer.phone || customer.name)}`;
 
               return (
                 <div key={index} className={`flex items-end gap-2 ${msg.isAgent ? 'justify-end' : 'justify-start'}`}>

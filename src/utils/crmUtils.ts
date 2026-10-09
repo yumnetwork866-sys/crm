@@ -17,6 +17,19 @@ export function getStatusColorClass(status: CustomerStatus | string): string {
   }
 }
 
+export const DICEBEAR_STYLE = 'cutouts';
+export const STAFF_DICEBEAR_STYLE = 'avataaars';
+
+export function getDiceBearAvatar(seed: string, style: string = DICEBEAR_STYLE): string {
+  return `https://api.dicebear.com/10.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+export function getCustomerAvatar(avatar?: string | null, seedFallback?: string | null): string {
+  if (avatar) return avatar;
+  const seed = (seedFallback || 'Customer').trim();
+  return getDiceBearAvatar(seed, DICEBEAR_STYLE);
+}
+
 export function getOwnerAvatar(ownerName?: string): string {
   if (!ownerName) return '';
   const trimmed = ownerName.trim();
@@ -35,7 +48,7 @@ export function getOwnerAvatar(ownerName?: string): string {
   if (trimmed.includes('Hương')) {
     return 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250';
   }
-  return `https://api.dicebear.com/10.x/avataaars/svg?seed=${encodeURIComponent(trimmed)}`;
+  return getDiceBearAvatar(trimmed, STAFF_DICEBEAR_STYLE);
 }
 
 export const CUSTOMER_GROUPS: Record<CustomerGroupId, CustomerGroupInfo> = {

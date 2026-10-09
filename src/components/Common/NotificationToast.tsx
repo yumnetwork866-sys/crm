@@ -130,7 +130,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   const { message } = toast;
   const customerName = matchedCustomer?.name || message.customerName || 'Khách Hàng';
   const customerPhone = matchedCustomer?.phone || message.customerPhone || '';
-  const fallbackAvatar = `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(
+  const fallbackAvatar = `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
     customerPhone || customerName
   )}`;
   const avatarUrl = matchedCustomer?.avatar || fallbackAvatar;

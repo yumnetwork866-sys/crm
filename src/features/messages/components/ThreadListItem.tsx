@@ -51,13 +51,13 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
         isSelected ? 'bg-[#f0f2f5] border-l-4 border-[#1fa855]' : 'hover:bg-[#f5f6f6]'
       }`}
     >
-      {/* Avatar with Dicebear Adventurer / custom photo & online dot */}
+      {/* Avatar with Dicebear Cutouts / custom photo & online dot */}
       <div className="relative shrink-0 mt-0.5">
         <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200/80 flex items-center justify-center shadow-sm overflow-hidden">
           <img
             src={
               thread.customer?.avatar ||
-              `https://api.dicebear.com/10.x/clay/svg?topProbability=0&patternProbability=0&seed=${encodeURIComponent(
+              `https://api.dicebear.com/10.x/cutouts/svg?seed=${encodeURIComponent(
                 thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId
               )}`
             }
