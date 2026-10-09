@@ -145,6 +145,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   };
 
   useEffect(() => {
+    void refreshUsers();
+  }, [refreshUsers]);
+
+  useEffect(() => {
     if (rolePolicies.length > 0) return;
     let cancelled = false;
     setPermissionsLoading(true);
@@ -509,8 +513,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold outline-none"
                 >
                   <option value="all">Tất cả trạng thái</option>
-                  <option value="active">Đang hoạt động (Active)</option>
-                  <option value="inactive">Tạm khóa (Inactive)</option>
+                  <option value="active">Đang hoạt động</option>
+                  <option value="inactive">Tạm khóa</option>
                 </select>
               </div>
 
@@ -607,26 +611,31 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
                           {/* Status */}
                           <td className="py-3.5 px-3 text-center">
-                            <button
-                              onClick={() => runUserAction(() => onToggleUserStatus(user.id))}
-                              className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-[10px] font-black border transition cursor-pointer ${
-                                user.status === 'active'
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                                  : 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200'
-                              }`}
-                            >
-                              {user.status === 'active' ? (
-                                <>
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Active</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  <span>Inactive</span>
-                                </>
-                              )}
-                            </button>
+                            <div className="inline-flex flex-col items-center justify-center">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={user.status === 'active'}
+                                onClick={() => runUserAction(() => onToggleUserStatus(user.id))}
+                                title={user.status === 'active' ? 'Đang kích hoạt (nhấn để tạm khóa)' : 'Đang tạm khóa (nhấn để kích hoạt)'}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  user.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                    user.status === 'active' ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                              <span
+                                className={`text-[10px] font-extrabold select-none mt-1 leading-none ${
+                                  user.status === 'active' ? 'text-emerald-600' : 'text-slate-400'
+                                }`}
+                              >
+                                {user.status === 'active' ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
                           </td>
 
                           {/* Actions */}

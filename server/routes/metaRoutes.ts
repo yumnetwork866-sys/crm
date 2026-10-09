@@ -21,6 +21,7 @@ import {
   deleteMessage,
   getMediaProxy,
   getRealtimeStream,
+  updateTypingStatus,
   toggleCustomerAi,
   getCustomerAiStatus,
   getGlobalAiStatus,
@@ -71,6 +72,7 @@ router.get('/messages/conversations', authenticateToken, requirePermission(Permi
 router.get('/messages', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
 router.get('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessages);
 router.post('/messages/read', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), markMessagesAsRead);
+router.post('/messages/typing', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateTypingStatus);
 router.post('/messages/send', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendMessage);
 router.post('/messages/react', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), sendReaction);
 router.post('/messages/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleCustomerAi);

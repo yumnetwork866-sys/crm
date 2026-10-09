@@ -130,6 +130,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   const { message } = toast;
   const customerName = matchedCustomer?.name || message.customerName || 'Khách Hàng';
   const customerPhone = matchedCustomer?.phone || message.customerPhone || '';
+  const fallbackAvatar = getCustomerAvatar(null, customerPhone || customerName);
   const avatarUrl = getCustomerAvatar(matchedCustomer?.avatar, customerPhone || customerName);
   const snippet = parseToastMessageSnippet(message.content);
 

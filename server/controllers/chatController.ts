@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from '../services/messageStore';
@@ -258,7 +259,7 @@ export async function markMessagesAsRead(req: Request, res: Response) {
 /**
  * Send real WhatsApp Cloud API message and save to CRM
  */
-export async function sendMessage(req: Request, res: Response) {
+export async function sendMessage(req: AuthenticatedRequest, res: Response) {
   try {
     const { customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId, contextMessageId, replyTo } = req.body;
 
@@ -355,6 +356,7 @@ export async function sendMessage(req: Request, res: Response) {
       }
     }
 
+    const authenticatedAgentName = req.user?.name?.trim();
     const newMsg: InMemoryMessage = {
       id: metaResult?.messages?.[0]?.id || `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId: resolvedCustomerId,
@@ -362,7 +364,8 @@ export async function sendMessage(req: Request, res: Response) {
       customerPhone: resolvedCustomerPhone,
       businessPhoneNumberId: phoneId || undefined,
       sender: 'agent',
-      agentName: agentName || 'Nguyễn Văn Ánh',
+      agentId: req.user?.id || null,
+      agentName: authenticatedAgentName || agentName || 'Nhân viên',
       channel: 'WhatsApp',
       content,
       timestamp: new Date().toISOString(),
@@ -384,6 +387,7 @@ export async function sendMessage(req: Request, res: Response) {
         customerPhone: newMsg.customerPhone,
         businessPhoneNumberId: phoneId || null,
         sender: newMsg.sender,
+        agentId: newMsg.agentId,
         agentName: newMsg.agentName,
         channel: newMsg.channel,
         content: newMsg.content,
@@ -608,6 +612,30 @@ export function getRealtimeStream(req: Request, res: Response) {
   req.on('close', () => {
     realtimeHub.removeClient(clientId);
   });
+}
+
+/** Broadcast a short-lived internal typing indicator to other CRM users. */
+export function updateTypingStatus(req: AuthenticatedRequest, res: Response) {
+  const threadId = typeof req.body?.threadId === 'string' ? req.body.threadId.trim() : '';
+  const businessPhoneNumberId = typeof req.body?.businessPhoneNumberId === 'string'
+    ? req.body.businessPhoneNumberId.trim()
+    : '';
+  const isTyping = req.body?.isTyping === true;
+
+  if (!threadId || !businessPhoneNumberId || !req.user) {
+    return res.status(400).json({ error: 'Thiếu thông tin hội thoại.' });
+  }
+
+  realtimeHub.broadcast('message:typing', {
+    threadId,
+    businessPhoneNumberId,
+    userId: req.user.id,
+    userName: req.user.name,
+    isTyping,
+    expiresAt: new Date(Date.now() + 5_000).toISOString(),
+  });
+
+  return res.json({ success: true });
 }
 
 /**

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Eye, EyeOff, KeyRound, Loader2, Lock, ShieldCheck, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRoleTextStyle } from '../../utils/roleColors';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -76,36 +76,42 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden text-white">
-        
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={handleClose}
-          className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-          title="Đóng"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="change-password-title"
+        className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl text-white my-auto max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+      >
         {/* Modal Header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
-            <KeyRound className="w-5 h-5" />
+        <div className="flex items-center justify-between p-5 sm:p-6 pb-4 border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-3 pr-4">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <h2 id="change-password-title" className="text-base font-bold text-white">Đổi Mật Khẩu</h2>
           </div>
-          <div>
-            <h2 className="text-base font-bold text-white">Đổi Mật Khẩu</h2>
-            <p className="text-xs text-slate-400">
-              Cập nhật mật khẩu cho tài khoản{' '}
-              <span className="font-bold" style={getUserRoleTextStyle(currentUser)}>{currentUser.name}</span>
-            </p>
-          </div>
+
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+            title="Đóng"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl">
               {error}
@@ -201,8 +207,10 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
             </div>
           </div>
 
+          </div>
+
           {/* Actions */}
-          <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-800">
+          <div className="p-4 sm:px-6 sm:py-4 flex items-center justify-end gap-2.5 border-t border-slate-800 shrink-0 bg-slate-900/90 backdrop-blur-sm">
             <button
               type="button"
               onClick={handleClose}
@@ -220,8 +228,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
             </button>
           </div>
         </form>
-
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

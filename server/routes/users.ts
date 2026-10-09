@@ -36,8 +36,10 @@ const createUserSchema = z.object({
 
 const updateUserSchema = z.object({
   name: z.string().trim().min(2).optional(),
+  email: z.string().trim().min(3, 'Email hoặc tài khoản phải có ít nhất 3 ký tự.').optional(),
   role: userRoleSchema.optional(),
-  phone: z.string().trim().optional(),
+  phone: z.string().trim().nullable().optional(),
+  avatar: z.string().trim().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.').optional(),
   permissionAllow: permissionMaskSchema.optional(),
@@ -131,6 +133,14 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     if (!target) return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
 
     const data = parsed.data;
+    if (data.email !== undefined && data.email !== target.email) {
+      const existing = await prisma.user.findFirst({
+        where: { email: data.email, NOT: { id: target.id } },
+      });
+      if (existing) {
+        return res.status(400).json({ error: 'Email hoặc tài khoản này đã được sử dụng bởi người dùng khác.' });
+      }
+    }
     if (data.role !== undefined && !(await roleExists(data.role))) {
       return res.status(400).json({ error: 'Vai trò được chọn không tồn tại.' });
     }
@@ -143,17 +153,37 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
       return res.status(400).json({ error: 'Hệ thống phải còn ít nhất một tài khoản Admin đang hoạt động.' });
     }
 
-    const updated = await prisma.user.update({
-      where: { id: target.id },
-      data: {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.role !== undefined && { role: data.role }),
-        ...(data.phone !== undefined && { phone: data.phone }),
-        ...(data.status !== undefined && { status: data.status }),
-        ...(data.password !== undefined && { password: await bcrypt.hash(data.password, 10) }),
-        ...(data.permissionAllow !== undefined && { permissionAllow: parsePermissionMask(data.permissionAllow) }),
-        ...(data.permissionDeny !== undefined && { permissionDeny: parsePermissionMask(data.permissionDeny) }),
-      },
+    const password = data.password !== undefined ? await bcrypt.hash(data.password, 10) : undefined;
+    const updated = await prisma.$transaction(async (transaction) => {
+      if (data.name !== undefined && data.name !== target.name) {
+        await transaction.whatsAppMessage.updateMany({
+          where: {
+            sender: 'agent',
+            isAi: false,
+            OR: [
+              { agentId: target.id },
+              { agentId: null, agentName: target.name },
+              { agentId: null, agentName: target.email },
+            ],
+          },
+          data: { agentId: target.id, agentName: data.name },
+        });
+      }
+
+      return transaction.user.update({
+        where: { id: target.id },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.email !== undefined && { email: data.email }),
+          ...(data.role !== undefined && { role: data.role }),
+          ...(data.phone !== undefined && { phone: data.phone ?? null }),
+          ...(data.avatar !== undefined && { avatar: data.avatar }),
+          ...(data.status !== undefined && { status: data.status }),
+          ...(password !== undefined && { password }),
+          ...(data.permissionAllow !== undefined && { permissionAllow: parsePermissionMask(data.permissionAllow) }),
+          ...(data.permissionDeny !== undefined && { permissionDeny: parsePermissionMask(data.permissionDeny) }),
+        },
+      });
     });
 
     invalidateAuthCache(target.id);

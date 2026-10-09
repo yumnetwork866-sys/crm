@@ -13,6 +13,7 @@ export interface CentralMessage {
   customerPhone: string;
   businessPhoneNumberId?: string;
   sender: 'customer' | 'agent' | 'system';
+  agentId?: string;
   agentName?: string;
   isAi?: boolean;
   channel: MessageChannel;

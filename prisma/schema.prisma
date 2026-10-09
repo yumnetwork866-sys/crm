@@ -319,6 +319,7 @@ model WhatsAppMessage {
   customerPhone String
   businessPhoneNumberId String?
   sender        String // 'customer' | 'agent'
+  agentId       String?
   agentName     String?
   isAi          Boolean   @default(false)
   channel       String    @default("WhatsApp")
@@ -337,6 +338,7 @@ model WhatsAppMessage {
   customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
+  @@index([agentId])
   @@index([customerPhone])
   @@index([businessPhoneNumberId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])

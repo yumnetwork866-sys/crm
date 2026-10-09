@@ -82,6 +82,7 @@ import { CustomerChatDrawer } from '../../features/messages/components/CustomerC
 import { WhatsAppSessionCountdown } from '../../features/messages/components/WhatsAppSessionCountdown';
 import { MessageDeliveryStatusIcon } from './MessageDeliveryStatusIcon';
 import { useAiProfile } from '../../features/messages/hooks/useAiProfile';
+import { useThreadTyping } from '../../features/messages/hooks/useThreadTyping';
 
 interface SavedMessageList {
   id: string;
@@ -190,6 +191,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   });
 
   const activeCustomer = activeThread?.customer || null;
+  const { typingUsers, notifyTyping, stopTyping } = useThreadTyping({
+    threadId: activeThread?.threadId,
+    businessPhoneNumberId: selectedPhoneId,
+    currentUserId: effectiveCurrentUser?.id,
+  });
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
   const {
@@ -208,6 +214,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     () => groupedMessagesByDate.flatMap((group) => group.msgs),
     [groupedMessagesByDate],
   );
+
+  useEffect(() => {
+    if (typingUsers.length === 0 || showScrollBottomBtn) return;
+    const frame = requestAnimationFrame(() => scrollToBottom('smooth'));
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToBottom, showScrollBottomBtn, typingUsers.length]);
 
   const handleSelectThread = useCallback((threadId: string, phone: string, messageIds: string[]) => {
     setIsCompactChatOpen(true);
@@ -946,8 +958,28 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         msg.isAi
                         || (msg.agentName && /trợ lý ai|ai assistant|yum assistant|^🤖/i.test(msg.agentName.trim()))
                       );
+                      const normalizedAgentName = msg.agentName?.trim().toLowerCase() || '';
+                      const matchedUser = isAgent && !isAiMessage
+                        ? (users.find((user) => (
+                            msg.agentId
+                              ? user.id === msg.agentId
+                              : user.name.trim().toLowerCase() === normalizedAgentName
+                                || user.email.trim().toLowerCase() === normalizedAgentName
+                          )) || (
+                            effectiveCurrentUser
+                            && (
+                              msg.agentId === effectiveCurrentUser.id
+                              || (!msg.agentId && (
+                                effectiveCurrentUser.name.trim().toLowerCase() === normalizedAgentName
+                                || effectiveCurrentUser.email.trim().toLowerCase() === normalizedAgentName
+                              ))
+                            )
+                              ? effectiveCurrentUser
+                              : null
+                          ))
+                        : null;
                       const senderName = isAgent
-                        ? (isAiMessage ? (aiProfile?.name || msg.agentName || 'Trợ lý AI') : (msg.agentName || effectiveCurrentUser?.name || 'Nguyễn Văn Ánh'))
+                        ? (isAiMessage ? (aiProfile?.name || msg.agentName || 'Trợ lý AI') : (matchedUser?.name || msg.agentName || 'Nhân viên'))
                         : (msg.customerName || 'Khách Hàng');
                       const timeFormatted = new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
                       const reaction = messageReactions[msg.id];
@@ -957,8 +989,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       const prevMsg = displayedMessages[absoluteMessageIndex - 1] || null;
                       const nextMsg = displayedMessages[absoluteMessageIndex + 1] || null;
 
-                      const isSpeakerChangedFromPrev = !prevMsg || prevMsg.sender !== msg.sender || (isAgent && (prevMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (prevMsg.customerName || '') !== (msg.customerName || ''));
-                      const isSpeakerChangedToNext = !nextMsg || nextMsg.sender !== msg.sender || (isAgent && (nextMsg.agentName || '') !== (msg.agentName || '')) || (!isAgent && (nextMsg.customerName || '') !== (msg.customerName || ''));
+                      const isSpeakerChangedFromPrev = !prevMsg || prevMsg.sender !== msg.sender || (isAgent && (prevMsg.agentId || prevMsg.agentName || '') !== (msg.agentId || msg.agentName || '')) || (!isAgent && (prevMsg.customerName || '') !== (msg.customerName || ''));
+                      const isSpeakerChangedToNext = !nextMsg || nextMsg.sender !== msg.sender || (isAgent && (nextMsg.agentId || nextMsg.agentName || '') !== (msg.agentId || msg.agentName || '')) || (!isAgent && (nextMsg.customerName || '') !== (msg.customerName || ''));
 
                       const isFirstOfTurn = isSpeakerChangedFromPrev;
                       const shouldShowAvatar = isSpeakerChangedToNext;
@@ -972,23 +1004,16 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                         isAgent &&
                         effectiveCurrentUser &&
                         (
-                          !msg.agentName ||
-                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.name.trim().toLowerCase() ||
-                          msg.agentName.trim().toLowerCase() === effectiveCurrentUser.email.trim().toLowerCase()
+                          msg.agentId === effectiveCurrentUser.id
+                          || (!msg.agentId && normalizedAgentName && (
+                            normalizedAgentName === effectiveCurrentUser.name.trim().toLowerCase()
+                            || normalizedAgentName === effectiveCurrentUser.email.trim().toLowerCase()
+                          ))
                         )
                       );
 
-                      const matchedUser = isCurrentAgent
-                        ? effectiveCurrentUser
-                        : (users.find(
-                            (u) =>
-                              u.name.trim().toLowerCase() === senderName.trim().toLowerCase() ||
-                              u.email.trim().toLowerCase() === senderName.trim().toLowerCase()
-                          ) || (effectiveCurrentUser && effectiveCurrentUser.name.trim().toLowerCase() === senderName.trim().toLowerCase() ? effectiveCurrentUser : null));
-
-                      const agentAvatarSrc = (isCurrentAgent && effectiveCurrentUser?.avatar)
-                        ? effectiveCurrentUser.avatar
-                        : (matchedUser?.avatar || effectiveCurrentUser?.avatar || getDiceBearAvatar(senderName || 'Agent', STAFF_DICEBEAR_STYLE));
+                      const agentAvatarSrc = matchedUser?.avatar
+                        || getDiceBearAvatar(matchedUser?.name || senderName || 'Agent', STAFF_DICEBEAR_STYLE);
                       const displayedAgentAvatarSrc = isAiMessage ? aiProfile?.avatarUrl : agentAvatarSrc;
 
                       const renderReactionPicker = (agentMsg: boolean) => (
@@ -1573,6 +1598,27 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   })}
                 </div>
 
+                {typingUsers.length > 0 && (
+                  <div className="flex justify-end px-4 pb-2 pt-1">
+                    <div className="flex items-center gap-2 rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-2 shadow-sm">
+                      <span className="max-w-36 truncate text-[10px] font-semibold text-[#54656f]">
+                        {typingUsers.length === 1
+                          ? `${typingUsers[0].name} đang nhập`
+                          : `${typingUsers.length} nhân viên đang nhập`}
+                      </span>
+                      <span className="flex h-4 items-center gap-1" aria-label="Đang nhập">
+                        {[0, 1, 2].map((dot) => (
+                          <span
+                            key={dot}
+                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#667781]"
+                            style={{ animationDelay: `${dot * 140}ms` }}
+                          />
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div ref={chatEndRef} />
               </div>
 
@@ -1713,43 +1759,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   </button>
                 </div>
               )}
-
-              {/* Active Sender Identity Banner */}
-              <div className="px-3.5 py-1.5 bg-[#e9edef] border-t border-[#d1d7db] flex items-center justify-between gap-2 text-xs select-none">
-                <div className="flex items-center space-x-2 min-w-0">
-                  <div className="relative shrink-0">
-                    <img
-                      src={effectiveCurrentUser?.avatar || getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE)}
-                      alt={effectiveCurrentUser?.name || 'User'}
-                      className="w-5 h-5 rounded-full object-cover border border-slate-300 shadow-2xs"
-                      onError={(e) => {
-                        e.currentTarget.src = getDiceBearAvatar(effectiveCurrentUser?.name || 'Agent', STAFF_DICEBEAR_STYLE);
-                      }}
-                    />
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white"></span>
-                  </div>
-                  <div className="text-[11.5px] text-slate-700 truncate flex items-center gap-1.5">
-                    <span>Đang nhắn tin với tư cách:</span>
-                    <strong className="text-slate-900 font-bold truncate">{effectiveCurrentUser?.name || 'Nguyễn Văn Ánh'}</strong>
-                    <span className="px-1.5 py-0.2 rounded-full text-[9.5px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                      {effectiveCurrentUser?.role || 'Admin'}
-                    </span>
-                  </div>
-                </div>
-
-                {activeCustomer?.owner && (
-                  <div className="text-[10.5px] text-slate-500 hidden sm:flex items-center gap-1 shrink-0">
-                    <span>Phụ trách khách:</span>
-                    <span className={`font-semibold px-1.5 py-0.2 rounded text-[10px] ${
-                      activeCustomer.owner === effectiveCurrentUser?.name
-                        ? 'bg-emerald-100 text-emerald-600 font-bold'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {activeCustomer.owner === effectiveCurrentUser?.name ? `${activeCustomer.owner} (Chính bạn)` : activeCustomer.owner}
-                    </span>
-                  </div>
-                )}
-              </div>
 
               {/* WhatsApp Authentic Input Bar or Voice Recording Bar */}
               {isRecording ? (
@@ -2035,8 +2044,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                       ref={textareaRef}
                       rows={1}
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      onKeyDown={handleKeyDown}
+                      onChange={(e) => {
+                        setInputText(e.target.value);
+                        notifyTyping(e.target.value);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) stopTyping();
+                        handleKeyDown(event);
+                      }}
+                      onBlur={stopTyping}
                       onPaste={handlePaste}
                       placeholder={
                         pendingImage
@@ -2053,7 +2069,10 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   {inputText.trim() || pendingImage || pendingDocument ? (
                     <button
                       type="button"
-                      onClick={() => handleSend()}
+                      onClick={() => {
+                        stopTyping();
+                        handleSend();
+                      }}
                       className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
                       title="Gửi tin nhắn (Enter)"
                     >

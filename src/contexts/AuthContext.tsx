@@ -215,8 +215,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const saveUser = useCallback(async (data: Partial<AppUser> & { password?: string }) => {
     const payload = {
       name: data.name,
+      email: data.email,
       role: data.role,
-      phone: data.phone,
+      phone: data.phone ?? '',
+      ...(data.avatar ? { avatar: data.avatar } : {}),
       status: data.status,
       ...(data.password ? { password: data.password } : {}),
       ...(data.permissionAllow !== undefined ? { permissionAllow: data.permissionAllow } : {}),

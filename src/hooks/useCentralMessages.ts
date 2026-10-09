@@ -392,6 +392,7 @@ export function useCentralMessages({
       customerName,
       customerPhone: phone,
       sender: 'agent',
+      agentId: currentUserRef.current?.id,
       agentName,
       channel,
       content,

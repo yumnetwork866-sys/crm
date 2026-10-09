@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AppUser, UserRole } from '../../types';
-import { X, User, Mail, Phone, Shield, Save, KeyRound } from 'lucide-react';
+import { X, User, Mail, Phone, Shield, Save, KeyRound, Loader2 } from 'lucide-react';
 import { api } from '../../utils/apiClient';
 
 interface UserFormModalProps {
@@ -19,6 +19,8 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   initialUser,
 }) => {
   const [roles, setRoles] = useState<UserRole[]>(FALLBACK_ROLES);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<AppUser> & { password?: string }>({
     name: '',
     email: '',
@@ -29,6 +31,7 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
   });
 
   useEffect(() => {
+    setFormError(null);
     if (initialUser) {
       setFormData({ ...initialUser, password: '' });
     } else {
@@ -58,14 +61,28 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
-      alert('Vui lòng nhập Họ tên và Email.');
+    setFormError(null);
+
+    const name = formData.name?.trim() || '';
+    const email = formData.email?.trim() || '';
+
+    if (!name || !email) {
+      setFormError('Vui lòng nhập Họ tên và Email / Tài khoản.');
       return;
     }
 
+    if (formData.password && formData.password.length < 6) {
+      setFormError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await onSave({
         ...formData,
+        name,
+        email,
+        phone: formData.phone?.trim() || '',
         avatar:
           formData.avatar ||
           `https://images.unsplash.com/photo-${
@@ -75,7 +92,9 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
       });
       onClose();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Không thể lưu tài khoản.');
+      setFormError(error instanceof Error ? error.message : 'Không thể lưu tài khoản.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -113,17 +132,17 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             </div>
           </div>
 
-          {/* Email */}
+          {/* Email / Account */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Công Việc *</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Email / Tài Khoản Đăng Nhập *</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
               <input
-                type="email"
+                type="text"
                 required
                 value={formData.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="nguyenvana@yumnetwork.vn"
+                placeholder="VD: admin hoặc nguyenvana@yumnetwork.vn"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -180,50 +199,79 @@ export const UserFormModal: React.FC<UserFormModalProps> = ({
             </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Trạng Thái Tài Khoản</label>
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value="active"
-                  checked={formData.status === 'active'}
-                  onChange={() => setFormData({ ...formData, status: 'active' })}
-                  className="text-indigo-600 focus:ring-indigo-500"
-                />
-                <span>Kích hoạt (Active)</span>
-              </label>
+          {/* Status Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+            <div>
+              <span className="block text-xs font-semibold text-white">
+                Trạng thái tài khoản
+              </span>
+              <span className="text-[11px] text-slate-400 mt-0.5 block">
+                {formData.status === 'active' ? 'Đang kích hoạt hoạt động' : 'Tài khoản đang bị tạm khóa'}
+              </span>
+            </div>
 
-              <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="radio"
-                  name="status"
-                  value="inactive"
-                  checked={formData.status === 'inactive'}
-                  onChange={() => setFormData({ ...formData, status: 'inactive' })}
-                  className="text-indigo-600 focus:ring-indigo-500"
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={formData.status === 'active'}
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    status: prev.status === 'active' ? 'inactive' : 'active',
+                  }))
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  formData.status === 'active' ? 'bg-emerald-500' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    formData.status === 'active' ? 'translate-x-5' : 'translate-x-0'
+                  }`}
                 />
-                <span>Tạm khóa (Inactive)</span>
-              </label>
+              </button>
+              <span
+                className={`text-[10px] font-bold select-none mt-1 leading-none ${
+                  formData.status === 'active' ? 'text-emerald-400' : 'text-slate-500'
+                }`}
+              >
+                {formData.status === 'active' ? 'Active' : 'Inactive'}
+              </span>
             </div>
           </div>
+
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-xs text-rose-300 font-medium">
+              {formError}
+            </div>
+          )}
 
           <div className="pt-2 flex justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition disabled:opacity-50"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center space-x-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4" />
-              <span>{initialUser ? 'Lưu Thay Đổi' : 'Tạo Thành Viên'}</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>{initialUser ? 'Lưu Thay Đổi' : 'Tạo Thành Viên'}</span>
+                </>
+              )}
             </button>
           </div>
 
