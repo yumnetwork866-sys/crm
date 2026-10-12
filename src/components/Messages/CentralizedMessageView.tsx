@@ -73,7 +73,6 @@ import { renderFormattedMessage, extractFirstUrl } from '../../utils/formatMessa
 import { LinkPreviewCard } from '../../features/messages/components/LinkPreviewCard';
 
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
-import { LoadOlderMessagesButton } from '../../features/messages/components/LoadOlderMessagesButton';
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
 import { UserInfoModal } from '../Common/UserInfoModal';
 import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
@@ -938,11 +937,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 id="chat-messages-container"
                 className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
               >
-                <LoadOlderMessagesButton
-                  visible={hasOlderMessages}
-                  loading={isLoadingOlderMessages}
-                  onLoad={handleLoadOlderMessages}
-                />
                 <MessageSecurityBanner />
 
                 <div
