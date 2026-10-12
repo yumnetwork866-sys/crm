@@ -587,8 +587,9 @@ export async function deleteMessage(req: Request, res: Response) {
  */
 export async function getMediaProxy(req: Request, res: Response) {
   const mediaId = getRouteParam(req.params.mediaId);
+  const phoneId = typeof req.query.phoneId === 'string' ? req.query.phoneId.trim() : undefined;
   try {
-    const media = await fetchAndCacheMetaMedia(mediaId);
+    const media = await fetchAndCacheMetaMedia(mediaId, phoneId);
     if (!media) {
       return res.status(404).json({ error: 'Media not found on Meta CDN' });
     }

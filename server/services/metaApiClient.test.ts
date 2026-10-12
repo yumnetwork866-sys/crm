@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildMessageTemplatePayload,
@@ -6,6 +8,7 @@ import {
   deleteMessageTemplate,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
+  fetchAndCacheMetaMedia,
   registerWhatsAppPhoneNumber,
   requestSmbAppDataSync,
   uploadTemplateSampleMedia,
@@ -536,5 +539,37 @@ describe('uploadTemplateSampleMedia', () => {
       },
       body: buffer,
     });
+  });
+});
+
+describe('fetchAndCacheMetaMedia', () => {
+  it('tries next candidate token if the first token returns 400 OAuth error and downloads media', async () => {
+    const fetchMock = vi.fn()
+      // First token call fails with 400 OAuth Authorization Error
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'Authorization Error', code: 100 } }), { status: 400 }))
+      // Second token call succeeds
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 'test_media_999',
+        url: 'https://lookaside.fbsbx.com/test_media_download',
+        mime_type: 'image/jpeg',
+      }), { status: 200 }))
+      // Binary download
+      .mockResolvedValueOnce(new Response(Buffer.from('fake-image-bytes'), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const result = await fetchAndCacheMetaMedia('test_media_999', '1412496995272289');
+      expect(result).not.toBeNull();
+      expect(result?.contentType).toBe('image/jpeg');
+      expect(result?.buffer.toString()).toBe('fake-image-bytes');
+    } finally {
+      const testFile = path.resolve(process.cwd(), 'public/uploads/chat/meta_test_media_999.jpg');
+      if (fs.existsSync(testFile)) {
+        fs.unlinkSync(testFile);
+      }
+    }
   });
 });

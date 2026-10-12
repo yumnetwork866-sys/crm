@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from './messageStore';
 import { messageStore } from './messageStore';
-import { getIntegrationSetting, updateIntegrationSetting } from './metaApiClient';
+import { getIntegrationSetting, updateIntegrationSetting, fetchAndCacheMetaMedia } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 import { aggregateCampaign } from './campaignWorker';
 import { autoReplyWithDify } from './difyService';
@@ -151,28 +151,37 @@ function extractWebhookChanges(body: any): Array<{ field: string; value: any; en
   return changes;
 }
 
-function getMessageText(msgData: any): string {
+function getMessageText(msgData: any, businessPhoneNumberId?: string): string {
   const directText = msgData?.text?.body;
   if (directText) return directText;
+  const phoneQuery = businessPhoneNumberId ? `?phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
   if (msgData?.type === 'image') {
     const mediaId = msgData.image?.id;
     const caption = msgData.image?.caption || '';
     return mediaId
-      ? `/api/meta/media/${mediaId}${caption ? `\n${caption}` : ''}`
+      ? `/api/meta/media/${mediaId}${phoneQuery}${caption ? `\n${caption}` : ''}`
       : caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
+  }
+  if (msgData?.type === 'sticker') {
+    const mediaId = msgData.sticker?.id;
+    return mediaId
+      ? `/api/meta/media/${mediaId}${phoneQuery}`
+      : '[Nhãn dán]';
   }
   if (msgData?.type === 'document') {
     const mediaId = msgData.document?.id;
     const filename = msgData.document?.filename || 'Tài liệu.pdf';
     const caption = msgData.document?.caption || '';
+    const extraPhone = businessPhoneNumberId ? `&phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
     return mediaId
-      ? `/api/meta/media/${mediaId}?type=document&filename=${encodeURIComponent(filename)}${caption ? `\n${caption}` : ''}`
+      ? `/api/meta/media/${mediaId}?type=document&filename=${encodeURIComponent(filename)}${extraPhone}${caption ? `\n${caption}` : ''}`
       : caption ? `[Tài liệu] ${filename}\n${caption}` : `[Tài liệu] ${filename}`;
   }
   if (msgData?.type === 'audio') {
     const mediaId = msgData.audio?.id;
+    const extraPhone = businessPhoneNumberId ? `&phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
     return mediaId
-      ? `/api/meta/media/${mediaId}?type=audio`
+      ? `/api/meta/media/${mediaId}?type=audio${extraPhone}`
       : '[Tin nhắn thoại (Audio)]';
   }
   if (msgData?.type === 'video') return '[Video]';
@@ -280,10 +289,16 @@ async function saveMirroredMessage(input: {
     sender,
     agentName: sender === 'agent' ? 'WhatsApp Business App' : undefined,
     channel: 'WhatsApp',
-    content: getMessageText(msgData),
+    content: getMessageText(msgData, input.businessPhoneNumberId),
     timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
     isRead: true,
   };
+  const mirroredMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
+  if (mirroredMediaId) {
+    fetchAndCacheMetaMedia(mirroredMediaId, input.businessPhoneNumberId).catch((err) => {
+      console.warn(`[WEBHOOK MEDIA PRECACHE] Failed to pre-cache mirrored media ${mirroredMediaId}:`, err);
+    });
+  }
   messageStore.add(mirrored);
   await prisma.whatsAppMessage.upsert({
     where: { id: mirrored.id },
@@ -532,7 +547,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
 
     // Determine message text body based on message type
-    const textBody = getMessageText(msgData);
+    const textBody = getMessageText(msgData, businessPhoneNumberId);
 
     // Match customer in CRM
     const { customerId, customerName, isCrmCustomer } = await matchCustomerByPhone(fromPhone, senderName);
@@ -602,6 +617,13 @@ export async function processWebhookPayload(body: any): Promise<number> {
     };
 
     messageStore.add(newIncoming);
+
+    const incomingMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
+    if (incomingMediaId) {
+      fetchAndCacheMetaMedia(incomingMediaId, businessPhoneNumberId).catch((err) => {
+        console.warn(`[WEBHOOK MEDIA PRECACHE] Failed to pre-fetch incoming media ${incomingMediaId}:`, err);
+      });
+    }
 
     // Save incoming message to Database (Prisma)
     try {

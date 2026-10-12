@@ -1692,7 +1692,10 @@ export async function dispatchMetaReaction(options: {
 /**
  * Fetch media from Meta CDN, cache to disk, and return file buffer + mimeType
  */
-export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+export async function fetchAndCacheMetaMedia(
+  mediaId: string,
+  preferredPhoneNumberId?: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
   const chatDir = path.resolve(process.cwd(), 'public/uploads/chat');
   if (!fs.existsSync(chatDir)) {
     fs.mkdirSync(chatDir, { recursive: true });
@@ -1724,63 +1727,119 @@ export async function fetchAndCacheMetaMedia(mediaId: string): Promise<{ buffer:
     }
   }
 
-  // 2. Query Meta API
-  const setting = await getIntegrationSetting();
-  const token = await getMetaAccessToken(setting);
+  // 2. Resolve candidate Meta tokens across multi-account connections
+  const candidateTokens: string[] = [];
+  const addToken = (t?: string | null) => {
+    const trimmed = t?.trim();
+    if (trimmed && !candidateTokens.includes(trimmed)) {
+      candidateTokens.push(trimmed);
+    }
+  };
 
-  if (!token) {
+  if (preferredPhoneNumberId) {
+    const tok = await getMetaAccessTokenForPhone(preferredPhoneNumberId).catch(() => '');
+    addToken(tok);
+  }
+
+  // Look up message in DB to identify which WhatsApp phone received this media
+  try {
+    const matchedMsg = await prisma.whatsAppMessage.findFirst({
+      where: { content: { contains: mediaId } },
+      select: { businessPhoneNumberId: true },
+    });
+    if (matchedMsg?.businessPhoneNumberId) {
+      const tok = await getMetaAccessTokenForPhone(matchedMsg.businessPhoneNumberId).catch(() => '');
+      addToken(tok);
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // Query all connected WhatsApp accounts
+  try {
+    const connections = await prisma.whatsAppConnection.findMany({
+      where: { status: 'connected' },
+      select: { phoneNumberId: true },
+    });
+    for (const conn of connections) {
+      const tok = await getMetaAccessTokenForPhone(conn.phoneNumberId).catch(() => '');
+      addToken(tok);
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // Fallback to default integration setting
+  try {
+    const setting = await getIntegrationSetting();
+    const defaultTok = await getMetaAccessToken(setting);
+    addToken(defaultTok);
+  } catch {
+    // Non-fatal
+  }
+
+  if (candidateTokens.length === 0) {
     throw new Error('Meta Access Token not configured');
   }
 
-  const metaMediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  // 3. Try each token until Meta accepts and provides the media URL
+  for (const token of candidateTokens) {
+    try {
+      const metaMediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-  if (!metaMediaRes.ok) {
-    const errText = await metaMediaRes.text().catch(() => '');
-    console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
-    return null;
+      if (!metaMediaRes.ok) {
+        const errText = await metaMediaRes.text().catch(() => '');
+        console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
+        continue;
+      }
+
+      const metaMediaData: any = await metaMediaRes.json();
+      const downloadUrl = metaMediaData?.url;
+
+      if (!downloadUrl) {
+        continue;
+      }
+
+      // 4. Download binary
+      const binaryRes = await fetch(downloadUrl, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!binaryRes.ok) {
+        continue;
+      }
+
+      const contentType = binaryRes.headers.get('content-type') || metaMediaData?.mime_type || 'image/jpeg';
+      const buffer = Buffer.from(await binaryRes.arrayBuffer());
+
+      // 5. Save to disk cache
+      let ext = 'jpg';
+      if (contentType.includes('png')) ext = 'png';
+      else if (contentType.includes('webp')) ext = 'webp';
+      else if (contentType.includes('ogg')) ext = 'ogg';
+      else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
+      else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
+      else if (contentType.includes('wav')) ext = 'wav';
+      else if (contentType.includes('webm')) ext = 'webm';
+      else if (contentType.includes('aac')) ext = 'aac';
+      else if (contentType.includes('pdf')) ext = 'pdf';
+      else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
+      else if (contentType.includes('msword')) ext = 'doc';
+      else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
+      else if (contentType.includes('csv')) ext = 'csv';
+      else if (contentType.includes('plain')) ext = 'txt';
+      const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
+      await fs.promises.writeFile(diskPath, buffer).catch((err) => {
+        console.warn('Could not write cache file to disk:', err);
+      });
+
+      return { buffer, contentType };
+    } catch (err) {
+      console.warn(`[META MEDIA PROXY ERROR] Attempt with token failed:`, err);
+    }
   }
 
-  const metaMediaData: any = await metaMediaRes.json();
-  const downloadUrl = metaMediaData?.url;
-
-  if (!downloadUrl) {
-    return null;
-  }
-
-  // 3. Download binary
-  const binaryRes = await fetch(downloadUrl, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-  if (!binaryRes.ok) {
-    return null;
-  }
-
-  const contentType = binaryRes.headers.get('content-type') || metaMediaData?.mime_type || 'image/jpeg';
-  const buffer = Buffer.from(await binaryRes.arrayBuffer());
-
-  // 4. Save to disk cache
-  let ext = 'jpg';
-  if (contentType.includes('png')) ext = 'png';
-  else if (contentType.includes('webp')) ext = 'webp';
-  else if (contentType.includes('ogg')) ext = 'ogg';
-  else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
-  else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
-  else if (contentType.includes('wav')) ext = 'wav';
-  else if (contentType.includes('webm')) ext = 'webm';
-  else if (contentType.includes('aac')) ext = 'aac';
-  else if (contentType.includes('pdf')) ext = 'pdf';
-  else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
-  else if (contentType.includes('msword')) ext = 'doc';
-  else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
-  else if (contentType.includes('csv')) ext = 'csv';
-  else if (contentType.includes('plain')) ext = 'txt';
-  const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
-  await fs.promises.writeFile(diskPath, buffer).catch((err) => {
-    console.warn('Could not write cache file to disk:', err);
-  });
-
-  return { buffer, contentType };
+  return null;
 }
