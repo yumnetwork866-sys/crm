@@ -295,6 +295,18 @@ html, body {
   -webkit-text-fill-color: #000000 !important;
 }
 
+/* The domain badge intentionally sits on a dark image overlay. */
+.link-preview-domain-badge,
+.light-mode div.link-preview-domain-badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.link-preview-domain-badge svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
 /* Boost dim/faint text in Dark Mode so it's always clear and legible */
 body:not(.light-mode) .text-slate-300,
 body:not(.light-mode) .text-slate-400,

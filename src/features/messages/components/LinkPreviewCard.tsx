@@ -96,7 +96,7 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({ url, className
               (e.currentTarget as HTMLElement).style.display = 'none';
             }}
           />
-          <div className="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] font-medium text-white flex items-center gap-1 shadow-2xs">
+          <div className="link-preview-domain-badge absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] font-medium flex items-center gap-1 shadow-2xs">
             <Globe className="w-2.5 h-2.5" />
             <span className="truncate max-w-[150px]">{preview.domain}</span>
           </div>
