@@ -1689,6 +1689,53 @@ export async function dispatchMetaReaction(options: {
   return { isRealSent, metaResult };
 }
 
+async function fetchMetaMediaBinary(mediaId: string, token: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const metaMediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!metaMediaRes.ok) {
+    const errText = await metaMediaRes.text().catch(() => '');
+    console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
+    return null;
+  }
+
+  const metaMediaData: any = await metaMediaRes.json();
+  const downloadUrl = metaMediaData?.url;
+  if (!downloadUrl) return null;
+
+  const binaryRes = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!binaryRes.ok) return null;
+
+  const contentType = binaryRes.headers.get('content-type') || metaMediaData?.mime_type || 'image/jpeg';
+  const buffer = Buffer.from(await binaryRes.arrayBuffer());
+  return { buffer, contentType };
+}
+
+async function saveMediaToDisk(chatDir: string, mediaId: string, contentType: string, buffer: Buffer): Promise<void> {
+  let ext = 'jpg';
+  if (contentType.includes('png')) ext = 'png';
+  else if (contentType.includes('webp')) ext = 'webp';
+  else if (contentType.includes('ogg')) ext = 'ogg';
+  else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
+  else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
+  else if (contentType.includes('wav')) ext = 'wav';
+  else if (contentType.includes('webm')) ext = 'webm';
+  else if (contentType.includes('aac')) ext = 'aac';
+  else if (contentType.includes('pdf')) ext = 'pdf';
+  else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
+  else if (contentType.includes('msword')) ext = 'doc';
+  else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
+  else if (contentType.includes('csv')) ext = 'csv';
+  else if (contentType.includes('plain')) ext = 'txt';
+  const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
+  await fs.promises.writeFile(diskPath, buffer).catch((err) => {
+    console.warn('Could not write cache file to disk:', err);
+  });
+}
+
 /**
  * Fetch media from Meta CDN, cache to disk, and return file buffer + mimeType
  */
@@ -1727,117 +1774,83 @@ export async function fetchAndCacheMetaMedia(
     }
   }
 
-  // 2. Resolve candidate Meta tokens across multi-account connections
-  const candidateTokens: string[] = [];
-  const addToken = (t?: string | null) => {
+  // 2. Direct exact match: Determine exact receiving phone number (1 single call)
+  let exactPhoneId = preferredPhoneNumberId?.trim();
+  if (!exactPhoneId) {
+    try {
+      const matchedMsg = await prisma.whatsAppMessage.findFirst({
+        where: { content: { contains: mediaId } },
+        select: { businessPhoneNumberId: true },
+      });
+      if (matchedMsg?.businessPhoneNumberId) {
+        exactPhoneId = matchedMsg.businessPhoneNumberId;
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  const triedTokens = new Set<string>();
+
+  if (exactPhoneId) {
+    const directToken = await getMetaAccessTokenForPhone(exactPhoneId).catch(() => '');
+    if (directToken) {
+      triedTokens.add(directToken);
+      const media = await fetchMetaMediaBinary(mediaId, directToken);
+      if (media) {
+        await saveMediaToDisk(chatDir, mediaId, media.contentType, media.buffer);
+        return media;
+      }
+    }
+  }
+
+  // 3. Parallel fallback: If exact phone wasn't known or its token failed, query all other accounts IN PARALLEL
+  const fallbackTokens: string[] = [];
+  const addFallbackToken = (t?: string | null) => {
     const trimmed = t?.trim();
-    if (trimmed && !candidateTokens.includes(trimmed)) {
-      candidateTokens.push(trimmed);
+    if (trimmed && !triedTokens.has(trimmed) && !fallbackTokens.includes(trimmed)) {
+      fallbackTokens.push(trimmed);
     }
   };
 
-  if (preferredPhoneNumberId) {
-    const tok = await getMetaAccessTokenForPhone(preferredPhoneNumberId).catch(() => '');
-    addToken(tok);
-  }
-
-  // Look up message in DB to identify which WhatsApp phone received this media
-  try {
-    const matchedMsg = await prisma.whatsAppMessage.findFirst({
-      where: { content: { contains: mediaId } },
-      select: { businessPhoneNumberId: true },
-    });
-    if (matchedMsg?.businessPhoneNumberId) {
-      const tok = await getMetaAccessTokenForPhone(matchedMsg.businessPhoneNumberId).catch(() => '');
-      addToken(tok);
-    }
-  } catch {
-    // Non-fatal
-  }
-
-  // Query all connected WhatsApp accounts
   try {
     const connections = await prisma.whatsAppConnection.findMany({
       where: { status: 'connected' },
       select: { phoneNumberId: true },
     });
     for (const conn of connections) {
-      const tok = await getMetaAccessTokenForPhone(conn.phoneNumberId).catch(() => '');
-      addToken(tok);
+      if (conn.phoneNumberId !== exactPhoneId) {
+        const tok = await getMetaAccessTokenForPhone(conn.phoneNumberId).catch(() => '');
+        addFallbackToken(tok);
+      }
     }
   } catch {
     // Non-fatal
   }
 
-  // Fallback to default integration setting
   try {
     const setting = await getIntegrationSetting();
     const defaultTok = await getMetaAccessToken(setting);
-    addToken(defaultTok);
+    addFallbackToken(defaultTok);
   } catch {
     // Non-fatal
   }
 
-  if (candidateTokens.length === 0) {
-    throw new Error('Meta Access Token not configured');
-  }
-
-  // 3. Try each token until Meta accepts and provides the media URL
-  for (const token of candidateTokens) {
+  if (fallbackTokens.length > 0) {
     try {
-      const metaMediaRes = await fetch(`https://graph.facebook.com/v22.0/${mediaId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!metaMediaRes.ok) {
-        const errText = await metaMediaRes.text().catch(() => '');
-        console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
-        continue;
+      const media = await Promise.any(
+        fallbackTokens.map(async (token) => {
+          const res = await fetchMetaMediaBinary(mediaId, token);
+          if (!res) throw new Error('Token not authorized');
+          return res;
+        })
+      );
+      if (media) {
+        await saveMediaToDisk(chatDir, mediaId, media.contentType, media.buffer);
+        return media;
       }
-
-      const metaMediaData: any = await metaMediaRes.json();
-      const downloadUrl = metaMediaData?.url;
-
-      if (!downloadUrl) {
-        continue;
-      }
-
-      // 4. Download binary
-      const binaryRes = await fetch(downloadUrl, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!binaryRes.ok) {
-        continue;
-      }
-
-      const contentType = binaryRes.headers.get('content-type') || metaMediaData?.mime_type || 'image/jpeg';
-      const buffer = Buffer.from(await binaryRes.arrayBuffer());
-
-      // 5. Save to disk cache
-      let ext = 'jpg';
-      if (contentType.includes('png')) ext = 'png';
-      else if (contentType.includes('webp')) ext = 'webp';
-      else if (contentType.includes('ogg')) ext = 'ogg';
-      else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
-      else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
-      else if (contentType.includes('wav')) ext = 'wav';
-      else if (contentType.includes('webm')) ext = 'webm';
-      else if (contentType.includes('aac')) ext = 'aac';
-      else if (contentType.includes('pdf')) ext = 'pdf';
-      else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
-      else if (contentType.includes('msword')) ext = 'doc';
-      else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
-      else if (contentType.includes('csv')) ext = 'csv';
-      else if (contentType.includes('plain')) ext = 'txt';
-      const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
-      await fs.promises.writeFile(diskPath, buffer).catch((err) => {
-        console.warn('Could not write cache file to disk:', err);
-      });
-
-      return { buffer, contentType };
-    } catch (err) {
-      console.warn(`[META MEDIA PROXY ERROR] Attempt with token failed:`, err);
+    } catch {
+      // All fallback tokens failed
     }
   }
 

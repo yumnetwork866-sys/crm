@@ -544,20 +544,24 @@ describe('uploadTemplateSampleMedia', () => {
 
 describe('fetchAndCacheMetaMedia', () => {
   it('tries next candidate token if the first token returns 400 OAuth error and downloads media', async () => {
-    const fetchMock = vi.fn()
-      // First token call fails with 400 OAuth Authorization Error
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: 'Authorization Error', code: 100 } }), { status: 400 }))
-      // Second token call succeeds
-      .mockResolvedValueOnce(new Response(JSON.stringify({
+    let firstCall = true;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('test_media_download')) {
+        return Promise.resolve(new Response(Buffer.from('fake-image-bytes'), {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' },
+        }));
+      }
+      if (firstCall) {
+        firstCall = false;
+        return Promise.resolve(new Response(JSON.stringify({ error: { message: 'Authorization Error', code: 100 } }), { status: 400 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
         id: 'test_media_999',
         url: 'https://lookaside.fbsbx.com/test_media_download',
         mime_type: 'image/jpeg',
-      }), { status: 200 }))
-      // Binary download
-      .mockResolvedValueOnce(new Response(Buffer.from('fake-image-bytes'), {
-        status: 200,
-        headers: { 'Content-Type': 'image/jpeg' },
-      }));
+      }), { status: 200 }));
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     try {
