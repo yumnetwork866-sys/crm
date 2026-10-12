@@ -11,3 +11,6 @@ dify_cskh_bot_dsl.yml
 dify_*.yml
 tai_lieu_*.txt
 
+# Cached and uploaded chat media
+public/uploads/chat/*
+!public/uploads/chat/.gitkeep
