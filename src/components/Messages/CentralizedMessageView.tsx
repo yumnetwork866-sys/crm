@@ -202,6 +202,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     threadId: activeThread?.threadId,
     messageCount: activeThread?.messages.length || 0,
     isLoadingOlderMessages,
+    hasOlderMessages,
     onLoadOlderMessages,
   });
   const displayedMessages = useMemo(

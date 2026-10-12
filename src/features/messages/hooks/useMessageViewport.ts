@@ -4,6 +4,7 @@ interface UseMessageViewportOptions {
   threadId?: string;
   messageCount: number;
   isLoadingOlderMessages: boolean;
+  hasOlderMessages?: boolean;
   onLoadOlderMessages?: () => Promise<unknown>;
 }
 
@@ -11,11 +12,13 @@ export function useMessageViewport({
   threadId,
   messageCount,
   isLoadingOlderMessages,
+  hasOlderMessages = false,
   onLoadOlderMessages,
 }: UseMessageViewportOptions) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isLoadingOlderRef = useRef(false);
+  const isInitialLayoutDoneRef = useRef(false);
   const [showScrollBottomButton, setShowScrollBottomButton] = useState(false);
 
   const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
@@ -29,15 +32,19 @@ export function useMessageViewport({
   }, []);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!onLoadOlderMessages || isLoadingOlderMessages) return;
+    if (!onLoadOlderMessages || isLoadingOlderMessages || isLoadingOlderRef.current) return;
     const container = chatContainerRef.current;
     const previousScrollHeight = container?.scrollHeight ?? 0;
+    const previousScrollTop = container?.scrollTop ?? 0;
     isLoadingOlderRef.current = true;
     try {
       await onLoadOlderMessages();
     } finally {
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (container) container.scrollTop += container.scrollHeight - previousScrollHeight;
+        if (container) {
+          const delta = container.scrollHeight - previousScrollHeight;
+          container.scrollTop = previousScrollTop + delta;
+        }
         isLoadingOlderRef.current = false;
       }));
     }
@@ -47,19 +54,38 @@ export function useMessageViewport({
     const container = chatContainerRef.current;
     if (!container) return;
     const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
       setShowScrollBottomButton(
-        container.scrollHeight - container.scrollTop - container.clientHeight > 180
+        scrollHeight - scrollTop - clientHeight > 180
       );
+
+      // Auto-load older messages when user scrolls near the top (within 150px)
+      if (
+        hasOlderMessages &&
+        !isLoadingOlderMessages &&
+        !isLoadingOlderRef.current &&
+        isInitialLayoutDoneRef.current &&
+        scrollTop <= 150 &&
+        scrollHeight > clientHeight
+      ) {
+        void loadOlderMessages();
+      }
     };
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [threadId]);
+  }, [hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, threadId]);
 
   useEffect(() => {
     if (!threadId) return;
+    isInitialLayoutDoneRef.current = false;
     scrollToBottom('auto');
     const timers = [40, 120, 300].map((delay) =>
-      window.setTimeout(() => scrollToBottom('auto'), delay)
+      window.setTimeout(() => {
+        scrollToBottom('auto');
+        if (delay === 300) {
+          isInitialLayoutDoneRef.current = true;
+        }
+      }, delay)
     );
     return () => timers.forEach(window.clearTimeout);
   }, [scrollToBottom, threadId]);
