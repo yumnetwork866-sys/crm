@@ -182,6 +182,13 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     const password = data.password !== undefined ? await bcrypt.hash(data.password, 10) : undefined;
     const updated = await prisma.$transaction(async (transaction) => {
       if (data.name !== undefined && data.name !== target.name) {
+        // Customer ownership is still stored as a display name. Keep existing
+        // assignments attached when that user's profile name changes.
+        await transaction.customer.updateMany({
+          where: { owner: { in: [target.name, target.email] } },
+          data: { owner: data.name },
+        });
+
         await transaction.whatsAppMessage.updateMany({
           where: {
             sender: 'agent',

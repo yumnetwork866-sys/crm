@@ -115,7 +115,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
         landingPage: data.landingPage,
         firstContact: data.firstContact || new Date().toISOString().split('T')[0],
         lastContact: data.lastContact || new Date().toISOString().split('T')[0],
-        owner: data.owner || 'Nguyễn Văn Ánh',
+        owner: data.owner || currentUser?.name || 'Chưa phân công',
         status: data.status || 'New Lead',
         group: data.group || 'group_1',
         notes: data.notes || [],

@@ -5,6 +5,7 @@ import { formatDateTime } from '../utils/crmUtils';
 import { queryKeys } from '../lib/queryClient';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
+import { useAuth } from '../contexts/AuthContext';
 
 const withOrderSummary = (customer: Customer, orders: CustomerOrder[]): Customer => {
   const completedOrders = orders.filter((order) => order.status === 'Completed');
@@ -18,6 +19,7 @@ const withOrderSummary = (customer: Customer, orders: CustomerOrder[]): Customer
 
 export function useOrders() {
   const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
 
   const addMutation = useMutation({
     mutationFn: async ({ customerId, order }: { customerId: string; order: CustomerOrder }) => {
@@ -181,7 +183,7 @@ export function useOrders() {
             campaign: 'Import CSV Đơn Hàng',
             firstContact: new Date().toISOString().split('T')[0],
             lastContact: new Date().toISOString().split('T')[0],
-            owner: 'Nguyễn Văn Ánh',
+            owner: currentUser?.name || 'Chưa phân công',
             status: order.status === 'Completed' ? 'Won' : 'Contacted',
             notes: [],
             totalOrders: 1,

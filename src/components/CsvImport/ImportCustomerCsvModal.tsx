@@ -3,6 +3,7 @@ import { X, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, UserPl
 import type { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
 import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
 import { formatDate, formatDateTime } from '../../utils/crmUtils';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ImportCustomerCsvModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
   onImportCustomers,
   existingCustomersCount,
 }) => {
+  const { currentUser } = useAuth();
+  const defaultOwner = currentUser?.name || 'Chưa phân công';
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [pasteText, setPasteText] = useState('');
   const [fileName, setFileName] = useState('');
@@ -106,7 +109,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
         source,
         status,
         campaign: `Import CSV ${formatDate(new Date())}`,
-        owner: 'Nguyễn Văn Ánh',
+        owner: defaultOwner,
       };
     });
 
@@ -142,7 +145,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
       campaign: c.campaign || 'Import CSV',
       firstContact: new Date().toISOString().split('T')[0],
       lastContact: new Date().toISOString().split('T')[0],
-      owner: 'Nguyễn Văn Ánh',
+      owner: c.owner || defaultOwner,
       status: c.status || 'New Lead',
       notes: [
         {

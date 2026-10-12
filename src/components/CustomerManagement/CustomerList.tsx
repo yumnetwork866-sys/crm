@@ -112,8 +112,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
   const sources = useMemo(() => Array.from(new Set(customers.map((c) => c.source))).sort(), [customers]);
   const owners = useMemo(
-    () => Array.from(new Set(customers.map((c) => c.owner).filter((owner) => owner && !UNASSIGNED_OWNERS.includes(owner)))).sort(),
-    [customers]
+    () => Array.from(new Set([
+      ...users.filter((user) => user.status === 'active').map((user) => user.name),
+      ...customers.map((customer) => customer.owner),
+    ].filter((owner) => owner && !UNASSIGNED_OWNERS.includes(owner)))).sort((a, b) => a.localeCompare(b, 'vi')),
+    [customers, users]
   );
 
   const hasUnreadMessage = (customer: Customer) => centralMessages.some((message) =>
@@ -605,8 +608,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       ) : (
                         <div className="flex items-center gap-3">
                           <img
-                            src={getOwnerAvatar(customer.owner)}
-                            alt={customer.owner}
+                            src={ownerUser?.avatar || getOwnerAvatar(customer.owner)}
+                            alt={ownerUser?.name || customer.owner}
                             className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 object-cover shrink-0"
                             onError={(e) => {
                               e.currentTarget.src = getDiceBearAvatar(customer.owner, STAFF_DICEBEAR_STYLE);
@@ -620,7 +623,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                             className="whitespace-nowrap text-sm font-bold hover:underline disabled:cursor-default disabled:no-underline"
                             style={getUserRoleTextStyle(ownerUser)}
                           >
-                            {customer.owner}
+                            {ownerUser?.name || customer.owner}
                           </button>
                         </div>
                       )}

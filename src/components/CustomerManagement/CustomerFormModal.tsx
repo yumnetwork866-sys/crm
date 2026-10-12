@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, User, Phone, Mail, Globe, MapPin, Tag, Briefcase, FileText, CheckCircle2 } from 'lucide-react';
 import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender } from '../../types';
-import { INITIAL_PRODUCTS, SALES_REPS } from '../../data/mockData';
+import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerFormModalProps {
   isOpen: boolean;
@@ -22,6 +23,20 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onSave,
   initialData,
 }) => {
+  const { users, currentUser } = useAuth();
+  const ownerOptions = useMemo(() => {
+    const names = users
+      .filter((user) => user.status === 'active')
+      .map((user) => user.name.trim())
+      .filter(Boolean);
+    if (currentUser?.name) names.push(currentUser.name.trim());
+    if (initialData?.owner && !['', 'Chưa phân công', 'Unassigned'].includes(initialData.owner)) {
+      names.push(initialData.owner.trim());
+    }
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [users, currentUser?.name, initialData?.owner]);
+  const defaultOwner = currentUser?.name || ownerOptions[0] || 'Chưa phân công';
+
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender>('Nữ');
@@ -36,7 +51,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [firstContact, setFirstContact] = useState('');
   const [lastContact, setLastContact] = useState('');
 
-  const [owner, setOwner] = useState(SALES_REPS[0]);
+  const [owner, setOwner] = useState('Chưa phân công');
   const [status, setStatus] = useState<CustomerStatus>('New Lead');
   const [group, setGroup] = useState<CustomerGroupId>('group_1');
   const [noteContent, setNoteContent] = useState('');
@@ -58,7 +73,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setFirstContact(initialData.firstContact || new Date().toISOString().split('T')[0]);
       setLastContact(initialData.lastContact || new Date().toISOString().split('T')[0]);
 
-      setOwner(initialData.owner || SALES_REPS[0]);
+      setOwner(initialData.owner || defaultOwner);
       setStatus(initialData.status || 'New Lead');
       setGroup(getCustomerGroup(initialData));
       setSelectedProducts(initialData.interestedProducts || []);
@@ -76,13 +91,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       const today = new Date().toISOString().split('T')[0];
       setFirstContact(today);
       setLastContact(today);
-      setOwner(SALES_REPS[0]);
+      setOwner(defaultOwner);
       setStatus('New Lead');
       setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
       setSelectedProducts([INITIAL_PRODUCTS[0]]);
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, defaultOwner]);
 
   if (!isOpen) return null;
 
@@ -351,8 +366,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   onChange={(e) => setOwner(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 >
-                  {SALES_REPS.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                  <option value="Chưa phân công">Chưa phân công</option>
+                  {ownerOptions.map((userName) => (
+                    <option key={userName} value={userName}>{userName}</option>
                   ))}
                 </select>
               </div>
