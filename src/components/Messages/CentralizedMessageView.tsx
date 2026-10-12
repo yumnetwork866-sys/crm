@@ -75,7 +75,6 @@ import { LinkPreviewCard } from '../../features/messages/components/LinkPreviewC
 import { BusinessPhoneSelector } from '../../features/messages/components/BusinessPhoneSelector';
 import { MessageLightbox } from '../../features/messages/components/MessageLightbox';
 import { UserInfoModal } from '../Common/UserInfoModal';
-import { MessageSecurityBanner } from '../../features/messages/components/MessageSecurityBanner';
 import { ThreadListItem } from '../../features/messages/components/ThreadListItem';
 import { CustomerChatDrawer } from '../../features/messages/components/CustomerChatDrawer';
 import { WhatsAppSessionCountdown } from '../../features/messages/components/WhatsAppSessionCountdown';
@@ -937,8 +936,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 id="chat-messages-container"
                 className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
               >
-                <MessageSecurityBanner />
-
                 <div
                   className="relative w-full"
                   style={{ height: `${messageVirtualizer.getTotalSize()}px` }}
