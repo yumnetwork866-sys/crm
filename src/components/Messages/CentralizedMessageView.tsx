@@ -48,7 +48,8 @@ import {
   Play,
   Square,
   Package,
-  Settings
+  Settings,
+  Languages
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, getCustomerAvatar, getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../utils/crmUtils';
@@ -1172,6 +1173,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 </button>
                                 {activeReactionPickerMsgId === msg.id && renderReactionPicker(true)}
                               </div>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105"
+                                title="Dịch tin nhắn"
+                                aria-label="Dịch tin nhắn"
+                              >
+                                <Languages className="w-3.5 h-3.5" strokeWidth={1.75} />
+                              </button>
                             </div>
                           )}
 
@@ -1585,6 +1595,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                                 </button>
                                 {activeReactionPickerMsgId === msg.id && renderReactionPicker(false)}
                               </div>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105"
+                                title="Dịch tin nhắn"
+                                aria-label="Dịch tin nhắn"
+                              >
+                                <Languages className="w-3.5 h-3.5" strokeWidth={1.75} />
+                              </button>
                               <button
                                 type="button"
                                 onClick={(e) => {
