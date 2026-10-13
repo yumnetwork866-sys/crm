@@ -42,5 +42,4 @@ export interface QuickTemplate {
   code: string;
   title: string;
   content: string;
-  category?: string;
 }

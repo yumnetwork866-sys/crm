@@ -4,10 +4,8 @@ import {
   Plus,
   Edit2,
   Trash2,
-  RotateCcw,
   Search,
   Zap,
-  Tag,
   HelpCircle,
 } from 'lucide-react';
 import type { QuickTemplate } from '../types';
@@ -19,48 +17,25 @@ interface QuickTemplatesModalProps {
   onSelectTemplate?: (content: string) => void;
 }
 
-const COMMON_CATEGORIES = [
-  'Tư vấn',
-  'Báo giá',
-  'Ưu đãi',
-  'Chốt đơn',
-  'Thanh toán',
-  'Vận chuyển',
-  'CSKH',
-];
-
 export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
   isOpen,
   onClose,
   onSelectTemplate,
 }) => {
-  const { templates, addTemplate, updateTemplate, deleteTemplate, resetToDefaults } = useQuickTemplates();
+  const { templates, addTemplate, updateTemplate, deleteTemplate } = useQuickTemplates();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [editingTemplate, setEditingTemplate] = useState<QuickTemplate | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // Form State
   const [formCode, setFormCode] = useState('');
   const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState('Tư vấn');
   const [formContent, setFormContent] = useState('');
   const [formError, setFormError] = useState('');
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    templates.forEach((t) => {
-      if (t.category) set.add(t.category);
-    });
-    return Array.from(set);
-  }, [templates]);
-
   const filteredTemplates = useMemo(() => {
     return templates.filter((item) => {
-      const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
-      if (!matchCat) return false;
-
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       return (
@@ -69,7 +44,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
         item.content.toLowerCase().includes(q)
       );
     });
-  }, [templates, selectedCategory, searchQuery]);
+  }, [templates, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -77,7 +52,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
     setEditingTemplate(null);
     setFormCode('');
     setFormTitle('');
-    setFormCategory('Tư vấn');
     setFormContent('');
     setFormError('');
     setIsCreatingNew(true);
@@ -88,7 +62,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
     setEditingTemplate(tmpl);
     setFormCode(tmpl.code.replace(/^\/+/, ''));
     setFormTitle(tmpl.title);
-    setFormCategory(tmpl.category || 'Tư vấn');
     setFormContent(tmpl.content);
     setFormError('');
   };
@@ -136,14 +109,12 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
       addTemplate({
         code: formattedCode,
         title: cleanTitle,
-        category: formCategory.trim() || 'Chung',
         content: cleanContent,
       });
     } else if (editingTemplate) {
       updateTemplate(editingTemplate.id, {
         code: formattedCode,
         title: cleanTitle,
-        category: formCategory.trim() || 'Chung',
         content: cleanContent,
       });
     }
@@ -160,19 +131,13 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
     }
   };
 
-  const handleResetDefaults = () => {
-    if (
-      window.confirm(
-        'Khôi phục danh sách mẫu tin nhắn nhanh về mặc định ban đầu? Các thay đổi tùy chỉnh của bạn sẽ được đặt lại.'
-      )
-    ) {
-      resetToDefaults();
-      handleCancelForm();
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-4 sm:px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
@@ -198,7 +163,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {/* Top Actions: Search + Categories + Add Button */}
+          {/* Top Actions: Search + Add Button */}
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -211,54 +176,14 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleStartCreate}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#1fa855] hover:bg-[#1a924a] text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Thêm Mẫu Mới</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleResetDefaults}
-                title="Khôi phục mẫu gốc"
-                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs sm:text-sm font-medium rounded-xl transition cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden sm:inline">Mặc định</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
               type="button"
-              onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1 rounded-lg font-medium transition cursor-pointer shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+              onClick={handleStartCreate}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#1fa855] hover:bg-[#1a924a] text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition cursor-pointer"
             >
-              Tất cả ({templates.length})
+              <Plus className="w-4 h-4" />
+              <span>Thêm Mẫu Mới</span>
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-lg font-medium transition cursor-pointer shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
           </div>
 
           {/* Form Modal / Drawer if Creating or Editing */}
@@ -293,7 +218,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
               )}
 
               <form id="quick-template-form" onSubmit={handleSaveForm} className="space-y-3.5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Phím tắt kích hoạt <span className="text-rose-500">*</span>
@@ -310,25 +235,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                         className="w-full pl-6 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-[#1fa855] font-bold focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nhóm danh mục
-                    </label>
-                    <input
-                      type="text"
-                      list="category-suggestions"
-                      placeholder="Tư vấn"
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
-                    />
-                    <datalist id="category-suggestions">
-                      {COMMON_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
                   </div>
                 </div>
 
@@ -423,13 +329,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                           {item.title}
                         </h4>
                       </div>
-
-                      {item.category && (
-                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium shrink-0 flex items-center gap-1">
-                          <Tag className="w-2.5 h-2.5 text-slate-400" />
-                          {item.category}
-                        </span>
-                      )}
                     </div>
 
                     <p className="text-xs text-slate-600 whitespace-pre-line line-clamp-3 leading-relaxed bg-slate-50/60 p-2 rounded-xl border border-slate-100 mt-2">
@@ -477,16 +376,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
               ))
             )}
           </div>
-        </div>
-
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition"
-          >
-            Đóng
-          </button>
         </div>
       </div>
     </div>

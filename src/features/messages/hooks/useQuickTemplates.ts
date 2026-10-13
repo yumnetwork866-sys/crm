@@ -74,7 +74,6 @@ export function useQuickTemplates() {
       code,
       title: newTmpl.title.trim() || 'Mẫu tin nhắn',
       content: newTmpl.content.trim(),
-      category: newTmpl.category?.trim() || 'Chung',
     };
 
     const next = [...loadStoredTemplates(), item];
@@ -97,7 +96,6 @@ export function useQuickTemplates() {
         code,
         title: patch.title !== undefined ? patch.title.trim() : item.title,
         content: patch.content !== undefined ? patch.content.trim() : item.content,
-        category: patch.category !== undefined ? patch.category.trim() : item.category,
       };
     });
 
