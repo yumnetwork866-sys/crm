@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Globe2 } from 'lucide-react';
+import auFlagUrl from 'flag-icons/flags/4x3/au.svg';
+import gbFlagUrl from 'flag-icons/flags/4x3/gb.svg';
+import idFlagUrl from 'flag-icons/flags/4x3/id.svg';
+import myFlagUrl from 'flag-icons/flags/4x3/my.svg';
+import phFlagUrl from 'flag-icons/flags/4x3/ph.svg';
+import sgFlagUrl from 'flag-icons/flags/4x3/sg.svg';
+import thFlagUrl from 'flag-icons/flags/4x3/th.svg';
+import usFlagUrl from 'flag-icons/flags/4x3/us.svg';
+import vnFlagUrl from 'flag-icons/flags/4x3/vn.svg';
 import type { BusinessPhoneNumber } from '../types';
 
 interface BusinessPhoneSelectorProps {
@@ -18,20 +27,33 @@ function getPhoneAvatarUrl(phone: BusinessPhoneNumber): string {
   return phone.profilePictureUrl || getFallbackPhoneAvatarUrl(phone);
 }
 
-function getPhoneCountryFlag(displayPhoneNumber: string): string {
+function getPhoneCountryFlagUrl(displayPhoneNumber: string): string | null {
   const digits = displayPhoneNumber.replace(/\D/g, '');
   const countryFlags: Array<[string, string]> = [
-    ['84', '🇻🇳'],
-    ['60', '🇲🇾'],
-    ['62', '🇮🇩'],
-    ['63', '🇵🇭'],
-    ['65', '🇸🇬'],
-    ['66', '🇹🇭'],
-    ['61', '🇦🇺'],
-    ['44', '🇬🇧'],
-    ['1', '🇺🇸'],
+    ['84', vnFlagUrl],
+    ['60', myFlagUrl],
+    ['62', idFlagUrl],
+    ['63', phFlagUrl],
+    ['65', sgFlagUrl],
+    ['66', thFlagUrl],
+    ['61', auFlagUrl],
+    ['44', gbFlagUrl],
+    ['1', usFlagUrl],
   ];
-  return countryFlags.find(([prefix]) => digits.startsWith(prefix))?.[1] || '🌐';
+  return countryFlags.find(([prefix]) => digits.startsWith(prefix))?.[1] || null;
+}
+
+function PhoneCountryFlag({ displayPhoneNumber }: { displayPhoneNumber: string }) {
+  const flagUrl = getPhoneCountryFlagUrl(displayPhoneNumber);
+  if (!flagUrl) return <Globe2 aria-hidden="true" className="h-3 w-3 shrink-0 text-slate-400" />;
+  return (
+    <img
+      src={flagUrl}
+      alt=""
+      aria-hidden="true"
+      className="h-3 w-4 shrink-0 rounded-[2px] object-cover shadow-xs"
+    />
+  );
 }
 
 export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: BusinessPhoneSelectorProps) {
@@ -80,7 +102,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
             {selectedPhone.verifiedName}
           </span>
           <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-semibold text-slate-500">
-            <span aria-hidden="true" className="shrink-0 text-xs leading-none">{getPhoneCountryFlag(selectedPhone.displayPhoneNumber)}</span>
+            <PhoneCountryFlag displayPhoneNumber={selectedPhone.displayPhoneNumber} />
             {selectedPhone.displayPhoneNumber}
           </span>
         </span>
@@ -132,7 +154,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                     {phone.verifiedName}
                   </span>
                   <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-semibold text-slate-500">
-                    <span aria-hidden="true" className="shrink-0 text-xs leading-none">{getPhoneCountryFlag(phone.displayPhoneNumber)}</span>
+                    <PhoneCountryFlag displayPhoneNumber={phone.displayPhoneNumber} />
                     {phone.displayPhoneNumber}
                   </span>
                 </span>
