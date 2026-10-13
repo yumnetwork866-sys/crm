@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { BusinessPhoneNumber } from '../types';
 import { api } from '../../../utils/apiClient';
+import { queryKeys } from '../../../lib/queryClient';
 
 const SELECTED_PHONE_KEY = 'yumcrm_active_waba_phone';
 
@@ -10,9 +12,20 @@ interface PhoneNumbersResponse {
   selectedPhoneNumberId?: string;
 }
 
+interface UnreadMessageSummaryResponse {
+  total: number;
+  byPhone: Array<{ phoneNumberId: string; unreadCount: number }>;
+}
+
 export function useBusinessPhones(enabled = true) {
   const [businessPhones, setBusinessPhones] = useState<BusinessPhoneNumber[]>([]);
   const [selectedPhoneId, setSelectedPhoneId] = useState(() => localStorage.getItem(SELECTED_PHONE_KEY) || '');
+  const unreadSummaryQuery = useQuery({
+    queryKey: queryKeys.messageUnreadTotals,
+    queryFn: () => api.get<UnreadMessageSummaryResponse>('/meta/messages/unread-summary'),
+    enabled,
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -68,5 +81,20 @@ export function useBusinessPhones(enabled = true) {
     }
   }, []);
 
-  return { businessPhones, selectedPhoneId, selectBusinessPhone };
+  const phonesWithUnreadCounts = useMemo(() => {
+    const counts = new Map(
+      (unreadSummaryQuery.data?.byPhone || []).map((item) => [item.phoneNumberId, item.unreadCount]),
+    );
+    return businessPhones.map((phone) => ({
+      ...phone,
+      unreadCount: counts.get(phone.id) || 0,
+    }));
+  }, [businessPhones, unreadSummaryQuery.data?.byPhone]);
+
+  return {
+    businessPhones: phonesWithUnreadCounts,
+    selectedPhoneId,
+    selectBusinessPhone,
+    unreadMessagesCount: unreadSummaryQuery.data?.total || 0,
+  };
 }

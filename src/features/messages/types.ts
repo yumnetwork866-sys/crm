@@ -9,6 +9,7 @@ export interface BusinessPhoneNumber {
   displayPhoneNumber: string;
   profilePictureUrl?: string;
   qualityRating?: string;
+  unreadCount?: number;
 }
 
 export type ConversationStatus = 'consulting' | 'ordered' | 'callback' | 'completed';

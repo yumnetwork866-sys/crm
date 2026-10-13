@@ -139,6 +139,11 @@ export function useCentralMessages({
     return unreadSummaryQuery.data?.data.reduce((total, thread) => total + thread.unreadCount, 0) ?? 0;
   }, [loadMessages, messages, unreadSummaryQuery.data]);
 
+  const invalidateUnreadCounts = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadTotals });
+  }, [queryClient, unreadSummaryQueryKey]);
+
   const readMutation = useMutation({
     mutationFn: (variables: { customerId: string; customerPhone: string; messageIds?: string[]; readBy: string; phoneNumberId: string }) =>
       api.post('/meta/messages/read', variables),
@@ -175,15 +180,18 @@ export function useCentralMessages({
       })
     );
 
-    readMutation.mutate({
-      customerId: customer?.id || targetId,
-      customerPhone: phone,
-      messageIds,
-      readBy: reader,
-      phoneNumberId,
-    });
-    void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
-  }, [phoneNumberId, queryClient, readMutation, setMessages, unreadSummaryQueryKey]);
+    readMutation.mutate(
+      {
+        customerId: customer?.id || targetId,
+        customerPhone: phone,
+        messageIds,
+        readBy: reader,
+        phoneNumberId,
+      },
+      { onSettled: invalidateUnreadCounts },
+    );
+    invalidateUnreadCounts();
+  }, [invalidateUnreadCounts, phoneNumberId, readMutation, setMessages]);
 
   useEffect(() => {
     if (!phoneNumberId) return;
@@ -203,6 +211,7 @@ export function useCentralMessages({
         try {
           const newMessage: CentralMessage = JSON.parse(event.data);
           if (!newMessage?.id) return;
+          invalidateUnreadCounts();
           if (
             newMessage.businessPhoneNumberId &&
             newMessage.businessPhoneNumberId !== phoneNumberId
@@ -241,7 +250,6 @@ export function useCentralMessages({
             playNotificationSound();
             setToastNotification({ message: newMessage, show: true });
           }
-          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:new event:', error);
         }
@@ -265,7 +273,7 @@ export function useCentralMessages({
                 : message;
             }),
           );
-          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+          invalidateUnreadCounts();
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:read event:', error);
         }
@@ -303,7 +311,7 @@ export function useCentralMessages({
                 !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone)),
             ),
           );
-          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+          invalidateUnreadCounts();
         } catch {
           // Ignore malformed realtime events.
         }
@@ -312,18 +320,18 @@ export function useCentralMessages({
         try {
           const { messageId } = JSON.parse(event.data);
           setMessages((previous) => previous.filter((message) => message.id !== messageId));
-          void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+          invalidateUnreadCounts();
         } catch {
           // Ignore malformed realtime events.
         }
       },
       'message:cleared': () => {
         setMessages([]);
-        void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+        invalidateUnreadCounts();
       },
       'messages:sync': () => {
         void queryClient.invalidateQueries({ queryKey: centralMessagesQueryKey });
-        void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
+        invalidateUnreadCounts();
       },
       'customers:sync': () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
@@ -337,7 +345,7 @@ export function useCentralMessages({
         }
       },
     });
-  }, [centralMessagesQueryKey, phoneNumberId, queryClient, setCustomers, setMessages, unreadSummaryQueryKey]);
+  }, [centralMessagesQueryKey, invalidateUnreadCounts, phoneNumberId, queryClient, setCustomers, setMessages]);
 
   const sendMutation = useMutation({
     mutationFn: (variables: {

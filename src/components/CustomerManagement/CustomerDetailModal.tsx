@@ -299,10 +299,20 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <dl className="divide-y divide-slate-100 px-4 text-xs">
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-3">
                       <dt className="font-medium text-slate-500">Kênh tiếp cận</dt>
-                      <dd><span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</span></dd>
+                      <dd>
+                        {customer.source?.toLowerCase().includes('whatsapp') ? (
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">
+                            WhatsApp
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-bold text-indigo-700">
+                            {customer.source || 'Trực tiếp'}
+                          </span>
+                        )}
+                      </dd>
                     </div>
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-3">
-                      <dt className="font-medium text-slate-500">Chiến dịch</dt>
+                      <dt className="font-medium text-slate-500">Chiến dịch / Thương hiệu</dt>
                       <dd className="font-semibold text-slate-900">
                         {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim())
                           ? customer.campaign

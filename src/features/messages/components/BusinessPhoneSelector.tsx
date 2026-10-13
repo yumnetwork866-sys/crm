@@ -84,6 +84,11 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
             {selectedPhone.displayPhoneNumber}
           </span>
         </span>
+        {selectedPhone.unreadCount ? (
+          <span className="phone-unread-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none">
+            {selectedPhone.unreadCount}
+          </span>
+        ) : null}
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -131,6 +136,11 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                     {phone.displayPhoneNumber}
                   </span>
                 </span>
+                {phone.unreadCount ? (
+                  <span className="phone-unread-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none">
+                    {phone.unreadCount}
+                  </span>
+                ) : null}
                 {isSelected ? <Check className="h-4 w-4 shrink-0 text-[#1fa855]" /> : null}
               </button>
             );

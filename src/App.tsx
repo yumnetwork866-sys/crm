@@ -129,6 +129,7 @@ export default function App() {
     businessPhones,
     selectedPhoneId,
     selectBusinessPhone: handleSelectBusinessPhone,
+    unreadMessagesCount,
   } = useBusinessPhones(Boolean(currentUser));
 
   const {
@@ -180,7 +181,6 @@ export default function App() {
   } = useOrders();
   const {
     messages: centralMessages,
-    unreadCount: unreadMessagesCount,
     toastNotification,
     setToastNotification,
     selectedCustomerId: selectedChatCustomerId,
@@ -426,6 +426,7 @@ export default function App() {
                 <CustomerList
                   customers={customers}
                   centralMessages={centralMessages}
+                  businessPhones={businessPhones}
                   currentUser={currentUser}
                   filterModel={customerFilterModel}
                   onSelectCustomer={(cust) => {

@@ -22,6 +22,7 @@ import {
   setGlobalAiEnabled,
 } from '../services/difyService';
 import { fetchLinkPreview } from '../services/linkPreviewService';
+import { resolveWhatsAppBrandName } from '../services/webhookService';
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -304,11 +305,14 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
           const defaultName = (finalCustomerName && !finalCustomerName.startsWith('Khách Hàng') && !finalCustomerName.startsWith('Khách WhatsApp'))
             ? finalCustomerName
             : `Khách WhatsApp (${cleanPhone.slice(-4)})`;
+          const phoneId = senderPhoneId || overridePhoneId;
+          const brandName = await resolveWhatsAppBrandName(phoneId);
           const newCust = await prisma.customer.create({
             data: {
               phone: formattedPhone,
               name: defaultName,
               source: 'WhatsApp',
+              campaign: brandName || 'N/A',
               status: 'Contacted',
               group: 'group_1',
               firstContact: new Date(),
@@ -782,6 +786,38 @@ export async function getConversations(req: Request, res: Response) {
   } catch (error) {
     console.error('[CHAT CONTROLLER] getConversations error:', error);
     return res.status(500).json({ error: 'Không thể tải danh sách cuộc hội thoại.' });
+  }
+}
+
+/**
+ * GET /api/meta/messages/unread-summary
+ * Global unread totals grouped by the receiving WhatsApp business number.
+ */
+export async function getUnreadMessageSummary(_req: Request, res: Response) {
+  try {
+    const groups = await prisma.whatsAppMessage.groupBy({
+      by: ['businessPhoneNumberId'],
+      where: {
+        sender: 'customer',
+        isRead: false,
+      },
+      _count: { _all: true },
+    });
+
+    const byPhone = groups
+      .filter((group) => Boolean(group.businessPhoneNumberId))
+      .map((group) => ({
+        phoneNumberId: group.businessPhoneNumberId as string,
+        unreadCount: group._count._all,
+      }));
+
+    return res.json({
+      total: groups.reduce((sum, group) => sum + group._count._all, 0),
+      byPhone,
+    });
+  } catch (error) {
+    console.error('Error fetching global unread message summary:', error);
+    return res.status(500).json({ error: 'Không thể lấy tổng số tin nhắn chưa đọc.' });
   }
 }
 

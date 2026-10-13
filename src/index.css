@@ -143,6 +143,15 @@ html, body {
   box-shadow: 0 1px 3px rgb(225 29 72 / 0.24) !important;
 }
 
+.phone-unread-badge,
+.light-mode span.phone-unread-badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #f43f5e !important;
+  border: 1px solid #e11d48 !important;
+  box-shadow: 0 1px 3px rgb(225 29 72 / 0.2) !important;
+}
+
 /* Keep the selected Automation section icon white on its indigo background. */
 .light-mode .automation-section-tab[aria-selected="true"] .automation-section-tab-icon {
   color: #ffffff !important;

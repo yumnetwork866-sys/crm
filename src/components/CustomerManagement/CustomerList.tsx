@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../../types';
+import type { BusinessPhoneNumber } from '../../features/messages/types';
 import {
   CUSTOMER_GROUPS,
   formatDate,
@@ -42,6 +43,7 @@ type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'vip' | 'un
 interface CustomerListProps {
   customers: Customer[];
   centralMessages?: CentralMessage[];
+  businessPhones?: BusinessPhoneNumber[];
   currentUser?: AppUser | null;
   filterModel: CustomerFilterModel;
   onSelectCustomer: (customer: Customer) => void;
@@ -58,9 +60,16 @@ interface CustomerListProps {
 
 const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
 
+const KNOWN_WHATSAPP_BRANDS: Record<string, { name: string; displayPhone: string; color: 'emerald' | 'purple' | 'blue' }> = {
+  '1412496995272289': { name: 'Actiscar', displayPhone: '+60 11-5551 9250', color: 'emerald' },
+  '1409649928889874': { name: 'Follicas', displayPhone: '+60 11-1096 6954', color: 'purple' },
+  '1311189322067725': { name: 'Yum Network', displayPhone: '+60 11-1071 6895', color: 'blue' },
+};
+
 export const CustomerList: React.FC<CustomerListProps> = ({
   customers,
   centralMessages = [],
+  businessPhones = [],
   currentUser,
   filterModel,
   onSelectCustomer,
@@ -118,6 +127,109 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     ].filter((owner) => owner && !UNASSIGNED_OWNERS.includes(owner)))).sort((a, b) => a.localeCompare(b, 'vi')),
     [customers, users]
   );
+
+  const customerWhatsAppSourceMap = useMemo(() => {
+    const map = new Map<string, { brands: Array<{ name: string; displayPhone?: string; color: 'emerald' | 'purple' | 'blue' }> }>();
+
+    const phoneIdToInfo = new Map<string, { name: string; displayPhone: string; color: 'emerald' | 'purple' | 'blue' }>();
+    for (const [id, info] of Object.entries(KNOWN_WHATSAPP_BRANDS)) {
+      phoneIdToInfo.set(id, info);
+    }
+    if (businessPhones) {
+      for (const bp of businessPhones) {
+        const known = phoneIdToInfo.get(bp.id);
+        const name = bp.verifiedName || known?.name || 'WhatsApp';
+        const lower = name.toLowerCase();
+        const color: 'emerald' | 'purple' | 'blue' = lower.includes('follicas') ? 'purple' : lower.includes('yum') ? 'blue' : 'emerald';
+        phoneIdToInfo.set(bp.id, {
+          name,
+          displayPhone: bp.displayPhoneNumber || known?.displayPhone || '',
+          color,
+        });
+      }
+    }
+
+    const msgsByCustId = new Map<string, Set<string>>();
+    const msgsByPhoneSuffix = new Map<string, Set<string>>();
+
+    if (centralMessages) {
+      for (const msg of centralMessages) {
+        if (!msg.businessPhoneNumberId) continue;
+        if (msg.customerId) {
+          if (!msgsByCustId.has(msg.customerId)) msgsByCustId.set(msg.customerId, new Set());
+          msgsByCustId.get(msg.customerId)!.add(msg.businessPhoneNumberId);
+        }
+        const cleanPhone = (msg.customerPhone || '').replace(/\D/g, '');
+        if (cleanPhone.length >= 7) {
+          const suffix = cleanPhone.slice(-9);
+          if (!msgsByPhoneSuffix.has(suffix)) msgsByPhoneSuffix.set(suffix, new Set());
+          msgsByPhoneSuffix.get(suffix)!.add(msg.businessPhoneNumberId);
+        }
+      }
+    }
+
+    for (const customer of customers) {
+      const isWhatsApp = (customer.source || '').toLowerCase().includes('whatsapp');
+      if (!isWhatsApp) continue;
+
+      const brandPhoneIds = new Set<string>();
+
+      const fromId = msgsByCustId.get(customer.id);
+      if (fromId) {
+        fromId.forEach((id) => brandPhoneIds.add(id));
+      }
+
+      const cleanPhone = (customer.phone || '').replace(/\D/g, '');
+      if (cleanPhone.length >= 7) {
+        const fromPhone = msgsByPhoneSuffix.get(cleanPhone.slice(-9));
+        if (fromPhone) {
+          fromPhone.forEach((id) => brandPhoneIds.add(id));
+        }
+      }
+
+      const brands: Array<{ name: string; displayPhone?: string; color: 'emerald' | 'purple' | 'blue' }> = [];
+      for (const phoneId of brandPhoneIds) {
+        const info = phoneIdToInfo.get(phoneId);
+        if (info && !brands.some((b) => b.name === info.name)) {
+          brands.push(info);
+        }
+      }
+
+      // Check customer.campaign if no message brand found or as additional info
+      if (customer.campaign) {
+        const trimmed = customer.campaign.trim();
+        const lower = trimmed.toLowerCase();
+        if (!['n/a', 'na', 'default campaign', ''].includes(lower)) {
+          if (lower.includes('actiscar')) {
+            if (!brands.some((b) => b.name.toLowerCase().includes('actiscar'))) {
+              brands.push({ name: 'Actiscar', displayPhone: '+60 11-5551 9250', color: 'emerald' });
+            }
+          } else if (lower.includes('follicas')) {
+            if (!brands.some((b) => b.name.toLowerCase().includes('follicas'))) {
+              brands.push({ name: 'Follicas', displayPhone: '+60 11-1096 6954', color: 'purple' });
+            }
+          } else if (lower.includes('yum')) {
+            if (!brands.some((b) => b.name.toLowerCase().includes('yum'))) {
+              brands.push({ name: 'Yum Network', displayPhone: '+60 11-1071 6895', color: 'blue' });
+            }
+          } else {
+            const matchedBp = businessPhones?.find((bp) => bp.verifiedName.toLowerCase() === lower);
+            if (matchedBp && !brands.some((b) => b.name === matchedBp.verifiedName)) {
+              brands.push({
+                name: matchedBp.verifiedName,
+                displayPhone: matchedBp.displayPhoneNumber,
+                color: 'emerald',
+              });
+            }
+          }
+        }
+      }
+
+      map.set(customer.id, { brands });
+    }
+
+    return map;
+  }, [customers, centralMessages, businessPhones]);
 
   const hasUnreadMessage = (customer: Customer) => centralMessages.some((message) =>
     message.sender === 'customer' && !message.isRead && (
@@ -577,14 +689,67 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     <td className="py-3 px-3 whitespace-nowrap">
                       <span className="font-medium text-slate-800 text-xs">{customer.phone || '—'}</span>
                     </td>
-                    <td className="py-3 px-3 min-w-32">
-                      <div className="font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</div>
-                      {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim()) && (
-                        <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>
-                          {customer.campaign}
-                        </div>
-                      )}
-                      <div className="mt-1 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
+                    <td className="py-3 px-3 min-w-36">
+                      {(() => {
+                        const isWhatsApp = (customer.source || '').toLowerCase().includes('whatsapp');
+                        const waInfo = isWhatsApp ? customerWhatsAppSourceMap.get(customer.id) : null;
+                        const brands = waInfo?.brands || [];
+                        const isBrandInCampaign = brands.some((b) => b.name.toLowerCase() === (customer.campaign || '').trim().toLowerCase());
+                        const displayCampaign = (!isBrandInCampaign && customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim()))
+                          ? customer.campaign.trim()
+                          : null;
+
+                        if (isWhatsApp) {
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-[#1fa855] text-xs">
+                                  WhatsApp
+                                </span>
+                                {brands.map((b) => {
+                                  const badgeStyle = b.color === 'purple'
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : b.color === 'blue'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                  return (
+                                    <span
+                                      key={b.name}
+                                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeStyle}`}
+                                      title={b.displayPhone ? `${b.name} (${b.displayPhone})` : b.name}
+                                    >
+                                      {b.name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                              {brands.length > 0 && brands.some((b) => b.displayPhone) && (
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {brands.map((b) => b.displayPhone).filter(Boolean).join(' • ')}
+                                </div>
+                              )}
+                              {displayCampaign && (
+                                <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={displayCampaign}>
+                                  {displayCampaign}
+                                </div>
+                              )}
+                              <div className="mt-0.5 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <div className="font-bold text-indigo-700">{customer.source || 'Trực tiếp'}</div>
+                            {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim()) && (
+                              <div className="mt-0.5 max-w-36 truncate text-[10px] text-slate-500" title={customer.campaign}>
+                                {customer.campaign}
+                              </div>
+                            )}
+                            <div className="mt-0.5 text-[10px] text-slate-400">Lần đầu: {formatDate(customer.firstContact)}</div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3 px-3">
                       <select value={customer.status} onChange={(event) => onUpdateStatus(customer.id, event.target.value as CustomerStatus)} className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${getStatusColorClass(customer.status)}`}>
