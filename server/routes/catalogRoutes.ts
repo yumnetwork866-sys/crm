@@ -78,16 +78,20 @@ router.post(
   requirePermission(Permission.ADMINISTRATOR),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { catalogId } = req.body;
+      const { catalogId, phoneNumberId } = req.body;
       if (!catalogId || typeof catalogId !== 'string') {
         return res.status(400).json({ error: 'Mã Catalog ID là bắt buộc.' });
       }
+      if (phoneNumberId !== undefined && (typeof phoneNumberId !== 'string' || !/^\d+$/.test(phoneNumberId.trim()))) {
+        return res.status(400).json({ error: 'Phone Number ID không hợp lệ.' });
+      }
 
-      await saveMetaCatalogId(catalogId);
+      await saveMetaCatalogId(catalogId, phoneNumberId);
       return res.json({
         success: true,
         message: 'Đã lưu cấu hình Meta Catalog thành công.',
         catalogId: catalogId.trim(),
+        phoneNumberId: typeof phoneNumberId === 'string' ? phoneNumberId.trim() : null,
       });
     } catch (error: any) {
       console.error('[API CATALOG] Lỗi khi lưu catalogId:', error?.message || error);

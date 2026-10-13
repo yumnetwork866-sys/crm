@@ -6,6 +6,7 @@ import {
   buildSurveyFlowJson,
   createSurveyFlow,
   deleteMessageTemplate,
+  dispatchMetaMessage,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   fetchAndCacheMetaMedia,
@@ -16,6 +17,50 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('dispatchMetaMessage product payload', () => {
+  it('omits the interactive body when the product has no accompanying text', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.product' }] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await dispatchMetaMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: '60123456789',
+      content: '[product:{"catalog_id":"catalog-id","product_retailer_id":"sku-1","name":"Serum"}]',
+    });
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload.interactive).toEqual({
+      type: 'product',
+      action: {
+        catalog_id: 'catalog-id',
+        product_retailer_id: 'sku-1',
+      },
+    });
+  });
+
+  it('keeps the interactive body when accompanying text is provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.product-text' }] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await dispatchMetaMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: '60123456789',
+      content: '[product:{"catalog_id":"catalog-id","product_retailer_id":"sku-1"}]\nBạn tham khảo sản phẩm này nhé',
+    });
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload.interactive.body).toEqual({ text: 'Bạn tham khảo sản phẩm này nhé' });
+  });
 });
 
 describe('Embedded Signup onboarding helpers', () => {

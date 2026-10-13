@@ -35,3 +35,11 @@ export interface MessageDateGroup {
   dateLabel: string;
   msgs: CentralMessage[];
 }
+
+export interface QuickTemplate {
+  id: string;
+  code: string;
+  title: string;
+  content: string;
+  category?: string;
+}

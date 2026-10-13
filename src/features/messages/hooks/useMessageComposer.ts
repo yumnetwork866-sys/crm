@@ -1,16 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ClipboardEvent, FormEvent, KeyboardEvent } from 'react';
 import type { CentralMessage, MessageChannel } from '../../../types';
-import { QUICK_TEMPLATES } from '../constants';
 import type { MessageThread } from '../types';
 import { playPopSound } from '../utils/playPopSound';
 import { formatMessagePreview } from '../utils/messageContent';
 import { api } from '../../../utils/apiClient';
+import { useQuickTemplates, interpolateTemplate } from './useQuickTemplates';
 
 interface UseMessageComposerOptions {
   activeThread: MessageThread | null;
   selectedPhoneId: string;
   soundEnabled: boolean;
+  agentName?: string;
   onSendMessage: (
     customerId: string,
     content: string,
@@ -26,12 +27,15 @@ export function useMessageComposer({
   activeThread,
   selectedPhoneId,
   soundEnabled,
+  agentName = 'Tư vấn viên',
   onSendMessage,
 }: UseMessageComposerOptions) {
+  const { templates } = useQuickTemplates();
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [activeSlashIndex, setActiveSlashIndex] = useState(0);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [pendingDocument, setPendingDocument] = useState<{
     dataUrl: string;
@@ -47,23 +51,34 @@ export function useMessageComposer({
   const filteredSlashTemplates = useMemo(() => {
     if (!inputText.startsWith('/')) return [];
     const keyword = inputText.slice(1).toLowerCase().trim();
-    if (!keyword) return QUICK_TEMPLATES;
-    return QUICK_TEMPLATES.filter((template) =>
+    if (!keyword) return templates;
+    return templates.filter((template) =>
       template.code.toLowerCase().includes(keyword)
       || template.title.toLowerCase().includes(keyword)
       || template.content.toLowerCase().includes(keyword)
     );
-  }, [inputText]);
+  }, [inputText, templates]);
 
   const focusComposer = () => textareaRef.current?.focus();
 
+  const getInterpolatedContent = (content: string) => {
+    return interpolateTemplate(content, {
+      customerName: activeThread?.customerName || activeThread?.customer?.name,
+      customerPhone: activeThread?.customerPhone || activeThread?.customer?.phone,
+      agentName,
+    });
+  };
+
   const selectSlashTemplate = (content: string) => {
-    setInputText(content);
+    const interpolated = getInterpolatedContent(content);
+    setInputText(interpolated);
+    setActiveSlashIndex(0);
     focusComposer();
   };
 
   const applyTemplate = (content: string) => {
-    setInputText(content);
+    const interpolated = getInterpolatedContent(content);
+    setInputText(interpolated);
     setShowTemplatePicker(false);
     focusComposer();
   };
@@ -211,6 +226,33 @@ export function useMessageComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Keyboard navigation when slash command autocomplete is active
+    if (inputText.startsWith('/') && filteredSlashTemplates.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveSlashIndex((prev) => (prev + 1) % filteredSlashTemplates.length);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveSlashIndex((prev) => (prev - 1 + filteredSlashTemplates.length) % filteredSlashTemplates.length);
+        return;
+      }
+      if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey) {
+        event.preventDefault();
+        const selected = filteredSlashTemplates[activeSlashIndex] || filteredSlashTemplates[0];
+        if (selected) {
+          selectSlashTemplate(selected.content);
+        }
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setInputText('');
+        return;
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       send();
@@ -240,7 +282,10 @@ export function useMessageComposer({
     textareaRef,
     fileInputRef,
     documentInputRef,
+    templates,
     filteredSlashTemplates,
+    activeSlashIndex,
+    setActiveSlashIndex,
     handleSelectSlashTemplate: selectSlashTemplate,
     handleApplyTemplate: applyTemplate,
     handleAddEmoji: addEmoji,

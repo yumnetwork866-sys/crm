@@ -41,6 +41,8 @@ interface ProductPickerModalProps {
   onSendProduct: (product: MetaCatalogProduct, catalogId: string, customText: string) => void;
 }
 
+const CATALOG_CACHE_TIME = 5 * 60_000;
+
 function formatProductPrice(price?: string | number, currency?: string): string {
   if (price === undefined || price === null || price === '') return 'Liên hệ';
   if (typeof price === 'string' && /[a-z]/i.test(price)) return price;
@@ -63,13 +65,16 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
 
   const catalogsQuery = useQuery({
-    queryKey: queryKeys.metaCatalogs(catalogScopeId),
+    queryKey: queryKeys.metaCatalogs(catalogScopeId, phoneNumberId),
     queryFn: () => api.get<{ catalogs: MetaCatalogOption[]; currentCatalogId: string | null }>(
       `/catalog/list?phoneNumberId=${encodeURIComponent(phoneNumberId)}`,
     ),
+    // This modal stays mounted with the WhatsApp page. Enable the query before
+    // the modal opens so catalog metadata is already cached for the active phone.
     enabled: Boolean(phoneNumberId && catalogScopeId),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: CATALOG_CACHE_TIME,
+    gcTime: 30 * 60_000,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
@@ -81,13 +86,16 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
   }, [catalogs, catalogsQuery.data?.currentCatalogId]);
 
   const productsQuery = useQuery({
-    queryKey: queryKeys.metaCatalogProducts(catalogScopeId, selectedCatalogId),
+    queryKey: queryKeys.metaCatalogProducts(catalogScopeId, phoneNumberId, selectedCatalogId),
     queryFn: () => api.get<{ products: MetaCatalogProduct[] }>(
       `/catalog/${encodeURIComponent(selectedCatalogId)}/products?limit=50&phoneNumberId=${encodeURIComponent(phoneNumberId)}`,
     ),
+    // Once the catalog list resolves, preload its products in the background as
+    // part of loading the WhatsApp page instead of waiting for the picker click.
     enabled: Boolean(phoneNumberId && catalogScopeId && selectedCatalogId),
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: CATALOG_CACHE_TIME,
+    gcTime: 30 * 60_000,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });

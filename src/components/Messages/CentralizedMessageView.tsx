@@ -47,12 +47,14 @@ import {
   Pause,
   Play,
   Square,
-  Package
+  Package,
+  Settings
 } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { getCustomerGroup, formatDate, formatVND, CUSTOMER_GROUPS, formatPhoneWithCountryCode, getOwnerAvatar, getCustomerAvatar, getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { QUICK_TEMPLATES, STATUS_CONFIG } from '../../features/messages/constants';
+import { QuickTemplatesModal } from '../../features/messages/components/QuickTemplatesModal';
 import { EmojiPicker } from '../Common/EmojiPicker';
 import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, InternalNote } from '../../features/messages/types';
 import { extractAudioInfo, extractDocumentInfo, extractImageInfo, extractProductInfo, formatMessagePreview, isProductContent, parseMessageContent } from '../../features/messages/utils/messageContent';
@@ -312,7 +314,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     textareaRef,
     fileInputRef,
     documentInputRef,
+    templates,
     filteredSlashTemplates,
+    activeSlashIndex,
     handleSelectSlashTemplate,
     handleApplyTemplate,
     handleAddEmoji,
@@ -323,7 +327,15 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     handleSendVoiceMessage,
     handleKeyDown,
     handleReplyMessage: startReplyMessage,
-  } = useMessageComposer({ activeThread, selectedPhoneId, soundEnabled, onSendMessage });
+  } = useMessageComposer({
+    activeThread,
+    selectedPhoneId,
+    soundEnabled,
+    agentName: currentUser?.name || 'Tư vấn viên',
+    onSendMessage,
+  });
+
+  const [isQuickTemplatesModalOpen, setIsQuickTemplatesModalOpen] = useState(false);
 
   const {
     recordingState,
@@ -1688,28 +1700,41 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
               {/* Floating Slash Commands Autocomplete Popup */}
               {inputText.startsWith('/') && filteredSlashTemplates.length > 0 && (
-                <div className="absolute bottom-16 left-16 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-80 max-h-64 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
+                <div className="absolute bottom-16 left-16 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-84 max-h-72 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
                   <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Gợi ý câu trả lời nhanh ({filteredSlashTemplates.length})</span>
                     <span>Phím tắt /</span>
                   </div>
-                  {filteredSlashTemplates.map((tmpl) => (
-                    <div
-                      key={tmpl.code}
-                      onClick={() => handleSelectSlashTemplate(tmpl.content)}
-                      className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
-                          {tmpl.title}
-                        </span>
-                        <span className="text-[10px] font-mono bg-emerald-100 text-[#1fa855] px-1.5 py-0.5 rounded font-bold">
-                          {tmpl.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
-                    </div>
-                  ))}
+                  <div className="space-y-1 py-1">
+                    {filteredSlashTemplates.map((tmpl, idx) => {
+                      const isSelected = idx === activeSlashIndex;
+                      return (
+                        <div
+                          key={tmpl.id || tmpl.code}
+                          onClick={() => handleSelectSlashTemplate(tmpl.content)}
+                          className={`p-2 rounded-xl cursor-pointer transition group ${
+                            isSelected
+                              ? 'bg-emerald-50 border border-emerald-300 ring-1 ring-emerald-300/50'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
+                              {tmpl.title}
+                            </span>
+                            <span className="text-[10px] font-mono bg-emerald-100 text-[#1fa855] px-1.5 py-0.5 rounded font-bold">
+                              {tmpl.code}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-2 pt-1.5 text-[10px] text-slate-400 flex items-center justify-between font-medium">
+                    <span>↑↓ Chọn • Enter Chèn</span>
+                    <span>Esc Đóng</span>
+                  </div>
                 </div>
               )}
 
@@ -2051,41 +2076,69 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                     {showTemplatePicker && (
                       <div
                         ref={templatePickerRef}
-                        className="absolute bottom-full mb-3 left-0 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-80 max-h-72 overflow-y-auto animate-fadeIn divide-y divide-slate-100"
+                        className="absolute bottom-full mb-3 left-0 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-84 max-h-80 overflow-y-auto animate-fadeIn divide-y divide-slate-100"
                       >
                         <div className="flex items-center justify-between pb-2 mb-1">
                           <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                            Mẫu Tin Nhắn Nhanh (Canned Reply)
+                            Mẫu Tin Nhắn Nhanh ({templates.length})
                           </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowTemplatePicker(false);
+                                setIsQuickTemplatesModalOpen(true);
+                              }}
+                              className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition"
+                              title="Quản lý và thêm mẫu tin nhắn"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowTemplatePicker(false)}
+                              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1 py-1">
+                          {templates.map((tmpl) => (
+                            <div
+                              key={tmpl.id || tmpl.code}
+                              onClick={() => {
+                                handleApplyTemplate(tmpl.content);
+                                setShowTemplatePicker(false);
+                              }}
+                              className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
+                                  {tmpl.title}
+                                </span>
+                                <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                                  {tmpl.code}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="pt-2 mt-1">
                           <button
                             type="button"
-                            onClick={() => setShowTemplatePicker(false)}
-                            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            onClick={() => {
+                              setShowTemplatePicker(false);
+                              setIsQuickTemplatesModalOpen(true);
+                            }}
+                            className="w-full py-1.5 px-2 text-center text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <Settings className="w-3.5 h-3.5" />
+                            <span>Quản lý & Thêm mẫu mới</span>
                           </button>
                         </div>
-                        {QUICK_TEMPLATES.map((tmpl) => (
-                          <div
-                            key={tmpl.code}
-                            onClick={() => {
-                              handleApplyTemplate(tmpl.content);
-                              setShowTemplatePicker(false);
-                            }}
-                            className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
-                                {tmpl.title}
-                              </span>
-                              <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                                {tmpl.code}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
-                          </div>
-                        ))}
                       </div>
                     )}
                   </div>
@@ -2207,6 +2260,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             selectedPhoneId
           );
         }}
+      />
+
+      {/* Quick Canned Templates Management Modal */}
+      <QuickTemplatesModal
+        isOpen={isQuickTemplatesModalOpen}
+        onClose={() => setIsQuickTemplatesModalOpen(false)}
+        onSelectTemplate={(content) => handleApplyTemplate(content)}
       />
 
     </div>

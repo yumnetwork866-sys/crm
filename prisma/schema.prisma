@@ -284,6 +284,7 @@ model WhatsAppConnection {
   phoneNumberId           String    @id
   wabaId                  String
   businessId              String?
+  metaCatalogId           String?
   displayPhoneNumber      String?
   verifiedName            String?
   accessTokenEncrypted    String?
@@ -296,6 +297,7 @@ model WhatsAppConnection {
   updatedAt               DateTime  @updatedAt
 
   @@index([wabaId])
+  @@index([metaCatalogId])
   @@index([status])
 }
 

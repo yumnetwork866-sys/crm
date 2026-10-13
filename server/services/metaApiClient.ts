@@ -135,6 +135,13 @@ export async function getMetaAccessToken(setting?: IntegrationSettingData): Prom
   return (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim() || '';
 }
 
+/** Resolve the System User token used for Commerce Catalog reads. */
+export async function getMetaCatalogAccessToken(setting?: IntegrationSettingData): Promise<string> {
+  const environmentToken = (process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN)?.trim() || '';
+  if (environmentToken) return environmentToken;
+  return getMetaAccessToken(setting);
+}
+
 export async function getMetaAccessTokenForPhone(
   phoneNumberId: string,
   fallbackSetting?: IntegrationSettingData,
@@ -605,7 +612,7 @@ export async function dispatchMetaMessage(options: {
     if (match) {
       try {
         const productData = JSON.parse(match[1]);
-        const bodyText = match[2]?.trim() || `Sản phẩm từ danh mục: ${productData.name || productData.product_retailer_id}`;
+        const bodyText = match[2]?.trim() || '';
         payload = {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -613,7 +620,7 @@ export async function dispatchMetaMessage(options: {
           type: 'interactive',
           interactive: {
             type: 'product',
-            body: { text: bodyText },
+            ...(bodyText ? { body: { text: bodyText } } : {}),
             action: {
               catalog_id: String(productData.catalog_id),
               product_retailer_id: String(productData.product_retailer_id)
