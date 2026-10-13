@@ -11,7 +11,7 @@ export const STATUS_CONFIG: Record<
 };
 
 export const DEFAULT_QUICK_TEMPLATES: QuickTemplate[] = [
-  { id: 'tmpl-chao', code: '/chao', title: 'Chào hỏi & Tư vấn', content: 'Dạ em chào {ten_khach}! Em là {ten_nv} từ YumNetwork. Em có thể hỗ trợ thông tin gì cho mình hôm nay ạ?' },
+  { id: 'tmpl-chao', code: '/chao', title: 'Chào hỏi & Tư vấn', content: 'Dạ em chào {ten_khach}! Em là tư vấn viên từ {thuong_hieu}. Em có thể hỗ trợ thông tin gì cho mình hôm nay ạ?' },
   { id: 'tmpl-gia', code: '/gia', title: 'Báo giá Combo Ưu đãi', content: '📄 BÁO GIÁ SẢN PHẨM:\n- Combo 2 Hộp Thảo Mộc: 700.000đ\n- Quà tặng: 1 Bình Giữ Nhiệt Cao Cấp\n- Miễn phí vận chuyển tận nhà (COD).' },
   { id: 'tmpl-combo', code: '/combo', title: 'Combo Mua 2 Tặng 1', content: '🔥 SIÊU ƯU ĐÃI THÁNG:\n- Mua 2 Hộp tặng ngay 1 Hộp cùng loại\n- Giảm thêm 50.000đ khi thanh toán trước\n- Giao hàng hỏa tốc trong 2-3 ngày.' },
   { id: 'tmpl-stk', code: '/stk', title: 'Thông tin Chuyển khoản', content: '💳 THÔNG TIN THANH TOÁN:\n- Ngân hàng: Techcombank\n- Số tài khoản: 190368889999\n- Chủ tài khoản: CÔNG TY TNHH YUM NETWORK\n- Nội dung: {ten_khach} + {sdt}' },

@@ -14,13 +14,11 @@ import { useQuickTemplates } from '../hooks/useQuickTemplates';
 interface QuickTemplatesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectTemplate?: (content: string) => void;
 }
 
 export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
   isOpen,
   onClose,
-  onSelectTemplate,
 }) => {
   const { templates, addTemplate, updateTemplate, deleteTemplate } = useQuickTemplates();
 
@@ -267,11 +265,11 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleInsertVariable('{ten_nv}')}
+                        onClick={() => handleInsertVariable('{thuong_hieu}')}
                         className="px-2 py-0.5 bg-white border border-emerald-300 text-emerald-700 rounded-md text-[11px] font-mono hover:bg-emerald-50 transition"
-                        title="Tự động thay bằng tên bạn (tư vấn viên)"
+                        title="Tự động thay bằng thương hiệu của số WhatsApp đang chọn"
                       >
-                        + {'{ten_nv}'}
+                        + {'{thuong_hieu}'}
                       </button>
                     </div>
                   </div>
@@ -331,7 +329,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-600 whitespace-pre-line line-clamp-3 leading-relaxed bg-slate-50/60 p-2 rounded-xl border border-slate-100 mt-2">
+                    <p className="mt-2 max-h-24 overflow-y-auto overscroll-contain whitespace-pre-wrap break-words rounded-xl border border-slate-100 bg-slate-50/60 p-2 pr-2.5 text-xs leading-relaxed text-slate-600">
                       {item.content}
                     </p>
                   </div>
@@ -342,18 +340,6 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                     </span>
 
                     <div className="flex items-center gap-1">
-                      {onSelectTemplate && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSelectTemplate(item.content);
-                            onClose();
-                          }}
-                          className="px-2.5 py-1 text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold rounded-lg transition"
-                        >
-                          Chèn vào chat
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => handleStartEdit(item)}

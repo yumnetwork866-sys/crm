@@ -331,7 +331,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     activeThread,
     selectedPhoneId,
     soundEnabled,
-    agentName: currentUser?.name || 'Tư vấn viên',
+    brandName: businessPhones.find((phone) => phone.id === selectedPhoneId)?.verifiedName || 'YumNetwork',
     onSendMessage,
   });
 
@@ -2264,7 +2264,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       <QuickTemplatesModal
         isOpen={isQuickTemplatesModalOpen}
         onClose={() => setIsQuickTemplatesModalOpen(false)}
-        onSelectTemplate={(content) => handleApplyTemplate(content)}
       />
 
     </div>

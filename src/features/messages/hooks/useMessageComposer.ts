@@ -11,7 +11,7 @@ interface UseMessageComposerOptions {
   activeThread: MessageThread | null;
   selectedPhoneId: string;
   soundEnabled: boolean;
-  agentName?: string;
+  brandName?: string;
   onSendMessage: (
     customerId: string,
     content: string,
@@ -27,7 +27,7 @@ export function useMessageComposer({
   activeThread,
   selectedPhoneId,
   soundEnabled,
-  agentName = 'Tư vấn viên',
+  brandName = 'YumNetwork',
   onSendMessage,
 }: UseMessageComposerOptions) {
   const { templates } = useQuickTemplates();
@@ -65,7 +65,7 @@ export function useMessageComposer({
     return interpolateTemplate(content, {
       customerName: activeThread?.customerName || activeThread?.customer?.name,
       customerPhone: activeThread?.customerPhone || activeThread?.customer?.phone,
-      agentName,
+      brandName,
     });
   };
 

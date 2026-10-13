@@ -511,7 +511,7 @@ export const MetaVerificationView: React.FC<MetaVerificationViewProps> = ({
   }, [phoneNumbersList]);
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12 text-slate-900">
+    <div className="w-full space-y-6 pb-12 text-slate-900">
       {/* Meta Navigation Sub-Tabs */}
       <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
         <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Meta Tabs">

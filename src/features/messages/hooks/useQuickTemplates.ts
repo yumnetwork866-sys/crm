@@ -8,19 +8,19 @@ const UPDATE_EVENT_NAME = 'yum_quick_templates_updated';
 export interface InterpolationContext {
   customerName?: string;
   customerPhone?: string;
-  agentName?: string;
+  brandName?: string;
 }
 
 export function interpolateTemplate(content: string, context?: InterpolationContext): string {
   if (!content) return '';
   const customerName = context?.customerName?.trim() || 'Quý khách';
   const customerPhone = context?.customerPhone?.trim() || '';
-  const agentName = context?.agentName?.trim() || 'Tư vấn viên';
+  const brandName = context?.brandName?.trim() || 'YumNetwork';
 
   return content
     .replace(/{ten_khach}|{customer_name}|\[Tên khách\]/gi, customerName)
     .replace(/{sdt}|{phone}|\[SĐT\]/gi, customerPhone)
-    .replace(/{ten_nv}|{agent_name}|\[Tên NV\]/gi, agentName);
+    .replace(/{thuong_hieu}|{brand_name}|\[Thương hiệu\]|{ten_nv}|{agent_name}|\[Tên NV\]/gi, brandName);
 }
 
 function loadStoredTemplates(): QuickTemplate[] {
