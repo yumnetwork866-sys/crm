@@ -170,8 +170,9 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
                   </button>
                 </>
               ) : (
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
-                  Khách hàng này đến từ tin nhắn Webhook mới và chưa tạo hồ sơ khách hàng đầy đủ trong CRM.
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] flex items-center justify-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Đang đồng bộ thông tin khách hàng vào CRM...</span>
                 </div>
               )}
             </div>

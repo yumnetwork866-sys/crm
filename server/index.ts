@@ -18,6 +18,7 @@ import marketingReportRoutes from './routes/marketingReports';
 import catalogRoutes from './routes/catalogRoutes';
 import aiProfileRoutes from './routes/aiProfile';
 import { startCampaignWorker } from './services/campaignWorker';
+import { syncExistingWhatsAppCustomersToCrm } from './services/webhookService';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -274,5 +275,6 @@ httpServer.listen(PORT, async () => {
   console.log(`YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
   console.log(`Vite HMR Hot Reload & API đã sẵn sàng.`);
   await ensureAdminUser();
+  await syncExistingWhatsAppCustomersToCrm().catch(() => 0);
   startCampaignWorker();
 });

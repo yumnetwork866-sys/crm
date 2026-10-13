@@ -298,6 +298,27 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         if (found) {
           matchedCustomerId = found.id;
           if (!finalCustomerName) finalCustomerName = found.name;
+        } else {
+          // Auto-create new customer in CRM when agent initiates/replies to a new WhatsApp contact
+          const formattedPhone = customerPhone?.startsWith('+') ? customerPhone : `+${cleanPhone}`;
+          const defaultName = (finalCustomerName && !finalCustomerName.startsWith('Khách Hàng') && !finalCustomerName.startsWith('Khách WhatsApp'))
+            ? finalCustomerName
+            : `Khách WhatsApp (${cleanPhone.slice(-4)})`;
+          const newCust = await prisma.customer.create({
+            data: {
+              phone: formattedPhone,
+              name: defaultName,
+              source: 'WhatsApp',
+              status: 'Contacted',
+              group: 'group_1',
+              firstContact: new Date(),
+              lastContact: new Date(),
+              owner: req.user?.name || 'Chưa phân công',
+            }
+          });
+          matchedCustomerId = newCust.id;
+          finalCustomerName = newCust.name;
+          realtimeHub.broadcast('customers:sync', { source: 'chat-send-auto-create', customerId: newCust.id });
         }
       }
     } catch (e) {}
@@ -409,10 +430,21 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       console.log(`[DB SAVE SUCCESS] Saved OUTGOING message ${savedOutDb.id} to PostgreSQL Database!`);
 
       if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
+        const existingCust = await prisma.customer.findUnique({
+          where: { id: matchedCustomerId },
+          select: { status: true }
+        }).catch(() => null);
+
+        const updateData: any = { lastContact: new Date() };
+        if (existingCust && existingCust.status === 'New Lead') {
+          updateData.status = 'Contacted';
+        }
+
         await prisma.customer.update({
           where: { id: matchedCustomerId },
-          data: { lastContact: new Date() }
+          data: updateData
         }).catch(() => {});
+        realtimeHub.broadcast('customers:sync', { source: 'chat-outgoing-activity', customerId: matchedCustomerId });
       }
     } catch (dbErr: any) {
       console.error('[DB SAVE ERROR] Failed to save outgoing message to DB:', dbErr.message || dbErr);

@@ -6,6 +6,7 @@ import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
+import { realtimeHub } from '../services/realtimeHub';
 
 const router = Router();
 
@@ -95,13 +96,25 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
       return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
     }
 
+    let targetCustomerId = customerId && !customerId.startsWith('cust_') ? customerId : null;
+    if (!targetCustomerId && customerPhone) {
+      const clean = String(customerPhone).replace(/\D/g, '');
+      if (clean.length >= 7) {
+        const found = await prisma.customer.findFirst({
+          where: { phone: { contains: clean.slice(-9) } },
+          select: { id: true, name: true }
+        });
+        if (found) targetCustomerId = found.id;
+      }
+    }
+
     const orderCode = `DH-${Date.now().toString().slice(-6)}`;
 
     // Create Order with nested items
     const newOrder = await prisma.order.create({
       data: {
         orderCode,
-        customerId: customerId || null,
+        customerId: targetCustomerId || null,
         customerName: customerName || 'Khách vãng lai',
         customerPhone: customerPhone || '',
         totalAmount: totalAmount || 0,
@@ -123,16 +136,16 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
     });
 
     // Update customer's total spent & total orders
-    if (customerId) {
+    if (targetCustomerId) {
       const customerOrders = await prisma.order.findMany({
-        where: { customerId, status: 'Completed' }
+        where: { customerId: targetCustomerId, status: 'Completed' }
       });
 
       const totalSpent = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
       const totalOrdersCount = customerOrders.length;
 
       await prisma.customer.update({
-        where: { id: customerId },
+        where: { id: targetCustomerId },
         data: {
           totalOrders: totalOrdersCount,
           totalSpent: totalSpent,
@@ -140,7 +153,11 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
           status: 'Won'
         }
       });
+
+      realtimeHub.broadcast('customers:sync', { source: 'order-created', customerId: targetCustomerId });
     }
+
+    realtimeHub.broadcast('orders:sync', { source: 'order-created', orderId: newOrder.id });
 
     return res.status(201).json(newOrder);
   } catch (error) {
@@ -160,6 +177,26 @@ router.patch('/:id/status', requirePermission(Permission.ORDERS_MANAGE), async (
       data: { status },
       include: { products: true }
     });
+
+    // Recalculate customer metrics if customerId exists
+    if (updated.customerId) {
+      const customerOrders = await prisma.order.findMany({
+        where: { customerId: updated.customerId, status: 'Completed' }
+      });
+      const totalSpent = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+      const totalOrdersCount = customerOrders.length;
+
+      await prisma.customer.update({
+        where: { id: updated.customerId },
+        data: {
+          totalOrders: totalOrdersCount,
+          totalSpent: totalSpent
+        }
+      });
+      realtimeHub.broadcast('customers:sync', { source: 'order-status-updated', customerId: updated.customerId });
+    }
+
+    realtimeHub.broadcast('orders:sync', { source: 'order-status-updated', orderId: updated.id });
 
     return res.json(updated);
   } catch (error) {

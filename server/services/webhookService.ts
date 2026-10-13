@@ -32,7 +32,8 @@ export async function verifyWebhookChallenge(query: any): Promise<{ isValid: boo
 }
 
 /**
- * Match incoming phone number to an existing CRM customer
+/**
+ * Match incoming phone number to an existing CRM customer or auto-create a new CRM customer
  */
 export async function matchCustomerByPhone(fromPhone: string, senderName: string): Promise<{ customerId: string; customerName: string; isCrmCustomer: boolean }> {
   const cleanFrom = fromPhone.replace(/\D/g, '');
@@ -62,15 +63,173 @@ export async function matchCustomerByPhone(fromPhone: string, senderName: string
       matchedCustomerId = matchedCustomer.id;
       matchedCustomerName = matchedCustomer.name || senderName;
       isCrmCustomer = true;
+      // Auto-update lastContact on the existing CRM customer
+      await prisma.customer.update({
+        where: { id: matchedCustomer.id },
+        data: { lastContact: new Date() }
+      }).catch(() => {});
+      realtimeHub.broadcast('customers:sync', { source: 'whatsapp-activity', customerId: matchedCustomer.id });
       console.log(`[WEBHOOK CUSTOMER MATCH] Matched incoming phone ${fromPhone} to CRM customer: ${matchedCustomer.name} (${matchedCustomer.id})`);
-    } else {
-      console.log(`[WEBHOOK NO MATCH] No CRM customer found for phone ${fromPhone}, using fallback ID: ${matchedCustomerId}`);
+    } else if (cleanFrom.length >= 7) {
+      // Auto-create new customer in CRM so they immediately appear in the Customer page
+      const formattedPhone = fromPhone.startsWith('+') ? fromPhone : `+${cleanFrom}`;
+      const defaultName = (senderName && !senderName.startsWith('Khách WhatsApp'))
+        ? senderName
+        : `Khách WhatsApp (${cleanFrom.slice(-4)})`;
+
+      const newCustomer = await prisma.customer.create({
+        data: {
+          phone: formattedPhone,
+          name: defaultName,
+          source: 'WhatsApp',
+          status: 'New Lead',
+          group: 'group_1',
+          firstContact: new Date(),
+          lastContact: new Date(),
+          owner: 'Chưa phân công',
+        }
+      });
+      matchedCustomerId = newCustomer.id;
+      matchedCustomerName = newCustomer.name;
+      isCrmCustomer = true;
+      console.log(`[WEBHOOK AUTO-CREATED CUSTOMER] Auto-created CRM customer ${newCustomer.name} (${newCustomer.id}) for phone ${formattedPhone}`);
+      realtimeHub.broadcast('customers:sync', { source: 'whatsapp-auto-create', customerId: newCustomer.id });
     }
   } catch (lookupErr) {
     console.warn('[WEBHOOK CUSTOMER LOOKUP ERROR]', lookupErr);
   }
 
   return { customerId: matchedCustomerId, customerName: matchedCustomerName, isCrmCustomer };
+}
+
+/**
+ * Automatically sync and provision CRM customers for any WhatsApp conversations that lack customer records
+ */
+export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
+  try {
+    const unlinkedMessages = await prisma.whatsAppMessage.findMany({
+      where: {
+        OR: [
+          { customerId: null },
+          { customerId: { startsWith: 'cust_' } }
+        ]
+      },
+      select: {
+        id: true,
+        customerPhone: true,
+        customerName: true,
+        timestamp: true,
+      },
+      orderBy: { timestamp: 'asc' }
+    });
+
+    if (unlinkedMessages.length === 0) return 0;
+
+    const phoneGroups = new Map<string, { phone: string; name: string; firstDate: Date; lastDate: Date; messageIds: string[] }>();
+    for (const msg of unlinkedMessages) {
+      const clean = (msg.customerPhone || '').replace(/\D/g, '');
+      if (clean.length < 7) continue;
+      const key = clean.slice(-9);
+      const existing = phoneGroups.get(key);
+      const msgDate = new Date(msg.timestamp);
+      if (!existing) {
+        phoneGroups.set(key, {
+          phone: msg.customerPhone.startsWith('+') ? msg.customerPhone : `+${clean}`,
+          name: (msg.customerName && !msg.customerName.startsWith('Khách WhatsApp'))
+            ? msg.customerName
+            : `Khách WhatsApp (${clean.slice(-4)})`,
+          firstDate: msgDate,
+          lastDate: msgDate,
+          messageIds: [msg.id]
+        });
+      } else {
+        existing.messageIds.push(msg.id);
+        if (msgDate < existing.firstDate) existing.firstDate = msgDate;
+        if (msgDate > existing.lastDate) existing.lastDate = msgDate;
+        if (msg.customerName && !msg.customerName.startsWith('Khách WhatsApp') && existing.name.startsWith('Khách WhatsApp')) {
+          existing.name = msg.customerName;
+        }
+      }
+    }
+
+    let syncedCount = 0;
+    for (const [key, group] of phoneGroups.entries()) {
+      let customer = await prisma.customer.findFirst({
+        where: { phone: { contains: key } }
+      });
+
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            phone: group.phone,
+            name: group.name,
+            source: 'WhatsApp',
+            status: 'New Lead',
+            group: 'group_1',
+            firstContact: group.firstDate,
+            lastContact: group.lastDate,
+            owner: 'Chưa phân công',
+          }
+        });
+        syncedCount++;
+      }
+
+      await prisma.whatsAppMessage.updateMany({
+        where: { id: { in: group.messageIds } },
+        data: { customerId: customer.id, customerName: customer.name }
+      });
+    }
+
+    if (syncedCount > 0) {
+      console.log(`[SYNC WHATSAPP TO CRM] Successfully provisioned ${syncedCount} customers from WhatsApp messages.`);
+      realtimeHub.broadcast('customers:sync', { source: 'whatsapp-batch-sync' });
+    }
+
+    // Automatically promote any 'New Lead' customers to 'Contacted' if an agent has already replied
+    const newLeadCustomers = await prisma.customer.findMany({
+      where: { status: 'New Lead' },
+      select: { id: true, phone: true }
+    });
+
+    let promotedCount = 0;
+    for (const lead of newLeadCustomers) {
+      const clean = lead.phone.replace(/\D/g, '');
+      const phoneSuffix = clean.slice(-9);
+
+      const hasAgentReply = await prisma.whatsAppMessage.findFirst({
+        where: {
+          sender: 'agent',
+          OR: [
+            { customerId: lead.id },
+            { customerPhone: { contains: phoneSuffix } }
+          ]
+        },
+        select: { id: true, timestamp: true },
+        orderBy: { timestamp: 'desc' }
+      });
+
+      if (hasAgentReply) {
+        await prisma.customer.update({
+          where: { id: lead.id },
+          data: {
+            status: 'Contacted',
+            lastContact: hasAgentReply.timestamp
+          }
+        });
+        promotedCount++;
+      }
+    }
+
+    if (promotedCount > 0) {
+      console.log(`[SYNC WHATSAPP STATUS] Automatically promoted ${promotedCount} customers from 'New Lead' to 'Contacted' because replies were already sent.`);
+      realtimeHub.broadcast('customers:sync', { source: 'whatsapp-status-reconcile' });
+    }
+
+    return syncedCount + promotedCount;
+  } catch (err) {
+    console.warn('[SYNC WHATSAPP CUSTOMERS ERROR]', err);
+    return 0;
+  }
 }
 
 /**
@@ -317,6 +476,18 @@ async function saveMirroredMessage(input: {
       timestamp: new Date(mirrored.timestamp),
     },
   });
+
+  if (sender === 'agent' && matched.isCrmCustomer) {
+    await prisma.customer.update({
+      where: { id: matched.customerId },
+      data: {
+        lastContact: new Date(mirrored.timestamp),
+        status: 'Contacted',
+      },
+    }).catch(() => {});
+    realtimeHub.broadcast('customers:sync', { source: 'whatsapp-agent-reply', customerId: matched.customerId });
+  }
+
   if (broadcast) realtimeHub.broadcast('message:new', mirrored);
   return true;
 }

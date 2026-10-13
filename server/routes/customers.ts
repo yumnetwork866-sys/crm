@@ -6,6 +6,7 @@ import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
+import { syncExistingWhatsAppCustomersToCrm } from '../services/webhookService';
 
 const router = Router();
 
@@ -55,6 +56,9 @@ router.use(authenticateToken);
 // GET /api/customers - List customers with search, filter & pagination
 router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // Ensure any unlinked WhatsApp conversations are synced into Customer records
+    await syncExistingWhatsAppCustomersToCrm().catch(() => 0);
+
     const {
       search,
       status,
