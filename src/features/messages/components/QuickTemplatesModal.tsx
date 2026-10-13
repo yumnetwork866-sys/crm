@@ -8,7 +8,6 @@ import {
   Search,
   Zap,
   Tag,
-  Check,
   HelpCircle,
 } from 'lucide-react';
 import type { QuickTemplate } from '../types';
@@ -183,11 +182,8 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                Quản lý Mẫu Tin Nhắn Nhanh (Canned Replies)
+                Quản lý Mẫu Tin Nhắn Nhanh
               </h2>
-              <p className="text-xs text-slate-500">
-                Tự động chèn bằng phím tắt <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-700 font-mono">/</code> khi trò chuyện với khách
-              </p>
             </div>
           </div>
           <button
@@ -306,7 +302,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tiêu đề gợi nhớ <span className="text-rose-500">*</span>
+                      Tiêu đề <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -484,12 +480,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
           </div>
         </div>
 
-        {/* Footer info note */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            <Check className="w-3.5 h-3.5 text-emerald-600" />
-            Các mẫu tin nhắn được lưu trực tiếp trên trình duyệt của bạn và đồng bộ tức thì khi chat.
-          </span>
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
           <button
             type="button"
             onClick={onClose}

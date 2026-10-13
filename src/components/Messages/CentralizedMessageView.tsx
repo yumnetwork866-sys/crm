@@ -2126,19 +2126,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                             </div>
                           ))}
                         </div>
-                        <div className="pt-2 mt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowTemplatePicker(false);
-                              setIsQuickTemplatesModalOpen(true);
-                            }}
-                            className="w-full py-1.5 px-2 text-center text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span>Quản lý & Thêm mẫu mới</span>
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>
