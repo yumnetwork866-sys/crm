@@ -335,6 +335,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     onSendMessage,
   });
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const maxHeight = 120;
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [inputText, textareaRef]);
+
   const [isQuickTemplatesModalOpen, setIsQuickTemplatesModalOpen] = useState(false);
 
   const {
@@ -1985,7 +1996,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                   />
                 </div>
               ) : (
-                <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-1.5 z-10">
+                <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-end space-x-1.5 z-10">
                   {/* Emoji Trigger */}
                   <div className="relative">
                     <button
@@ -2152,7 +2163,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                           ? "Nhập ghi chú cho tài liệu (Tùy chọn)..."
                           : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."
                       }
-                      className="w-full bg-transparent text-[14px] text-[#111b21] focus:outline-none resize-none placeholder-[#8696a0] max-h-24 leading-5"
+                      className="block w-full max-h-[120px] resize-none overflow-y-hidden bg-transparent text-[14px] leading-5 text-[#111b21] placeholder-[#8696a0] focus:outline-none"
                     />
                   </div>
 
