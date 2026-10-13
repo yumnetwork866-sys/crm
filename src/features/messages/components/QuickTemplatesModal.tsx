@@ -75,7 +75,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
 
   const handleStartCreate = () => {
     setEditingTemplate(null);
-    setFormCode('/');
+    setFormCode('');
     setFormTitle('');
     setFormCategory('Tư vấn');
     setFormContent('');
@@ -86,7 +86,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
   const handleStartEdit = (tmpl: QuickTemplate) => {
     setIsCreatingNew(false);
     setEditingTemplate(tmpl);
-    setFormCode(tmpl.code);
+    setFormCode(tmpl.code.replace(/^\/+/, ''));
     setFormTitle(tmpl.title);
     setFormCategory(tmpl.category || 'Tư vấn');
     setFormContent(tmpl.content);
@@ -109,8 +109,8 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
     const cleanTitle = formTitle.trim();
     const cleanContent = formContent.trim();
 
-    if (!cleanCode || cleanCode === '/') {
-      setFormError('Vui lòng nhập phím tắt (ví dụ: /chao, /gia)');
+    if (!cleanCode) {
+      setFormError('Vui lòng nhập phím tắt (ví dụ: chao, gia)');
       return;
     }
     if (!cleanTitle) {
@@ -123,7 +123,7 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
     }
 
     // Check duplicate code (excluding current editing item)
-    const formattedCode = cleanCode.startsWith('/') ? cleanCode : `/${cleanCode}`;
+    const formattedCode = `/${cleanCode.replace(/^\/+/, '')}`;
     const duplicate = templates.find(
       (t) => t.code.toLowerCase() === formattedCode.toLowerCase() && t.id !== editingTemplate?.id
     );
@@ -264,15 +264,23 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
           {/* Form Modal / Drawer if Creating or Editing */}
           {(isCreatingNew || editingTemplate) && (
             <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 sm:p-5 shadow-xs animate-fadeIn">
-              <div className="flex items-center justify-between pb-3 border-b border-emerald-100 mb-4">
-                <h3 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-emerald-600" />
-                  {isCreatingNew ? 'Tạo mẫu tin nhắn nhanh mới' : `Chỉnh sửa mẫu "${editingTemplate?.title}"`}
-                </h3>
+              <div className="flex items-center gap-3 pb-3 border-b border-emerald-100 mb-4">
+                <label htmlFor="quick-template-title" className="shrink-0 text-xs font-semibold text-slate-700">
+                  Tiêu đề <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="quick-template-title"
+                  form="quick-template-form"
+                  type="text"
+                  placeholder="Chào hỏi & Tư vấn"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  className="min-w-0 flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
+                />
                 <button
                   type="button"
                   onClick={handleCancelForm}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="shrink-0 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -284,33 +292,24 @@ export const QuickTemplatesModal: React.FC<QuickTemplatesModalProps> = ({
                 </div>
               )}
 
-              <form onSubmit={handleSaveForm} className="space-y-3.5">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <form id="quick-template-form" onSubmit={handleSaveForm} className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Phím tắt kích hoạt <span className="text-rose-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      placeholder="/chao"
-                      value={formCode}
-                      onChange={(e) => setFormCode(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-[#1fa855] font-bold focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">Bắt đầu bằng dấu gạch chéo (/)</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tiêu đề <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Chào hỏi & Tư vấn"
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs sm:text-sm font-mono text-[#1fa855] font-bold pointer-events-none">
+                        /
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="chao"
+                        value={formCode}
+                        onChange={(e) => setFormCode(e.target.value.replace(/^\/+/, ''))}
+                        className="w-full pl-6 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-[#1fa855] font-bold focus:outline-none focus:ring-2 focus:ring-[#1fa855]"
+                      />
+                    </div>
                   </div>
 
                   <div>
