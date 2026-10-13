@@ -286,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
                           )}
                         </span>
                         {badge && badge > 0 ? (
-                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-black leading-none text-white shadow-sm ring-2 ring-slate-900/60">
+                          <span className="topbar-unread-badge inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none">
                             {badge}
                           </span>
                         ) : null}

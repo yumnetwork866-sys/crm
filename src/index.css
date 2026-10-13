@@ -134,6 +134,15 @@ html, body {
   box-shadow: none !important;
 }
 
+.app-topbar .topbar-unread-badge,
+.light-mode .app-topbar span.topbar-unread-badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #f43f5e !important;
+  border: 1px solid #e11d48 !important;
+  box-shadow: 0 1px 3px rgb(225 29 72 / 0.24) !important;
+}
+
 /* Keep the selected Automation section icon white on its indigo background. */
 .light-mode .automation-section-tab[aria-selected="true"] .automation-section-tab-icon {
   color: #ffffff !important;
@@ -907,6 +916,13 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
 .whatsapp-page button[aria-pressed="true"] * {
   color: #ffffff !important;
   stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Unread counters sit on a solid green badge, including in light mode. */
+.whatsapp-page .unread-count-badge,
+.light-mode .whatsapp-page span.unread-count-badge {
+  color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
 

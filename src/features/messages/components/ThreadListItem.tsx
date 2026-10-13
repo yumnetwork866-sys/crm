@@ -134,7 +134,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
               <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#1fa855" fill="#1fa855" strokeWidth={2.2} />
             )}
             {hasUnread && (
-              <span className="min-w-4.5 h-4.5 px-1 bg-[#1fa855] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
+              <span className="unread-count-badge min-w-4.5 h-4.5 px-1 bg-[#1fa855] rounded-full text-[10px] text-white font-extrabold flex items-center justify-center shadow-2xs">
                 {thread.unreadCount}
               </span>
             )}
