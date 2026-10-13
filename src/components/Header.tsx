@@ -62,8 +62,18 @@ export const Header: React.FC<HeaderProps> = ({
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGlobalAiEnabled, setIsGlobalAiEnabled] = useState(true);
   const [isAiStatusLoading, setIsAiStatusLoading] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 8);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -225,7 +235,13 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="app-topbar sticky top-0 z-30 shrink-0 border-b border-slate-800/80 bg-slate-950/95 text-white shadow-[0_8px_24px_rgba(15,23,42,0.16)] backdrop-blur-xl">
+      <header
+        className={`app-topbar sticky top-0 z-30 shrink-0 border-b transition-all duration-300 ease-out backdrop-blur-xl text-white ${
+          isScrolled
+            ? 'is-scrolled border-slate-800/90 bg-slate-950/95 shadow-[0_12px_32px_rgba(15,23,42,0.28)]'
+            : 'border-slate-800/50 bg-slate-950/90 shadow-[0_4px_16px_rgba(15,23,42,0.12)]'
+        }`}
+      >
       <div className="mx-auto w-full max-w-400 px-4 py-2 sm:px-6 lg:px-8">
         <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5">
           
@@ -234,7 +250,7 @@ export const Header: React.FC<HeaderProps> = ({
             to="/crm"
             aria-label="Về trang chủ"
             title="Về trang chủ"
-            className="flex w-10 shrink-0 items-center justify-start rounded-lg cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+            className="flex w-10 shrink-0 items-center justify-start rounded-lg cursor-pointer transition-transform duration-200 ease-out hover:scale-110 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             <YumLogo size="md" showText={false} />
           </NavLink>
@@ -262,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({
                       if (item.id === 'automation') onChangeTab(item.id);
                     }}
                     title={item.subtitle}
-                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 text-left whitespace-nowrap transition-colors duration-200 ease-out cursor-pointer bg-transparent! shadow-none! border-0! ${
+                    className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 text-left whitespace-nowrap transition-all duration-200 ease-out cursor-pointer bg-transparent! shadow-none! border-0! ${
                       isActive
                         ? 'text-indigo-600 font-black'
                         : 'text-slate-500 hover:text-indigo-600 font-medium'
@@ -270,12 +286,22 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     {({ isActive }) => (
                       <>
+                        <span
+                          aria-hidden="true"
+                          className="topbar-hover-pill absolute inset-x-1 inset-y-1 rounded-xl bg-slate-800/40 pointer-events-none transition-all duration-200 -z-10 group-active:scale-95"
+                        />
                         <span className="relative inline-flex items-center gap-2">
                           <Icon
                             aria-hidden="true"
-                            className={`topbar-nav-icon h-4.5 w-4.5 shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'}`}
+                            className={`topbar-nav-icon h-4.5 w-4.5 shrink-0 transition-transform duration-200 ease-out group-hover:scale-110 group-active:scale-95 ${
+                              isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'
+                            }`}
                           />
-                          <span className={`topbar-nav-label text-sm tracking-tight transition-colors ${isActive ? 'text-indigo-600 font-black' : 'text-slate-500 group-hover:text-indigo-600 font-medium'}`}>
+                          <span
+                            className={`topbar-nav-label text-sm tracking-tight transition-colors duration-150 ${
+                              isActive ? 'text-indigo-600 font-black' : 'text-slate-500 group-hover:text-indigo-600 font-medium'
+                            }`}
+                          >
                             {item.label}
                           </span>
                           {isActive && (
@@ -286,7 +312,7 @@ export const Header: React.FC<HeaderProps> = ({
                           )}
                         </span>
                         {badge && badge > 0 ? (
-                          <span className="topbar-unread-badge inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none">
+                          <span className="topbar-unread-badge inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none transition-transform duration-200 group-hover:scale-110">
                             {badge}
                           </span>
                         ) : null}
@@ -306,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setIsDropdownOpen((prev) => !prev)}
                 aria-expanded={isDropdownOpen}
                 aria-haspopup="true"
-                className="relative flex items-center justify-center p-0.5 rounded-full ring-2 ring-slate-700 hover:ring-indigo-500 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="relative flex items-center justify-center p-0.5 rounded-full ring-2 ring-slate-700 hover:ring-indigo-500 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 title={`${currentUser.name} (${currentUser.role})`}
               >
                 <img
@@ -314,13 +340,16 @@ export const Header: React.FC<HeaderProps> = ({
                   alt={currentUser.name}
                   className="w-8 h-8 rounded-full object-cover"
                 />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+                <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-slate-900" />
+                </span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onOpenLoginModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm cursor-pointer"
                 title="Đăng nhập tài khoản"
               >
                 <ShieldCheck className="w-4 h-4 text-white" />
@@ -330,14 +359,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Dropdown Menu */}
             {isDropdownOpen && currentUser && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-white">
+              <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden z-50 origin-top-right transition-all duration-150 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-white">
                 {/* User Info Header */}
                 <div className="p-4 border-b border-slate-800 bg-slate-800/40">
                   <div className="flex items-center gap-3">
                     <img
                       src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                       alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
+                      className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0 transition-transform duration-200 hover:scale-105"
                     />
                     <div className="min-w-0 flex-1">
                       <div
@@ -368,9 +397,9 @@ export const Header: React.FC<HeaderProps> = ({
                       setIsAvatarModalOpen(true);
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                    className="group w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all duration-150 hover:translate-x-1 text-left cursor-pointer"
                   >
-                    <Camera className="w-4 h-4 text-emerald-400" />
+                    <Camera className="w-4 h-4 text-emerald-400 transition-transform duration-150 group-hover:scale-110" />
                     <span>Đổi ảnh đại diện</span>
                   </button>
 
@@ -380,15 +409,15 @@ export const Header: React.FC<HeaderProps> = ({
                       setIsPasswordModalOpen(true);
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                    className="group w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all duration-150 hover:translate-x-1 text-left cursor-pointer"
                   >
-                    <KeyRound className="w-4 h-4 text-amber-400" />
+                    <KeyRound className="w-4 h-4 text-amber-400 transition-transform duration-150 group-hover:scale-110" />
                     <span>Đổi mật khẩu</span>
                   </button>
 
                   {canViewAi && (
-                    <div className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300">
-                      <Sparkles className={`w-4 h-4 ${isGlobalAiEnabled ? 'text-purple-400' : 'text-slate-500'}`} />
+                    <div className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 transition-all duration-150 hover:bg-slate-800/50">
+                      <Sparkles className={`w-4 h-4 transition-transform duration-150 ${isGlobalAiEnabled ? 'text-purple-400' : 'text-slate-500'}`} />
                       <span className="min-w-0 flex-1">Trợ lý AI</span>
                       <button
                         type="button"
@@ -398,7 +427,7 @@ export const Header: React.FC<HeaderProps> = ({
                         onClick={() => void handleToggleGlobalAi()}
                         disabled={!canManageAi || isAiStatusLoading}
                         title={canManageAi ? 'Áp dụng chung cho tất cả người dùng và cuộc hội thoại' : 'Bạn không có quyền thay đổi trạng thái AI'}
-                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-not-allowed disabled:opacity-60 ${
                           isGlobalAiEnabled
                             ? 'border-purple-400 bg-purple-500'
                             : 'border-slate-600 bg-slate-700'
@@ -406,7 +435,7 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <span
                           aria-hidden="true"
-                          className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                          className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                             isGlobalAiEnabled ? 'translate-x-4' : 'translate-x-0.5'
                           }`}
                         />
@@ -421,9 +450,9 @@ export const Header: React.FC<HeaderProps> = ({
                         onChangeTab('users');
                         setIsDropdownOpen(false);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                      className="group w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all duration-150 hover:translate-x-1 text-left cursor-pointer"
                     >
-                      <ShieldCheck className="w-4 h-4 text-purple-400" />
+                      <ShieldCheck className="w-4 h-4 text-purple-400 transition-transform duration-150 group-hover:scale-110" />
                       <span>Quản lý</span>
                     </button>
                   )}
@@ -436,9 +465,9 @@ export const Header: React.FC<HeaderProps> = ({
                       logout();
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left cursor-pointer font-medium"
+                    className="group w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-150 hover:translate-x-1 text-left cursor-pointer font-medium"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-4 h-4 transition-transform duration-150 group-hover:scale-110" />
                     <span>Đăng xuất</span>
                   </button>
                 </div>

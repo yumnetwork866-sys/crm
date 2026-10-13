@@ -118,10 +118,49 @@ html, body {
   stroke: #4f46e5 !important;
 }
 
+/* Topbar Active Indicator Expansion Animation */
+@keyframes topbarIndicatorExpand {
+  0% {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.topbar-active-indicator {
+  animation: topbarIndicatorExpand 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: center;
+}
+
 .light-mode .app-topbar .topbar-active-indicator {
   background-color: #4f46e5 !important;
   height: 2.5px !important;
   border-radius: 9999px !important;
+}
+
+/* Topbar Hover Pill Animation */
+.app-topbar .topbar-hover-pill {
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-topbar .topbar-nav-link:hover .topbar-hover-pill {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.light-mode .app-topbar .topbar-hover-pill {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+}
+
+/* Light mode header scroll elevated state */
+.light-mode header.is-scrolled {
+  box-shadow: 0 4px 16px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04) !important;
+  border-color: #cbd5e1 !important;
 }
 
 .light-mode .app-topbar nav,
@@ -134,8 +173,19 @@ html, body {
   box-shadow: none !important;
 }
 
+/* Topbar Unread Badge Pulse */
+@keyframes topbarBadgePulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 .app-topbar .topbar-unread-badge,
 .light-mode .app-topbar span.topbar-unread-badge {
+  animation: topbarBadgePulse 2.8s infinite ease-in-out;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   background-color: #f43f5e !important;

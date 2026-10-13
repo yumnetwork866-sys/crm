@@ -2264,7 +2264,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       <QuickTemplatesModal
         isOpen={isQuickTemplatesModalOpen}
         onClose={() => setIsQuickTemplatesModalOpen(false)}
-        brandName={businessPhones.find((phone) => phone.id === selectedPhoneId)?.verifiedName || 'YumNetwork'}
       />
 
     </div>
