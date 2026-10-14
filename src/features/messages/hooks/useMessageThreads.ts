@@ -33,6 +33,9 @@ const buildCustomerLookup = (customers: Customer[]) => {
 
   customers.forEach((customer) => {
     byId.set(customer.id, customer);
+    getPhoneLookupKeys(customer.whatsappRecipientId).forEach((phoneKey) => {
+      if (!byPhone.has(phoneKey)) byPhone.set(phoneKey, customer);
+    });
     getPhoneLookupKeys(customer.phone).forEach((phoneKey) => {
       if (!byPhone.has(phoneKey)) byPhone.set(phoneKey, customer);
     });
@@ -96,6 +99,7 @@ export function buildMessageThreads({
           customer?.name || conv.customerName || conv.lastMessage.customerName || 'Khách Hàng',
         customerPhone:
           conv.customerPhone ||
+          customer?.whatsappRecipientId ||
           customer?.phone ||
           conv.lastMessage.customerPhone ||
           (cleanPhone ? `+${cleanPhone}` : ''),

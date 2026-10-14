@@ -37,13 +37,21 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    onSendMessage(customer.id, inputText.trim(), customer.phone, customer.name);
+    onSendMessage(
+      customer.id,
+      inputText.trim(),
+      customer.whatsappRecipientId || customer.phone,
+      customer.name,
+    );
     setInputText('');
   };
 
   const activeCentralMsgs = centralMessages.filter((m) => {
     const matchId = Boolean(m.customerId && customer.id && m.customerId === customer.id);
-    const matchPhone = isSamePhoneNumber(m.customerPhone || m.customerId, customer.phone || customer.id);
+    const matchPhone = isSamePhoneNumber(
+      m.recipientId || m.customerPhone || m.customerId,
+      customer.whatsappRecipientId || customer.phone || customer.id,
+    );
     return matchId || matchPhone;
   });
 
@@ -86,7 +94,9 @@ export const CustomerChatModal: React.FC<CustomerChatModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-mono mt-0.5">
-                {formatPhoneWithCountryCode(customer.phone)}
+                {customer.phone
+                  ? formatPhoneWithCountryCode(customer.phone)
+                  : customer.whatsappRecipientId || 'Không có số điện thoại'}
               </p>
             </div>
           </div>

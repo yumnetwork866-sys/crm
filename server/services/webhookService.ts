@@ -3,7 +3,7 @@ import { realtimeHub } from './realtimeHub';
 import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
 import { matchCustomerByPhone } from './webhook/webhookCustomerSync';
 import { extractWebhookItems, getMessageText, getWebhookSenderIdentifier } from './webhook/webhookMessageParser';
-import { isMetaUserIdentifier } from '../utils/metaRecipient';
+import { isMetaUserIdentifier, normalizeMetaRecipient } from '../utils/metaRecipient';
 import {
   processIntegrationLifecycle,
   processSmbContacts,
@@ -112,6 +112,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
       customerId,
       customerName,
       customerPhone: fromPhone,
+      recipientId: normalizeMetaRecipient(fromPhone),
       businessPhoneNumberId,
       sender: 'customer' as const,
       channel: 'WhatsApp',
@@ -135,6 +136,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         id: newIncoming.id,
         customerName: newIncoming.customerName,
         customerPhone: newIncoming.customerPhone,
+        recipientId: newIncoming.recipientId || null,
         businessPhoneNumberId: businessPhoneNumberId || null,
         sender: newIncoming.sender,
         channel: newIncoming.channel,

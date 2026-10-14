@@ -23,6 +23,7 @@ export interface CentralMessage {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  recipientId?: string;
   businessPhoneNumberId?: string;
   sender: 'customer' | 'agent' | 'system';
   agentId?: string;
@@ -95,6 +96,7 @@ export interface Customer {
   id: string;
   // 1. Basic Info
   phone: string;
+  whatsappRecipientId?: string;
   name: string;
   gender: Gender;
   address: string;

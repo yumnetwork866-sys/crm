@@ -110,6 +110,28 @@ export function isMetaUserIdentifier(value?: string | null): boolean {
   return /^MY\./i.test(identifier) || identifier.startsWith('@');
 }
 
+/** True when a value can be used as a WhatsApp phone number or opaque Meta recipient ID. */
+export function isSendableMessageRecipient(value?: string | null): boolean {
+  const recipient = String(value || '').trim();
+  if (!recipient) return false;
+  if (isMetaUserIdentifier(recipient)) return true;
+  if (!/^[+\d\s().-]+$/.test(recipient)) return false;
+  const digits = recipient.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+/** Ignore legacy labels such as "Khách Hàng" and prefer the customer's real phone. */
+export function resolveSendableMessageRecipient(
+  explicitPhone?: string | null,
+  customerPhone?: string | null,
+  customerId?: string | null,
+): string {
+  const idCandidate = String(customerId || '').replace(/^cust_/, '');
+  return [explicitPhone, customerPhone, idCandidate]
+    .map((value) => String(value || '').trim())
+    .find(isSendableMessageRecipient) || '';
+}
+
 export function getGlobalCurrency(): CurrencyUnit {
   try {
     const saved = (localStorage.getItem('yumnetwork_currency_unit') || localStorage.getItem('vietcrm_currency_unit')) as CurrencyUnit;

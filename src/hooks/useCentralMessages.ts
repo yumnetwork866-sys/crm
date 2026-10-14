@@ -6,7 +6,11 @@ import type { AppUser, CentralMessage, Customer, MessageChannel } from '../types
 import type { ConversationListResponse, ConversationSummary } from '../features/messages/types';
 import { api } from '../utils/apiClient';
 import { playNotificationSound } from '../utils/audioUtils';
-import { isMetaUserIdentifier, isSamePhoneNumber } from '../utils/crmUtils';
+import {
+  isMetaUserIdentifier,
+  isSamePhoneNumber,
+  resolveSendableMessageRecipient,
+} from '../utils/crmUtils';
 import { queryKeys } from '../lib/queryClient';
 import { realtimeClient } from '../services/realtimeClient';
 
@@ -132,7 +136,9 @@ export function useCentralMessages({
       const matchedCustomer = customersRef.current.find(
         (item) =>
           (candidateId && item.id === candidateId) ||
+          (candidatePhone && item.whatsappRecipientId === candidatePhone) ||
           (candidatePhone && isSamePhoneNumber(item.phone, candidatePhone)) ||
+          (candidateId && item.whatsappRecipientId === candidateId.replace(/^meta_/, '')) ||
           (candidateId && isSamePhoneNumber(item.phone, candidateId))
       );
 
@@ -149,6 +155,7 @@ export function useCentralMessages({
 
       const resolvedPhone =
         candidatePhone ||
+        matchedCustomer?.whatsappRecipientId ||
         matchedCustomer?.phone ||
         matchedConv?.customerPhone ||
         (candidateId.startsWith('cust_')
@@ -741,6 +748,7 @@ export function useCentralMessages({
       customerId: string;
       customerName: string;
       customerPhone: string;
+      recipientId?: string;
       content: string;
       agentName: string;
       senderPhoneId?: string;
@@ -777,17 +785,16 @@ export function useCentralMessages({
     ) => {
       const customer = customersRef.current.find(
         (item) =>
-          item.id === customerId || isSamePhoneNumber(item.phone, explicitPhone || customerId)
+          item.id === customerId ||
+          item.whatsappRecipientId === explicitPhone ||
+          isSamePhoneNumber(item.phone, explicitPhone || customerId)
       );
       const agentName = currentUserRef.current?.name || 'Nguyễn Văn Ánh';
-      const phone =
-        explicitPhone ||
-        customer?.phone ||
-        (customerId.startsWith('cust_')
-          ? customerId.replace('cust_', '')
-          : customerId.replace(/\D/g, '').length >= 7
-            ? customerId
-            : '');
+      const phone = resolveSendableMessageRecipient(
+        explicitPhone,
+        customer?.whatsappRecipientId || customer?.phone,
+        customerId,
+      );
       const customerName =
         explicitName || customer?.name || (phone ? `Khách Hàng (${phone})` : 'Khách Hàng');
       const temporaryMessage: CentralMessage = {
@@ -795,6 +802,7 @@ export function useCentralMessages({
         customerId: customer?.id || customerId,
         customerName,
         customerPhone: phone,
+        recipientId: phone,
         sender: 'agent',
         agentId: currentUserRef.current?.id,
         agentName,
@@ -852,6 +860,7 @@ export function useCentralMessages({
           customerId: customer?.id || customerId,
           customerName,
           customerPhone: phone,
+          recipientId: phone,
           content,
           agentName,
           senderPhoneId: senderPhoneNumberId,

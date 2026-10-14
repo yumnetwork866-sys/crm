@@ -25,6 +25,7 @@ export interface ConversationSummary {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  recipientId?: string;
   unreadCount: number;
   lastCustomerMessageAt?: string | null;
   lastMessage: CentralMessage;

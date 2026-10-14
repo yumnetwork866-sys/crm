@@ -443,6 +443,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
         if (normalizedQuery) {
           const matches = customer.name.toLowerCase().includes(normalizedQuery)
             || customer.phone.includes(normalizedQuery)
+            || Boolean(customer.whatsappRecipientId?.toLowerCase().includes(normalizedQuery))
             || Boolean(customer.email?.toLowerCase().includes(normalizedQuery))
             || customer.campaign.toLowerCase().includes(normalizedQuery)
             || Boolean(customer.address?.toLowerCase().includes(normalizedQuery))

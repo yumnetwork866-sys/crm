@@ -147,6 +147,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       whereClause.OR = [
         { name: { contains: cleanSearch, mode: 'insensitive' } },
         { phone: { contains: cleanSearch } },
+        { whatsappRecipientId: { contains: cleanSearch, mode: 'insensitive' } },
         ...(normalizedSearchPhone ? [{ phone: { contains: normalizedSearchPhone } }] : []),
         ...(searchDigits.length >= 4 ? [{ phone: { contains: searchDigits.replace(/^0/, '') } }] : []),
         { email: { contains: cleanSearch, mode: 'insensitive' } },
@@ -248,6 +249,13 @@ router.get('/:id', requireAnyPermission([Permission.CUSTOMERS_VIEW, Permission.M
       where: { id },
       include: detailInclude
     });
+
+    if (!customer) {
+      customer = await prisma.customer.findFirst({
+        where: { whatsappRecipientId: id },
+        include: detailInclude,
+      });
+    }
 
     if (!customer) {
       const variants = getPhoneLookupVariants(id);

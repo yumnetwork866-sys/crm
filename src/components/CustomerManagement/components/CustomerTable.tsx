@@ -205,7 +205,9 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                       </div>
                     </td>
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <span className="font-medium text-slate-800 text-xs">{customer.phone || '—'}</span>
+                      <span className="font-medium text-slate-800 text-xs">
+                        {customer.phone || customer.whatsappRecipientId || '—'}
+                      </span>
                     </td>
                     <td className="py-3 px-3 min-w-36">
                       {(() => {

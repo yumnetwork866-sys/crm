@@ -215,10 +215,10 @@ export async function getConversations(req: Request, res: Response) {
     const activeBusinessPhoneId = requestedBusinessPhoneId || await resolvePhoneNumberId(integrationSetting);
     const filterSql = activeBusinessPhoneId
       ? searchFilter
-        ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId} AND ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+        ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId} AND ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "recipientId" ILIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
         : Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
       : searchFilter
-        ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+        ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "recipientId" ILIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
         : Prisma.empty;
     const unreadFilterSql = activeBusinessPhoneId
       ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
@@ -228,6 +228,7 @@ export async function getConversations(req: Request, res: Response) {
       customerId: string | null;
       customerName: string;
       customerPhone: string;
+      recipientId: string | null;
       businessPhoneNumberId: string | null;
       unreadCount: bigint;
       lastCustomerMessageAt: Date | null;
@@ -254,6 +255,7 @@ export async function getConversations(req: Request, res: Response) {
           "customerId",
           "customerName",
           "customerPhone",
+          "recipientId",
           "businessPhoneNumberId",
           "content",
           "sender",
@@ -271,12 +273,14 @@ export async function getConversations(req: Request, res: Response) {
           "errorCode",
           "errorMessage",
           COALESCE(
+            NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
             NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
             NULLIF("customerId", ''),
             "id"
           ) as thread_key,
           ROW_NUMBER() OVER (
             PARTITION BY COALESCE(
+              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
               NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
               NULLIF("customerId", ''),
               "id"
@@ -289,6 +293,7 @@ export async function getConversations(req: Request, res: Response) {
       UnreadStats AS (
         SELECT 
           COALESCE(
+            NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
             NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
             NULLIF("customerId", ''),
             "id"
@@ -299,6 +304,7 @@ export async function getConversations(req: Request, res: Response) {
         FROM "WhatsAppMessage"
         ${unreadFilterSql}
         GROUP BY COALESCE(
+          NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
           NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
           NULLIF("customerId", ''),
           "id"
@@ -308,6 +314,7 @@ export async function getConversations(req: Request, res: Response) {
         COALESCE(rm."customerId", us.customer_id) as "customerId",
         rm."customerName",
         rm."customerPhone",
+        rm."recipientId",
         rm."businessPhoneNumberId",
         COALESCE(us.unread_count, 0) as "unreadCount",
         us.last_customer_msg_at as "lastCustomerMessageAt",
@@ -345,6 +352,7 @@ export async function getConversations(req: Request, res: Response) {
         customerId: resolvedCustomerId,
         customerName: t.customerName,
         customerPhone: t.customerPhone,
+        recipientId: t.recipientId || undefined,
         unreadCount: Number(t.unreadCount),
         lastCustomerMessageAt: t.lastCustomerMessageAt instanceof Date
           ? t.lastCustomerMessageAt.toISOString()
@@ -354,6 +362,7 @@ export async function getConversations(req: Request, res: Response) {
           customerId: resolvedCustomerId,
           customerName: t.customerName,
           customerPhone: t.customerPhone,
+          recipientId: t.recipientId || undefined,
           businessPhoneNumberId: t.businessPhoneNumberId || activeBusinessPhoneId || undefined,
           content: t.lastMsgContent,
           sender: (t.lastMsgSender === 'agent' ? 'agent' : 'customer') as 'customer' | 'agent',

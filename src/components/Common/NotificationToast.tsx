@@ -121,6 +121,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
     return customers.find(
       (c) =>
         c.id === msg.customerId ||
+        c.whatsappRecipientId === msg.recipientId ||
         isSamePhoneNumber(c.phone, msg.customerPhone || msg.customerId)
     ) || null;
   }, [toast?.message, customers]);
@@ -129,7 +130,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
 
   const { message } = toast;
   const customerName = matchedCustomer?.name || message.customerName || 'Khách Hàng';
-  const customerPhone = matchedCustomer?.phone || message.customerPhone || '';
+  const customerPhone = matchedCustomer?.phone || matchedCustomer?.whatsappRecipientId || message.recipientId || message.customerPhone || '';
   const fallbackAvatar = getCustomerAvatar(null, customerPhone || customerName);
   const avatarUrl = getCustomerAvatar(matchedCustomer?.avatar, customerPhone || customerName);
   const snippet = parseToastMessageSnippet(message.content);

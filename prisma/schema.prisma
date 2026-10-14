@@ -44,6 +44,7 @@ model RolePermission {
 model Customer {
   id                 String    @id @default(uuid())
   phone              String
+  whatsappRecipientId String?
   name               String
   gender             String    @default("Khác") // 'Nam' | 'Nữ' | 'Khác'
   address            String    @default("")
@@ -72,6 +73,7 @@ model Customer {
   updatedAt DateTime @updatedAt
 
   @@index([phone])
+  @@index([whatsappRecipientId])
   @@index([status])
   @@index([ownerId])
   @@index([source])
@@ -323,6 +325,7 @@ model WhatsAppMessage {
   customerId    String?
   customerName  String
   customerPhone String
+  recipientId   String?
   businessPhoneNumberId String?
   sender        String // 'customer' | 'agent'
   agentId       String?
@@ -346,6 +349,7 @@ model WhatsAppMessage {
   @@index([customerId])
   @@index([agentId])
   @@index([customerPhone])
+  @@index([recipientId])
   @@index([businessPhoneNumberId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
   @@index([customerId, sender, channel, timestamp(sort: Desc)])

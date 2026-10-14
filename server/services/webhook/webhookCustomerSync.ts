@@ -2,7 +2,7 @@ import { prisma } from '../../lib/prisma';
 import { getIntegrationSetting } from '../metaApiClient';
 import { realtimeHub } from '../realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../../utils/phone';
-import { isMetaUserIdentifier } from '../../utils/metaRecipient';
+import { isMetaUserIdentifier, normalizeMetaRecipient } from '../../utils/metaRecipient';
 
 /**
  * Verifies webhook subscription request from Meta
@@ -47,6 +47,7 @@ export async function matchCustomerByPhone(
   businessPhoneNumberId?: string
 ): Promise<{ customerId: string; customerName: string; isCrmCustomer: boolean }> {
   const isUserIdentifier = isMetaUserIdentifier(fromPhone);
+  const recipientId = normalizeMetaRecipient(fromPhone);
   const cleanFrom = fromPhone.replace(/\D/g, '');
   const e164Phone = isUserIdentifier ? '' : normalizePhoneE164(fromPhone);
   let matchedCustomerId = isUserIdentifier ? `meta_${fromPhone}` : `cust_${cleanFrom}`;
@@ -56,7 +57,12 @@ export async function matchCustomerByPhone(
   try {
     if (isUserIdentifier) {
       const matchedCustomer = await prisma.customer.findFirst({
-        where: { phone: fromPhone },
+        where: {
+          OR: [
+            { whatsappRecipientId: fromPhone },
+            { phone: fromPhone },
+          ],
+        },
         select: { id: true, name: true },
       });
       if (matchedCustomer) {
@@ -75,7 +81,8 @@ export async function matchCustomerByPhone(
       const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
       const newCustomer = await prisma.customer.create({
         data: {
-          phone: fromPhone,
+          phone: '',
+          whatsappRecipientId: fromPhone,
           name: senderName || fromPhone,
           source: 'WhatsApp',
           campaign: brandName || 'N/A',
@@ -95,9 +102,12 @@ export async function matchCustomerByPhone(
     const matchedCustomer = phoneVariants.length > 0
       ? await prisma.customer.findFirst({
           where: {
-            phone: { in: phoneVariants }
+            OR: [
+              { phone: { in: phoneVariants } },
+              ...(recipientId ? [{ whatsappRecipientId: recipientId }] : []),
+            ],
           },
-          select: { id: true, name: true, phone: true, campaign: true }
+          select: { id: true, name: true, phone: true, whatsappRecipientId: true, campaign: true }
         })
       : null;
 
@@ -107,6 +117,9 @@ export async function matchCustomerByPhone(
       isCrmCustomer = true;
       const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
       const updateData: any = { lastContact: new Date() };
+      if (recipientId && matchedCustomer.whatsappRecipientId !== recipientId) {
+        updateData.whatsappRecipientId = recipientId;
+      }
       if (e164Phone && matchedCustomer.phone !== e164Phone) {
         updateData.phone = e164Phone;
       }
@@ -130,6 +143,7 @@ export async function matchCustomerByPhone(
       const newCustomer = await prisma.customer.create({
         data: {
           phone: e164Phone,
+          whatsappRecipientId: recipientId || null,
           name: defaultName,
           source: 'WhatsApp',
           campaign: brandName || 'N/A',
@@ -168,6 +182,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
       select: {
         id: true,
         customerPhone: true,
+        recipientId: true,
         customerName: true,
         businessPhoneNumberId: true,
         timestamp: true,
@@ -177,17 +192,21 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
 
     let syncedCount = 0;
     if (unlinkedMessages.length > 0) {
-      const phoneGroups = new Map<string, { phone: string; name: string; firstDate: Date; lastDate: Date; businessPhoneNumberId?: string; messageIds: string[] }>();
+      const phoneGroups = new Map<string, { phone: string; recipientId: string; name: string; firstDate: Date; lastDate: Date; businessPhoneNumberId?: string; messageIds: string[] }>();
       for (const msg of unlinkedMessages) {
+        const recipientId = normalizeMetaRecipient(msg.recipientId || msg.customerPhone);
+        if (!recipientId) continue;
+        const isUserIdentifier = isMetaUserIdentifier(recipientId);
         const clean = (msg.customerPhone || '').replace(/\D/g, '');
-        if (clean.length < 7) continue;
-        const e164 = normalizePhoneE164(msg.customerPhone);
-        if (!e164) continue;
-        const existing = phoneGroups.get(e164);
+        const e164 = isUserIdentifier ? '' : normalizePhoneE164(msg.customerPhone);
+        if (!isUserIdentifier && (clean.length < 7 || !e164)) continue;
+        const groupKey = recipientId.toLowerCase();
+        const existing = phoneGroups.get(groupKey);
         const msgDate = new Date(msg.timestamp);
         if (!existing) {
-          phoneGroups.set(e164, {
+          phoneGroups.set(groupKey, {
             phone: e164,
+            recipientId,
             name: (msg.customerName && !msg.customerName.startsWith('Khách WhatsApp'))
               ? msg.customerName
               : `Khách WhatsApp (${clean.slice(-4)})`,
@@ -209,10 +228,15 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
         }
       }
 
-      for (const [e164, group] of phoneGroups.entries()) {
-        const variants = getPhoneLookupVariants(e164);
+      for (const group of phoneGroups.values()) {
+        const variants = getPhoneLookupVariants(group.phone);
         let customer = await prisma.customer.findFirst({
-          where: { phone: { in: variants } }
+          where: {
+            OR: [
+              { whatsappRecipientId: group.recipientId },
+              ...(variants.length > 0 ? [{ phone: { in: variants } }] : []),
+            ],
+          },
         });
 
         if (!customer) {
@@ -220,6 +244,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
           customer = await prisma.customer.create({
             data: {
               phone: group.phone,
+              whatsappRecipientId: group.recipientId,
               name: group.name,
               source: 'WhatsApp',
               campaign: brandName || 'N/A',
@@ -235,7 +260,11 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
 
         await prisma.whatsAppMessage.updateMany({
           where: { id: { in: group.messageIds } },
-          data: { customerId: customer.id, customerName: customer.name }
+          data: {
+            customerId: customer.id,
+            customerName: customer.name,
+            recipientId: group.recipientId,
+          }
         });
       }
 

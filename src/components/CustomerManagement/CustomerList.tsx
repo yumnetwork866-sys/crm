@@ -175,7 +175,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
   const hasUnreadMessage = (customer: Customer) => centralMessages.some((message) =>
     message.sender === 'customer' && !message.isRead && (
-      message.customerId === customer.id || isSamePhoneNumber(message.customerPhone, customer.phone)
+      message.customerId === customer.id ||
+      message.recipientId === customer.whatsappRecipientId ||
+      isSamePhoneNumber(message.customerPhone, customer.phone)
     )
   );
 

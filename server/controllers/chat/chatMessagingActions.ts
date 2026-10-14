@@ -13,28 +13,28 @@ import {
 import { pauseAiForCustomer } from '../../services/difyService';
 import { resolveWhatsAppBrandName } from '../../services/webhookService';
 import { getPhoneLookupVariants, normalizePhoneE164, toWhatsAppDigits } from '../../utils/phone';
-import { isMetaUserIdentifier, normalizeMetaRecipient } from '../../utils/metaRecipient';
+import { isMetaUserIdentifier, resolveMetaRecipient } from '../../utils/metaRecipient';
 
 /**
  * Send real WhatsApp Cloud API message and save to CRM
  */
 export async function sendMessage(req: AuthenticatedRequest, res: Response) {
   try {
-    const { customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId, contextMessageId, replyTo } = req.body;
+    const { recipientId: requestedRecipientId, customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId, contextMessageId, replyTo } = req.body;
 
-    if (!content || (!customerPhone && !customerId)) {
+    if (!content || (!requestedRecipientId && !customerPhone && !customerId)) {
       return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
     }
 
-    const rawPhone = customerPhone
+    let rawPhone = requestedRecipientId || customerPhone
       || (customerId && /^(cust_|meta_)/.test(customerId)
         ? customerId.replace(/^(cust_|meta_)/, '')
         : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : ''))
       || '';
-    const isUserIdentifier = isMetaUserIdentifier(rawPhone);
-    const e164Phone = isUserIdentifier ? '' : normalizePhoneE164(rawPhone);
-    const cleanPhone = isUserIdentifier ? '' : toWhatsAppDigits(rawPhone);
-    const recipient = normalizeMetaRecipient(rawPhone);
+    let recipient = resolveMetaRecipient(rawPhone).recipient;
+    let isUserIdentifier = isMetaUserIdentifier(rawPhone);
+    let e164Phone = isUserIdentifier ? '' : normalizePhoneE164(rawPhone);
+    let cleanPhone = isUserIdentifier ? '' : toWhatsAppDigits(rawPhone);
 
     let matchedCustomerId: string | null = null;
     let finalCustomerName = customerName;
@@ -43,26 +43,39 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       if (customerId && !customerId.startsWith('cust_')) {
         const found = await prisma.customer.findUnique({
           where: { id: customerId },
-          select: { id: true, name: true, phone: true }
+          select: { id: true, name: true, phone: true, whatsappRecipientId: true }
         });
         if (found) {
           matchedCustomerId = found.id;
           if (!finalCustomerName) finalCustomerName = found.name;
+          if (!recipient) {
+            const resolved = resolveMetaRecipient(rawPhone, found.whatsappRecipientId || found.phone);
+            rawPhone = resolved.raw;
+            recipient = resolved.recipient;
+            isUserIdentifier = isMetaUserIdentifier(rawPhone);
+            e164Phone = isUserIdentifier ? '' : normalizePhoneE164(rawPhone);
+            cleanPhone = isUserIdentifier ? '' : toWhatsAppDigits(rawPhone);
+          }
         }
       }
       if (!matchedCustomerId && (isUserIdentifier || cleanPhone.length >= 7)) {
         const variants = isUserIdentifier ? [] : getPhoneLookupVariants(rawPhone);
         const found = isUserIdentifier
           ? await prisma.customer.findFirst({
-              where: { phone: rawPhone },
-              select: { id: true, name: true, phone: true }
+              where: {
+                OR: [
+                  { whatsappRecipientId: rawPhone },
+                  { phone: rawPhone },
+                ],
+              },
+              select: { id: true, name: true, phone: true, whatsappRecipientId: true }
             })
           : variants.length > 0
           ? await prisma.customer.findFirst({
               where: {
                 phone: { in: variants }
               },
-              select: { id: true, name: true, phone: true }
+              select: { id: true, name: true, phone: true, whatsappRecipientId: true }
             })
           : null;
         if (found) {
@@ -77,7 +90,8 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
           const brandName = await resolveWhatsAppBrandName(phoneId);
           const newCust = await prisma.customer.create({
             data: {
-              phone: isUserIdentifier ? rawPhone : e164Phone,
+              phone: isUserIdentifier ? '' : e164Phone,
+              whatsappRecipientId: recipient || null,
               name: defaultName,
               source: 'WhatsApp',
               campaign: brandName || 'N/A',
@@ -155,6 +169,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
       customerPhone: resolvedCustomerPhone,
+      recipientId: recipient,
       businessPhoneNumberId: phoneId || undefined,
       sender: 'agent' as const,
       agentId: req.user?.id || null,
@@ -176,6 +191,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         id: newMsg.id,
         customerName: newMsg.customerName,
         customerPhone: newMsg.customerPhone,
+        recipientId: newMsg.recipientId || null,
         businessPhoneNumberId: phoneId || null,
         sender: newMsg.sender,
         agentId: newMsg.agentId,
