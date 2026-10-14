@@ -16,6 +16,7 @@ interface ThreadListItemProps {
   thread: MessageThread;
   isSelected: boolean;
   status?: ConversationStatus;
+  draftText?: string;
   onSelectThread: (threadId: string, phone: string, messageIds: string[]) => void;
   togglePinThread: (threadId: string) => void;
   onDeleteThread?: (id: string) => void;
@@ -27,6 +28,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   thread,
   isSelected,
   status,
+  draftText,
   onSelectThread,
   togglePinThread,
   onDeleteThread,
@@ -34,6 +36,8 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   slaWarning,
 }) => {
   const hasUnread = thread.unreadCount > 0;
+  const trimmedDraft = draftText?.trim() || '';
+  const hasDraft = Boolean(trimmedDraft);
   const isAgentLast = thread.lastMessage.sender === 'agent';
   const threadTime = new Date(thread.lastMessage.timestamp);
   const isToday = threadTime.toDateString() === new Date().toDateString();
@@ -114,19 +118,30 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
           )}
         </div>
 
-        {/* Last Message Snippet */}
+        {/* Last Message Snippet or Unsent Draft */}
         <div className="flex items-center justify-between mt-1">
           <p className={`text-xs truncate pr-1 flex items-center gap-1 ${hasUnread ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
-            {isAgentLast && (
-              <MessageDeliveryStatusIcon
-                status={thread.lastMessage.status}
-                isRealSent={thread.lastMessage.isRealSent}
-                errorMessage={thread.lastMessage.errorMessage}
-              />
+            {hasDraft ? (
+              <>
+                <span className="font-bold text-rose-600 shrink-0">[Nháp]</span>
+                <span className="truncate text-slate-600 font-normal">
+                  {trimmedDraft}
+                </span>
+              </>
+            ) : (
+              <>
+                {isAgentLast && (
+                  <MessageDeliveryStatusIcon
+                    status={thread.lastMessage.status}
+                    isRealSent={thread.lastMessage.isRealSent}
+                    errorMessage={thread.lastMessage.errorMessage}
+                  />
+                )}
+                <span className="truncate">
+                  {formatMessagePreview(thread.lastMessage.content)}
+                </span>
+              </>
             )}
-            <span className="truncate">
-              {formatMessagePreview(thread.lastMessage.content)}
-            </span>
           </p>
 
           <div className="flex items-center space-x-1.5 shrink-0">
@@ -187,6 +202,7 @@ export const ThreadListItem = React.memo(ThreadListItemComponent, (previous, nex
   previous.thread === next.thread
   && previous.isSelected === next.isSelected
   && previous.status === next.status
+  && previous.draftText === next.draftText
   && previous.onSelectThread === next.onSelectThread
   && previous.togglePinThread === next.togglePinThread
   && previous.onDeleteThread === next.onDeleteThread

@@ -47,11 +47,11 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6 text-slate-900">
         <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xl">
           <h1 className="text-lg font-bold">Không thể tải giao diện CRM</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {isChunkError
-              ? 'Trình duyệt đang giữ phiên bản giao diện cũ. Hãy tải lại để nhận bản mới nhất.'
-              : 'Giao diện gặp lỗi khi hiển thị. Hãy tải lại trang; nếu lỗi tiếp tục, kiểm tra console của trình duyệt.'}
-          </p>
+          {isChunkError && (
+            <p className="mt-2 text-sm text-slate-600">
+              Trình duyệt đang giữ phiên bản giao diện cũ. Hãy tải lại để nhận bản mới nhất.
+            </p>
+          )}
 
           <div className="mt-4 flex flex-col items-center gap-2">
             <button
@@ -95,25 +95,6 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
                     {this.state.error.stack}
                   </pre>
                 )}
-                <div className="pt-2 border-t border-slate-800 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={this.handleCopy}
-                    className="px-2.5 py-1 text-[11px] font-sans font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition cursor-pointer flex items-center gap-1.5"
-                  >
-                    {this.state.copied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Đã sao chép</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Sao chép mã lỗi</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
             </details>
           )}

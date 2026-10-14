@@ -2,7 +2,8 @@ import { prisma } from '../lib/prisma';
 import { realtimeHub } from './realtimeHub';
 import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
 import { matchCustomerByPhone } from './webhook/webhookCustomerSync';
-import { extractWebhookItems, getMessageText } from './webhook/webhookMessageParser';
+import { extractWebhookItems, getMessageText, getWebhookSenderIdentifier } from './webhook/webhookMessageParser';
+import { isMetaUserIdentifier } from '../utils/metaRecipient';
 import {
   processIntegrationLifecycle,
   processSmbContacts,
@@ -35,10 +36,21 @@ export async function processWebhookPayload(body: any): Promise<number> {
   let processedCount = smbContactCount + smbMessageCount;
 
   for (const { msgData, valueObj } of extractedItems) {
-    const contactData = valueObj?.contacts?.find((c: any) => c.wa_id === msgData.from) || valueObj?.contacts?.[0];
-    const fromPhone = msgData.from || 'Khách Hàng';
+    const fromPhone = getWebhookSenderIdentifier(msgData, valueObj);
+    if (!fromPhone) {
+      console.warn('[META WEBHOOK] Skipping message without from/from_user_id/user_id:', msgData?.id || 'unknown');
+      continue;
+    }
+    const contactData = valueObj?.contacts?.find((c: any) =>
+      [c?.wa_id, c?.from_user_id, c?.user_id].some((id) => String(id || '') === fromPhone)
+    ) || valueObj?.contacts?.[0];
     const businessPhoneNumberId = String(valueObj?.metadata?.phone_number_id || '') || undefined;
-    const senderName = contactData?.profile?.name || `Khách WhatsApp (${fromPhone})`;
+    const senderName = contactData?.profile?.name
+      || contactData?.username
+      || msgData?.profile?.name
+      || msgData?.username
+      || valueObj?.username
+      || (isMetaUserIdentifier(fromPhone) ? fromPhone : `Khách WhatsApp (${fromPhone})`);
 
     // Determine message text body based on message type
     const textBody = getMessageText(msgData, businessPhoneNumberId);

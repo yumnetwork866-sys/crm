@@ -11,6 +11,7 @@ import {
   Plus,
   ReceiptText,
   StickyNote,
+  Trash2,
   User,
   WalletCards,
   X,
@@ -28,6 +29,7 @@ interface CustomerDetailModalProps {
   onOpenAddOrder: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onAddNote: (customerId: string, noteText: string) => void;
+  onDeleteNote?: (customerId: string, noteId: string) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
 }
 
@@ -38,6 +40,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   onOpenAddOrder,
   onEditCustomer,
   onAddNote,
+  onDeleteNote,
   onUpdateStatus,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'notes' | 'automation'>('overview');
@@ -471,12 +474,22 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   <div className="text-center py-8 text-slate-500 text-xs">Chưa có ghi chú nào.</div>
                 ) : (
                   customer.notes.map((n) => (
-                    <div key={n.id} className="bg-white border border-slate-200 p-3 rounded-xl text-xs space-y-1 shadow-sm">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <div key={n.id} className="bg-white border border-slate-200 p-3 rounded-xl text-xs space-y-1 shadow-sm relative group">
+                      <div className="flex items-center justify-between pr-6 text-[11px] text-slate-500">
                         <span className="font-semibold text-indigo-600">{n.author}</span>
                         <span>{formatDateTime(n.createdAt)}</span>
                       </div>
-                      <p className="text-slate-700">{n.content}</p>
+                      <p className="text-slate-700 whitespace-pre-wrap">{n.content}</p>
+                      {onDeleteNote && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteNote(customer.id, n.id)}
+                          className="absolute top-2.5 right-2.5 hidden group-hover:block text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                          title="Xóa ghi chú"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))
                 )}

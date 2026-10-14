@@ -32,6 +32,7 @@ export interface MessageVirtualListProps {
   onJumpToQuotedMessage: (messageId: string) => void;
   onPreviewImage: (imgUrl: string) => void;
   onRetryMessage?: (messageId: string) => void;
+  isLoadingOlderMessages?: boolean;
 }
 
 export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
@@ -58,6 +59,7 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
   onJumpToQuotedMessage,
   onPreviewImage,
   onRetryMessage,
+  isLoadingOlderMessages = false,
 }) => {
   const virtualMessageRows = useMemo(() => {
     const rows: Array<{
@@ -122,6 +124,13 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
         id="chat-messages-container"
         className="flex-1 p-4 overflow-y-auto space-y-4 whatsapp-chat-bg whatsapp-scrollbar"
       >
+        {isLoadingOlderMessages && (
+          <div className="flex justify-center my-2 select-none">
+            <span className="bg-white/95 px-3 py-1 rounded-lg text-[11px] font-semibold text-slate-500 shadow-2xs border border-slate-200">
+              Đang tải tin nhắn cũ...
+            </span>
+          </div>
+        )}
         <div
           className="relative w-full"
           style={{ height: `${messageVirtualizer.getTotalSize()}px` }}

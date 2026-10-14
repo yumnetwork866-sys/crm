@@ -7,6 +7,7 @@ import {
   dispatchMetaMessage,
 } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
+import { normalizeMetaRecipient } from '../utils/metaRecipient';
 
 import fs from 'fs';
 import path from 'path';
@@ -537,7 +538,7 @@ export async function autoReplyWithDify(params: {
     }
 
     // 4. Send reply back to customer via WhatsApp Cloud API
-    const cleanPhone = fromPhone.replace(/\D/g, '');
+    const cleanPhone = normalizeMetaRecipient(fromPhone);
     const setting = await getIntegrationSetting();
     const phoneId = businessPhoneNumberId || await resolvePhoneNumberId(setting);
     const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';

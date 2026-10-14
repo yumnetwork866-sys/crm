@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppUser, Customer, CustomerGroupId, CustomerStatus } from '../types';
-import { compareVietnameseNames, formatDateTime, getCustomerGroup } from '../utils/crmUtils';
+import { compareVietnameseNames, formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
@@ -233,18 +233,54 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
 
 
   const noteMutation = useMutation({
-    mutationFn: async ({ customerId, noteText, author }: { customerId: string; noteText: string; author: string }) => {
-      await api.post(`/customers/${customerId}/notes`, { content: noteText, type: 'note', author });
-      return mapApiCustomerToFrontend(await api.get<any>(`/customers/${customerId}`));
+    mutationFn: async ({
+      customerId,
+      noteText,
+      author,
+      customerPhone,
+      customerName,
+    }: {
+      customerId: string;
+      noteText: string;
+      author: string;
+      customerPhone?: string;
+      customerName?: string;
+    }) => {
+      const response = await api.post<any>(`/customers/${encodeURIComponent(customerId)}/notes`, {
+        content: noteText,
+        type: 'note',
+        author,
+        phone: customerPhone,
+        customerName,
+      });
+      const resolvedCustomerId = response?.customerId || customerId;
+      return mapApiCustomerToFrontend(
+        await api.get<any>(`/customers/${encodeURIComponent(resolvedCustomerId)}`)
+      );
     },
-    onMutate: async ({ customerId, noteText, author }) => {
+    onMutate: async ({ customerId, noteText, author, customerPhone }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.customers });
       const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      const optimisticNote = {
+        id: `n_${Date.now()}`,
+        author,
+        content: noteText,
+        createdAt: formatDateTime(new Date()),
+        type: 'note' as const,
+      };
       queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
-        current.map((customer) => customer.id === customerId ? {
-          ...customer,
-          notes: [{ id: `n_${Date.now()}`, author, content: noteText, createdAt: formatDateTime(new Date()), type: 'note' as const }, ...customer.notes],
-        } : customer)
+        current.map((customer) => {
+          const isMatch =
+            customer.id === customerId ||
+            (customerPhone && isSamePhoneNumber(customer.phone, customerPhone)) ||
+            isSamePhoneNumber(customer.phone, customerId);
+          return isMatch
+            ? {
+                ...customer,
+                notes: [optimisticNote, ...(customer.notes || [])],
+              }
+            : customer;
+        })
       );
       return { previous };
     },
@@ -252,9 +288,38 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
       if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
     },
     onSuccess: (saved) => {
-      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
-        current.map((customer) => customer.id === saved.id ? saved : customer)
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) => {
+        const exists = current.some((customer) => customer.id === saved.id);
+        if (!exists) return sortCustomersByName([saved, ...current]);
+        return current.map((customer) => (customer.id === saved.id ? saved : customer));
+      });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async ({ customerId, noteId }: { customerId: string; noteId: string }) => {
+      return api.delete<{ id: string; customerId: string }>(
+        `/customers/${encodeURIComponent(customerId)}/notes/${encodeURIComponent(noteId)}`
       );
+    },
+    onMutate: async ({ customerId, noteId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
+      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) =>
+          customer.id === customerId || (customer.notes || []).some((note) => note.id === noteId)
+            ? {
+                ...customer,
+                notes: (customer.notes || []).filter((note) => note.id !== noteId),
+              }
+            : customer
+        )
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
   });
@@ -319,10 +384,37 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
     await groupMutation.mutateAsync({ customerId, group }).catch((error) => console.error('Error updating customer group:', error));
   }, [groupMutation]);
 
-  const addNote = useCallback(async (customerId: string, noteText: string) => {
-    const customer = queryClient.getQueryData<Customer[]>(queryKeys.customers)?.find((item) => item.id === customerId);
-    if (customer) await noteMutation.mutateAsync({ customerId, noteText, author: customer.owner }).catch((error) => console.error('Error adding note:', error));
-  }, [noteMutation, queryClient]);
+  const addNote = useCallback(
+    async (customerId: string, noteText: string, customerPhone?: string, customerName?: string) => {
+      const customer = queryClient
+        .getQueryData<Customer[]>(queryKeys.customers)
+        ?.find(
+          (item) =>
+            item.id === customerId ||
+            (customerPhone && isSamePhoneNumber(item.phone, customerPhone)) ||
+            isSamePhoneNumber(item.phone, customerId)
+        );
+      const author = currentUser?.name || customer?.owner || 'Tư vấn viên';
+      await noteMutation
+        .mutateAsync({
+          customerId: customer?.id || customerId,
+          noteText,
+          author,
+          customerPhone: customerPhone || customer?.phone,
+          customerName: customerName || customer?.name,
+        })
+        .catch((error) => console.error('Error adding note:', error));
+    },
+    [currentUser?.name, noteMutation, queryClient]
+  );
+  const deleteNote = useCallback(
+    async (customerId: string, noteId: string) => {
+      await deleteNoteMutation
+        .mutateAsync({ customerId, noteId })
+        .catch((error) => console.error('Error deleting note:', error));
+    },
+    [deleteNoteMutation]
+  );
   const runAutomationSimulation = useCallback(async () => {
     await automationMutation.mutateAsync().catch((error) => console.error('Error running automation:', error));
   }, [automationMutation]);
@@ -400,7 +492,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   ]);
 
   const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
-    || statusMutation.error || groupMutation.error || noteMutation.error || automationMutation.error;
+    || statusMutation.error || groupMutation.error || noteMutation.error || deleteNoteMutation.error || automationMutation.error;
   return {
     customers,
     setCustomers,
@@ -412,6 +504,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
     updateStatus,
     updateGroup,
     addNote,
+    deleteNote,
     runAutomationSimulation,
     resetCustomers,
     buildFilterModel,
@@ -420,6 +513,6 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
     isError: customersQuery.isError || Boolean(mutationError),
     error: customersQuery.error || mutationError,
     isMutating: saveMutation.isPending || importMutation.isPending || deleteMutation.isPending
-      || statusMutation.isPending || groupMutation.isPending || noteMutation.isPending || automationMutation.isPending,
+      || statusMutation.isPending || groupMutation.isPending || noteMutation.isPending || deleteNoteMutation.isPending || automationMutation.isPending,
   };
 }

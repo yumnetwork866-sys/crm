@@ -10,9 +10,12 @@ export function useWhatsAppSessionWindow(activeThread: MessageThread | null) {
   }, []);
 
   const expiresAtMs = useMemo(() => {
-    if (!activeThread?.messages.length) return null;
+    if (!activeThread?.messages.length && !activeThread?.lastCustomerMessageAt) return null;
     const customerMessages = activeThread.messages.filter((message) => message.sender === 'customer');
-    const referenceTimestamp = customerMessages.at(-1)?.timestamp || activeThread.lastMessage.timestamp;
+    const referenceTimestamp =
+      customerMessages.at(-1)?.timestamp ||
+      activeThread.lastCustomerMessageAt ||
+      activeThread.lastMessage.timestamp;
     return new Date(referenceTimestamp).getTime() + 24 * 60 * 60 * 1000;
   }, [activeThread]);
 

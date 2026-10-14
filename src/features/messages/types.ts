@@ -21,12 +21,29 @@ export interface InternalNote {
   timestamp: string;
 }
 
+export interface ConversationSummary {
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  unreadCount: number;
+  lastCustomerMessageAt?: string | null;
+  lastMessage: CentralMessage;
+}
+
+export interface ConversationListResponse {
+  data: ConversationSummary[];
+  page?: number;
+  limit?: number;
+  count?: number;
+}
+
 export interface MessageThread {
   threadId: string;
   customer: Customer | null;
   customerName: string;
   customerPhone: string;
   lastMessage: CentralMessage;
+  lastCustomerMessageAt?: string | null;
   unreadCount: number;
   messages: CentralMessage[];
   isPinned: boolean;

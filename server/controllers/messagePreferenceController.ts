@@ -4,6 +4,8 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { realtimeHub } from '../services/realtimeHub';
 import { getRouteParam } from '../utils/requestParams';
+import { getPhoneLookupVariants } from '../utils/phone';
+import { matchCustomerByPhone } from '../services/webhookService';
 import { createHash, randomUUID } from 'node:crypto';
 
 const conversationStatuses = ['consulting', 'ordered', 'callback', 'completed'] as const;
@@ -43,19 +45,29 @@ const importPreferencesSchema = z.object({
   internalNotes: z.record(threadIdSchema, z.array(legacyNoteSchema).max(1_000)).default({}),
 });
 
-const toNoteResponse = (note: {
-  id: string;
-  threadId: string;
-  author: string;
-  content: string;
-  createdAt: Date;
-}) => ({
-  id: note.id,
-  threadId: note.threadId,
-  author: note.author,
-  content: note.content,
-  timestamp: note.createdAt.toISOString(),
-});
+async function resolveCustomerIdForThread(threadId: string, businessPhoneNumberId?: string): Promise<string | null> {
+  const byId = await prisma.customer.findUnique({
+    where: { id: threadId },
+    select: { id: true },
+  });
+  if (byId) return byId.id;
+
+  const variants = getPhoneLookupVariants(threadId);
+  if (variants.length > 0) {
+    const byPhone = await prisma.customer.findFirst({
+      where: { phone: { in: variants } },
+      select: { id: true },
+    });
+    if (byPhone) return byPhone.id;
+  }
+
+  if (threadId.replace(/\D/g, '').length >= 7) {
+    const matched = await matchCustomerByPhone(threadId, 'Khách WhatsApp', businessPhoneNumberId);
+    if (matched.isCrmCustomer) return matched.customerId;
+  }
+
+  return null;
+}
 
 export async function getMessagePreferences(req: AuthenticatedRequest, res: Response) {
   const parsedPhoneNumberId = phoneNumberIdSchema.safeParse(req.query.phoneNumberId);
@@ -65,34 +77,23 @@ export async function getMessagePreferences(req: AuthenticatedRequest, res: Resp
 
   try {
     const businessPhoneNumberId = parsedPhoneNumberId.data;
-    const [states, notes] = await Promise.all([
-      prisma.messageThreadState.findMany({
-        where: { businessPhoneNumberId },
-        select: { threadId: true, status: true, isPinned: true },
-      }),
-      prisma.messageInternalNote.findMany({
-        where: { businessPhoneNumberId },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, threadId: true, author: true, content: true, createdAt: true },
-      }),
-    ]);
+    const states = await prisma.messageThreadState.findMany({
+      where: { businessPhoneNumberId },
+      select: { threadId: true, status: true, isPinned: true },
+    });
 
     const threadStatuses: Record<string, string> = {};
     const pinnedThreadIds: string[] = [];
-    const internalNotes: Record<string, ReturnType<typeof toNoteResponse>[]> = {};
 
     states.forEach((state) => {
       threadStatuses[state.threadId] = state.status;
       if (state.isPinned) pinnedThreadIds.push(state.threadId);
     });
-    notes.forEach((note) => {
-      (internalNotes[note.threadId] ||= []).push(toNoteResponse(note));
-    });
 
-    return res.json({ threadStatuses, pinnedThreadIds, internalNotes });
+    return res.json({ threadStatuses, pinnedThreadIds, internalNotes: {} });
   } catch (error) {
     console.error('[MESSAGE PREFERENCES GET ERROR]', error);
-    return res.status(500).json({ error: 'Không thể tải trạng thái và ghi chú hội thoại.' });
+    return res.status(500).json({ error: 'Không thể tải trạng thái hội thoại.' });
   }
 }
 
@@ -152,27 +153,46 @@ export async function importLegacyMessagePreferences(req: AuthenticatedRequest, 
       isPinned: pinnedIds.has(threadId),
       updatedById: req.user?.id,
     }));
-    const noteRows = Object.entries(internalNotes).flatMap(([threadId, notes]) => notes.map((note) => {
-      const timestamp = note.timestamp ? new Date(note.timestamp) : new Date();
-      const stableKey = `${businessPhoneNumberId}\u0000${threadId}\u0000${note.id || ''}\u0000${note.content}`;
-      return {
-        id: `legacy_${createHash('sha256').update(stableKey).digest('hex')}`,
-        businessPhoneNumberId,
-        threadId,
-        author: note.author,
-        content: note.content,
-        createdAt: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
-      };
-    }));
-    if (noteRows.length > 10_000) {
+
+    const customerNoteRows: Array<{
+      id: string;
+      customerId: string;
+      author: string;
+      content: string;
+      createdAt: Date;
+      type: string;
+    }> = [];
+
+    for (const [threadId, notes] of Object.entries(internalNotes)) {
+      if (!notes.length) continue;
+      const customerId = await resolveCustomerIdForThread(threadId, businessPhoneNumberId);
+      if (!customerId) continue;
+      for (const note of notes) {
+        const timestamp = note.timestamp ? new Date(note.timestamp) : new Date();
+        const stableKey = `${customerId}\u0000${note.id || ''}\u0000${note.content}`;
+        customerNoteRows.push({
+          id: `legacy_${createHash('sha256').update(stableKey).digest('hex')}`,
+          customerId,
+          author: note.author,
+          content: note.content,
+          createdAt: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+          type: 'note',
+        });
+      }
+    }
+
+    if (customerNoteRows.length > 10_000) {
       return res.status(400).json({ error: 'Có quá nhiều ghi chú cũ để nhập trong một lần.' });
     }
 
     const [statesResult, notesResult] = await prisma.$transaction([
       prisma.messageThreadState.createMany({ data: stateRows, skipDuplicates: true }),
-      prisma.messageInternalNote.createMany({ data: noteRows, skipDuplicates: true }),
+      prisma.customerNote.createMany({ data: customerNoteRows, skipDuplicates: true }),
     ]);
     realtimeHub.broadcast('message:preferences:sync', { businessPhoneNumberId });
+    if (notesResult.count > 0) {
+      realtimeHub.broadcast('customers:sync', { source: 'legacy-notes-imported' });
+    }
     return res.json({ importedThreadStates: statesResult.count, importedNotes: notesResult.count });
   } catch (error) {
     console.error('[MESSAGE PREFERENCES IMPORT ERROR]', error);
@@ -188,19 +208,32 @@ export async function createMessageInternalNote(req: AuthenticatedRequest, res: 
 
   try {
     const { businessPhoneNumberId, threadId, content } = parsed.data;
-    const note = await prisma.messageInternalNote.create({
+    const customerId = await resolveCustomerIdForThread(threadId, businessPhoneNumberId);
+    if (!customerId) {
+      return res.status(404).json({ error: 'Không tìm thấy khách hàng để lưu ghi chú.' });
+    }
+
+    const note = await prisma.customerNote.create({
       data: {
-        businessPhoneNumberId,
-        threadId,
-        authorId: req.user?.id,
+        customerId,
         author: req.user?.name || 'Tư vấn viên',
         content,
+        type: 'note',
       },
-      select: { id: true, threadId: true, author: true, content: true, createdAt: true },
     });
-    const event = { businessPhoneNumberId, note: toNoteResponse(note) };
-    realtimeHub.broadcast('message:preferences:note_created', event);
-    return res.status(201).json(event.note);
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: { lastContact: new Date() },
+    }).catch(() => {});
+
+    realtimeHub.broadcast('customers:sync', { source: 'customer-note-created', customerId });
+    return res.status(201).json({
+      id: note.id,
+      threadId: customerId,
+      author: note.author,
+      content: note.content,
+      timestamp: note.createdAt.toISOString(),
+    });
   } catch (error) {
     console.error('[MESSAGE INTERNAL NOTE CREATE ERROR]', error);
     return res.status(500).json({ error: 'Không thể lưu ghi chú nội bộ.' });
@@ -209,23 +242,24 @@ export async function createMessageInternalNote(req: AuthenticatedRequest, res: 
 
 export async function deleteMessageInternalNote(req: AuthenticatedRequest, res: Response) {
   const noteId = getRouteParam(req.params.noteId);
-  const parsedPhoneNumberId = phoneNumberIdSchema.safeParse(req.query.phoneNumberId);
-  if (!noteId || !parsedPhoneNumberId.success) {
+  if (!noteId) {
     return res.status(400).json({ error: 'Dữ liệu xóa ghi chú không hợp lệ.' });
   }
 
   try {
-    const businessPhoneNumberId = parsedPhoneNumberId.data;
-    const note = await prisma.messageInternalNote.findFirst({
-      where: { id: noteId, businessPhoneNumberId },
-      select: { id: true, threadId: true },
+    const existingNote = await prisma.customerNote.findUnique({
+      where: { id: noteId },
+      select: { id: true, customerId: true },
     });
-    if (!note) return res.status(404).json({ error: 'Không tìm thấy ghi chú.' });
+    if (!existingNote) return res.status(404).json({ error: 'Không tìm thấy ghi chú.' });
 
-    await prisma.messageInternalNote.delete({ where: { id: note.id } });
-    const event = { businessPhoneNumberId, threadId: note.threadId, noteId: note.id };
-    realtimeHub.broadcast('message:preferences:note_deleted', event);
-    return res.json(event);
+    await prisma.customerNote.delete({ where: { id: existingNote.id } });
+    realtimeHub.broadcast('customers:sync', {
+      source: 'customer-note-deleted',
+      customerId: existingNote.customerId,
+      noteId: existingNote.id,
+    });
+    return res.json({ threadId: existingNote.customerId, noteId: existingNote.id });
   } catch (error) {
     console.error('[MESSAGE INTERNAL NOTE DELETE ERROR]', error);
     return res.status(500).json({ error: 'Không thể xóa ghi chú nội bộ.' });

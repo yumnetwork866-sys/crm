@@ -43,6 +43,35 @@ export function extractWebhookItems(body: any): Array<{ msgData: any; valueObj: 
   return extractedItems;
 }
 
+/**
+ * Resolve the sender across Cloud API and BSUID-style webhook payloads.
+ * Some Meta payloads omit `from` and expose the recipient-safe identity as
+ * `from_user_id` or `user_id` instead.
+ */
+export function getWebhookSenderIdentifier(msgData: any, valueObj?: any): string {
+  const candidates = [
+    msgData?.from,
+    msgData?.from_user_id,
+    msgData?.user_id,
+    msgData?.from?.user_id,
+    msgData?.from?.id,
+    msgData?.sender?.id,
+    valueObj?.from_user_id,
+    valueObj?.user_id,
+    valueObj?.contacts?.[0]?.from_user_id,
+    valueObj?.contacts?.[0]?.user_id,
+    valueObj?.contacts?.[0]?.wa_id,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' || typeof candidate === 'number') {
+      const identifier = String(candidate).trim();
+      if (identifier) return identifier;
+    }
+  }
+  return '';
+}
+
 export function extractWebhookStatuses(body: any): any[] {
   const statuses: any[] = [];
   const collect = (value: any) => {

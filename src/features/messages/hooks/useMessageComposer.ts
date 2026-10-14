@@ -1,11 +1,48 @@
-import { useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, ClipboardEvent, FormEvent, KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  ChangeEvent,
+  ClipboardEvent,
+  Dispatch,
+  FormEvent,
+  KeyboardEvent,
+  SetStateAction,
+} from 'react';
 import type { CentralMessage, MessageChannel } from '../../../types';
 import type { MessageThread } from '../types';
 import { playPopSound } from '../utils/playPopSound';
 import { formatMessagePreview } from '../utils/messageContent';
 import { api } from '../../../utils/apiClient';
 import { useQuickTemplates, interpolateTemplate } from './useQuickTemplates';
+
+const DRAFTS_STORAGE_KEY = 'yumcrm_message_drafts_by_thread';
+
+function readStoredDrafts(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(DRAFTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const clean: Record<string, string> = {};
+      for (const [key, val] of Object.entries(parsed)) {
+        if (typeof val === 'string' && val.trim()) {
+          clean[key] = val;
+        }
+      }
+      return clean;
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return {};
+}
+
+interface PendingDocumentAttachment {
+  dataUrl: string;
+  filename: string;
+  filesize: number;
+  mimeType: string;
+}
 
 interface UseMessageComposerOptions {
   activeThread: MessageThread | null;
@@ -31,22 +68,89 @@ export function useMessageComposer({
   onSendMessage,
 }: UseMessageComposerOptions) {
   const { templates } = useQuickTemplates();
-  const [inputText, setInputText] = useState('');
+  const activeThreadId = activeThread?.threadId || '';
+
+  const [draftsByThreadId, setDraftsByThreadId] = useState<Record<string, string>>(readStoredDrafts);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [activeSlashIndex, setActiveSlashIndex] = useState(0);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
-  const [pendingDocument, setPendingDocument] = useState<{
-    dataUrl: string;
-    filename: string;
-    filesize: number;
-    mimeType: string;
-  } | null>(null);
-  const [replyingToMessage, setReplyingToMessage] = useState<CentralMessage | null>(null);
+  const [pendingImagesByThreadId, setPendingImagesByThreadId] = useState<Record<string, string | null>>({});
+  const [pendingDocumentsByThreadId, setPendingDocumentsByThreadId] = useState<
+    Record<string, PendingDocumentAttachment | null>
+  >({});
+  const [replyingByThreadId, setReplyingByThreadId] = useState<Record<string, CentralMessage | null>>({});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const persisted: Record<string, string> = {};
+      for (const [threadId, text] of Object.entries(draftsByThreadId)) {
+        if (text.trim()) {
+          persisted[threadId] = text;
+        }
+      }
+      if (Object.keys(persisted).length > 0) {
+        localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(persisted));
+      } else {
+        localStorage.removeItem(DRAFTS_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [draftsByThreadId]);
+
+  const inputText = activeThreadId ? (draftsByThreadId[activeThreadId] ?? '') : '';
+
+  const setInputText: Dispatch<SetStateAction<string>> = useCallback(
+    (valueOrUpdater) => {
+      if (!activeThreadId) return;
+      setDraftsByThreadId((prev) => {
+        const currentText = prev[activeThreadId] ?? '';
+        const nextText =
+          typeof valueOrUpdater === 'function' ? valueOrUpdater(currentText) : valueOrUpdater;
+        if (nextText === currentText) return prev;
+        if (!nextText) {
+          if (!(activeThreadId in prev)) return prev;
+          const next = { ...prev };
+          delete next[activeThreadId];
+          return next;
+        }
+        return { ...prev, [activeThreadId]: nextText };
+      });
+    },
+    [activeThreadId]
+  );
+
+  const pendingImage = activeThreadId ? (pendingImagesByThreadId[activeThreadId] ?? null) : null;
+  const setPendingImage = useCallback(
+    (value: string | null) => {
+      if (!activeThreadId) return;
+      setPendingImagesByThreadId((prev) => ({ ...prev, [activeThreadId]: value }));
+    },
+    [activeThreadId]
+  );
+
+  const pendingDocument = activeThreadId ? (pendingDocumentsByThreadId[activeThreadId] ?? null) : null;
+  const setPendingDocument = useCallback(
+    (value: PendingDocumentAttachment | null) => {
+      if (!activeThreadId) return;
+      setPendingDocumentsByThreadId((prev) => ({ ...prev, [activeThreadId]: value }));
+    },
+    [activeThreadId]
+  );
+
+  const replyingToMessage = activeThreadId ? (replyingByThreadId[activeThreadId] ?? null) : null;
+  const setReplyingToMessage = useCallback(
+    (value: CentralMessage | null) => {
+      if (!activeThreadId) return;
+      setReplyingByThreadId((prev) => ({ ...prev, [activeThreadId]: value }));
+    },
+    [activeThreadId]
+  );
 
   const filteredSlashTemplates = useMemo(() => {
     if (!inputText.startsWith('/')) return [];
@@ -267,6 +371,7 @@ export function useMessageComposer({
   return {
     inputText,
     setInputText,
+    draftsByThreadId,
     showEmojiPicker,
     setShowEmojiPicker,
     showTemplatePicker,

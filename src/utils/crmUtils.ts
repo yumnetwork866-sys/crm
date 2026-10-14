@@ -105,6 +105,11 @@ export function getCustomerGroup(customer: Customer): CustomerGroupId {
 
 export type CurrencyUnit = 'RM' | 'VND' | 'USD';
 
+export function isMetaUserIdentifier(value?: string | null): boolean {
+  const identifier = String(value || '').trim();
+  return /^MY\./i.test(identifier) || identifier.startsWith('@');
+}
+
 export function getGlobalCurrency(): CurrencyUnit {
   try {
     const saved = (localStorage.getItem('yumnetwork_currency_unit') || localStorage.getItem('vietcrm_currency_unit')) as CurrencyUnit;
@@ -203,6 +208,7 @@ export function calculateCrmMetrics(customers: Customer[]) {
  */
 export function normalizePhone(phone?: string | null): string {
   if (!phone) return '';
+  if (isMetaUserIdentifier(phone)) return phone.trim().toLowerCase();
   const digits = phone.replace(/\D/g, '');
   return digits.length >= 7 ? digits.slice(-9) : digits;
 }
@@ -213,6 +219,11 @@ export function normalizePhone(phone?: string | null): string {
 export function isSamePhoneNumber(phone1?: string | null, phone2?: string | null): boolean {
   if (!phone1 || !phone2) return false;
   if (phone1 === phone2) return true;
+  if (isMetaUserIdentifier(phone1) || isMetaUserIdentifier(phone2)) {
+    return isMetaUserIdentifier(phone1)
+      && isMetaUserIdentifier(phone2)
+      && phone1.trim().toLowerCase() === phone2.trim().toLowerCase();
+  }
   const n1 = normalizePhone(phone1);
   const n2 = normalizePhone(phone2);
   if (!n1 || !n2) return false;
@@ -229,6 +240,7 @@ export function formatPhoneWithCountryCode(phone?: string | null, country?: stri
     raw = raw.replace('cust_', '');
   }
   if (!raw) return '';
+  if (isMetaUserIdentifier(raw)) return raw;
 
   // If already starts with '+', keep '+' and strip non-digits
   if (raw.startsWith('+')) {

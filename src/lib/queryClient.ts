@@ -6,7 +6,12 @@ export const queryKeys = {
   campaigns: ['campaigns'] as const,
   whatsappTemplates: ['whatsapp-templates'] as const,
   automationSteps: ['automation-steps'] as const,
-  centralMessages: (phoneNumberId: string) => ['central-messages', phoneNumberId] as const,
+  centralMessages: (phoneNumberId: string, customerId = '') =>
+    ['central-messages', phoneNumberId, customerId] as const,
+  messageConversations: (phoneNumberId: string, search = '') =>
+    search
+      ? (['message-conversations', phoneNumberId, search] as const)
+      : (['message-conversations', phoneNumberId] as const),
   messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
   messageUnreadTotals: ['message-unread-totals'] as const,
   messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,

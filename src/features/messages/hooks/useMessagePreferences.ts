@@ -13,7 +13,6 @@ const LEGACY_SHARED_STORAGE_KEYS = [
 ] as const;
 
 interface MessagePreferences {
-  internalNotes: Record<string, InternalNote[]>;
   threadStatuses: Record<string, ConversationStatus>;
   pinnedThreadIds: string[];
 }
@@ -26,7 +25,6 @@ interface ThreadStateEvent {
 }
 
 const EMPTY_PREFERENCES: MessagePreferences = {
-  internalNotes: {},
   threadStatuses: {},
   pinnedThreadIds: [],
 };
@@ -79,6 +77,7 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
           ...legacyPreferences,
         });
         LEGACY_SHARED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+        void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
         return await api.get<MessagePreferences>(endpoint);
       } catch (error) {
         console.warn('[MESSAGE PREFERENCES] Chưa thể nhập dữ liệu localStorage cũ:', error);
@@ -136,66 +135,6 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
     },
   });
 
-  const noteMutation = useMutation({
-    mutationFn: (input: { threadId: string; note: InternalNote }) =>
-      api.post<InternalNote>('/meta/messages/preferences/notes', {
-        businessPhoneNumberId,
-        threadId: input.threadId,
-        content: input.note.content,
-      }),
-    onMutate: async ({ threadId, note }) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<MessagePreferences>(queryKey);
-      setPreferences((current) => ({
-        ...current,
-        internalNotes: {
-          ...current.internalNotes,
-          [threadId]: [note, ...(current.internalNotes[threadId] || [])],
-        },
-      }));
-      return { previous };
-    },
-    onError: (_error, _input, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-    },
-    onSuccess: (savedNote, { threadId, note }) => {
-      setPreferences((current) => ({
-        ...current,
-        internalNotes: {
-          ...current.internalNotes,
-          [threadId]: [
-            savedNote,
-            ...(current.internalNotes[threadId] || []).filter(
-              (item) => item.id !== note.id && item.id !== savedNote.id,
-            ),
-          ],
-        },
-      }));
-    },
-  });
-
-  const deleteNoteMutation = useMutation({
-    mutationFn: ({ noteId }: { threadId: string; noteId: string }) =>
-      api.delete<{ threadId: string; noteId: string }>(
-        `/meta/messages/preferences/notes/${encodeURIComponent(noteId)}?phoneNumberId=${encodeURIComponent(businessPhoneNumberId)}`,
-      ),
-    onMutate: async ({ threadId, noteId }) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<MessagePreferences>(queryKey);
-      setPreferences((current) => ({
-        ...current,
-        internalNotes: {
-          ...current.internalNotes,
-          [threadId]: (current.internalNotes[threadId] || []).filter((note) => note.id !== noteId),
-        },
-      }));
-      return { previous };
-    },
-    onError: (_error, _input, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
-    },
-  });
-
   useEffect(() => {
     if (!businessPhoneNumberId) return;
     return realtimeClient.subscribe({
@@ -209,49 +148,6 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
             pinnedThreadIds: state.isPinned
               ? Array.from(new Set([...current.pinnedThreadIds, state.threadId]))
               : current.pinnedThreadIds.filter((id) => id !== state.threadId),
-          }));
-        } catch {
-          // Ignore malformed realtime events.
-        }
-      },
-      'message:preferences:note_created': (event) => {
-        try {
-          const payload = JSON.parse(event.data) as {
-            businessPhoneNumberId: string;
-            note: InternalNote & { threadId: string };
-          };
-          if (payload.businessPhoneNumberId !== businessPhoneNumberId) return;
-          const { threadId, ...note } = payload.note;
-          setPreferences((current) => ({
-            ...current,
-            internalNotes: {
-              ...current.internalNotes,
-              [threadId]: [
-                note,
-                ...(current.internalNotes[threadId] || []).filter((item) => item.id !== note.id),
-              ],
-            },
-          }));
-        } catch {
-          // Ignore malformed realtime events.
-        }
-      },
-      'message:preferences:note_deleted': (event) => {
-        try {
-          const payload = JSON.parse(event.data) as {
-            businessPhoneNumberId: string;
-            threadId: string;
-            noteId: string;
-          };
-          if (payload.businessPhoneNumberId !== businessPhoneNumberId) return;
-          setPreferences((current) => ({
-            ...current,
-            internalNotes: {
-              ...current.internalNotes,
-              [payload.threadId]: (current.internalNotes[payload.threadId] || []).filter(
-                (note) => note.id !== payload.noteId,
-              ),
-            },
           }));
         } catch {
           // Ignore malformed realtime events.
@@ -296,29 +192,12 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
     [threadMutation],
   );
 
-  const addInternalNote = useCallback(
-    (threadId: string, note: InternalNote) => {
-      noteMutation.mutate({ threadId, note });
-    },
-    [noteMutation],
-  );
-
-  const deleteInternalNote = useCallback(
-    (threadId: string, noteId: string) => {
-      deleteNoteMutation.mutate({ threadId, noteId });
-    },
-    [deleteNoteMutation],
-  );
-
   return {
     soundEnabled,
     setSoundEnabled: updateSoundEnabled,
-    internalNotes: preferences.internalNotes,
     threadStatuses: preferences.threadStatuses,
     pinnedThreadIds: preferences.pinnedThreadIds,
     togglePinThread,
     updateThreadStatus,
-    addInternalNote,
-    deleteInternalNote,
   };
 }

@@ -148,6 +148,19 @@ export function requirePermission(requiredPermission: bigint) {
   };
 }
 
+export function requireAnyPermission(requiredPermissions: bigint[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Chưa xác thực người dùng.' });
+    }
+    const allowed = requiredPermissions.some((perm) => hasPermission(req.user!.permissions, perm));
+    if (!allowed) {
+      return res.status(403).json({ error: 'Bạn không có quyền thực hiện thao tác này.' });
+    }
+    next();
+  };
+}
+
 /** @deprecated Use requirePermission for authorization. */
 export function requireRole(allowedRoles: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

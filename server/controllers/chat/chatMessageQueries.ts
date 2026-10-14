@@ -8,6 +8,7 @@ import {
   fetchAndCacheMetaMedia
 } from '../../services/metaApiClient';
 import { fetchLinkPreview } from '../../services/linkPreviewService';
+import { isMetaUserIdentifier } from '../../utils/metaRecipient';
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -30,17 +31,60 @@ export async function getMessages(req: Request, res: Response) {
     }
 
     // Filter by customer or phone if specified
-    if (customerId && typeof customerId === 'string') {
-      const cleanP = customerId.replace('cust_', '').replace(/\D/g, '');
+    const rawCustomerId = (typeof req.params?.customerId === 'string' && req.params.customerId)
+      ? req.params.customerId.trim()
+      : (typeof customerId === 'string' ? customerId.trim() : '');
+    const rawCustomerPhone = typeof customerPhone === 'string' ? customerPhone.trim() : '';
+
+    if (rawCustomerId || rawCustomerPhone) {
+      let cleanP = '';
+      const metaUserIdentifier = isMetaUserIdentifier(rawCustomerPhone)
+        ? rawCustomerPhone
+        : (rawCustomerId.startsWith('cust_') || rawCustomerId.startsWith('meta_'))
+          && isMetaUserIdentifier(rawCustomerId.replace(/^(cust_|meta_)/, ''))
+          ? rawCustomerId.replace(/^(cust_|meta_)/, '')
+          : '';
+      if (rawCustomerPhone && !metaUserIdentifier) {
+        cleanP = rawCustomerPhone.replace(/\D/g, '');
+      } else if (!metaUserIdentifier && (rawCustomerId.startsWith('cust_') || rawCustomerId.startsWith('phone_'))) {
+        cleanP = rawCustomerId.replace(/^(cust_|phone_)/, '').replace(/\D/g, '');
+      } else if (!rawCustomerId.includes('-') && rawCustomerId.replace(/\D/g, '').length >= 7) {
+        cleanP = rawCustomerId.replace(/\D/g, '');
+      } else if (rawCustomerId) {
+        try {
+          const dbCust = await prisma.customer.findUnique({
+            where: { id: rawCustomerId },
+            select: { phone: true },
+          });
+          if (dbCust?.phone) {
+            cleanP = dbCust.phone.replace(/\D/g, '');
+          }
+        } catch {
+          // Ignore customer lookup errors and fall back to customerId matching
+        }
+      }
+
       const lastDigits = cleanP.length >= 7 ? cleanP.slice(-9) : cleanP;
-      whereClause.OR = [
-        { customerId },
-        ...(lastDigits ? [{ customerPhone: { contains: lastDigits } }] : [])
-      ];
-    } else if (customerPhone && typeof customerPhone === 'string') {
-      const cleanP = customerPhone.replace(/\D/g, '');
-      const lastDigits = cleanP.length >= 7 ? cleanP.slice(-9) : cleanP;
-      whereClause.customerPhone = { contains: lastDigits || customerPhone };
+      const customerOrConditions: any[] = [];
+      if (rawCustomerId) {
+        customerOrConditions.push({ customerId: rawCustomerId });
+      }
+      if (metaUserIdentifier) {
+        customerOrConditions.push({ customerPhone: metaUserIdentifier });
+      }
+      if (lastDigits) {
+        customerOrConditions.push({ customerPhone: { contains: lastDigits } });
+        customerOrConditions.push({ customerId: { contains: lastDigits } });
+      } else if (rawCustomerPhone) {
+        customerOrConditions.push({ customerPhone: { contains: rawCustomerPhone } });
+      }
+
+      if (customerOrConditions.length > 0) {
+        whereClause.AND = [
+          ...(whereClause.AND || []),
+          { OR: customerOrConditions },
+        ];
+      }
     }
 
     if (isCursorPaginationRequested) {
@@ -91,10 +135,11 @@ export async function getMessages(req: Request, res: Response) {
       const nextCursor = slicedMsgs.length > 0 ? slicedMsgs[slicedMsgs.length - 1].id : null;
 
       const formattedMsgs = slicedMsgs.map((m: any) => {
-        const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+        const metaUserIdentifier = isMetaUserIdentifier(m.customerPhone) ? m.customerPhone : '';
+        const cleanP = !metaUserIdentifier && m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
         return {
           ...m,
-          customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
+          customerId: m.customerId || (metaUserIdentifier ? `meta_${metaUserIdentifier}` : (cleanP ? `cust_${cleanP}` : 'cust_unknown')),
           timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
         };
       }).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -114,10 +159,11 @@ export async function getMessages(req: Request, res: Response) {
     });
 
     const formatted = dbMsgs.map((m) => {
-      const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
+      const metaUserIdentifier = isMetaUserIdentifier(m.customerPhone) ? m.customerPhone : '';
+      const cleanP = !metaUserIdentifier && m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
       return {
         ...m,
-        customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
+        customerId: m.customerId || (metaUserIdentifier ? `meta_${metaUserIdentifier}` : (cleanP ? `cust_${cleanP}` : 'cust_unknown')),
         timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
       };
     });
@@ -182,12 +228,25 @@ export async function getConversations(req: Request, res: Response) {
       customerId: string | null;
       customerName: string;
       customerPhone: string;
+      businessPhoneNumberId: string | null;
       unreadCount: bigint;
+      lastCustomerMessageAt: Date | null;
       lastMsgId: string;
       lastMsgContent: string;
       lastMsgSender: string;
+      lastMsgAgentId: string | null;
+      lastMsgAgentName: string | null;
+      lastMsgIsAi: boolean | null;
       lastMsgTimestamp: Date;
       lastMsgChannel: string;
+      lastMsgIsRead: boolean;
+      lastMsgReadBy: string | null;
+      lastMsgReadAt: Date | null;
+      lastMsgDeliveredAt: Date | null;
+      lastMsgIsRealSent: boolean | null;
+      lastMsgStatus: string | null;
+      lastMsgErrorCode: string | null;
+      lastMsgErrorMessage: string | null;
     }> = await prisma.$queryRaw`
       WITH RankedMessages AS (
         SELECT 
@@ -195,13 +254,33 @@ export async function getConversations(req: Request, res: Response) {
           "customerId",
           "customerName",
           "customerPhone",
+          "businessPhoneNumberId",
           "content",
           "sender",
+          "agentId",
+          "agentName",
+          "isAi",
           "timestamp",
           "channel",
           "isRead",
+          "readBy",
+          "readAt",
+          "deliveredAt",
+          "isRealSent",
+          "status",
+          "errorCode",
+          "errorMessage",
+          COALESCE(
+            NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+            NULLIF("customerId", ''),
+            "id"
+          ) as thread_key,
           ROW_NUMBER() OVER (
-            PARTITION BY COALESCE("customerPhone", "customerId", "id") 
+            PARTITION BY COALESCE(
+              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+              NULLIF("customerId", ''),
+              "id"
+            )
             ORDER BY "timestamp" DESC, "id" DESC
           ) as rn
         FROM "WhatsAppMessage"
@@ -209,42 +288,91 @@ export async function getConversations(req: Request, res: Response) {
       ),
       UnreadStats AS (
         SELECT 
-          COALESCE("customerPhone", "customerId", "id") as thread_key,
-          COUNT(*) FILTER (WHERE "sender" = 'customer' AND "isRead" = false) as unread_count
+          COALESCE(
+            NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+            NULLIF("customerId", ''),
+            "id"
+          ) as thread_key,
+          MAX("customerId") as customer_id,
+          COUNT(*) FILTER (WHERE "sender" = 'customer' AND "isRead" = false) as unread_count,
+          MAX("timestamp") FILTER (WHERE "sender" = 'customer') as last_customer_msg_at
         FROM "WhatsAppMessage"
         ${unreadFilterSql}
-        GROUP BY COALESCE("customerPhone", "customerId", "id")
+        GROUP BY COALESCE(
+          NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+          NULLIF("customerId", ''),
+          "id"
+        )
       )
       SELECT 
-        rm."customerId",
+        COALESCE(rm."customerId", us.customer_id) as "customerId",
         rm."customerName",
         rm."customerPhone",
+        rm."businessPhoneNumberId",
         COALESCE(us.unread_count, 0) as "unreadCount",
+        us.last_customer_msg_at as "lastCustomerMessageAt",
         rm."id" as "lastMsgId",
         rm."content" as "lastMsgContent",
         rm."sender" as "lastMsgSender",
+        rm."agentId" as "lastMsgAgentId",
+        rm."agentName" as "lastMsgAgentName",
+        rm."isAi" as "lastMsgIsAi",
         rm."timestamp" as "lastMsgTimestamp",
-        rm."channel" as "lastMsgChannel"
+        rm."channel" as "lastMsgChannel",
+        rm."isRead" as "lastMsgIsRead",
+        rm."readBy" as "lastMsgReadBy",
+        rm."readAt" as "lastMsgReadAt",
+        rm."deliveredAt" as "lastMsgDeliveredAt",
+        rm."isRealSent" as "lastMsgIsRealSent",
+        rm."status" as "lastMsgStatus",
+        rm."errorCode" as "lastMsgErrorCode",
+        rm."errorMessage" as "lastMsgErrorMessage"
       FROM RankedMessages rm
-      LEFT JOIN UnreadStats us ON us.thread_key = COALESCE(rm."customerPhone", rm."customerId", rm."id")
+      LEFT JOIN UnreadStats us ON us.thread_key = rm.thread_key
       WHERE rm.rn = 1
       ORDER BY rm."timestamp" DESC
       LIMIT ${limit} OFFSET ${skip}
     `;
 
-    const conversations = rawThreads.map((t) => ({
-      customerId: t.customerId || `phone_${t.customerPhone}`,
-      customerName: t.customerName,
-      customerPhone: t.customerPhone,
-      unreadCount: Number(t.unreadCount),
-      lastMessage: {
-        id: t.lastMsgId,
-        content: t.lastMsgContent,
-        sender: t.lastMsgSender,
-        timestamp: t.lastMsgTimestamp,
-        channel: t.lastMsgChannel,
-      }
-    }));
+    const conversations = rawThreads.map((t) => {
+      const metaUserIdentifier = isMetaUserIdentifier(t.customerPhone) ? t.customerPhone : '';
+      const cleanP = !metaUserIdentifier && t.customerPhone ? t.customerPhone.replace(/\D/g, '') : '';
+      const resolvedCustomerId = t.customerId || (metaUserIdentifier ? `meta_${metaUserIdentifier}` : (cleanP ? `cust_${cleanP}` : `phone_${t.customerPhone}`));
+      const timestampIso = t.lastMsgTimestamp instanceof Date
+        ? t.lastMsgTimestamp.toISOString()
+        : String(t.lastMsgTimestamp);
+      return {
+        customerId: resolvedCustomerId,
+        customerName: t.customerName,
+        customerPhone: t.customerPhone,
+        unreadCount: Number(t.unreadCount),
+        lastCustomerMessageAt: t.lastCustomerMessageAt instanceof Date
+          ? t.lastCustomerMessageAt.toISOString()
+          : (t.lastCustomerMessageAt || null),
+        lastMessage: {
+          id: t.lastMsgId,
+          customerId: resolvedCustomerId,
+          customerName: t.customerName,
+          customerPhone: t.customerPhone,
+          businessPhoneNumberId: t.businessPhoneNumberId || activeBusinessPhoneId || undefined,
+          content: t.lastMsgContent,
+          sender: (t.lastMsgSender === 'agent' ? 'agent' : 'customer') as 'customer' | 'agent',
+          agentId: t.lastMsgAgentId || undefined,
+          agentName: t.lastMsgAgentName || undefined,
+          isAi: Boolean(t.lastMsgIsAi),
+          timestamp: timestampIso,
+          channel: t.lastMsgChannel || 'WhatsApp',
+          isRead: Boolean(t.lastMsgIsRead),
+          readBy: t.lastMsgReadBy || undefined,
+          readAt: t.lastMsgReadAt instanceof Date ? t.lastMsgReadAt.toISOString() : (t.lastMsgReadAt || undefined),
+          deliveredAt: t.lastMsgDeliveredAt instanceof Date ? t.lastMsgDeliveredAt.toISOString() : (t.lastMsgDeliveredAt || undefined),
+          isRealSent: t.lastMsgIsRealSent !== null && t.lastMsgIsRealSent !== undefined ? Boolean(t.lastMsgIsRealSent) : true,
+          status: (t.lastMsgStatus as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
+          errorCode: t.lastMsgErrorCode || null,
+          errorMessage: t.lastMsgErrorMessage || null,
+        }
+      };
+    });
 
     return res.json({
       data: conversations,

@@ -1,13 +1,14 @@
 import type { Response } from 'express';
 import { Router } from 'express';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { authenticateToken, requireAnyPermission, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
-import { syncExistingWhatsAppCustomersToCrm } from '../services/webhookService';
-import { normalizePhoneE164 } from '../utils/phone';
+import { matchCustomerByPhone, syncExistingWhatsAppCustomersToCrm } from '../services/webhookService';
+import { realtimeHub } from '../services/realtimeHub';
+import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 import { isUnassignedOwnerInput, resolveCustomerOwnerId, serializeCustomer } from '../utils/customerOwner';
 
 const router = Router();
@@ -171,7 +172,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
         }
       : {
           ownerUser: { select: ownerUserSelect },
-          notes: { select: { id: true, content: true, author: true, createdAt: true, type: true }, take: 5, orderBy: { createdAt: 'desc' as const } },
+          notes: { select: { id: true, content: true, author: true, createdAt: true, type: true }, take: 100, orderBy: { createdAt: 'desc' as const } },
           orders: { select: { id: true, orderCode: true, totalAmount: true, status: true, date: true }, take: 10, orderBy: { date: 'desc' as const } },
           automationLogs: { select: { id: true, step: true, stepName: true, sentAt: true, message: true, status: true }, take: 5, orderBy: { sentAt: 'desc' as const } }
         };
@@ -233,18 +234,30 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 });
 
 // GET /api/customers/:id - Single Customer Detail
-router.get('/:id', requirePermission(Permission.CUSTOMERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', requireAnyPermission([Permission.CUSTOMERS_VIEW, Permission.MESSAGES_VIEW]), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = getRouteParam(req.params.id);
-    const customer = await prisma.customer.findUnique({
+    const detailInclude = {
+      ownerUser: { select: ownerUserSelect },
+      notes: { orderBy: { createdAt: 'desc' as const } },
+      orders: { include: { products: true }, orderBy: { date: 'desc' as const } },
+      automationLogs: { orderBy: { sentAt: 'desc' as const } }
+    };
+
+    let customer = await prisma.customer.findUnique({
       where: { id },
-      include: {
-        ownerUser: { select: ownerUserSelect },
-        notes: { orderBy: { createdAt: 'desc' } },
-        orders: { include: { products: true }, orderBy: { date: 'desc' } },
-        automationLogs: { orderBy: { sentAt: 'desc' } }
-      }
+      include: detailInclude
     });
+
+    if (!customer) {
+      const variants = getPhoneLookupVariants(id);
+      if (variants.length > 0) {
+        customer = await prisma.customer.findFirst({
+          where: { phone: { in: variants } },
+          include: detailInclude
+        });
+      }
+    }
 
     if (!customer) {
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
@@ -383,37 +396,115 @@ router.delete('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req
   }
 });
 
-// POST /api/customers/:id/notes - Add Customer Note
-router.post('/:id/notes', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const id = getRouteParam(req.params.id);
-    const { content, type, author } = req.body;
+// POST /api/customers/:id/notes - Add Customer Note (Unified CRM & WhatsApp Chat Note)
+router.post(
+  '/:id/notes',
+  requireAnyPermission([Permission.CUSTOMERS_MANAGE, Permission.MESSAGES_MANAGE]),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const id = getRouteParam(req.params.id);
+      const { content, type, author, phone, customerName, businessPhoneNumberId } = req.body;
 
-    if (!content || typeof content !== 'string') {
-      return res.status(400).json({ error: 'Nội dung ghi chú không được để trống' });
-    }
-
-    const noteAuthor = author || req.user?.name || 'Hệ thống';
-
-    const newNote = await prisma.customerNote.create({
-      data: {
-        customerId: id,
-        author: noteAuthor,
-        content,
-        type: type || 'note'
+      if (!content || typeof content !== 'string' || !content.trim()) {
+        return res.status(400).json({ error: 'Nội dung ghi chú không được để trống' });
       }
-    });
 
-    await prisma.customer.update({
-      where: { id },
-      data: { lastContact: new Date() }
-    });
+      let customer = await prisma.customer.findUnique({
+        where: { id },
+        select: { id: true },
+      });
 
-    return res.status(201).json(newNote);
-  } catch (error) {
-    return res.status(500).json({ error: 'Không thể thêm ghi chú' });
+      if (!customer) {
+        const lookupPhone = typeof phone === 'string' && phone.trim() ? phone.trim() : id;
+        const variants = getPhoneLookupVariants(lookupPhone);
+        if (variants.length > 0) {
+          customer = await prisma.customer.findFirst({
+            where: { phone: { in: variants } },
+            select: { id: true },
+          });
+        }
+        if (!customer && lookupPhone.replace(/\D/g, '').length >= 7) {
+          const matched = await matchCustomerByPhone(
+            lookupPhone,
+            typeof customerName === 'string' && customerName.trim() ? customerName.trim() : 'Khách WhatsApp',
+            typeof businessPhoneNumberId === 'string' ? businessPhoneNumberId : undefined
+          );
+          if (matched.isCrmCustomer) {
+            customer = { id: matched.customerId };
+          }
+        }
+      }
+
+      if (!customer) {
+        return res.status(404).json({ error: 'Không tìm thấy khách hàng để lưu ghi chú' });
+      }
+
+      const noteAuthor =
+        type === 'system'
+          ? author || 'Hệ Thống'
+          : req.user?.name || author || 'Tư vấn viên';
+
+      const newNote = await prisma.customerNote.create({
+        data: {
+          customerId: customer.id,
+          author: noteAuthor,
+          content: content.trim(),
+          type: type || 'note',
+        },
+      });
+
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { lastContact: new Date() },
+      });
+
+      realtimeHub.broadcast('customers:sync', {
+        source: 'customer-note-created',
+        customerId: customer.id,
+      });
+
+      return res.status(201).json(newNote);
+    } catch (error) {
+      return res.status(500).json({ error: 'Không thể thêm ghi chú' });
+    }
   }
-});
+);
+
+// DELETE /api/customers/:id/notes/:noteId - Delete Customer Note
+router.delete(
+  '/:id/notes/:noteId',
+  requireAnyPermission([Permission.CUSTOMERS_MANAGE, Permission.MESSAGES_MANAGE]),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const noteId = getRouteParam(req.params.noteId);
+      if (!noteId) {
+        return res.status(400).json({ error: 'Thiếu mã ghi chú' });
+      }
+
+      const existingNote = await prisma.customerNote.findUnique({
+        where: { id: noteId },
+        select: { id: true, customerId: true },
+      });
+
+      if (!existingNote) {
+        return res.status(404).json({ error: 'Không tìm thấy ghi chú' });
+      }
+
+      await prisma.customerNote.delete({ where: { id: noteId } });
+      await prisma.messageInternalNote.deleteMany({ where: { id: noteId } }).catch(() => {});
+
+      realtimeHub.broadcast('customers:sync', {
+        source: 'customer-note-deleted',
+        customerId: existingNote.customerId,
+        noteId,
+      });
+
+      return res.json({ id: noteId, customerId: existingNote.customerId });
+    } catch (error) {
+      return res.status(500).json({ error: 'Không thể xóa ghi chú' });
+    }
+  }
+);
 
 // POST /api/customers/:id/automation-logs - Add Customer Automation Log
 router.post('/:id/automation-logs', requirePermission(Permission.AUTOMATION_MANAGE), async (req: AuthenticatedRequest, res: Response) => {

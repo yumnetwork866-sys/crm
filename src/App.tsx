@@ -139,6 +139,7 @@ export default function App() {
     updateStatus: handleUpdateStatus,
     updateGroup: handleUpdateGroup,
     addNote: handleAddNote,
+    deleteNote: handleDeleteNote,
     runAutomationSimulation,
     buildFilterModel,
     isError: isCustomersError,
@@ -178,6 +179,8 @@ export default function App() {
     isError: isOrdersError,
   } = useOrders();
   const {
+    conversations: centralConversations,
+    threadMessages: activeThreadMessages,
     messages: centralMessages,
     toastNotification,
     setToastNotification,
@@ -189,6 +192,7 @@ export default function App() {
     deleteMessage: handleDeleteMessage,
     hasOlderMessages,
     isLoadingOlderMessages,
+    isLoadingThreads,
     loadOlderMessages,
     isError: isMessagesError,
   } = useCentralMessages({
@@ -365,6 +369,7 @@ export default function App() {
                     setIsFormOpen(true);
                   }}
                   onAddNote={handleAddNote}
+                  onDeleteNote={handleDeleteNote}
                   onUpdateStatus={handleUpdateStatus}
                 />
 
@@ -412,7 +417,7 @@ export default function App() {
                     onClose={() => setToastNotification(null)}
                     onOpenMessage={(msg) => {
                       void navigate('/messages');
-                      handleSelectCustomerThread(msg.customerId);
+                      handleSelectCustomerThread(msg.customerId, msg.customerPhone);
                     }}
                   />
                 )}
@@ -449,6 +454,7 @@ export default function App() {
                   onOpenChat={(cust) => {
                     setChatCustomer(cust);
                     setIsChatOpen(true);
+                    handleSelectCustomerThread(cust.id, cust.phone);
                   }}
                   onUpdateStatus={handleUpdateStatus}
                   onUpdateGroup={(customerId, group) => {
@@ -586,7 +592,8 @@ export default function App() {
               path="/messages"
               element={
                 <CentralizedMessageView
-                  messages={centralMessages}
+                  messages={activeThreadMessages}
+                  conversations={centralConversations}
                   customers={customers}
                   currentUser={currentUser}
                   businessPhones={businessPhones}
@@ -604,10 +611,13 @@ export default function App() {
                     setSelectedCustomer(cust);
                     setIsDetailOpen(true);
                   }}
+                  onAddNote={handleAddNote}
+                  onDeleteNote={handleDeleteNote}
                   onDeleteThread={handleDeleteThread}
                   onDeleteMessage={handleDeleteMessage}
                   hasOlderMessages={hasOlderMessages}
                   isLoadingOlderMessages={isLoadingOlderMessages}
+                  isLoadingThreads={isLoadingThreads}
                   onLoadOlderMessages={loadOlderMessages}
                 />
               }

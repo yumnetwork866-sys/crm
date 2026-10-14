@@ -20,6 +20,23 @@ afterEach(() => {
 });
 
 describe('dispatchMetaMessage product payload', () => {
+  it('keeps an opaque Meta user ID unchanged in the Graph API to field', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.bsuid' }] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await dispatchMetaMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: 'MY.941245582048923',
+      content: 'Xin chào',
+    });
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body)).to).toBe('MY.941245582048923');
+  });
+
   it('omits the interactive body when the product has no accompanying text', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ messages: [{ id: 'wamid.product' }] }), { status: 200 }),

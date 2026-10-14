@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { QuickTemplatesModal } from '../../features/messages/components/QuickTemplatesModal';
-import type { ActiveMessageFilter, BusinessPhoneNumber } from '../../features/messages/types';
+import type {
+  ActiveMessageFilter,
+  BusinessPhoneNumber,
+  ConversationSummary,
+} from '../../features/messages/types';
 import { useMessageComposer } from '../../features/messages/hooks/useMessageComposer';
 import { useMessageInteractions } from '../../features/messages/hooks/useMessageInteractions';
 import { useMessagePreferences } from '../../features/messages/hooks/useMessagePreferences';
@@ -23,6 +28,7 @@ import { MessageComposerBar } from '../../features/messages/components/MessageCo
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
+  conversations?: ConversationSummary[];
   customers: Customer[];
   currentUser?: AppUser | null;
   businessPhones: BusinessPhoneNumber[];
@@ -42,15 +48,24 @@ interface CentralizedMessageViewProps {
   onRetryMessage?: (messageId: string) => void;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
+  onAddNote: (
+    customerId: string,
+    noteText: string,
+    customerPhone?: string,
+    customerName?: string
+  ) => void;
+  onDeleteNote?: (customerId: string, noteId: string) => void;
   onDeleteThread?: (customerId: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   hasOlderMessages?: boolean;
   isLoadingOlderMessages?: boolean;
+  isLoadingThreads?: boolean;
   onLoadOlderMessages?: () => Promise<unknown>;
 }
 
 export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   messages,
+  conversations = [],
   customers,
   currentUser,
   businessPhones,
@@ -62,9 +77,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   onRetryMessage,
   onOpenAddOrder,
   onSelectCustomerDetail,
+  onAddNote,
+  onDeleteNote,
   onDeleteThread,
   hasOlderMessages = false,
   isLoadingOlderMessages = false,
+  isLoadingThreads = false,
   onLoadOlderMessages,
 }) => {
   const { currentUser: authCurrentUser, users, hasPermission } = useAuth();
@@ -88,19 +106,17 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const {
     soundEnabled,
-    internalNotes,
     threadStatuses,
     pinnedThreadIds,
     togglePinThread,
     updateThreadStatus: handleUpdateThreadStatus,
-    addInternalNote,
-    deleteInternalNote: handleDeleteInternalNote,
   } = useMessagePreferences(selectedPhoneId);
 
   const isAdmin = hasPermission(Permission.MESSAGES_MANAGE);
 
   const { threads, filteredThreads, activeThread, groupedMessagesByDate } = useMessageThreads({
     messages,
+    conversations,
     customers,
     pinnedThreadIds,
     activeFilter,
@@ -168,12 +184,23 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     };
   }, []);
 
-  // Auto-mark active thread as read
+  // Sync active thread selection & auto-mark active thread as read
   useEffect(() => {
-    if (activeThread && activeThread.unreadCount > 0) {
-      onSelectCustomerThread(activeThread.threadId, activeThread.customerPhone, activeThread.messages.map((m) => m.id));
+    if (!activeThread) return;
+    const isMatchedSelection =
+      Boolean(selectedCustomerId) &&
+      (activeThread.threadId === selectedCustomerId ||
+        activeThread.customer?.id === selectedCustomerId ||
+        activeThread.lastMessage.customerId === selectedCustomerId ||
+        isSamePhoneNumber(activeThread.customerPhone, selectedCustomerId));
+    if (!isMatchedSelection || activeThread.unreadCount > 0) {
+      onSelectCustomerThread(
+        activeThread.threadId,
+        activeThread.customerPhone,
+        activeThread.messages.map((m) => m.id)
+      );
     }
-  }, [activeThread, onSelectCustomerThread]);
+  }, [activeThread, onSelectCustomerThread, selectedCustomerId]);
 
   const composer = useMessageComposer({
     activeThread,
@@ -219,11 +246,13 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           filteredThreads={filteredThreads}
           activeThread={activeThread}
           threadStatuses={threadStatuses}
+          draftsByThreadId={composer.draftsByThreadId}
           onSelectThread={handleSelectThread}
           togglePinThread={togglePinThread}
           onDeleteThread={onDeleteThread}
           isAdmin={isAdmin}
           effectiveCurrentUser={effectiveCurrentUser}
+          isLoadingThreads={isLoadingThreads}
         />
 
         {/* COLUMN 2: AUTHENTIC WHATSAPP CHAT CANVAS */}
@@ -277,6 +306,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onJumpToQuotedMessage={handleJumpToQuotedMessage}
                 onPreviewImage={setPreviewLightboxImg}
                 onRetryMessage={onRetryMessage}
+                isLoadingOlderMessages={isLoadingOlderMessages}
               />
 
               <MessageComposerBar
@@ -307,13 +337,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           activeThread={activeThread}
           activeCustomer={activeCustomer}
           users={users}
-          internalNotes={internalNotes}
           onOpenAddOrder={onOpenAddOrder}
           onSelectCustomerDetail={onSelectCustomerDetail}
-          onAddInternalNote={addInternalNote}
-          onDeleteInternalNote={handleDeleteInternalNote}
+          onAddNote={onAddNote}
+          onDeleteNote={onDeleteNote}
           onSelectUserForInfo={setSelectedInfoUser}
-          currentUserName={effectiveCurrentUser?.name || 'Tư vấn viên'}
         />
 
       </div>

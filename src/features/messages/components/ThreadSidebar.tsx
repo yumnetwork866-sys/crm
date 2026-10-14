@@ -1,8 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 import type { AppUser, CentralMessage } from '../../../types';
-import type { ActiveMessageFilter, BusinessPhoneNumber, ConversationStatus, MessageThread } from '../types';
+import type {
+  ActiveMessageFilter,
+  BusinessPhoneNumber,
+  ConversationListResponse,
+  ConversationStatus,
+  MessageThread,
+} from '../types';
+import { queryKeys } from '../../../lib/queryClient';
 import { api } from '../../../utils/apiClient';
 import { BusinessPhoneSelector } from './BusinessPhoneSelector';
 import { ThreadListItem, type SlaWarning } from './ThreadListItem';
@@ -27,11 +35,13 @@ export interface ThreadSidebarProps {
   filteredThreads: MessageThread[];
   activeThread: MessageThread | null;
   threadStatuses: Record<string, ConversationStatus>;
+  draftsByThreadId?: Record<string, string>;
   onSelectThread: (threadId: string, phone: string, messageIds: string[]) => void;
   togglePinThread: (threadId: string) => void;
   onDeleteThread?: (customerId: string) => void;
   isAdmin: boolean;
   effectiveCurrentUser?: AppUser | null;
+  isLoadingThreads?: boolean;
 }
 
 export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
@@ -48,11 +58,13 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   filteredThreads,
   activeThread,
   threadStatuses,
+  draftsByThreadId,
   onSelectThread,
   togglePinThread,
   onDeleteThread,
   isAdmin,
   effectiveCurrentUser,
+  isLoadingThreads = false,
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
@@ -60,6 +72,17 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const threadListRef = useRef<HTMLDivElement>(null);
   const [slaCurrentTime, setSlaCurrentTime] = useState(() => Date.now());
+
+  const conversationsQuery = useQuery({
+    queryKey: queryKeys.messageConversations(selectedPhoneId),
+    queryFn: () =>
+      api.get<ConversationListResponse>(
+        `/meta/messages/conversations?limit=100&phoneNumberId=${encodeURIComponent(selectedPhoneId)}`
+      ),
+    enabled: Boolean(effectiveCurrentUser) && Boolean(selectedPhoneId),
+    staleTime: 30_000,
+  });
+  const effectiveIsLoadingThreads = isLoadingThreads || conversationsQuery.isLoading;
 
   useEffect(() => {
     const timer = window.setInterval(() => setSlaCurrentTime(Date.now()), 60_000);
@@ -315,7 +338,11 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
 
       {/* Thread List */}
       <div ref={threadListRef} className="flex-1 overflow-y-auto bg-white whatsapp-scrollbar">
-        {filteredThreads.length === 0 ? (
+        {effectiveIsLoadingThreads && filteredThreads.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            Đang tải danh sách hội thoại...
+          </div>
+        ) : filteredThreads.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             Không tìm thấy đoạn chat nào phù hợp.
           </div>
@@ -338,6 +365,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
                     thread={thread}
                     isSelected={activeThread?.threadId === thread.threadId}
                     status={threadStatuses[thread.threadId]}
+                    draftText={draftsByThreadId?.[thread.threadId]}
                     onSelectThread={onSelectThread}
                     togglePinThread={togglePinThread}
                     onDeleteThread={onDeleteThread}

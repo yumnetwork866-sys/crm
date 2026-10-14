@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 import { prisma } from '../../lib/prisma';
 import { realtimeHub } from '../../services/realtimeHub';
+import { isMetaUserIdentifier } from '../../utils/metaRecipient';
 
 /**
  * Mark messages as read in DB with user attribution
@@ -12,11 +13,12 @@ export async function markMessagesAsRead(req: Request, res: Response) {
     const businessPhoneNumberId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
       ? phoneNumberId
       : '';
-    const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    const cleanPhone = rawPhone.replace(/\D/g, '');
+    const rawPhone = customerPhone || (customerId && (customerId.startsWith('cust_') || customerId.startsWith('phone_')) ? customerId.replace(/^(cust_|phone_)/, '') : (!String(customerId).includes('-') && String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
+    const metaUserIdentifier = isMetaUserIdentifier(rawPhone) ? rawPhone : '';
+    const cleanPhone = metaUserIdentifier ? '' : rawPhone.replace(/\D/g, '');
     let lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
-    if (!lastDigits && customerId && !customerId.startsWith('cust_')) {
+    if (!lastDigits && customerId && !customerId.startsWith('cust_') && !customerId.startsWith('phone_')) {
       try {
         const dbCust = await prisma.customer.findUnique({
           where: { id: customerId },
@@ -36,32 +38,29 @@ export async function markMessagesAsRead(req: Request, res: Response) {
 
     // Update DB
     try {
+      const orConditions: any[] = [];
       if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
+        orConditions.push({ id: { in: messageIds } });
+      }
+      if (customerId) {
+        orConditions.push({ customerId });
+      }
+      if (metaUserIdentifier) {
+        orConditions.push({ customerPhone: metaUserIdentifier });
+      }
+      if (lastDigits) {
+        orConditions.push({ customerPhone: { contains: lastDigits } });
+        orConditions.push({ customerId: { contains: lastDigits } });
+      }
+      if (orConditions.length > 0) {
         await prisma.whatsAppMessage.updateMany({
           where: {
-            id: { in: messageIds },
+            OR: orConditions,
+            isRead: false,
             ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
           },
           data: { isRead: true, readBy: reader, readAt: new Date() }
         });
-      } else if (customerId || lastDigits) {
-        const orConditions: any[] = [];
-        if (customerId) {
-          orConditions.push({ customerId });
-        }
-        if (lastDigits) {
-          orConditions.push({ customerPhone: { contains: lastDigits } });
-          orConditions.push({ customerId: { contains: lastDigits } });
-        }
-        if (orConditions.length > 0) {
-          await prisma.whatsAppMessage.updateMany({
-            where: {
-              OR: orConditions,
-              ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
-            },
-            data: { isRead: true, readBy: reader, readAt: new Date() }
-          });
-        }
       }
     } catch (dbErr) {
       console.warn('DB mark read offline fallback:', dbErr);

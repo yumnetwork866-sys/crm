@@ -13,6 +13,7 @@ import {
 import { pauseAiForCustomer } from '../../services/difyService';
 import { resolveWhatsAppBrandName } from '../../services/webhookService';
 import { getPhoneLookupVariants, normalizePhoneE164, toWhatsAppDigits } from '../../utils/phone';
+import { isMetaUserIdentifier, normalizeMetaRecipient } from '../../utils/metaRecipient';
 
 /**
  * Send real WhatsApp Cloud API message and save to CRM
@@ -25,9 +26,15 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
     }
 
-    const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    const e164Phone = normalizePhoneE164(rawPhone);
-    const cleanPhone = toWhatsAppDigits(rawPhone);
+    const rawPhone = customerPhone
+      || (customerId && /^(cust_|meta_)/.test(customerId)
+        ? customerId.replace(/^(cust_|meta_)/, '')
+        : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : ''))
+      || '';
+    const isUserIdentifier = isMetaUserIdentifier(rawPhone);
+    const e164Phone = isUserIdentifier ? '' : normalizePhoneE164(rawPhone);
+    const cleanPhone = isUserIdentifier ? '' : toWhatsAppDigits(rawPhone);
+    const recipient = normalizeMetaRecipient(rawPhone);
 
     let matchedCustomerId: string | null = null;
     let finalCustomerName = customerName;
@@ -43,9 +50,14 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
           if (!finalCustomerName) finalCustomerName = found.name;
         }
       }
-      if (!matchedCustomerId && cleanPhone.length >= 7) {
-        const variants = getPhoneLookupVariants(rawPhone);
-        const found = variants.length > 0
+      if (!matchedCustomerId && (isUserIdentifier || cleanPhone.length >= 7)) {
+        const variants = isUserIdentifier ? [] : getPhoneLookupVariants(rawPhone);
+        const found = isUserIdentifier
+          ? await prisma.customer.findFirst({
+              where: { phone: rawPhone },
+              select: { id: true, name: true, phone: true }
+            })
+          : variants.length > 0
           ? await prisma.customer.findFirst({
               where: {
                 phone: { in: variants }
@@ -56,16 +68,16 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         if (found) {
           matchedCustomerId = found.id;
           if (!finalCustomerName) finalCustomerName = found.name;
-        } else if (e164Phone) {
+        } else if (e164Phone || isUserIdentifier) {
           // Auto-create new customer in CRM when agent initiates/replies to a new WhatsApp contact
           const defaultName = (finalCustomerName && !finalCustomerName.startsWith('Khách Hàng') && !finalCustomerName.startsWith('Khách WhatsApp'))
             ? finalCustomerName
-            : `Khách WhatsApp (${cleanPhone.slice(-4)})`;
+            : isUserIdentifier ? rawPhone : `Khách WhatsApp (${cleanPhone.slice(-4)})`;
           const phoneId = senderPhoneId || overridePhoneId;
           const brandName = await resolveWhatsAppBrandName(phoneId);
           const newCust = await prisma.customer.create({
             data: {
-              phone: e164Phone,
+              phone: isUserIdentifier ? rawPhone : e164Phone,
               name: defaultName,
               source: 'WhatsApp',
               campaign: brandName || 'N/A',
@@ -83,9 +95,9 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       }
     } catch (e) {}
 
-    const resolvedCustomerId = matchedCustomerId || (customerId && !customerId.startsWith('cust_') ? customerId : (cleanPhone ? `cust_${cleanPhone}` : (customerId || 'cust_unknown')));
-    const resolvedCustomerName = finalCustomerName || (cleanPhone ? `Khách Hàng (${cleanPhone})` : 'Khách Hàng');
-    const resolvedCustomerPhone = e164Phone || customerPhone || (cleanPhone ? `+${cleanPhone}` : '');
+    const resolvedCustomerId = matchedCustomerId || (customerId && !customerId.startsWith('cust_') ? customerId : (recipient ? `cust_${recipient}` : (customerId || 'cust_unknown')));
+    const resolvedCustomerName = finalCustomerName || (recipient ? `Khách Hàng (${recipient})` : 'Khách Hàng');
+    const resolvedCustomerPhone = isUserIdentifier ? recipient : (e164Phone || customerPhone || (cleanPhone ? `+${cleanPhone}` : ''));
 
     const setting = await getIntegrationSetting();
     const effectiveOverride = (overridePhoneId || senderPhoneId)?.trim();
@@ -97,13 +109,13 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     let metaResult: any = null;
     let isRealSent = false;
 
-    if (phoneId && token && cleanPhone) {
+    if (phoneId && token && recipient) {
       try {
         const effectiveContextId = contextMessageId || replyTo?.id;
         const dispatchRes = await dispatchMetaMessage({
           phoneId,
           token,
-          cleanPhone,
+          cleanPhone: recipient,
           content,
           contextMessageId: effectiveContextId
         });
@@ -118,10 +130,10 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     let initialErrorCode: string | null = null;
     let initialErrorMessage: string | null = null;
 
-    if (!phoneId || !token || !cleanPhone) {
+    if (!phoneId || !token || !recipient) {
       initialStatus = 'failed';
       initialErrorCode = 'CONFIG_MISSING';
-      initialErrorMessage = !cleanPhone ? 'Số điện thoại không hợp lệ' : 'Chưa cấu hình tài khoản Meta WhatsApp kết nối';
+      initialErrorMessage = !recipient ? 'Thiếu định danh người nhận' : 'Chưa cấu hình tài khoản Meta WhatsApp kết nối';
     } else if (!isRealSent) {
       initialStatus = 'failed';
       const metaError = metaResult?.error;

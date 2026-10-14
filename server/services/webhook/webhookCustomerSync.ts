@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma';
 import { getIntegrationSetting } from '../metaApiClient';
 import { realtimeHub } from '../realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../../utils/phone';
+import { isMetaUserIdentifier } from '../../utils/metaRecipient';
 
 /**
  * Verifies webhook subscription request from Meta
@@ -45,13 +46,50 @@ export async function matchCustomerByPhone(
   senderName: string,
   businessPhoneNumberId?: string
 ): Promise<{ customerId: string; customerName: string; isCrmCustomer: boolean }> {
+  const isUserIdentifier = isMetaUserIdentifier(fromPhone);
   const cleanFrom = fromPhone.replace(/\D/g, '');
-  const e164Phone = normalizePhoneE164(fromPhone);
-  let matchedCustomerId = `cust_${cleanFrom}`;
+  const e164Phone = isUserIdentifier ? '' : normalizePhoneE164(fromPhone);
+  let matchedCustomerId = isUserIdentifier ? `meta_${fromPhone}` : `cust_${cleanFrom}`;
   let matchedCustomerName = senderName;
   let isCrmCustomer = false;
 
   try {
+    if (isUserIdentifier) {
+      const matchedCustomer = await prisma.customer.findFirst({
+        where: { phone: fromPhone },
+        select: { id: true, name: true },
+      });
+      if (matchedCustomer) {
+        await prisma.customer.update({
+          where: { id: matchedCustomer.id },
+          data: { lastContact: new Date() },
+        }).catch(() => {});
+        realtimeHub.broadcast('customers:sync', { source: 'whatsapp-activity', customerId: matchedCustomer.id });
+        return {
+          customerId: matchedCustomer.id,
+          customerName: matchedCustomer.name || senderName,
+          isCrmCustomer: true,
+        };
+      }
+
+      const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
+      const newCustomer = await prisma.customer.create({
+        data: {
+          phone: fromPhone,
+          name: senderName || fromPhone,
+          source: 'WhatsApp',
+          campaign: brandName || 'N/A',
+          status: 'New Lead',
+          group: 'group_1',
+          firstContact: new Date(),
+          lastContact: new Date(),
+          ownerId: null,
+        },
+      });
+      realtimeHub.broadcast('customers:sync', { source: 'whatsapp-auto-create', customerId: newCustomer.id });
+      return { customerId: newCustomer.id, customerName: newCustomer.name, isCrmCustomer: true };
+    }
+
     const phoneVariants = getPhoneLookupVariants(fromPhone);
 
     const matchedCustomer = phoneVariants.length > 0
@@ -286,6 +324,51 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
     if (promotedCount > 0) {
       console.log(`[SYNC WHATSAPP STATUS] Automatically promoted ${promotedCount} customers from 'New Lead' to 'Contacted' because replies were already sent.`);
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-status-reconcile' });
+    }
+
+    // Reconcile any legacy MessageInternalNote rows into unified CustomerNote
+    const legacyInternalNotes = await prisma.messageInternalNote.findMany({
+      orderBy: { createdAt: 'asc' },
+    }).catch(() => []);
+
+    if (legacyInternalNotes.length > 0) {
+      const migratedNoteIds: string[] = [];
+      for (const legacyNote of legacyInternalNotes) {
+        let customer = await prisma.customer.findUnique({
+          where: { id: legacyNote.threadId },
+          select: { id: true },
+        });
+        if (!customer) {
+          const variants = getPhoneLookupVariants(legacyNote.threadId);
+          if (variants.length > 0) {
+            customer = await prisma.customer.findFirst({
+              where: { phone: { in: variants } },
+              select: { id: true },
+            });
+          }
+        }
+        if (customer) {
+          await prisma.customerNote.upsert({
+            where: { id: legacyNote.id },
+            create: {
+              id: legacyNote.id,
+              customerId: customer.id,
+              author: legacyNote.author,
+              content: legacyNote.content,
+              createdAt: legacyNote.createdAt,
+              type: 'note',
+            },
+            update: {},
+          }).catch(() => {});
+          migratedNoteIds.push(legacyNote.id);
+        }
+      }
+      if (migratedNoteIds.length > 0) {
+        await prisma.messageInternalNote.deleteMany({
+          where: { id: { in: migratedNoteIds } },
+        }).catch(() => {});
+        realtimeHub.broadcast('customers:sync', { source: 'internal-notes-migrated' });
+      }
     }
 
     return syncedCount + promotedCount;

@@ -13,6 +13,7 @@ import type { AppUser, Customer } from '../../../types';
 import {
   CUSTOMER_GROUPS,
   formatDate,
+  formatDateTime,
   formatPhoneWithCountryCode,
   formatVND,
   getCustomerGroup,
@@ -22,7 +23,7 @@ import {
   STAFF_DICEBEAR_STYLE,
 } from '../../../utils/crmUtils';
 import { findUserByName, getUserRoleTextStyle } from '../../../utils/roleColors';
-import type { InternalNote, MessageThread } from '../types';
+import type { MessageThread } from '../types';
 
 interface CustomerChatDrawerProps {
   isOpen: boolean;
@@ -30,13 +31,16 @@ interface CustomerChatDrawerProps {
   activeThread: MessageThread | null;
   activeCustomer: Customer | null;
   users: AppUser[];
-  internalNotes: Record<string, InternalNote[]>;
   onOpenAddOrder: (customer: Customer) => void;
   onSelectCustomerDetail: (customer: Customer) => void;
-  onAddInternalNote: (customerId: string, note: InternalNote) => void;
-  onDeleteInternalNote: (customerId: string, noteId: string) => void;
+  onAddNote: (
+    customerId: string,
+    noteText: string,
+    customerPhone?: string,
+    customerName?: string
+  ) => void;
+  onDeleteNote?: (customerId: string, noteId: string) => void;
   onSelectUserForInfo: (user: AppUser) => void;
-  currentUserName: string;
 }
 
 export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
@@ -45,13 +49,11 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
   activeThread,
   activeCustomer,
   users,
-  internalNotes,
   onOpenAddOrder,
   onSelectCustomerDetail,
-  onAddInternalNote,
-  onDeleteInternalNote,
+  onAddNote,
+  onDeleteNote,
   onSelectUserForInfo,
-  currentUserName,
 }) => {
   const [drawerTab, setDrawerTab] = useState<'overview' | 'notes'>('overview');
   const [newNoteText, setNewNoteText] = useState('');
@@ -61,17 +63,16 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
   const activeThreadId = activeCustomer?.id || activeThread.threadId;
-  const currentNotes = internalNotes[activeThreadId] || [];
+  const currentNotes = activeCustomer?.notes || [];
 
   const handleSaveNote = () => {
     if (!newNoteText.trim()) return;
-    const note: InternalNote = {
-      id: `note_${Date.now()}`,
-      author: currentUserName || 'Tư vấn viên',
-      content: newNoteText.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    onAddInternalNote(activeThreadId, note);
+    onAddNote(
+      activeThreadId,
+      newNoteText.trim(),
+      activeThread.customerPhone,
+      activeThread.customerName
+    );
     setNewNoteText('');
   };
 
@@ -350,19 +351,20 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pr-5 text-[10px] text-slate-500">
                       <span className="truncate font-bold text-slate-800">{note.author}</span>
                       <span className="whitespace-nowrap">
-                        {formatDate(note.timestamp)}{' '}
-                        {new Date(note.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        {formatDateTime(note.createdAt)}
                       </span>
                     </div>
                     <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
 
-                    <button
-                      onClick={() => onDeleteInternalNote(activeThreadId, note.id)}
-                      className="absolute top-2 right-2 hidden group-hover:block text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                      title="Xóa ghi chú"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    {onDeleteNote && (
+                      <button
+                        onClick={() => onDeleteNote(activeThreadId, note.id)}
+                        className="absolute top-2 right-2 hidden group-hover:block text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                        title="Xóa ghi chú"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 ))
               )}
