@@ -1,0 +1,117 @@
+/**
+ * Extract incoming messages from diverse Meta Webhook payload formats
+ */
+export function extractWebhookItems(body: any): Array<{ msgData: any; valueObj: any }> {
+  const extractedItems: Array<{ msgData: any; valueObj: any }> = [];
+
+  const processValue = (val: any) => {
+    if (!val || typeof val !== 'object') return;
+    const targetVal = (val.value && typeof val.value === 'object' && Array.isArray(val.value.messages)) ? val.value : val;
+    if (Array.isArray(targetVal.messages)) {
+      for (const msgData of targetVal.messages) {
+        extractedItems.push({ msgData, valueObj: targetVal });
+      }
+    }
+  };
+
+  if (Array.isArray(body?.entry)) {
+    for (const entry of body.entry) {
+      if (Array.isArray(entry?.changes)) {
+        for (const change of entry.changes) {
+          processValue(change?.value || change);
+        }
+      } else {
+        processValue(entry);
+      }
+    }
+  } else if (Array.isArray(body?.changes)) {
+    for (const change of body.changes) {
+      processValue(change?.value || change);
+    }
+  } else if (body?.value) {
+    processValue(body.value);
+  } else if (Array.isArray(body?.messages)) {
+    processValue(body);
+  } else if (Array.isArray(body)) {
+    for (const item of body) {
+      processValue(item?.value || item);
+    }
+  } else {
+    processValue(body);
+  }
+
+  return extractedItems;
+}
+
+export function extractWebhookStatuses(body: any): any[] {
+  const statuses: any[] = [];
+  const collect = (value: any) => {
+    if (Array.isArray(value?.statuses)) statuses.push(...value.statuses);
+  };
+  if (Array.isArray(body?.entry)) {
+    for (const entry of body.entry) {
+      if (Array.isArray(entry?.changes)) {
+        for (const change of entry.changes) collect(change?.value || change);
+      } else collect(entry?.value || entry);
+    }
+  } else if (Array.isArray(body?.changes)) {
+    for (const change of body.changes) collect(change?.value || change);
+  } else {
+    collect(body?.value || body);
+  }
+  return statuses;
+}
+
+export function extractWebhookChanges(body: any): Array<{ field: string; value: any; entryId?: string }> {
+  const changes: Array<{ field: string; value: any; entryId?: string }> = [];
+  for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      changes.push({
+        field: String(change?.field || ''),
+        value: change?.value || {},
+        entryId: entry?.id ? String(entry.id) : undefined,
+      });
+    }
+  }
+  return changes;
+}
+
+export function getMessageText(msgData: any, businessPhoneNumberId?: string): string {
+  const directText = msgData?.text?.body;
+  if (directText) return directText;
+  const phoneQuery = businessPhoneNumberId ? `?phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
+  if (msgData?.type === 'image') {
+    const mediaId = msgData.image?.id;
+    const caption = msgData.image?.caption || '';
+    return mediaId
+      ? `/api/meta/media/${mediaId}${phoneQuery}${caption ? `\n${caption}` : ''}`
+      : caption ? `[Hình ảnh] ${caption}` : '[Hình ảnh]';
+  }
+  if (msgData?.type === 'sticker') {
+    const mediaId = msgData.sticker?.id;
+    return mediaId
+      ? `/api/meta/media/${mediaId}${phoneQuery}`
+      : '[Nhãn dán]';
+  }
+  if (msgData?.type === 'document') {
+    const mediaId = msgData.document?.id;
+    const filename = msgData.document?.filename || 'Tài liệu.pdf';
+    const caption = msgData.document?.caption || '';
+    const extraPhone = businessPhoneNumberId ? `&phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
+    return mediaId
+      ? `/api/meta/media/${mediaId}?type=document&filename=${encodeURIComponent(filename)}${extraPhone}${caption ? `\n${caption}` : ''}`
+      : caption ? `[Tài liệu] ${filename}\n${caption}` : `[Tài liệu] ${filename}`;
+  }
+  if (msgData?.type === 'audio') {
+    const mediaId = msgData.audio?.id;
+    const extraPhone = businessPhoneNumberId ? `&phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
+    return mediaId
+      ? `/api/meta/media/${mediaId}?type=audio${extraPhone}`
+      : '[Tin nhắn thoại (Audio)]';
+  }
+  if (msgData?.type === 'video') return '[Video]';
+  if (msgData?.type === 'location') {
+    return `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();
+  }
+  return msgData?.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp';
+}
