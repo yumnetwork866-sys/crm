@@ -23,6 +23,7 @@ import {
 } from '../services/difyService';
 import { fetchLinkPreview } from '../services/linkPreviewService';
 import { resolveWhatsAppBrandName } from '../services/webhookService';
+import { getPhoneLookupVariants, normalizePhoneE164, toWhatsAppDigits } from '../utils/phone';
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -269,10 +270,8 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     }
 
     const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    let cleanPhone = rawPhone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '84' + cleanPhone.substring(1);
-    }
+    const e164Phone = normalizePhoneE164(rawPhone);
+    const cleanPhone = toWhatsAppDigits(rawPhone);
 
     let matchedCustomerId: string | null = null;
     let finalCustomerName = customerName;
@@ -289,19 +288,20 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         }
       }
       if (!matchedCustomerId && cleanPhone.length >= 7) {
-        const lastDigits = cleanPhone.slice(-9);
-        const found = await prisma.customer.findFirst({
-          where: {
-            phone: { contains: lastDigits }
-          },
-          select: { id: true, name: true, phone: true }
-        });
+        const variants = getPhoneLookupVariants(rawPhone);
+        const found = variants.length > 0
+          ? await prisma.customer.findFirst({
+              where: {
+                phone: { in: variants }
+              },
+              select: { id: true, name: true, phone: true }
+            })
+          : null;
         if (found) {
           matchedCustomerId = found.id;
           if (!finalCustomerName) finalCustomerName = found.name;
-        } else {
+        } else if (e164Phone) {
           // Auto-create new customer in CRM when agent initiates/replies to a new WhatsApp contact
-          const formattedPhone = customerPhone?.startsWith('+') ? customerPhone : `+${cleanPhone}`;
           const defaultName = (finalCustomerName && !finalCustomerName.startsWith('Khách Hàng') && !finalCustomerName.startsWith('Khách WhatsApp'))
             ? finalCustomerName
             : `Khách WhatsApp (${cleanPhone.slice(-4)})`;
@@ -309,7 +309,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
           const brandName = await resolveWhatsAppBrandName(phoneId);
           const newCust = await prisma.customer.create({
             data: {
-              phone: formattedPhone,
+              phone: e164Phone,
               name: defaultName,
               source: 'WhatsApp',
               campaign: brandName || 'N/A',
@@ -317,7 +317,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
               group: 'group_1',
               firstContact: new Date(),
               lastContact: new Date(),
-              owner: req.user?.name || 'Chưa phân công',
+              ownerId: req.user?.id || null,
             }
           });
           matchedCustomerId = newCust.id;
@@ -329,7 +329,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 
     const resolvedCustomerId = matchedCustomerId || (customerId && !customerId.startsWith('cust_') ? customerId : (cleanPhone ? `cust_${cleanPhone}` : (customerId || 'cust_unknown')));
     const resolvedCustomerName = finalCustomerName || (cleanPhone ? `Khách Hàng (${cleanPhone})` : 'Khách Hàng');
-    const resolvedCustomerPhone = customerPhone || (cleanPhone ? `+${cleanPhone}` : '');
+    const resolvedCustomerPhone = e164Phone || customerPhone || (cleanPhone ? `+${cleanPhone}` : '');
 
     const setting = await getIntegrationSetting();
     const effectiveOverride = (overridePhoneId || senderPhoneId)?.trim();

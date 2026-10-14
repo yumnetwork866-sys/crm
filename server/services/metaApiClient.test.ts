@@ -589,6 +589,32 @@ describe('uploadTemplateSampleMedia', () => {
 
 describe('fetchAndCacheMetaMedia', () => {
   it('tries next candidate token if the first token returns 400 OAuth error and downloads media', async () => {
+    const { prisma } = await import('../lib/prisma');
+    const prevToken = process.env.META_ACCESS_TOKEN;
+    process.env.META_ACCESS_TOKEN = 'fallback-env-token';
+
+    const findUniqueSpy = vi.spyOn(prisma.whatsAppConnection, 'findUnique').mockResolvedValue({
+      phoneNumberId: '1412496995272289',
+      usesEnvironmentToken: false,
+      accessTokenEncrypted: null,
+      tokenExpiresAt: null,
+    } as any);
+    const findManySpy = vi.spyOn(prisma.whatsAppConnection, 'findMany').mockResolvedValue([
+      { phoneNumberId: '1409649928889874' } as any,
+    ]);
+    // First phone uses 'first-phone-token', fallback uses env token 'fallback-env-token'
+    findUniqueSpy.mockImplementation((async (args: any) => {
+      if (args?.where?.phoneNumberId === '1412496995272289') {
+        return {
+          phoneNumberId: '1412496995272289',
+          usesEnvironmentToken: true,
+          accessTokenEncrypted: null,
+          tokenExpiresAt: null,
+        } as any;
+      }
+      return null;
+    }) as any);
+
     let firstCall = true;
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (typeof url === 'string' && url.includes('test_media_download')) {
@@ -599,6 +625,7 @@ describe('fetchAndCacheMetaMedia', () => {
       }
       if (firstCall) {
         firstCall = false;
+        process.env.META_ACCESS_TOKEN = 'second-fallback-token';
         return Promise.resolve(new Response(JSON.stringify({ error: { message: 'Authorization Error', code: 100 } }), { status: 400 }));
       }
       return Promise.resolve(new Response(JSON.stringify({
@@ -615,6 +642,10 @@ describe('fetchAndCacheMetaMedia', () => {
       expect(result?.contentType).toBe('image/jpeg');
       expect(result?.buffer.toString()).toBe('fake-image-bytes');
     } finally {
+      findUniqueSpy.mockRestore();
+      findManySpy.mockRestore();
+      if (prevToken === undefined) delete process.env.META_ACCESS_TOKEN;
+      else process.env.META_ACCESS_TOKEN = prevToken;
       const testFile = path.resolve(process.cwd(), 'public/uploads/chat/meta_test_media_999.jpg');
       if (fs.existsSync(testFile)) {
         fs.unlinkSync(testFile);

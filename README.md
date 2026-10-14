@@ -60,3 +60,43 @@ Run linting and formatting commands:
   ```bash
   npm run check
   ```
+
+## Cài đặt Redis cho Message Queue (BullMQ)
+
+Hệ thống tích hợp sẵn **BullMQ + Redis** để xử lý hàng đợi Webhook, Dify AI và Broadcast Campaign. Nếu máy chưa bật Redis, server sẽ tự động dùng **In-Memory Async Queue** để chạy dev bình thường.
+
+### 1. Cài đặt trên Arch Linux
+Trên Arch Linux, gói `redis` được cung cấp bởi `valkey` (tương thích 100% giao thức Redis, chạy trên cổng `6379`):
+
+```bash
+# Cài đặt gói
+sudo pacman -S valkey
+
+# Bật dịch vụ chạy nền và tự khởi động cùng máy
+sudo systemctl enable --now valkey
+
+# Kiểm tra kết nối (trả về PONG là thành công)
+valkey-cli ping
+# Hoặc: redis-cli ping
+```
+
+### 2. Cài đặt trên Ubuntu / Debian (VPS Production)
+```bash
+sudo apt update && sudo apt install -y redis-server
+sudo systemctl enable --now redis-server
+redis-cli ping
+```
+
+### 3. Biến môi trường tùy chọn (`.env`)
+Mặc định server tự động kết nối tới `redis://127.0.0.1:6379` mà không cần cấu hình thêm. Nếu dùng Redis từ xa hoặc có mật khẩu, bạn có thể khai báo trong `.env`:
+
+```env
+REDIS_URL=redis://127.0.0.1:6379
+# Tốc độ bắn chiến dịch Broadcast tối đa mỗi giây theo Meta Tier (mặc định: 20)
+CAMPAIGN_RATE_LIMIT_PER_SEC=20
+# Số luồng xử lý đồng thời cho từng Worker
+WEBHOOK_WORKER_CONCURRENCY=10
+DIFY_WORKER_CONCURRENCY=5
+CAMPAIGN_WORKER_CONCURRENCY=5
+```
+

@@ -10,6 +10,7 @@ import {
   INITIAL_PRODUCT_LIST,
   INITIAL_USERS,
 } from '../src/data/mockData';
+import { normalizePhoneE164 } from '../server/utils/phone';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -75,6 +76,8 @@ async function main() {
   const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
   const hashedDefaultPassword = await bcrypt.hash(adminPassword, 10);
 
+  const userIdByName = new Map(INITIAL_USERS.map((u) => [u.name, u.id]));
+
   const users = await prisma.user.createMany({
     data: INITIAL_USERS.map((user) => {
       const isTargetAdmin = user.role === 'Admin' || user.id === 'usr_001';
@@ -85,7 +88,7 @@ async function main() {
         password: isTargetAdmin ? hashedAdminPassword : hashedDefaultPassword,
         avatar: user.avatar || '',
         role: user.role,
-        phone: user.phone || '',
+        phone: user.phone ? normalizePhoneE164(user.phone) : '',
         status: user.status,
         assignedLeadsCount: user.assignedLeadsCount || 0,
         totalRevenue: user.totalRevenue || 0,
@@ -114,7 +117,7 @@ async function main() {
   const customers = await prisma.customer.createMany({
     data: INITIAL_CUSTOMERS.map((customer) => ({
       id: customer.id,
-      phone: customer.phone,
+      phone: normalizePhoneE164(customer.phone) || customer.phone,
       name: customer.name,
       gender: customer.gender,
       address: customer.address,
@@ -124,7 +127,7 @@ async function main() {
       campaign: customer.campaign,
       adSet: customer.adSet || null,
       landingPage: customer.landingPage || null,
-      owner: customer.owner,
+      ownerId: userIdByName.get(customer.owner) || null,
       status: customer.status,
       totalOrders: customer.totalOrders,
       totalSpent: customer.totalSpent,
@@ -164,7 +167,7 @@ async function main() {
           orderCode: order.orderCode,
           customerId: customer.id,
           customerName: order.customerName || customer.name,
-          customerPhone: order.customerPhone || customer.phone,
+          customerPhone: normalizePhoneE164(order.customerPhone || customer.phone),
           date: new Date(order.date),
           totalAmount: order.totalAmount,
           status: order.status,
@@ -237,7 +240,7 @@ async function main() {
       id: message.id,
       customerId: message.customerId,
       customerName: message.customerName,
-      customerPhone: message.customerPhone,
+      customerPhone: message.customerPhone ? normalizePhoneE164(message.customerPhone) : '',
       sender: message.sender === 'customer' ? 'customer' : 'agent',
       agentName: message.agentName || null,
       channel: message.channel || 'WhatsApp',

@@ -7,6 +7,9 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
 
   return {
     ...apiCustomer,
+    ownerId: apiCustomer.ownerId ?? null,
+    owner: apiCustomer.owner || apiCustomer.ownerUser?.name || 'Chưa phân công',
+    totalSpent: Number(apiCustomer.totalSpent ?? 0),
     firstContact: apiCustomer.firstContact
       ? new Date(apiCustomer.firstContact).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0],
@@ -22,8 +25,12 @@ export const mapApiCustomerToFrontend = (apiCustomer: any): Customer => {
     })),
     orders: (apiCustomer.orders || []).map((order: any) => ({
       ...order,
+      totalAmount: Number(order.totalAmount ?? 0),
       date: order.date ? new Date(order.date).toISOString().split('T')[0] : '',
-      products: order.products || [],
+      products: (order.products || []).map((p: any) => ({
+        ...p,
+        price: Number(p.price ?? 0),
+      })),
     })),
     automationSequence: {
       active: apiCustomer.totalOrders > 0,

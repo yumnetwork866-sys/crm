@@ -23,11 +23,12 @@ model User {
   status             String   @default("active") // 'active' | 'inactive'
   lastActive         DateTime @default(now())
   assignedLeadsCount Int      @default(0)
-  totalRevenue       Float    @default(0)
+  totalRevenue       Decimal  @default(0) @db.Decimal(18, 2)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  updatedMessageThreadStates MessageThreadState[] @relation("MessageThreadStateUpdatedBy")
+  ownedCustomers             Customer[]            @relation("CustomerOwner")
+  updatedMessageThreadStates MessageThreadState[]  @relation("MessageThreadStateUpdatedBy")
   messageInternalNotes       MessageInternalNote[]
   messageSavedFilters        MessageSavedFilter[]
 }
@@ -53,13 +54,14 @@ model Customer {
   landingPage        String?
   firstContact       DateTime  @default(now())
   lastContact        DateTime  @default(now())
-  owner              String    @default("Chưa phân công")
+  ownerId            String?
   status             String    @default("New Lead") // 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost'
   group              String? // 'group_1' | 'group_2' | 'group_3' | 'group_4' — independent from status
   totalOrders        Int       @default(0)
-  totalSpent         Float     @default(0)
+  totalSpent         Decimal   @default(0) @db.Decimal(18, 2)
   lastPurchaseDate   DateTime?
   interestedProducts String[]  @default([])
+  ownerUser        User?             @relation("CustomerOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   notes            CustomerNote[]
   orders           Order[]
   automationLogs   AutomationLog[]
@@ -70,11 +72,11 @@ model Customer {
 
   @@index([phone])
   @@index([status])
-  @@index([owner])
+  @@index([ownerId])
   @@index([source])
   @@index([updatedAt(sort: Desc)])
   @@index([status, updatedAt(sort: Desc)])
-  @@index([owner, updatedAt(sort: Desc)])
+  @@index([ownerId, updatedAt(sort: Desc)])
   @@index([source, updatedAt(sort: Desc)])
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_name_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "customer_phone_trgm_idx")
@@ -100,8 +102,8 @@ model Product {
   code        String  @unique
   name        String
   category    String // 'Mỹ Phẩm' | 'Thực Phẩm Chức Năng' | 'Thời Trang' | 'Gia Dụng' | 'Khác'
-  price       Float
-  costPrice   Float
+  price       Decimal @db.Decimal(18, 2)
+  costPrice   Decimal @db.Decimal(18, 2)
   stock       Int     @default(0)
   status      String  @default("In Stock") // 'In Stock' | 'Low Stock' | 'Out of Stock'
   sku         String?
@@ -129,7 +131,7 @@ model Order {
   customerName  String?
   customerPhone String?
   date          DateTime @default(now())
-  totalAmount   Float    @default(0)
+  totalAmount   Decimal  @default(0) @db.Decimal(18, 2)
   status        String   @default("Processing") // 'Completed' | 'Processing' | 'Cancelled'
   notes         String?
 
@@ -152,7 +154,7 @@ model OrderItem {
   productId   String?
   productName String
   quantity    Int     @default(1)
-  price       Float
+  price       Decimal @db.Decimal(18, 2)
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -401,10 +403,10 @@ model MarketingReport {
   campaignName String
   source       String
   leadsCount   Int      @default(0)
-  adSpend      Float    @default(0)
-  revenue      Float    @default(0)
-  cpl          Float    @default(0)
-  roas         Float    @default(0)
+  adSpend      Decimal  @default(0) @db.Decimal(18, 2)
+  revenue      Decimal  @default(0) @db.Decimal(18, 2)
+  cpl          Decimal  @default(0) @db.Decimal(18, 2)
+  roas         Decimal  @default(0) @db.Decimal(10, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

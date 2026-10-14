@@ -38,12 +38,14 @@ const registerSchema = z.object({
 });
 
 import dotenv from 'dotenv';
+import { normalizePhoneE164 } from '../utils/phone';
 
 async function serializeUser(user: User) {
   const { password: _password, permissionAllow, permissionDeny, ...safeUser } = user;
   const effectivePermissions = await getEffectivePermissions(user.role, permissionAllow, permissionDeny);
   return {
     ...safeUser,
+    totalRevenue: Number(user.totalRevenue ?? 0),
     permissionAllow: permissionAllow.toString(),
     permissionDeny: permissionDeny.toString(),
     effectivePermissions: effectivePermissions.toString(),

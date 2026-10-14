@@ -6,9 +6,10 @@ import {
   getMetaAccessTokenForPhone,
   resolvePhoneNumberId,
 } from './metaApiClient';
+import { enqueueCampaignRecipients, isBullMqConnected } from './queueService';
 import { getLatestCustomerInboundAt, isWhatsAppSessionOpen } from './whatsappSessionWindow';
 
-const WORKER_INTERVAL_MS = Math.max(1_000, Number(process.env.CAMPAIGN_WORKER_INTERVAL_MS) || 2_000);
+const WORKER_INTERVAL_MS = Math.max(1_000, Number(process.env.CAMPAIGN_WORKER_INTERVAL_MS) || 15_000);
 const WORKER_CONCURRENCY = Math.max(1, Math.min(20, Number(process.env.CAMPAIGN_WORKER_CONCURRENCY) || 5));
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.CAMPAIGN_MAX_ATTEMPTS) || 3);
 const STALE_LOCK_MS = 5 * 60 * 1_000;
@@ -16,7 +17,6 @@ const STALE_LOCK_MS = 5 * 60 * 1_000;
 let isRunning = false;
 let workerTimer: ReturnType<typeof setInterval> | null = null;
 let isSchemaReady = false;
-let hasRecoveredStaleRecipients = false;
 let lastSchemaWarningAt = 0;
 
 const countFor = (counts: Map<string, number>, statuses: string[]) =>
@@ -102,6 +102,33 @@ async function recoverStaleRecipients() {
   });
 }
 
+async function claimRecipientById(recipientId: string) {
+  const now = new Date();
+  const candidate = await prisma.broadcastRecipient.findFirst({
+    where: {
+      id: recipientId,
+      status: { in: ['Pending', 'Retry'] },
+      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+      campaign: { status: { in: ['Pending', 'Sending'] } },
+    },
+    include: { campaign: true },
+  });
+  if (!candidate) return null;
+
+  const claimed = await prisma.broadcastRecipient.updateMany({
+    where: {
+      id: candidate.id,
+      status: candidate.status,
+    },
+    data: {
+      status: 'Processing',
+      lockedAt: now,
+      attemptCount: { increment: 1 },
+    },
+  });
+  return claimed.count === 1 ? candidate : null;
+}
+
 async function claimRecipient() {
   const now = new Date();
   const candidate = await prisma.broadcastRecipient.findFirst({
@@ -131,6 +158,7 @@ async function claimRecipient() {
 
 async function failRecipient(
   recipientId: string,
+  campaignId: string,
   attemptCount: number,
   retryable: boolean,
   errorCode: string,
@@ -148,16 +176,25 @@ async function failRecipient(
       lastErrorMessage: errorMessage,
     },
   });
+
+  if (shouldRetry) {
+    await enqueueCampaignRecipients([
+      {
+        recipientId,
+        campaignId,
+        delayMs: backoffMs,
+      },
+    ]);
+  }
 }
 
-async function processRecipient() {
-  const recipient = await claimRecipient();
-  if (!recipient) return false;
-
+async function executeClaimedRecipient(
+  recipient: NonNullable<Awaited<ReturnType<typeof claimRecipient>>>,
+): Promise<boolean> {
   const campaign = recipient.campaign;
   try {
     if (!campaign.templateName) {
-      await failRecipient(recipient.id, recipient.attemptCount + 1, false, 'INVALID_TEMPLATE', 'Chiến dịch thiếu tên approved template.');
+      await failRecipient(recipient.id, campaign.id, recipient.attemptCount + 1, false, 'INVALID_TEMPLATE', 'Chiến dịch thiếu tên approved template.');
       await aggregateCampaign(campaign.id);
       return true;
     }
@@ -173,7 +210,7 @@ async function processRecipient() {
     const phoneId = await resolvePhoneNumberId(setting);
     const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
     if (!phoneId || !token) {
-      await failRecipient(recipient.id, recipient.attemptCount + 1, true, 'NOT_CONFIGURED', 'Chưa cấu hình WhatsApp Phone Number ID hoặc access token.');
+      await failRecipient(recipient.id, campaign.id, recipient.attemptCount + 1, true, 'NOT_CONFIGURED', 'Chưa cấu hình WhatsApp Phone Number ID hoặc access token.');
       await aggregateCampaign(campaign.id);
       return true;
     }
@@ -202,6 +239,7 @@ async function processRecipient() {
     if (!result.isRealSent || !result.messageId) {
       await failRecipient(
         recipient.id,
+        campaign.id,
         recipient.attemptCount + 1,
         result.retryable,
         result.errorCode || 'META_REJECTED',
@@ -251,6 +289,7 @@ async function processRecipient() {
   } catch (error: any) {
     await failRecipient(
       recipient.id,
+      campaign.id,
       recipient.attemptCount + 1,
       true,
       'WORKER_ERROR',
@@ -261,16 +300,69 @@ async function processRecipient() {
   }
 }
 
+/**
+ * Direct queue consumer handler for a specific recipient job from BullMQ / In-Memory Queue.
+ */
+export async function processRecipientById(recipientId: string): Promise<boolean> {
+  if (!(await ensureQueueSchema())) return false;
+  const recipient = await claimRecipientById(recipientId);
+  if (!recipient) return false;
+  return executeClaimedRecipient(recipient);
+}
+
+/**
+ * Enqueue all pending recipients of a newly launched campaign into the Message Queue.
+ */
+export async function enqueueCampaignById(campaignId: string): Promise<number> {
+  if (!(await ensureQueueSchema())) return 0;
+  const recipients = await prisma.broadcastRecipient.findMany({
+    where: {
+      campaignId,
+      status: { in: ['Pending', 'Retry'] },
+    },
+    select: { id: true, campaignId: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (recipients.length === 0) return 0;
+
+  await enqueueCampaignRecipients(
+    recipients.map((r) => ({ recipientId: r.id, campaignId: r.campaignId })),
+  );
+  return recipients.length;
+}
+
+async function processRecipient() {
+  const recipient = await claimRecipient();
+  if (!recipient) return false;
+  return executeClaimedRecipient(recipient);
+}
+
 async function runWorkerCycle() {
   if (isRunning) return;
   isRunning = true;
   try {
     if (!(await ensureQueueSchema())) return;
-    if (!hasRecoveredStaleRecipients) {
-      await recoverStaleRecipients();
-      hasRecoveredStaleRecipients = true;
+    await recoverStaleRecipients();
+
+    const now = new Date();
+    const dueRecipients = await prisma.broadcastRecipient.findMany({
+      where: {
+        status: { in: ['Pending', 'Retry'] },
+        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+        campaign: { status: { in: ['Pending', 'Sending'] } },
+      },
+      select: { id: true, campaignId: true },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+
+    if (dueRecipients.length > 0) {
+      await enqueueCampaignRecipients(
+        dueRecipients.map((r) => ({ recipientId: r.id, campaignId: r.campaignId })),
+      );
+    } else if (!isBullMqConnected()) {
+      await Promise.all(Array.from({ length: WORKER_CONCURRENCY }, () => processRecipient()));
     }
-    await Promise.all(Array.from({ length: WORKER_CONCURRENCY }, () => processRecipient()));
   } catch (error) {
     console.error('[CAMPAIGN WORKER ERROR]', error);
   } finally {

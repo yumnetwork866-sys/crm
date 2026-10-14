@@ -471,7 +471,7 @@ export async function syncProductsToMetaCatalog(productIds?: string[]): Promise<
       }
 
       // Format price in Vietnamese Dong (VND)
-      const priceInVnd = Math.round(product.price);
+      const priceInVnd = Math.round(Number(product.price));
       const availability = product.stock > 0 ? 'in stock' : 'out of stock';
 
       return {

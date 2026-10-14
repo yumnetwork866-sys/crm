@@ -96,8 +96,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     const data = parsed.data;
     const leadsCount = data.leadsCount ?? existing.leadsCount;
-    const adSpend = data.adSpend ?? existing.adSpend;
-    const revenue = data.revenue ?? existing.revenue;
+    const adSpend = data.adSpend ?? Number(existing.adSpend);
+    const revenue = data.revenue ?? Number(existing.revenue);
     const cpl = data.cpl ?? (leadsCount > 0 ? Math.round(adSpend / leadsCount) : 0);
     const roas = data.roas ?? (adSpend > 0 ? parseFloat((revenue / adSpend).toFixed(2)) : 0);
 

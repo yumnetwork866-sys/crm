@@ -100,6 +100,7 @@ export interface Customer {
   lastContact: string;
 
   // Status & Assignment
+  ownerId?: string | null; // Foreign key to User.id
   owner: string; // Sales rep name
   status: CustomerStatus;
   group?: CustomerGroupId; // Independent CRM segmentation group

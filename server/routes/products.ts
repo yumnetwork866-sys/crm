@@ -188,7 +188,11 @@ router.post('/bulk', requirePermission(Permission.PRODUCTS_CREATE), async (req: 
             image: image || null,
           },
         });
-        createdOrUpdated.push(p);
+        createdOrUpdated.push({
+          ...p,
+          price: Number(p.price),
+          costPrice: Number(p.costPrice),
+        });
       }
     });
 

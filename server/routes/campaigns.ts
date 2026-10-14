@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
-import { kickCampaignWorker } from '../services/campaignWorker';
+import { enqueueCampaignById, kickCampaignWorker } from '../services/campaignWorker';
 import { getRouteParam } from '../utils/requestParams';
 import { getIntegrationSetting, getMetaAccessTokenForPhone, verifyApprovedMessageTemplate } from '../services/metaApiClient';
 import { isWhatsAppSessionOpen } from '../services/whatsappSessionWindow';
@@ -50,13 +50,11 @@ function getGroupId(targetGroup: string) {
   return undefined;
 }
 
+import { toWhatsAppDigits } from '../utils/phone';
+
 function normalizeWhatsAppPhone(phone: string): string | null {
-  let digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (digits.startsWith('0')) {
-    const defaultCountryCode = (process.env.DEFAULT_PHONE_COUNTRY_CODE || '60').replace(/\D/g, '');
-    digits = `${defaultCountryCode}${digits.slice(1)}`;
-  }
+  const defaultCountryCode = (process.env.DEFAULT_PHONE_COUNTRY_CODE || '60').replace(/\D/g, '');
+  const digits = toWhatsAppDigits(phone, defaultCountryCode);
   return digits.length >= 8 && digits.length <= 15 ? digits : null;
 }
 
@@ -313,6 +311,7 @@ router.post(
         return created;
       });
 
+      await enqueueCampaignById(campaign.id);
       kickCampaignWorker();
       return res.status(202).json(campaign);
     } catch (error: any) {

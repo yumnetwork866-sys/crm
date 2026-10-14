@@ -1,10 +1,11 @@
 import { prisma } from '../lib/prisma';
 import type { InMemoryMessage } from './messageStore';
 import { messageStore } from './messageStore';
-import { getIntegrationSetting, updateIntegrationSetting, fetchAndCacheMetaMedia } from './metaApiClient';
+import { getIntegrationSetting, updateIntegrationSetting } from './metaApiClient';
 import { realtimeHub } from './realtimeHub';
 import { aggregateCampaign } from './campaignWorker';
-import { autoReplyWithDify } from './difyService';
+import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
+import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 
 /**
  * Verifies webhook subscription request from Meta
@@ -57,27 +58,22 @@ export async function matchCustomerByPhone(
   businessPhoneNumberId?: string
 ): Promise<{ customerId: string; customerName: string; isCrmCustomer: boolean }> {
   const cleanFrom = fromPhone.replace(/\D/g, '');
+  const e164Phone = normalizePhoneE164(fromPhone);
   let matchedCustomerId = `cust_${cleanFrom}`;
   let matchedCustomerName = senderName;
   let isCrmCustomer = false;
 
   try {
-    const phoneVariants: string[] = [cleanFrom];
-    if (cleanFrom.startsWith('84') && cleanFrom.length > 9) {
-      phoneVariants.push('0' + cleanFrom.substring(2));
-    }
-    if (cleanFrom.startsWith('0')) {
-      phoneVariants.push('84' + cleanFrom.substring(1));
-    }
+    const phoneVariants = getPhoneLookupVariants(fromPhone);
 
-    const matchedCustomer = await prisma.customer.findFirst({
-      where: {
-        OR: phoneVariants.map((pv: string) => ({
-          phone: { contains: pv }
-        }))
-      },
-      select: { id: true, name: true, phone: true, campaign: true }
-    });
+    const matchedCustomer = phoneVariants.length > 0
+      ? await prisma.customer.findFirst({
+          where: {
+            phone: { in: phoneVariants }
+          },
+          select: { id: true, name: true, phone: true, campaign: true }
+        })
+      : null;
 
     if (matchedCustomer) {
       matchedCustomerId = matchedCustomer.id;
@@ -85,6 +81,9 @@ export async function matchCustomerByPhone(
       isCrmCustomer = true;
       const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
       const updateData: any = { lastContact: new Date() };
+      if (e164Phone && matchedCustomer.phone !== e164Phone) {
+        updateData.phone = e164Phone;
+      }
       if (brandName && (!matchedCustomer.campaign || ['N/A', 'n/a', 'NA', 'na', 'Default Campaign', ''].includes(matchedCustomer.campaign.trim()))) {
         updateData.campaign = brandName;
       }
@@ -95,9 +94,8 @@ export async function matchCustomerByPhone(
       }).catch(() => {});
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-activity', customerId: matchedCustomer.id });
       console.log(`[WEBHOOK CUSTOMER MATCH] Matched incoming phone ${fromPhone} to CRM customer: ${matchedCustomer.name} (${matchedCustomer.id})`);
-    } else if (cleanFrom.length >= 7) {
+    } else if (cleanFrom.length >= 7 && e164Phone) {
       // Auto-create new customer in CRM so they immediately appear in the Customer page
-      const formattedPhone = fromPhone.startsWith('+') ? fromPhone : `+${cleanFrom}`;
       const defaultName = (senderName && !senderName.startsWith('Khách WhatsApp'))
         ? senderName
         : `Khách WhatsApp (${cleanFrom.slice(-4)})`;
@@ -105,7 +103,7 @@ export async function matchCustomerByPhone(
 
       const newCustomer = await prisma.customer.create({
         data: {
-          phone: formattedPhone,
+          phone: e164Phone,
           name: defaultName,
           source: 'WhatsApp',
           campaign: brandName || 'N/A',
@@ -113,13 +111,13 @@ export async function matchCustomerByPhone(
           group: 'group_1',
           firstContact: new Date(),
           lastContact: new Date(),
-          owner: 'Chưa phân công',
+          ownerId: null,
         }
       });
       matchedCustomerId = newCustomer.id;
       matchedCustomerName = newCustomer.name;
       isCrmCustomer = true;
-      console.log(`[WEBHOOK AUTO-CREATED CUSTOMER] Auto-created CRM customer ${newCustomer.name} (${newCustomer.id}) for phone ${formattedPhone} from brand ${brandName || 'N/A'}`);
+      console.log(`[WEBHOOK AUTO-CREATED CUSTOMER] Auto-created CRM customer ${newCustomer.name} (${newCustomer.id}) for phone ${e164Phone} from brand ${brandName || 'N/A'}`);
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-auto-create', customerId: newCustomer.id });
     }
   } catch (lookupErr) {
@@ -157,12 +155,13 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
       for (const msg of unlinkedMessages) {
         const clean = (msg.customerPhone || '').replace(/\D/g, '');
         if (clean.length < 7) continue;
-        const key = clean.slice(-9);
-        const existing = phoneGroups.get(key);
+        const e164 = normalizePhoneE164(msg.customerPhone);
+        if (!e164) continue;
+        const existing = phoneGroups.get(e164);
         const msgDate = new Date(msg.timestamp);
         if (!existing) {
-          phoneGroups.set(key, {
-            phone: msg.customerPhone.startsWith('+') ? msg.customerPhone : `+${clean}`,
+          phoneGroups.set(e164, {
+            phone: e164,
             name: (msg.customerName && !msg.customerName.startsWith('Khách WhatsApp'))
               ? msg.customerName
               : `Khách WhatsApp (${clean.slice(-4)})`,
@@ -184,9 +183,10 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
         }
       }
 
-      for (const [key, group] of phoneGroups.entries()) {
+      for (const [e164, group] of phoneGroups.entries()) {
+        const variants = getPhoneLookupVariants(e164);
         let customer = await prisma.customer.findFirst({
-          where: { phone: { contains: key } }
+          where: { phone: { in: variants } }
         });
 
         if (!customer) {
@@ -201,7 +201,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
               group: 'group_1',
               firstContact: group.firstDate,
               lastContact: group.lastDate,
-              owner: 'Chưa phân công',
+              ownerId: null,
             }
           });
           syncedCount++;
@@ -230,15 +230,14 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
 
     let brandUpdatedCount = 0;
     for (const cust of unbrandedCustomers) {
-      const clean = cust.phone.replace(/\D/g, '');
-      const phoneSuffix = clean.slice(-9);
+      const variants = getPhoneLookupVariants(cust.phone);
 
       const msgWithPhone = await prisma.whatsAppMessage.findFirst({
         where: {
           businessPhoneNumberId: { not: null },
           OR: [
             { customerId: cust.id },
-            { customerPhone: { contains: phoneSuffix } }
+            ...(variants.length > 0 ? [{ customerPhone: { in: variants } }] : [])
           ]
         },
         select: { businessPhoneNumberId: true },
@@ -270,15 +269,14 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
 
     let promotedCount = 0;
     for (const lead of newLeadCustomers) {
-      const clean = lead.phone.replace(/\D/g, '');
-      const phoneSuffix = clean.slice(-9);
+      const variants = getPhoneLookupVariants(lead.phone);
 
       const hasAgentReply = await prisma.whatsAppMessage.findFirst({
         where: {
           sender: 'agent',
           OR: [
             { customerId: lead.id },
-            { customerPhone: { contains: phoneSuffix } }
+            ...(variants.length > 0 ? [{ customerPhone: { in: variants } }] : [])
           ]
         },
         select: { id: true, timestamp: true },
@@ -485,16 +483,20 @@ async function processSmbContacts(body: any): Promise<number> {
     if (change.field !== 'smb_app_state_sync') continue;
     for (const state of Array.isArray(change.value?.state_sync) ? change.value.state_sync : []) {
       if (state?.type !== 'contact' || state?.contact?.action === 'remove') continue;
-      const phone = String(state?.contact?.phone_number || '').replace(/\D/g, '');
-      if (phone.length < 7) continue;
-      const phoneSuffix = phone.slice(-9);
-      const existing = await prisma.customer.findFirst({ where: { phone: { contains: phoneSuffix } } });
+      const rawPhone = String(state?.contact?.phone_number || '');
+      const digits = rawPhone.replace(/\D/g, '');
+      if (digits.length < 7) continue;
+      const e164 = normalizePhoneE164(rawPhone);
+      if (!e164) continue;
+      const variants = getPhoneLookupVariants(e164);
+      const existing = await prisma.customer.findFirst({ where: { phone: { in: variants } } });
       if (!existing) {
         await prisma.customer.create({
           data: {
-            phone: `+${phone}`,
-            name: state.contact.full_name || state.contact.first_name || `Liên hệ WhatsApp ${phoneSuffix}`,
+            phone: e164,
+            name: state.contact.full_name || state.contact.first_name || `Liên hệ WhatsApp ${digits.slice(-4)}`,
             source: 'WhatsApp',
+            ownerId: null,
           },
         });
       }
@@ -535,8 +537,9 @@ async function saveMirroredMessage(input: {
   };
   const mirroredMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
   if (mirroredMediaId) {
-    fetchAndCacheMetaMedia(mirroredMediaId, input.businessPhoneNumberId).catch((err) => {
-      console.warn(`[WEBHOOK MEDIA PRECACHE] Failed to pre-cache mirrored media ${mirroredMediaId}:`, err);
+    void enqueueMediaPrefetch({
+      mediaId: mirroredMediaId,
+      businessPhoneNumberId: input.businessPhoneNumberId,
     });
   }
   messageStore.add(mirrored);
@@ -872,8 +875,9 @@ export async function processWebhookPayload(body: any): Promise<number> {
 
     const incomingMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
     if (incomingMediaId) {
-      fetchAndCacheMetaMedia(incomingMediaId, businessPhoneNumberId).catch((err) => {
-        console.warn(`[WEBHOOK MEDIA PRECACHE] Failed to pre-fetch incoming media ${incomingMediaId}:`, err);
+      await enqueueMediaPrefetch({
+        mediaId: incomingMediaId,
+        businessPhoneNumberId,
       });
     }
 
@@ -918,10 +922,10 @@ export async function processWebhookPayload(body: any): Promise<number> {
     realtimeHub.broadcast('message:new', newIncoming);
     processedCount++;
 
-    // Trigger Dify AI Auto-reply asynchronously (completely non-blocking)
+    // Push Dify AI Auto-reply job into dedicated worker queue
     if (textBody && fromPhone) {
       const brandName = valueObj?.metadata?.display_phone_number || undefined;
-      autoReplyWithDify({
+      await enqueueDifyAutoReply({
         fromPhone,
         customerName,
         customerId,
@@ -930,8 +934,6 @@ export async function processWebhookPayload(body: any): Promise<number> {
         incomingMsgId: msgData?.id,
         brandName,
         businessPhoneNumberId,
-      }).catch((aiErr) => {
-        console.warn('[Dify Auto-reply Hook Error]', aiErr?.message || aiErr);
       });
     }
   }

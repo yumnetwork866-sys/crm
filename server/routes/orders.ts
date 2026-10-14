@@ -5,8 +5,8 @@ import { authenticateToken, requirePermission } from '../middleware/authMiddlewa
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
-import { z } from 'zod';
 import { realtimeHub } from '../services/realtimeHub';
+import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 
 const router = Router();
 
@@ -33,16 +33,18 @@ router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: Authentic
     }
 
     if (search && typeof search === 'string') {
+      const normalizedSearchPhone = /\d{3,}/.test(search) ? normalizePhoneE164(search) : '';
       whereClause.OR = [
         { orderCode: { contains: search, mode: 'insensitive' } },
         { customerName: { contains: search, mode: 'insensitive' } },
-        { customerPhone: { contains: search } }
+        { customerPhone: { contains: search } },
+        ...(normalizedSearchPhone ? [{ customerPhone: { contains: normalizedSearchPhone } }] : [])
       ];
     }
 
     const orderInclude = {
       products: true,
-      customer: { select: { id: true, name: true, phone: true, avatar: true, status: true } }
+      customer: { select: { id: true, name: true, phone: true, status: true } }
     };
 
     if (isPaginationRequested) {
@@ -96,12 +98,14 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
       return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
     }
 
+    const normalizedCustomerPhone = customerPhone ? normalizePhoneE164(customerPhone) : '';
+
     let targetCustomerId = customerId && !customerId.startsWith('cust_') ? customerId : null;
-    if (!targetCustomerId && customerPhone) {
-      const clean = String(customerPhone).replace(/\D/g, '');
-      if (clean.length >= 7) {
+    if (!targetCustomerId && normalizedCustomerPhone) {
+      const variants = getPhoneLookupVariants(normalizedCustomerPhone);
+      if (variants.length > 0) {
         const found = await prisma.customer.findFirst({
-          where: { phone: { contains: clean.slice(-9) } },
+          where: { phone: { in: variants } },
           select: { id: true, name: true }
         });
         if (found) targetCustomerId = found.id;
@@ -116,8 +120,8 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
         orderCode,
         customerId: targetCustomerId || null,
         customerName: customerName || 'Khách vãng lai',
-        customerPhone: customerPhone || '',
-        totalAmount: totalAmount || 0,
+        customerPhone: normalizedCustomerPhone,
+        totalAmount: Number(totalAmount) || 0,
         status: 'Completed',
         notes: notes || '',
         products: {
@@ -141,7 +145,7 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
         where: { customerId: targetCustomerId, status: 'Completed' }
       });
 
-      const totalSpent = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+      const totalSpent = customerOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
       const totalOrdersCount = customerOrders.length;
 
       await prisma.customer.update({
@@ -183,7 +187,7 @@ router.patch('/:id/status', requirePermission(Permission.ORDERS_MANAGE), async (
       const customerOrders = await prisma.order.findMany({
         where: { customerId: updated.customerId, status: 'Completed' }
       });
-      const totalSpent = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+      const totalSpent = customerOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
       const totalOrdersCount = customerOrders.length;
 
       await prisma.customer.update({

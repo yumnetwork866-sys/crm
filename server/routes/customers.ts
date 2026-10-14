@@ -7,6 +7,8 @@ import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { z } from 'zod';
 import { syncExistingWhatsAppCustomersToCrm } from '../services/webhookService';
+import { normalizePhoneE164 } from '../utils/phone';
+import { isUnassignedOwnerInput, resolveCustomerOwnerId, serializeCustomer } from '../utils/customerOwner';
 
 const router = Router();
 
@@ -45,10 +47,19 @@ const customerSchema = z.object({
   adSet: z.string().optional(),
   landingPage: z.string().optional(),
   owner: z.string().default('Chưa phân công'),
+  ownerId: z.string().nullable().optional(),
   status: z.string().default('New Lead'),
   group: z.enum(['group_1', 'group_2', 'group_3', 'group_4']).default('group_1'),
   interestedProducts: z.array(z.string()).default([])
 });
+
+const ownerUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  avatar: true,
+  role: true,
+} as const;
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -64,6 +75,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
       status,
       source,
       owner,
+      ownerId,
       gender,
       group,
       startDate,
@@ -88,11 +100,18 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
     if (source && typeof source === 'string' && source !== 'all' && source !== 'ALL') {
       whereClause.source = source;
     }
-    if (owner && typeof owner === 'string' && owner !== 'all' && owner !== 'ALL') {
-      if (owner === 'Chưa phân công' || owner === 'unassigned') {
-        whereClause.owner = { in: ['', 'Chưa phân công', 'Unassigned'] };
+    const ownerFilter = typeof ownerId === 'string' && ownerId ? ownerId : (typeof owner === 'string' ? owner : '');
+    if (ownerFilter && ownerFilter !== 'all' && ownerFilter !== 'ALL') {
+      if (isUnassignedOwnerInput(ownerFilter)) {
+        whereClause.ownerId = null;
       } else {
-        whereClause.owner = owner;
+        whereClause.ownerUser = {
+          OR: [
+            { id: ownerFilter },
+            { name: { equals: ownerFilter, mode: 'insensitive' } },
+            { email: { equals: ownerFilter, mode: 'insensitive' } },
+          ],
+        };
       }
     }
     if (gender && typeof gender === 'string' && gender !== 'ALL') {
@@ -122,9 +141,13 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 
     if (search && typeof search === 'string') {
       const cleanSearch = search.trim();
+      const normalizedSearchPhone = /\d{3,}/.test(cleanSearch) ? normalizePhoneE164(cleanSearch) : '';
+      const searchDigits = cleanSearch.replace(/\D/g, '');
       whereClause.OR = [
         { name: { contains: cleanSearch, mode: 'insensitive' } },
         { phone: { contains: cleanSearch } },
+        ...(normalizedSearchPhone ? [{ phone: { contains: normalizedSearchPhone } }] : []),
+        ...(searchDigits.length >= 4 ? [{ phone: { contains: searchDigits.replace(/^0/, '') } }] : []),
         { email: { contains: cleanSearch, mode: 'insensitive' } },
         { campaign: { contains: cleanSearch, mode: 'insensitive' } },
         { address: { contains: cleanSearch, mode: 'insensitive' } },
@@ -141,11 +164,13 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 
     const queryInclude = isDetailed
       ? {
+          ownerUser: { select: ownerUserSelect },
           notes: { orderBy: { createdAt: 'desc' as const } },
           orders: { include: { products: true }, orderBy: { date: 'desc' as const } },
           automationLogs: { orderBy: { sentAt: 'desc' as const } }
         }
       : {
+          ownerUser: { select: ownerUserSelect },
           notes: { select: { id: true, content: true, author: true, createdAt: true, type: true }, take: 5, orderBy: { createdAt: 'desc' as const } },
           orders: { select: { id: true, orderCode: true, totalAmount: true, status: true, date: true }, take: 10, orderBy: { date: 'desc' as const } },
           automationLogs: { select: { id: true, step: true, stepName: true, sentAt: true, message: true, status: true }, take: 5, orderBy: { sentAt: 'desc' as const } }
@@ -166,14 +191,15 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
         })
       ]);
       total = totalCount;
-      customers = customerRecords;
+      customers = customerRecords.map(serializeCustomer);
     } else {
-      customers = await prisma.customer.findMany({
+      const customerRecords = await prisma.customer.findMany({
         where: whereClause,
         include: queryInclude,
         orderBy,
         take: 300 // Giới hạn an toàn chống tràn bộ nhớ (OOM)
       });
+      customers = customerRecords.map(serializeCustomer);
       total = customers.length;
     }
 
@@ -213,6 +239,7 @@ router.get('/:id', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Aut
     const customer = await prisma.customer.findUnique({
       where: { id },
       include: {
+        ownerUser: { select: ownerUserSelect },
         notes: { orderBy: { createdAt: 'desc' } },
         orders: { include: { products: true }, orderBy: { date: 'desc' } },
         automationLogs: { orderBy: { sentAt: 'desc' } }
@@ -223,7 +250,7 @@ router.get('/:id', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Aut
       return res.status(404).json({ error: 'Không tìm thấy khách hàng' });
     }
 
-    return res.json(customer);
+    return res.json(serializeCustomer(customer));
   } catch (error) {
     return res.status(500).json({ error: 'Lỗi hệ thống khi lấy thông tin khách hàng' });
   }
@@ -238,11 +265,20 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
     }
 
     const data = parseResult.data;
+    const normalizedPhone = normalizePhoneE164(data.phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
+    }
+
+    const { ownerId: resolvedOwnerId, ownerName } = await resolveCustomerOwnerId({
+      ownerId: data.ownerId,
+      owner: data.owner,
+    });
 
     const notesToCreate = req.body.notes && Array.isArray(req.body.notes)
       ? {
           create: req.body.notes.map((n: any) => ({
-            author: n.author || data.owner || 'Hệ thống',
+            author: n.author || ownerName || 'Hệ thống',
             content: n.content,
             type: n.type || 'note',
             createdAt: n.createdAt ? new Date(n.createdAt) : new Date()
@@ -253,7 +289,7 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
     const newCustomer = await prisma.customer.create({
       data: {
         name: data.name,
-        phone: data.phone,
+        phone: normalizedPhone,
         gender: data.gender,
         address: data.address,
         email: data.email || null,
@@ -262,7 +298,7 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
         campaign: data.campaign,
         adSet: data.adSet || null,
         landingPage: data.landingPage || null,
-        owner: data.owner,
+        ownerId: resolvedOwnerId,
         status: data.status,
         group: data.group,
         interestedProducts: data.interestedProducts,
@@ -271,13 +307,14 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
         notes: notesToCreate
       },
       include: {
+        ownerUser: { select: ownerUserSelect },
         notes: { orderBy: { createdAt: 'desc' } },
         orders: { include: { products: true }, orderBy: { date: 'desc' } },
         automationLogs: { orderBy: { sentAt: 'desc' } }
       }
     });
 
-    return res.status(201).json(newCustomer);
+    return res.status(201).json(serializeCustomer(newCustomer));
   } catch (error) {
     console.error('Lỗi khi tạo khách hàng mới:', error);
     return res.status(500).json({ error: 'Không thể tạo khách hàng mới' });
@@ -298,22 +335,37 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
       return res.status(400).json({ error: parseResult.error.issues[0].message });
     }
 
-    const data = parseResult.data;
+    const { owner, ownerId, phone, ...restData } = parseResult.data;
+    const updatePayload: Record<string, any> = {
+      ...restData,
+      lastContact: new Date(),
+    };
+
+    if (phone !== undefined) {
+      const normalizedPhone = normalizePhoneE164(phone);
+      if (!normalizedPhone) {
+        return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
+      }
+      updatePayload.phone = normalizedPhone;
+    }
+
+    if (ownerId !== undefined || owner !== undefined) {
+      const resolved = await resolveCustomerOwnerId({ ownerId, owner });
+      updatePayload.ownerId = resolved.ownerId;
+    }
 
     const updated = await prisma.customer.update({
       where: { id },
-      data: {
-        ...data,
-        lastContact: new Date()
-      },
+      data: updatePayload,
       include: {
+        ownerUser: { select: ownerUserSelect },
         notes: { orderBy: { createdAt: 'desc' } },
         orders: { include: { products: true } },
         automationLogs: true
       }
     });
 
-    return res.json(updated);
+    return res.json(serializeCustomer(updated));
   } catch (error) {
     console.error('Lỗi khi cập nhật khách hàng:', error);
     return res.status(500).json({ error: 'Lỗi khi cập nhật thông tin khách hàng' });

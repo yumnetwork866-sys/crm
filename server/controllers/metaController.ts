@@ -18,7 +18,8 @@ import {
 import { encryptMetaToken } from '../services/metaTokenCrypto';
 import type { InMemoryMessage } from '../services/messageStore';
 import { messageStore } from '../services/messageStore';
-import { verifyWebhookChallenge, processWebhookPayload } from '../services/webhookService';
+import { verifyWebhookChallenge } from '../services/webhookService';
+import { enqueueWebhookPayload } from '../services/queueService';
 import { prisma } from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
@@ -629,6 +630,6 @@ export async function handleWebhookGet(req: Request, res: Response) {
  * Meta Webhook Event Handler (POST)
  */
 export async function handleWebhookPost(req: Request, res: Response) {
-  await processWebhookPayload(req.body);
+  await enqueueWebhookPayload(req.body);
   return res.status(200).send('EVENT_RECEIVED');
 }

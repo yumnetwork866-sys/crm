@@ -10,6 +10,7 @@ import { getRoleColor } from '../auth/roleColors';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { realtimeHub } from '../services/realtimeHub';
+import { normalizePhoneE164 } from '../utils/phone';
 
 const router = Router();
 const userRoleSchema = z.string().trim().min(2).max(50);
@@ -51,6 +52,7 @@ async function serializeUser(user: User) {
   const { password: _password, permissionAllow, permissionDeny, ...safeUser } = user;
   return {
     ...safeUser,
+    totalRevenue: Number(user.totalRevenue ?? 0),
     permissionAllow: permissionAllow.toString(),
     permissionDeny: permissionDeny.toString(),
     effectivePermissions: (await getEffectivePermissions(user.role, permissionAllow, permissionDeny)).toString(),
@@ -130,7 +132,7 @@ router.post('/', requirePermission(Permission.USERS_MANAGE), async (req: Authent
         email: data.email,
         password: await bcrypt.hash(data.password, 10),
         role: data.role,
-        phone: data.phone,
+        phone: data.phone ? normalizePhoneE164(data.phone) : '',
         status: data.status,
         permissionAllow: data.permissionAllow ? parsePermissionMask(data.permissionAllow) : 0n,
         permissionDeny: data.permissionDeny ? parsePermissionMask(data.permissionDeny) : 0n,
@@ -182,13 +184,6 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     const password = data.password !== undefined ? await bcrypt.hash(data.password, 10) : undefined;
     const updated = await prisma.$transaction(async (transaction) => {
       if (data.name !== undefined && data.name !== target.name) {
-        // Customer ownership is still stored as a display name. Keep existing
-        // assignments attached when that user's profile name changes.
-        await transaction.customer.updateMany({
-          where: { owner: { in: [target.name, target.email] } },
-          data: { owner: data.name },
-        });
-
         await transaction.whatsAppMessage.updateMany({
           where: {
             sender: 'agent',
@@ -209,7 +204,7 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
           ...(data.name !== undefined && { name: data.name }),
           ...(data.email !== undefined && { email: data.email }),
           ...(data.role !== undefined && { role: data.role }),
-          ...(data.phone !== undefined && { phone: data.phone ?? null }),
+          ...(data.phone !== undefined && { phone: data.phone ? normalizePhoneE164(data.phone) : null }),
           ...(data.avatar !== undefined && { avatar: data.avatar }),
           ...(data.status !== undefined && { status: data.status }),
           ...(password !== undefined && { password }),

@@ -17,8 +17,11 @@ import permissionRoutes from './routes/permissions';
 import marketingReportRoutes from './routes/marketingReports';
 import catalogRoutes from './routes/catalogRoutes';
 import aiProfileRoutes from './routes/aiProfile';
-import { startCampaignWorker } from './services/campaignWorker';
-import { syncExistingWhatsAppCustomersToCrm } from './services/webhookService';
+import { processRecipientById, startCampaignWorker } from './services/campaignWorker';
+import { processWebhookPayload, syncExistingWhatsAppCustomersToCrm } from './services/webhookService';
+import { autoReplyWithDify } from './services/difyService';
+import { fetchAndCacheMetaMedia } from './services/metaApiClient';
+import { getQueueHealth, initMessageQueues } from './services/queueService';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -163,6 +166,7 @@ app.get('/api/health', async (_req, res) => {
       system: 'YumNetwork CRM Backend API',
       database: 'connected',
       dbLatencyMs,
+      queue: getQueueHealth(),
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
@@ -274,6 +278,20 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 httpServer.listen(PORT, async () => {
   console.log(`YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
   console.log(`Vite HMR Hot Reload & API đã sẵn sàng.`);
+  await initMessageQueues({
+    onWebhookPayload: async ({ payload }) => {
+      await processWebhookPayload(payload);
+    },
+    onDifyAutoReply: async (data) => {
+      await autoReplyWithDify(data);
+    },
+    onMediaPrefetch: async ({ mediaId, businessPhoneNumberId }) => {
+      await fetchAndCacheMetaMedia(mediaId, businessPhoneNumberId);
+    },
+    onCampaignRecipient: async ({ recipientId }) => {
+      await processRecipientById(recipientId);
+    },
+  });
   await ensureAdminUser();
   await syncExistingWhatsAppCustomersToCrm().catch(() => 0);
   startCampaignWorker();
