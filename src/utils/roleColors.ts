@@ -2,7 +2,7 @@ import type { AppUser } from '../types';
 
 const ROLE_COLOR_STORAGE_KEY = 'yumcrm_role_colors_v1';
 
-const DEFAULT_ROLE_COLORS: Record<string, string> = {
+export const DEFAULT_ROLE_COLORS: Record<string, string> = {
   Admin: '#9333ea',
   'Sales Manager': '#4f46e5',
   'Sales Rep': '#059669',
@@ -10,7 +10,7 @@ const DEFAULT_ROLE_COLORS: Record<string, string> = {
   'Customer Support': '#0891b2',
 };
 
-const FALLBACK_ROLE_COLOR = '#475569';
+export const FALLBACK_ROLE_COLOR = '#475569';
 
 export const loadRoleColorCache = (): Record<string, string> => {
   try {

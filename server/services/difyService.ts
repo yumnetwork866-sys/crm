@@ -1,6 +1,4 @@
 import { prisma } from '../lib/prisma';
-import type { InMemoryMessage } from './messageStore';
-import { messageStore } from './messageStore';
 import {
   getIntegrationSetting,
   updateIntegrationSetting,
@@ -570,15 +568,15 @@ export async function autoReplyWithDify(params: {
       console.log(`[Dify AI] Đã tắt AI tự động cho khách ${fromPhone} (khách muốn gặp người / tức giận / chuyển giao). Chờ nhân viên bật lại trên CRM.`);
     }
 
-    // 5. Create in-memory message for CRM UI
+    // 5. Create message payload for CRM UI & Database
     const configuredAgentName = setting.aiName?.trim() || process.env.DIFY_AGENT_NAME?.trim() || '🤖 Trợ lý AI';
-    const aiMsg: InMemoryMessage = {
+    const aiMsg = {
       id: metaSentId || `msg_dify_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId,
       customerName,
       customerPhone: fromPhone,
       businessPhoneNumberId: phoneId || undefined,
-      sender: 'agent',
+      sender: 'agent' as const,
       agentName: configuredAgentName,
       isAi: true,
       channel: 'WhatsApp',
@@ -586,7 +584,7 @@ export async function autoReplyWithDify(params: {
       timestamp: new Date().toISOString(),
       isRead: true,
       isRealSent,
-      status: isRealSent ? 'sent' : 'failed',
+      status: (isRealSent ? 'sent' : 'failed') as 'sent' | 'failed',
       errorCode: isRealSent ? null : 'META_DISPATCH_FAILED',
       errorMessage: isRealSent ? null : 'Dify AI gửi tin qua Meta thất bại',
       replyTo: incomingMsgId
@@ -597,8 +595,6 @@ export async function autoReplyWithDify(params: {
           }
         : undefined,
     };
-
-    messageStore.add(aiMsg);
 
     // 6. Persist to PostgreSQL Database
     try {

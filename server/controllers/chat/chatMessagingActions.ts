@@ -1,8 +1,6 @@
 import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 import { prisma } from '../../lib/prisma';
-import type { InMemoryMessage } from '../../services/messageStore';
-import { messageStore } from '../../services/messageStore';
 import { realtimeHub } from '../../services/realtimeHub';
 import { getRouteParam } from '../../utils/requestParams';
 import {
@@ -140,13 +138,13 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     }
 
     const authenticatedAgentName = req.user?.name?.trim();
-    const newMsg: InMemoryMessage = {
+    const newMsg = {
       id: metaResult?.messages?.[0]?.id || `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
       customerPhone: resolvedCustomerPhone,
       businessPhoneNumberId: phoneId || undefined,
-      sender: 'agent',
+      sender: 'agent' as const,
       agentId: req.user?.id || null,
       agentName: authenticatedAgentName || agentName || 'Nhân viên',
       channel: 'WhatsApp',
@@ -159,8 +157,6 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       errorMessage: initialErrorMessage,
       replyTo: replyTo || undefined
     };
-
-    messageStore.add(newMsg);
 
     // Save to Database (Prisma)
     try {
@@ -302,10 +298,9 @@ export async function sendReaction(req: Request, res: Response) {
 }
 
 /**
- * Clear all messages from DB and in-memory store
+ * Clear all messages from DB
  */
-export async function clearAllMessages(req: Request, res: Response) {
-  messageStore.clear();
+export async function clearAllMessages(_req: Request, res: Response) {
   try {
     await prisma.whatsAppMessage.deleteMany();
   } catch (e) {}
@@ -325,14 +320,6 @@ export async function deleteThread(req: Request, res: Response) {
   const rawPhone = typeof customerPhone === 'string' ? customerPhone : customerId;
   const cleanPhone = rawPhone.replace(/\D/g, '');
   const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
-
-  messageStore.filter((m) => {
-    const msgCleanPhone = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
-    const matchId = m.customerId === customerId;
-    const matchPhone = lastDigits && msgCleanPhone && msgCleanPhone.includes(lastDigits);
-    const matchesBusinessPhone = !businessPhoneNumberId || m.businessPhoneNumberId === businessPhoneNumberId;
-    return !(matchesBusinessPhone && (matchId || matchPhone));
-  });
 
   try {
     const deleteConditions: any[] = [{ customerId }];
@@ -361,7 +348,6 @@ export async function deleteThread(req: Request, res: Response) {
  */
 export async function deleteMessage(req: Request, res: Response) {
   const messageId = getRouteParam(req.params.messageId);
-  messageStore.filter((m) => m.id !== messageId);
 
   try {
     await prisma.whatsAppMessage.deleteMany({

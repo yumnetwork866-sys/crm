@@ -3,13 +3,6 @@ dotenv.config({ quiet: true });
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import {
-  INITIAL_CAMPAIGNS,
-  INITIAL_CUSTOMERS,
-  INITIAL_MESSAGES,
-  INITIAL_PRODUCT_LIST,
-  INITIAL_USERS,
-} from '../src/data/mockData';
 import { normalizePhoneE164 } from '../server/utils/phone';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -63,7 +56,7 @@ const DEFAULT_AUTOMATION_STEPS = [
 ];
 
 async function main() {
-  console.log('🌱 Đang bổ sung dữ liệu mẫu còn thiếu vào PostgreSQL...');
+  console.log('🌱 Đang khởi tạo dữ liệu cấu hình cơ bản vào PostgreSQL...');
   console.log('🔒 Chế độ an toàn: không xóa và không ghi đè dữ liệu hiện có.');
 
   const automationSteps = await prisma.automationStep.createMany({
@@ -74,182 +67,22 @@ async function main() {
   const adminEmail = process.env.ADMIN?.trim() || 'anh.nguyen@yumnetwork.vn';
   const adminPassword = process.env.ADMIN_PASSWORD?.trim() || 'admin123';
   const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
-  const hashedDefaultPassword = await bcrypt.hash(adminPassword, 10);
-
-  const userIdByName = new Map(INITIAL_USERS.map((u) => [u.name, u.id]));
 
   const users = await prisma.user.createMany({
-    data: INITIAL_USERS.map((user) => {
-      const isTargetAdmin = user.role === 'Admin' || user.id === 'usr_001';
-      return {
-        id: user.id,
-        name: user.name,
-        email: isTargetAdmin && process.env.ADMIN?.trim() ? adminEmail : user.email,
-        password: isTargetAdmin ? hashedAdminPassword : hashedDefaultPassword,
-        avatar: user.avatar || '',
-        role: user.role,
-        phone: user.phone ? normalizePhoneE164(user.phone) : '',
-        status: user.status,
-        assignedLeadsCount: user.assignedLeadsCount || 0,
-        totalRevenue: user.totalRevenue || 0,
-      };
-    }),
-    skipDuplicates: true,
-  });
-
-  const products = await prisma.product.createMany({
-    data: INITIAL_PRODUCT_LIST.map((product) => ({
-      id: product.id,
-      code: product.code,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      costPrice: product.costPrice,
-      stock: product.stock,
-      status: product.status,
-      sku: product.sku || product.code,
-      description: product.description || '',
-      image: product.image || '',
-    })),
-    skipDuplicates: true,
-  });
-
-  const customers = await prisma.customer.createMany({
-    data: INITIAL_CUSTOMERS.map((customer) => ({
-      id: customer.id,
-      phone: normalizePhoneE164(customer.phone) || customer.phone,
-      name: customer.name,
-      gender: customer.gender,
-      address: customer.address,
-      email: customer.email || null,
-      note: customer.note || null,
-      source: customer.source,
-      campaign: customer.campaign,
-      adSet: customer.adSet || null,
-      landingPage: customer.landingPage || null,
-      ownerId: userIdByName.get(customer.owner) || null,
-      status: customer.status,
-      totalOrders: customer.totalOrders,
-      totalSpent: customer.totalSpent,
-      interestedProducts: customer.interestedProducts || [],
-      firstContact: new Date(customer.firstContact),
-      lastContact: new Date(customer.lastContact),
-    })),
-    skipDuplicates: true,
-  });
-
-  const notes = await prisma.customerNote.createMany({
-    data: INITIAL_CUSTOMERS.flatMap((customer) =>
-      (customer.notes || []).map((note) => ({
-        id: note.id,
-        customerId: customer.id,
-        author: note.author,
-        content: note.content,
-        type: note.type || 'note',
-        createdAt: new Date(note.createdAt),
-      })),
-    ),
-    skipDuplicates: true,
-  });
-
-  let createdOrders = 0;
-  for (const customer of INITIAL_CUSTOMERS) {
-    for (const order of customer.orders || []) {
-      const existingOrder = await prisma.order.findFirst({
-        where: { OR: [{ id: order.id }, { orderCode: order.orderCode }] },
-        select: { id: true },
-      });
-      if (existingOrder) continue;
-
-      await prisma.order.create({
-        data: {
-          id: order.id,
-          orderCode: order.orderCode,
-          customerId: customer.id,
-          customerName: order.customerName || customer.name,
-          customerPhone: normalizePhoneE164(order.customerPhone || customer.phone),
-          date: new Date(order.date),
-          totalAmount: order.totalAmount,
-          status: order.status,
-          notes: order.notes || '',
-          products: {
-            create: (order.products || []).map((product) => ({
-              productName: product.productName,
-              quantity: product.quantity,
-              price: product.price,
-            })),
-          },
-        },
-      });
-      createdOrders += 1;
-    }
-  }
-
-  let createdAutomationLogs = 0;
-  for (const customer of INITIAL_CUSTOMERS) {
-    for (const log of customer.automationSequence?.logs || []) {
-      const sentAt = new Date(log.sentAt);
-      const existingLog = await prisma.automationLog.findFirst({
-        where: {
-          customerId: customer.id,
-          step: log.step,
-          sentAt,
-        },
-        select: { id: true },
-      });
-      if (existingLog) continue;
-
-      await prisma.automationLog.create({
-        data: {
-          customerId: customer.id,
-          step: log.step,
-          stepName: log.stepName,
-          sentAt,
-          message: log.message,
-          status: log.status,
-        },
-      });
-      createdAutomationLogs += 1;
-    }
-  }
-
-  const campaigns = await prisma.broadcastCampaign.createMany({
-    data: INITIAL_CAMPAIGNS.map((campaign) => ({
-      id: campaign.id,
-      name: campaign.name,
-      targetGroup: campaign.targetGroup,
-      targetProduct: campaign.targetProduct || null,
-      targetCountry: campaign.targetCountry || null,
-      category: campaign.category,
-      messageTemplate: campaign.messageTemplate,
-      status: campaign.status,
-      totalTargeted: campaign.stats.totalTargeted,
-      eligibleCount: campaign.stats.eligibleCount,
-      sessionOpenCount: campaign.stats.sessionOpenCount,
-      templateRequiredCount: campaign.stats.templateRequiredCount,
-      sentCount: campaign.stats.sentCount,
-      deliveredCount: campaign.stats.deliveredCount,
-      readCount: campaign.stats.readCount,
-      respondedCount: campaign.stats.respondedCount,
-    })),
-    skipDuplicates: true,
-  });
-
-  const messages = await prisma.whatsAppMessage.createMany({
-    data: INITIAL_MESSAGES.map((message) => ({
-      id: message.id,
-      customerId: message.customerId,
-      customerName: message.customerName,
-      customerPhone: message.customerPhone ? normalizePhoneE164(message.customerPhone) : '',
-      sender: message.sender === 'customer' ? 'customer' : 'agent',
-      agentName: message.agentName || null,
-      channel: message.channel || 'WhatsApp',
-      content: message.content,
-      isRead: message.isRead,
-      readBy: message.readBy || null,
-      readAt: message.readAt ? new Date(message.readAt) : null,
-      timestamp: new Date(message.timestamp),
-    })),
+    data: [
+      {
+        id: 'usr_001',
+        name: 'Quản trị viên',
+        email: adminEmail,
+        password: hashedAdminPassword,
+        avatar: 'https://ui-avatars.com/api/?name=Admin&background=4f46e5&color=fff',
+        role: 'Admin',
+        phone: normalizePhoneE164('0901000111'),
+        status: 'active',
+        assignedLeadsCount: 0,
+        totalRevenue: 0,
+      },
+    ],
     skipDuplicates: true,
   });
 
@@ -257,13 +90,6 @@ async function main() {
   console.log({
     automationSteps: automationSteps.count,
     users: users.count,
-    products: products.count,
-    customers: customers.count,
-    notes: notes.count,
-    orders: createdOrders,
-    automationLogs: createdAutomationLogs,
-    campaigns: campaigns.count,
-    messages: messages.count,
   });
 }
 

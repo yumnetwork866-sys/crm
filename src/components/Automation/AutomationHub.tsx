@@ -7,6 +7,7 @@ import type {
   CreateWhatsAppTemplateInput,
   Customer,
   LaunchCampaignInput,
+  Product,
   WhatsAppApprovedTemplate,
 } from '../../types';
 import { BroadcastView } from '../Broadcast/BroadcastView';
@@ -19,6 +20,7 @@ interface AutomationHubProps {
   activeSection: AutomationSection;
   onChangeSection: (section: AutomationSection) => void;
   customers: Customer[];
+  products?: Product[];
   campaigns: BroadcastCampaign[];
   templates: WhatsAppApprovedTemplate[];
   approvedTemplates: WhatsAppApprovedTemplate[];
@@ -61,6 +63,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   activeSection,
   onChangeSection,
   customers,
+  products = [],
   campaigns,
   templates,
   approvedTemplates,
@@ -68,7 +71,6 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
   templatesError,
   onRefetchTemplates,
   defaultTargetGroup = 'Tất cả khách hàng',
-  onRunSimulation,
   onSelectCustomer,
   onPreviewCampaign,
   onLaunchCampaign,
@@ -148,6 +150,7 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
         ) : activeSection === 'broadcast' ? (
           <BroadcastView
             customers={customers}
+            products={products}
             campaigns={campaigns}
             approvedTemplates={approvedTemplates}
             isTemplatesLoading={isTemplatesLoading}

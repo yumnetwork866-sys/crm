@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { INITIAL_PRODUCT_LIST } from '../data/mockData';
 import type { AppUser, Product } from '../types';
 import { queryKeys } from '../lib/queryClient';
 import { api } from '../utils/apiClient';
@@ -27,8 +26,6 @@ export function useProducts(currentUser: AppUser | null, enabled = true) {
     queryKey: queryKeys.products,
     queryFn: () => api.get<Product[]>('/products'),
     enabled: Boolean(currentUser) && enabled,
-    initialData: INITIAL_PRODUCT_LIST,
-    initialDataUpdatedAt: 0,
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
 
@@ -132,7 +129,7 @@ export function useProducts(currentUser: AppUser | null, enabled = true) {
   }, [importMutation]);
   const resetProducts = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_PRODUCTS);
-    queryClient.setQueryData(queryKeys.products, INITIAL_PRODUCT_LIST);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.products });
   }, [queryClient]);
 
   const mutationError = addMutation.error || editMutation.error || deleteMutation.error || importMutation.error;

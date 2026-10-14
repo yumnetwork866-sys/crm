@@ -1,41 +1,69 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, ShoppingBag, Plus, Trash2, CheckCircle2, Sparkles } from 'lucide-react';
-import type { Customer, CustomerOrder } from '../../types';
-import { INITIAL_PRODUCTS } from '../../data/mockData';
+import type { Customer, CustomerOrder, Product } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
 
 interface AddOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   customer: Customer | null;
+  products?: Product[];
   onAddOrder: (customerId: string, newOrder: CustomerOrder) => void;
 }
-
-const DEFAULT_PRICES: Record<string, number> = {
-  'Kem Dưỡng Da Collagen Premium': 1800000,
-  'Serum Vitamin C Sáng Da': 1000000,
-  'Bộ Chăm Sóc Tóc Thảo Dược': 1100000,
-  'Sữa Rút Mặt Nhẹ Dịu Balance': 450000,
-  'Máy Rửa Mặt Ultrasonic Pro': 3500000,
-  'Son Dưỡng Ẩm Hồng Tự Nhiên': 350000,
-  'Kem Chống Nắng SPF50+ PA++++': 650000,
-};
 
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   isOpen,
   onClose,
   customer,
+  products = [],
   onAddOrder,
 }) => {
+  const productPriceMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const p of products) {
+      if (p.name) {
+        map[p.name] = p.price || 0;
+      }
+    }
+    return map;
+  }, [products]);
+
+  const productOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of products) {
+      if (p.name?.trim()) names.add(p.name.trim());
+    }
+    for (const interested of customer?.interestedProducts || []) {
+      if (interested?.trim()) names.add(interested.trim());
+    }
+    return Array.from(names);
+  }, [products, customer?.interestedProducts]);
+
+  const defaultProductName = productOptions[0] || '';
+  const defaultProductPrice = defaultProductName ? (productPriceMap[defaultProductName] ?? 0) : 0;
+
   const [items, setItems] = useState<
     { productName: string; quantity: number; price: number }[]
   >([
     {
-      productName: INITIAL_PRODUCTS[0],
+      productName: defaultProductName,
       quantity: 1,
-      price: DEFAULT_PRICES[INITIAL_PRODUCTS[0]] || 1000000,
+      price: defaultProductPrice,
     },
   ]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const firstProd = productOptions[0] || '';
+      setItems([
+        {
+          productName: firstProd,
+          quantity: 1,
+          price: firstProd ? (productPriceMap[firstProd] ?? 0) : 0,
+        },
+      ]);
+    }
+  }, [isOpen, customer?.id, productOptions, productPriceMap]);
 
   if (!isOpen || !customer) return null;
 
@@ -43,9 +71,9 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setItems((prev) => [
       ...prev,
       {
-        productName: INITIAL_PRODUCTS[0],
+        productName: defaultProductName,
         quantity: 1,
-        price: DEFAULT_PRICES[INITIAL_PRODUCTS[0]] || 1000000,
+        price: defaultProductPrice,
       },
     ]);
   };
@@ -54,13 +82,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     if (items.length > 1) {
       setItems((prev) => prev.filter((_, i) => i !== index));
     } else {
-      const defaultProd = INITIAL_PRODUCTS[0];
-      setItems([{ productName: defaultProd, quantity: 1, price: DEFAULT_PRICES[defaultProd] || 500000 }]);
+      setItems([{ productName: defaultProductName, quantity: 1, price: defaultProductPrice }]);
     }
   };
 
   const handleProductChange = (index: number, productName: string) => {
-    const defaultPrice = DEFAULT_PRICES[productName] || 500000;
+    const defaultPrice = productPriceMap[productName] ?? items[index]?.price ?? 0;
     setItems((prev) =>
       prev.map((item, i) =>
         i === index ? { ...item, productName, price: defaultPrice } : item
@@ -146,15 +173,25 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             {items.map((item, idx) => (
               <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-sm">
                 <div className="flex items-center space-x-2">
-                  <select
-                    value={item.productName}
-                    onChange={(e) => handleProductChange(idx, e.target.value)}
-                    className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-                  >
-                    {INITIAL_PRODUCTS.map((prod) => (
-                      <option key={prod} value={prod}>{prod}</option>
-                    ))}
-                  </select>
+                  {productOptions.length > 0 ? (
+                    <select
+                      value={item.productName}
+                      onChange={(e) => handleProductChange(idx, e.target.value)}
+                      className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    >
+                      {productOptions.map((prod) => (
+                        <option key={prod} value={prod}>{prod}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={item.productName}
+                      onChange={(e) => handleProductChange(idx, e.target.value)}
+                      placeholder="Nhập tên sản phẩm..."
+                      className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  )}
 
                   <button
                     type="button"

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, User, Phone, Mail, Globe, MapPin, Tag, Briefcase, FileText, CheckCircle2 } from 'lucide-react';
-import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender } from '../../types';
-import { INITIAL_PRODUCTS } from '../../data/mockData';
+import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender, Product } from '../../types';
 import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -10,6 +9,7 @@ interface CustomerFormModalProps {
   onClose: () => void;
   onSave: (customerData: Partial<Customer>) => void;
   initialData?: Customer | null;
+  products?: Product[];
 }
 
 const GENDER_OPTIONS: Gender[] = ['Nam', 'Nữ', 'Khác'];
@@ -22,6 +22,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onClose,
   onSave,
   initialData,
+  products = [],
 }) => {
   const { users, currentUser } = useAuth();
   const ownerOptions = useMemo(() => {
@@ -36,6 +37,17 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [users, currentUser?.name, initialData?.owner]);
   const defaultOwner = currentUser?.name || ownerOptions[0] || 'Chưa phân công';
+
+  const productOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of products) {
+      if (p.name?.trim()) names.add(p.name.trim());
+    }
+    for (const interested of initialData?.interestedProducts || []) {
+      if (interested?.trim()) names.add(interested.trim());
+    }
+    return Array.from(names);
+  }, [products, initialData?.interestedProducts]);
 
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -95,9 +107,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setStatus('New Lead');
       setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
-      setSelectedProducts([INITIAL_PRODUCTS[0]]);
+      setSelectedProducts(productOptions[0] ? [productOptions[0]] : []);
     }
-  }, [initialData, isOpen, defaultOwner]);
+  }, [initialData, isOpen, defaultOwner, productOptions]);
 
   if (!isOpen) return null;
 
@@ -424,23 +436,27 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
-              {INITIAL_PRODUCTS.map((prod) => {
-                const isSelected = selectedProducts.includes(prod);
-                return (
-                  <button
-                    type="button"
-                    key={prod}
-                    onClick={() => handleProductToggle(prod)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
-                      isSelected
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow'
-                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    {prod} {isSelected ? '✓' : ''}
-                  </button>
-                );
-              })}
+              {productOptions.length > 0 ? (
+                productOptions.map((prod) => {
+                  const isSelected = selectedProducts.includes(prod);
+                  return (
+                    <button
+                      type="button"
+                      key={prod}
+                      onClick={() => handleProductToggle(prod)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                        isSelected
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      {prod} {isSelected ? '✓' : ''}
+                    </button>
+                  );
+                })
+              ) : (
+                <span className="text-xs text-slate-400 italic">Chưa có danh mục sản phẩm</span>
+              )}
             </div>
           </div>
 

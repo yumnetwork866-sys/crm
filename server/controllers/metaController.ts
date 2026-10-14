@@ -16,8 +16,6 @@ import {
   dispatchMetaMessage
 } from '../services/metaApiClient';
 import { encryptMetaToken } from '../services/metaTokenCrypto';
-import type { InMemoryMessage } from '../services/messageStore';
-import { messageStore } from '../services/messageStore';
 import { verifyWebhookChallenge } from '../services/webhookService';
 import { enqueueWebhookPayload } from '../services/queueService';
 import { prisma } from '../lib/prisma';
@@ -546,13 +544,13 @@ export async function testConnection(req: Request, res: Response) {
     await updateIntegrationSetting({ status: 'connected', lastConnectedAt: now });
 
     const testMsgId = metaResult?.messages?.[0]?.id || `msg_test_${Date.now()}`;
-    const testMsgRecord: InMemoryMessage = {
+    const testMsgRecord = {
       id: testMsgId,
       customerId: `cust_${cleanPhone}`,
       customerName: `Khách WhatsApp (${cleanPhone})`,
       customerPhone: recipientPhone,
       businessPhoneNumberId: phoneId,
-      sender: 'agent',
+      sender: 'agent' as const,
       agentName: 'Hệ Thống CRM (Test)',
       channel: 'WhatsApp',
       content: testContent,
@@ -560,8 +558,6 @@ export async function testConnection(req: Request, res: Response) {
       isRead: true,
       isRealSent: true
     };
-
-    messageStore.add(testMsgRecord);
 
     try {
       await prisma.whatsAppMessage.create({

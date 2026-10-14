@@ -1,6 +1,4 @@
 import { prisma } from '../lib/prisma';
-import type { InMemoryMessage } from './messageStore';
-import { messageStore } from './messageStore';
 import { realtimeHub } from './realtimeHub';
 import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
 import { matchCustomerByPhone } from './webhook/webhookCustomerSync';
@@ -51,8 +49,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     // Resolve reply context if applicable
     let replyContext: any = null;
     if (msgData.context?.id) {
-      const origMsg = messageStore.find((m) => m.id === msgData.context.id) ||
-        await prisma.whatsAppMessage.findUnique({ where: { id: msgData.context.id } }).catch(() => null);
+      const origMsg = await prisma.whatsAppMessage.findUnique({ where: { id: msgData.context.id } }).catch(() => null);
       if (origMsg) {
         let rawOrigContent = (origMsg.content || '').replace(/^\[reply:\{.*?\}\]\n/, '');
         if (/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(rawOrigContent)) {
@@ -98,21 +95,19 @@ export async function processWebhookPayload(body: any): Promise<number> {
       fullTextBody = `[reply:${JSON.stringify(replyContext)}]\n${textBody}`;
     }
 
-    const newIncoming: InMemoryMessage = {
+    const newIncoming = {
       id: msgData.id || `msg_meta_${Date.now()}`,
       customerId,
       customerName,
       customerPhone: fromPhone,
       businessPhoneNumberId,
-      sender: 'customer',
+      sender: 'customer' as const,
       channel: 'WhatsApp',
       content: fullTextBody,
       timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
       isRead: false,
       replyTo: replyContext || undefined
     };
-
-    messageStore.add(newIncoming);
 
     const incomingMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
     if (incomingMediaId) {

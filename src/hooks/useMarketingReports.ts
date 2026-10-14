@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppUser, MarketingCampaignReport } from '../types';
 import { api } from '../utils/apiClient';
 import { queryKeys } from '../lib/queryClient';
-import { INITIAL_MARKETING_REPORTS } from '../data/mockData';
 
 export function useMarketingReports(currentUser: AppUser | null, enabled = true) {
   const queryClient = useQueryClient();
@@ -12,10 +11,10 @@ export function useMarketingReports(currentUser: AppUser | null, enabled = true)
     queryFn: async () => {
       try {
         const data = await api.get<MarketingCampaignReport[]>('/reports/marketing');
-        return Array.isArray(data) && data.length > 0 ? data : INITIAL_MARKETING_REPORTS;
+        return Array.isArray(data) ? data : [];
       } catch (err) {
-        console.warn('[Marketing Reports] Failed to fetch reports, using fallback:', err);
-        return INITIAL_MARKETING_REPORTS;
+        console.warn('[Marketing Reports] Failed to fetch reports:', err);
+        return [];
       }
     },
     enabled: Boolean(currentUser) && enabled,
@@ -40,7 +39,7 @@ export function useMarketingReports(currentUser: AppUser | null, enabled = true)
   });
 
   return {
-    marketingReports: reportsQuery.data || INITIAL_MARKETING_REPORTS,
+    marketingReports: reportsQuery.data ?? [],
     isLoading: reportsQuery.isLoading,
     isError: reportsQuery.isError,
     saveReports: saveReportsMutation.mutate,

@@ -1,11 +1,10 @@
 import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 import { prisma } from '../../lib/prisma';
-import { messageStore } from '../../services/messageStore';
 import { realtimeHub } from '../../services/realtimeHub';
 
 /**
- * Mark messages as read in DB & in-memory store with user attribution
+ * Mark messages as read in DB with user attribution
  */
 export async function markMessagesAsRead(req: Request, res: Response) {
   try {
@@ -35,28 +34,7 @@ export async function markMessagesAsRead(req: Request, res: Response) {
     const nowIso = new Date().toISOString();
     const reader = readBy || 'Nhân viên';
 
-    // 1. Update in-memory messages
-    messageStore.update((msgs) =>
-      msgs.map((m) => {
-        const mPhone = (m.customerPhone || '').replace(/\D/g, '');
-        const isSameBusinessPhone = !businessPhoneNumberId || m.businessPhoneNumberId === businessPhoneNumberId;
-        const isMatch = isSameBusinessPhone && (
-          (messageIds && Array.isArray(messageIds) && messageIds.includes(m.id)) ||
-          (customerId && m.customerId === customerId) ||
-          (lastDigits && mPhone.endsWith(lastDigits))
-        );
-        return isMatch
-          ? {
-              ...m,
-              isRead: true,
-              readBy: m.readBy || reader,
-              readAt: m.readAt || nowIso
-            }
-          : m;
-      })
-    );
-
-    // 2. Update DB
+    // Update DB
     try {
       if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
         await prisma.whatsAppMessage.updateMany({

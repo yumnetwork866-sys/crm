@@ -28,7 +28,7 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 import type { EditableButton, TemplateFormData } from '../../types';
 import { VariableSamples } from '../VariableSamples';
 import { ButtonEditorList } from '../buttons/ButtonEditorList';
-import { EmojiPicker } from '../common/EmojiPicker';
+import { EmojiPicker } from '../../../../Common/EmojiPicker';
 import { MediaSampleDropdown } from '../common/MediaSampleDropdown';
 import {
   CATEGORY_ICONS,

@@ -28,22 +28,13 @@ export async function verifyWebhookChallenge(query: any): Promise<{ isValid: boo
   return { isValid: false };
 }
 
-const KNOWN_BRAND_NAMES: Record<string, string> = {
-  '1412496995272289': 'Actiscar',
-  '1409649928889874': 'Follicas',
-  '1311189322067725': 'Yum Network',
-};
-
 export async function resolveWhatsAppBrandName(businessPhoneNumberId?: string | null): Promise<string | undefined> {
   if (!businessPhoneNumberId) return undefined;
-  if (KNOWN_BRAND_NAMES[businessPhoneNumberId]) {
-    return KNOWN_BRAND_NAMES[businessPhoneNumberId];
-  }
   const conn = await prisma.whatsAppConnection.findUnique({
     where: { phoneNumberId: businessPhoneNumberId },
-    select: { verifiedName: true }
+    select: { verifiedName: true, displayPhoneNumber: true }
   }).catch(() => null);
-  return conn?.verifiedName || undefined;
+  return conn?.verifiedName || conn?.displayPhoneNumber || undefined;
 }
 
 /**

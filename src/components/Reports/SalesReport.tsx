@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { Customer } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
-import { SALES_REPS } from '../../data/mockData';
 import { exportSalesReportCsv } from '../../utils/reportExporter';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { FileSpreadsheet } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SalesReportProps {
   customers: Customer[];
@@ -12,6 +12,7 @@ interface SalesReportProps {
 }
 
 export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = true }) => {
+  const { users } = useAuth();
   const totalLeads = customers.length;
   const wonCustomers = customers.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
   const wonCount = wonCustomers.length;
@@ -35,8 +36,24 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = t
     { name: '5. Thất Bại (Lost)', count: statusCounts['Lost'], fill: '#f43f5e' },
   ];
 
+  const salesRepNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const u of users) {
+      if (u.status === 'active' && u.name?.trim()) {
+        names.add(u.name.trim());
+      }
+    }
+    for (const c of customers) {
+      const owner = c.owner?.trim();
+      if (owner && !['Chưa phân công', 'Unassigned'].includes(owner)) {
+        names.add(owner);
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [users, customers]);
+
   // Sales Rep Performance
-  const salesRepPerformance = SALES_REPS.map((repName) => {
+  const salesRepPerformance = salesRepNames.map((repName) => {
     const assigned = customers.filter((c) => c.owner === repName);
     const won = assigned.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
     const rev = assigned.reduce((sum, c) => sum + c.totalSpent, 0);
@@ -118,7 +135,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = t
           <h3 className="font-bold text-white text-sm">Bảng Hiệu Suất Chi Tiết Của Đội Ngũ Sales</h3>
           {isAdmin ? (
             <button
-              onClick={() => exportSalesReportCsv(customers)}
+              onClick={() => exportSalesReportCsv(customers, salesRepNames)}
               className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 transition cursor-pointer self-start sm:self-auto"
               title="Xuất bảng báo cáo Sales sang file CSV/Excel"
             >

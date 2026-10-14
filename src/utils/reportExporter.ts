@@ -1,7 +1,6 @@
 import type { Customer, MarketingCampaignReport, BroadcastCampaign } from '../types';
 import { downloadCsv } from './csvExport';
-import { calculateCrmMetrics, formatVND } from './crmUtils';
-import { SALES_REPS } from '../data/mockData';
+import { calculateCrmMetrics } from './crmUtils';
 
 // 1. Export Marketing Campaigns Report
 export function exportMarketingReportCsv(marketingReports: MarketingCampaignReport[]) {
@@ -29,7 +28,7 @@ export function exportMarketingReportCsv(marketingReports: MarketingCampaignRepo
 }
 
 // 2. Export Sales Performance Report
-export function exportSalesReportCsv(customers: Customer[]) {
+export function exportSalesReportCsv(customers: Customer[], salesReps?: string[]) {
   const headers = [
     'Nhân Viên Sales',
     'Số Khách Được Giao',
@@ -38,7 +37,17 @@ export function exportSalesReportCsv(customers: Customer[]) {
     'Tổng Doanh Thu (VND)',
   ];
 
-  const rows = SALES_REPS.map((repName) => {
+  const repNames = salesReps && salesReps.length > 0
+    ? salesReps
+    : Array.from(
+        new Set(
+          customers
+            .map((c) => c.owner?.trim())
+            .filter((owner): owner is string => Boolean(owner && !['Chưa phân công', 'Unassigned'].includes(owner)))
+        )
+      ).sort((a, b) => a.localeCompare(b, 'vi'));
+
+  const rows = repNames.map((repName) => {
     const assigned = customers.filter((c) => c.owner === repName);
     const won = assigned.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
     const rev = assigned.reduce((sum, c) => sum + c.totalSpent, 0);

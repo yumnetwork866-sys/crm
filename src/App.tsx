@@ -1,7 +1,6 @@
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import type { AppUser, Customer, MarketingCampaignReport } from './types';
-import { INITIAL_MARKETING_REPORTS } from './data/mockData';
+import type { ActiveTab, AppUser, Customer } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useCustomers } from './hooks/useCustomers';
 import { useCentralMessages } from './hooks/useCentralMessages';
@@ -12,7 +11,6 @@ import { useMarketingReports } from './hooks/useMarketingReports';
 import { useBusinessPhones } from './features/messages/hooks/useBusinessPhones';
 
 import { Header } from './components/Header';
-import type { ActiveTab } from './components/Navigation';
 import { NotificationToast } from './components/Common/NotificationToast';
 
 import { CustomerDetailModal } from './components/CustomerManagement/CustomerDetailModal';
@@ -100,7 +98,7 @@ export default function App() {
   const activeTab = useMemo(() => getActiveTabFromPath(location.pathname), [location.pathname]);
   const routeSegment = location.pathname.replace(/^\//, '').split('/')[0];
   const shouldLoadCustomers = ['crm', 'orders', 'segmentation', 'automation', 'reports', 'messages'].includes(routeSegment);
-  const shouldLoadProducts = routeSegment === 'orders' || routeSegment === 'catalog' || routeSegment === 'products' || routeSegment === 'meta-verification';
+  const shouldLoadProducts = ['crm', 'orders', 'catalog', 'products', 'automation', 'messages', 'meta-verification'].includes(routeSegment);
   const shouldLoadCampaigns = routeSegment === 'automation' || routeSegment === 'reports';
   const shouldLoadReports = routeSegment === 'reports';
   const shouldLoadFullMessages = routeSegment === 'crm' || routeSegment === 'messages';
@@ -375,12 +373,14 @@ export default function App() {
                   onClose={() => setIsFormOpen(false)}
                   onSave={handleSaveCustomer}
                   initialData={editingCustomer}
+                  products={products}
                 />
 
                 <AddOrderModal
                   isOpen={isOrderOpen}
                   onClose={() => setIsOrderOpen(false)}
                   customer={orderCustomer}
+                  products={products}
                   onAddOrder={handleAddOrder}
                 />
 
@@ -512,6 +512,7 @@ export default function App() {
                   activeSection={automationSection}
                   onChangeSection={(section) => { void navigate(`/automation/${section}`); }}
                   customers={customers}
+                  products={products}
                   campaigns={campaigns}
                   templates={whatsappTemplates}
                   approvedTemplates={approvedTemplates}

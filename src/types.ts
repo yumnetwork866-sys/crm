@@ -1,3 +1,15 @@
+export type ActiveTab =
+  | 'crm'
+  | 'orders'
+  | 'products'
+  | 'catalog'
+  | 'segmentation'
+  | 'automation'
+  | 'reports'
+  | 'users'
+  | 'messages'
+  | 'meta-verification';
+
 export type CustomerStatus = 'New Lead' | 'Contacted' | 'Quoted' | 'Won' | 'Lost';
 
 export type LeadSource = 'Facebook' | 'TikTok' | 'Google' | 'Website' | 'Zalo' | 'WhatsApp' | 'Referral' | 'Direct';

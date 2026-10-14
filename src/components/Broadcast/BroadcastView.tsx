@@ -8,14 +8,15 @@ import type {
   BroadcastCampaign,
   CampaignAudiencePreview,
   LaunchCampaignInput,
+  Product,
   WhatsAppApprovedTemplate,
   WhatsAppTemplateCategory,
 } from '../../types';
-import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
 
 interface BroadcastViewProps {
   customers: Customer[];
+  products?: Product[];
   campaigns: BroadcastCampaign[];
   approvedTemplates: WhatsAppApprovedTemplate[];
   isTemplatesLoading: boolean;
@@ -64,6 +65,7 @@ const isTemplateSupported = (template: WhatsAppApprovedTemplate) => {
 
 export const BroadcastView: React.FC<BroadcastViewProps> = ({
   customers,
+  products = [],
   campaigns,
   approvedTemplates,
   isTemplatesLoading,
@@ -89,6 +91,19 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
   const [templateText, setTemplateText] = useState('');
   const [audiencePreview, setAudiencePreview] = useState<CampaignAudiencePreview | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  const productOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of products) {
+      if (p.name?.trim()) names.add(p.name.trim());
+    }
+    for (const c of customers) {
+      for (const interested of c.interestedProducts || []) {
+        if (interested?.trim()) names.add(interested.trim());
+      }
+    }
+    return Array.from(names);
+  }, [products, customers]);
 
   const { targetedTotal, eligibleCustomers } = useMemo(() => {
     const matched = customers.filter((c) => {
@@ -358,7 +373,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none"
                 >
                   <option value="ALL">Tất cả sản phẩm</option>
-                  {INITIAL_PRODUCTS.map((p) => (
+                  {productOptions.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>

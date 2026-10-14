@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
-import { messageStore } from '../../services/messageStore';
 import { getRouteParam } from '../../utils/requestParams';
 import {
   getIntegrationSetting,
@@ -109,34 +108,21 @@ export async function getMessages(req: Request, res: Response) {
       });
     }
 
-    // Default full-fetch fallback (DB + Memory combined)
-    let dbMsgs: any[] = [];
-    try {
-      dbMsgs = await prisma.whatsAppMessage.findMany({
-        where: whereClause,
-        orderBy: { timestamp: 'asc' }
-      });
-    } catch (e) {
-      // DB offline fallback
-    }
+    const dbMsgs = await prisma.whatsAppMessage.findMany({
+      where: whereClause,
+      orderBy: { timestamp: 'asc' }
+    });
 
-    const map = new Map<string, any>();
-    for (const m of dbMsgs) {
+    const formatted = dbMsgs.map((m) => {
       const cleanP = m.customerPhone ? m.customerPhone.replace(/\D/g, '') : '';
-      map.set(m.id, {
+      return {
         ...m,
         customerId: m.customerId || (cleanP ? `cust_${cleanP}` : 'cust_unknown'),
         timestamp: typeof m.timestamp === 'object' ? m.timestamp.toISOString() : m.timestamp
-      });
-    }
-    for (const m of messageStore.getAll()) {
-      if (!map.has(m.id)) {
-        map.set(m.id, m);
-      }
-    }
+      };
+    });
 
-    const combined = Array.from(map.values()).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return res.json(combined);
+    return res.json(formatted);
   } catch (error) {
     console.error('Lỗi khi lấy tin nhắn:', error);
     return res.status(500).json({ error: 'Không thể tải tin nhắn' });

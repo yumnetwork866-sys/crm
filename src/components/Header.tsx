@@ -14,9 +14,8 @@ import {
   Sparkles,
   Package,
 } from 'lucide-react';
-import type { AppUser } from '../types';
+import type { ActiveTab, AppUser } from '../types';
 import { YumLogo } from './Common/YumLogo';
-import type { ActiveTab } from './Navigation';
 import { useAuth } from '../contexts/AuthContext';
 import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';

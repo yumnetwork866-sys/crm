@@ -1,6 +1,4 @@
 import { prisma } from '../../lib/prisma';
-import type { InMemoryMessage } from '../messageStore';
-import { messageStore } from '../messageStore';
 import { getIntegrationSetting, updateIntegrationSetting } from '../metaApiClient';
 import { realtimeHub } from '../realtimeHub';
 import { aggregateCampaign } from '../campaignWorker';
@@ -110,7 +108,7 @@ export async function saveMirroredMessage(input: {
     input.customerName || `Khách WhatsApp (${customerPhone})`,
     input.businessPhoneNumberId
   );
-  const mirrored: InMemoryMessage = {
+  const mirrored = {
     id: String(msgData.id),
     customerId: matched.customerId,
     customerName: matched.customerName,
@@ -130,7 +128,6 @@ export async function saveMirroredMessage(input: {
       businessPhoneNumberId: input.businessPhoneNumberId,
     });
   }
-  messageStore.add(mirrored);
   await prisma.whatsAppMessage.upsert({
     where: { id: mirrored.id },
     update: {},
@@ -255,7 +252,6 @@ export async function processWebhookStatuses(body: any) {
             where: { id: item.id },
             data: { status: 'sent' },
           });
-          messageStore.updateMessage(item.id, { status: 'sent' });
           realtimeHub.broadcast('message:status', {
             id: item.id,
             status: 'sent',
@@ -270,7 +266,6 @@ export async function processWebhookStatuses(body: any) {
             where: { id: item.id },
             data: { status: 'delivered', deliveredAt: eventAt },
           });
-          messageStore.updateMessage(item.id, { status: 'delivered', deliveredAt: eventAt.toISOString() });
           realtimeHub.broadcast('message:status', {
             id: item.id,
             status: 'delivered',
@@ -285,7 +280,6 @@ export async function processWebhookStatuses(body: any) {
           where: { id: item.id },
           data: { status: 'read', isRead: true, readAt: eventAt },
         });
-        messageStore.updateMessage(item.id, { status: 'read', isRead: true, readAt: eventAt.toISOString() });
         realtimeHub.broadcast('message:status', {
           id: item.id,
           status: 'read',
@@ -312,7 +306,6 @@ export async function processWebhookStatuses(body: any) {
             errorMessage: errMsg,
           },
         });
-        messageStore.updateMessage(item.id, { status: 'failed', errorCode: errCode, errorMessage: errMsg });
         realtimeHub.broadcast('message:status', {
           id: item.id,
           status: 'failed',
@@ -320,39 +313,6 @@ export async function processWebhookStatuses(body: any) {
           errorMessage: errMsg,
           customerId: directMsg.customerId,
           customerPhone: directMsg.customerPhone,
-          timestamp: eventAt.toISOString(),
-        });
-      }
-    } else {
-      // In case message is only in memory
-      const inMem = messageStore.find((m) => m.id === item.id);
-      if (inMem) {
-        let mappedStatus: 'sent' | 'delivered' | 'read' | 'failed' = 'sent';
-        let errCode: string | undefined;
-        let errMsg: string | undefined;
-        if (item.status === 'delivered') mappedStatus = 'delivered';
-        else if (item.status === 'read') mappedStatus = 'read';
-        else if (item.status === 'failed') {
-          mappedStatus = 'failed';
-          const error = item.errors?.[0];
-          errCode = error?.code ? String(error.code) : 'META_FAILED';
-          errMsg = error?.title || error?.message || 'Meta báo gửi thất bại.';
-        }
-        messageStore.updateMessage(item.id, {
-          status: mappedStatus,
-          errorCode: errCode,
-          errorMessage: errMsg,
-          isRead: mappedStatus === 'read' ? true : inMem.isRead,
-          deliveredAt: mappedStatus === 'delivered' ? eventAt.toISOString() : inMem.deliveredAt,
-          readAt: mappedStatus === 'read' ? eventAt.toISOString() : inMem.readAt,
-        });
-        realtimeHub.broadcast('message:status', {
-          id: item.id,
-          status: mappedStatus,
-          errorCode: errCode,
-          errorMessage: errMsg,
-          customerId: inMem.customerId,
-          customerPhone: inMem.customerPhone,
           timestamp: eventAt.toISOString(),
         });
       }

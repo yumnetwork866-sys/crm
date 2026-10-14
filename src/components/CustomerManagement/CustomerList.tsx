@@ -34,11 +34,14 @@ interface CustomerListProps {
 }
 
 const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
+const BRAND_COLORS: Array<'emerald' | 'purple' | 'blue'> = ['emerald', 'purple', 'blue'];
 
-const KNOWN_WHATSAPP_BRANDS: Record<string, { name: string; displayPhone: string; color: 'emerald' | 'purple' | 'blue' }> = {
-  '1412496995272289': { name: 'Actiscar', displayPhone: '+60 11-5551 9250', color: 'emerald' },
-  '1409649928889874': { name: 'Follicas', displayPhone: '+60 11-1096 6954', color: 'purple' },
-  '1311189322067725': { name: 'Yum Network', displayPhone: '+60 11-1071 6895', color: 'blue' },
+const pickBrandColor = (name: string, index = 0): 'emerald' | 'purple' | 'blue' => {
+  const lower = name.toLowerCase();
+  if (lower.includes('follicas')) return 'purple';
+  if (lower.includes('yum')) return 'blue';
+  if (lower.includes('actiscar')) return 'emerald';
+  return BRAND_COLORS[index % BRAND_COLORS.length];
 };
 
 export const CustomerList: React.FC<CustomerListProps> = ({
@@ -90,21 +93,15 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     const map = new Map<string, CustomerWhatsAppSourceInfo>();
 
     const phoneIdToInfo = new Map<string, { name: string; displayPhone: string; color: 'emerald' | 'purple' | 'blue' }>();
-    for (const [id, info] of Object.entries(KNOWN_WHATSAPP_BRANDS)) {
-      phoneIdToInfo.set(id, info);
-    }
     if (businessPhones) {
-      for (const bp of businessPhones) {
-        const known = phoneIdToInfo.get(bp.id);
-        const name = bp.verifiedName || known?.name || 'WhatsApp';
-        const lower = name.toLowerCase();
-        const color: 'emerald' | 'purple' | 'blue' = lower.includes('follicas') ? 'purple' : lower.includes('yum') ? 'blue' : 'emerald';
+      businessPhones.forEach((bp, idx) => {
+        const name = bp.verifiedName || bp.displayPhoneNumber || 'WhatsApp';
         phoneIdToInfo.set(bp.id, {
           name,
-          displayPhone: bp.displayPhoneNumber || known?.displayPhone || '',
-          color,
+          displayPhone: bp.displayPhoneNumber || '',
+          color: pickBrandColor(name, idx),
         });
-      }
+      });
     }
 
     const msgsByCustId = new Map<string, Set<string>>();
@@ -152,27 +149,20 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         const trimmed = customer.campaign.trim();
         const lower = trimmed.toLowerCase();
         if (!['n/a', 'na', 'default campaign', ''].includes(lower)) {
-          if (lower.includes('actiscar')) {
-            if (!brands.some((b) => b.name.toLowerCase().includes('actiscar'))) {
-              brands.push({ name: 'Actiscar', displayPhone: '+60 11-5551 9250', color: 'emerald' });
-            }
-          } else if (lower.includes('follicas')) {
-            if (!brands.some((b) => b.name.toLowerCase().includes('follicas'))) {
-              brands.push({ name: 'Follicas', displayPhone: '+60 11-1096 6954', color: 'purple' });
-            }
-          } else if (lower.includes('yum')) {
-            if (!brands.some((b) => b.name.toLowerCase().includes('yum'))) {
-              brands.push({ name: 'Yum Network', displayPhone: '+60 11-1071 6895', color: 'blue' });
-            }
-          } else {
-            const matchedBp = businessPhones?.find((bp) => bp.verifiedName.toLowerCase() === lower);
-            if (matchedBp && !brands.some((b) => b.name === matchedBp.verifiedName)) {
-              brands.push({
-                name: matchedBp.verifiedName,
-                displayPhone: matchedBp.displayPhoneNumber,
-                color: 'emerald',
-              });
-            }
+          const matchedBp = businessPhones?.find(
+            (bp) => bp.verifiedName && (
+              bp.verifiedName.toLowerCase() === lower
+              || lower.includes(bp.verifiedName.toLowerCase())
+              || bp.verifiedName.toLowerCase().includes(lower)
+            )
+          );
+          const resolvedName = matchedBp?.verifiedName || trimmed;
+          if (!brands.some((b) => b.name.toLowerCase() === resolvedName.toLowerCase())) {
+            brands.push({
+              name: resolvedName,
+              displayPhone: matchedBp?.displayPhoneNumber,
+              color: pickBrandColor(resolvedName, brands.length),
+            });
           }
         }
       }
