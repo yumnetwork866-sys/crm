@@ -27,10 +27,11 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  ownedCustomers             Customer[]            @relation("CustomerOwner")
-  updatedMessageThreadStates MessageThreadState[]  @relation("MessageThreadStateUpdatedBy")
+  ownedCustomers             Customer[]             @relation("CustomerOwner")
+  updatedMessageThreadStates MessageThreadState[]   @relation("MessageThreadStateUpdatedBy")
   messageInternalNotes       MessageInternalNote[]
   messageSavedFilters        MessageSavedFilter[]
+  messageQuickTemplates      MessageQuickTemplate[]
 }
 
 model RolePermission {
@@ -396,6 +397,20 @@ model MessageSavedFilter {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model MessageQuickTemplate {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  title       String
+  content     String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Asc)])
 }
 
 model MarketingReport {

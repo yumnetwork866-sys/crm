@@ -41,6 +41,10 @@ import {
   getMessageSavedFilters,
   createMessageSavedFilter,
   deleteMessageSavedFilter,
+  getMessageQuickTemplates,
+  createMessageQuickTemplate,
+  updateMessageQuickTemplate,
+  deleteMessageQuickTemplate,
 } from '../controllers/messagePreferenceController';
 
 const router = Router();
@@ -90,6 +94,10 @@ router.delete('/messages/preferences/notes/:noteId', authenticateToken, requireP
 router.get('/messages/preferences/filters', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessageSavedFilters);
 router.post('/messages/preferences/filters', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), createMessageSavedFilter);
 router.delete('/messages/preferences/filters/:id', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), deleteMessageSavedFilter);
+router.get('/messages/preferences/quick-templates', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessageQuickTemplates);
+router.post('/messages/preferences/quick-templates', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), createMessageQuickTemplate);
+router.patch('/messages/preferences/quick-templates/:id', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateMessageQuickTemplate);
+router.delete('/messages/preferences/quick-templates/:id', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessageQuickTemplate);
 router.get('/ai-status', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getGlobalAiStatus);
 router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleGlobalAi);
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);

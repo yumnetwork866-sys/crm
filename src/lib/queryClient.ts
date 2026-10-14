@@ -10,6 +10,7 @@ export const queryKeys = {
   messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
   messageUnreadTotals: ['message-unread-totals'] as const,
   messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,
+  messageQuickTemplates: ['message-quick-templates'] as const,
   metaCatalogs: (scopeId: string, phoneNumberId: string) => ['meta-catalogs', scopeId, phoneNumberId] as const,
   metaCatalogProducts: (scopeId: string, phoneNumberId: string, catalogId: string) =>
     ['meta-catalog-products', scopeId, phoneNumberId, catalogId] as const,

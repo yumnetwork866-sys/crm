@@ -13,13 +13,18 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required to initialize Prisma.');
 }
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
+const createPrismaClient = () =>
   new PrismaClient({
     adapter: new PrismaPg(databaseUrl),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 
+export const prisma =
+  globalForPrisma.prisma && 'messageQuickTemplate' in globalForPrisma.prisma
+    ? globalForPrisma.prisma
+    : createPrismaClient();
+
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+

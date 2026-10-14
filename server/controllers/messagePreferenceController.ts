@@ -260,3 +260,120 @@ export async function deleteMessageSavedFilter(req: AuthenticatedRequest, res: R
   if (result.count === 0) return res.status(404).json({ error: 'Không tìm thấy bộ lọc.' });
   return res.json({ id });
 }
+
+const quickTemplateCodeSchema = z
+  .string()
+  .trim()
+  .min(1, 'Phím tắt không được để trống')
+  .max(64)
+  .transform((val) => `/${val.replace(/^\/+/, '')}`);
+
+const createQuickTemplateSchema = z.object({
+  code: quickTemplateCodeSchema,
+  title: z.string().trim().min(1, 'Tiêu đề không được để trống').max(120),
+  content: z.string().trim().min(1, 'Nội dung không được để trống').max(5_000),
+});
+
+const updateQuickTemplateSchema = z.object({
+  code: quickTemplateCodeSchema.optional(),
+  title: z.string().trim().min(1, 'Tiêu đề không được để trống').max(120).optional(),
+  content: z.string().trim().min(1, 'Nội dung không được để trống').max(5_000).optional(),
+}).refine((data) => data.code !== undefined || data.title !== undefined || data.content !== undefined, {
+  message: 'Cần cung cấp thông tin cập nhật.',
+});
+
+export async function getMessageQuickTemplates(_req: AuthenticatedRequest, res: Response) {
+  try {
+    const templates = await prisma.messageQuickTemplate.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, code: true, title: true, content: true },
+    });
+    return res.json(templates);
+  } catch (error) {
+    console.error('[QUICK TEMPLATES GET ERROR]', error);
+    return res.status(500).json({ error: 'Không thể tải danh sách mẫu tin nhắn nhanh.' });
+  }
+}
+
+export async function createMessageQuickTemplate(req: AuthenticatedRequest, res: Response) {
+  const parsed = createQuickTemplateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Mẫu tin nhắn không hợp lệ.' });
+  }
+
+  try {
+    const existing = await prisma.messageQuickTemplate.findFirst({
+      where: { code: { equals: parsed.data.code, mode: 'insensitive' } },
+      select: { id: true, title: true },
+    });
+    if (existing) {
+      return res.status(409).json({
+        error: `Phím tắt ${parsed.data.code} đã được dùng cho mẫu “${existing.title}”.`,
+      });
+    }
+
+    const created = await prisma.messageQuickTemplate.create({
+      data: {
+        ...parsed.data,
+        createdById: req.user?.id,
+      },
+      select: { id: true, code: true, title: true, content: true },
+    });
+    realtimeHub.broadcast('message:preferences:quick_templates', { action: 'created', template: created });
+    return res.status(201).json(created);
+  } catch (error) {
+    console.error('[QUICK TEMPLATE CREATE ERROR]', error);
+    return res.status(500).json({ error: 'Không thể tạo mẫu tin nhắn nhanh.' });
+  }
+}
+
+export async function updateMessageQuickTemplate(req: AuthenticatedRequest, res: Response) {
+  const id = getRouteParam(req.params.id);
+  const parsed = updateQuickTemplateSchema.safeParse(req.body);
+  if (!id || !parsed.success) {
+    return res.status(400).json({ error: parsed.error?.issues[0]?.message || 'Dữ liệu cập nhật không hợp lệ.' });
+  }
+
+  try {
+    if (parsed.data.code) {
+      const duplicate = await prisma.messageQuickTemplate.findFirst({
+        where: {
+          code: { equals: parsed.data.code, mode: 'insensitive' },
+          id: { not: id },
+        },
+        select: { id: true, title: true },
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          error: `Phím tắt ${parsed.data.code} đã được dùng cho mẫu “${duplicate.title}”.`,
+        });
+      }
+    }
+
+    const updated = await prisma.messageQuickTemplate.update({
+      where: { id },
+      data: parsed.data,
+      select: { id: true, code: true, title: true, content: true },
+    });
+    realtimeHub.broadcast('message:preferences:quick_templates', { action: 'updated', template: updated });
+    return res.json(updated);
+  } catch (error) {
+    console.error('[QUICK TEMPLATE UPDATE ERROR]', error);
+    return res.status(500).json({ error: 'Không thể cập nhật mẫu tin nhắn nhanh.' });
+  }
+}
+
+export async function deleteMessageQuickTemplate(req: AuthenticatedRequest, res: Response) {
+  const id = getRouteParam(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Thiếu ID mẫu tin nhắn.' });
+
+  try {
+    const result = await prisma.messageQuickTemplate.deleteMany({ where: { id } });
+    if (result.count === 0) return res.status(404).json({ error: 'Không tìm thấy mẫu tin nhắn.' });
+    realtimeHub.broadcast('message:preferences:quick_templates', { action: 'deleted', id });
+    return res.json({ id });
+  } catch (error) {
+    console.error('[QUICK TEMPLATE DELETE ERROR]', error);
+    return res.status(500).json({ error: 'Không thể xóa mẫu tin nhắn nhanh.' });
+  }
+}
