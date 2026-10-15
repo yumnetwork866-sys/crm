@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { realtimeHub } from '../services/realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
+import { parseWhatsAppOrder } from '../utils/whatsappOrder';
 
 const router = Router();
 
@@ -86,6 +87,133 @@ router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: Authentic
   } catch (error) {
     console.error('Lỗi khi lấy danh sách đơn hàng:', error);
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách đơn hàng' });
+  }
+});
+
+// GET /api/orders/whatsapp/:messageId - Resolve an order already created from a WhatsApp cart
+router.get('/whatsapp/:messageId', requirePermission(Permission.ORDERS_VIEW), async (req: AuthenticatedRequest, res: Response) => {
+  const messageId = getRouteParam(req.params.messageId);
+  const [order, message] = await Promise.all([
+    prisma.order.findUnique({
+      where: { whatsappMessageId: messageId },
+      include: { products: true },
+    }).catch(() => null),
+    prisma.whatsAppMessage.findUnique({
+      where: { id: messageId },
+      select: { content: true },
+    }).catch(() => null),
+  ]);
+  const submittedOrder = parseWhatsAppOrder(message?.content);
+  const retailerIds = submittedOrder
+    ? [...new Set(submittedOrder.items.map((item) => item.retailerId))]
+    : [];
+  const products = retailerIds.length > 0
+    ? await prisma.product.findMany({
+        where: { metaRetailerId: { in: retailerIds } },
+        select: { name: true, image: true, metaRetailerId: true },
+      })
+    : [];
+  return res.json({
+    order,
+    productMatches: products.map((product) => ({
+      retailerId: product.metaRetailerId,
+      name: product.name,
+      imageUrl: product.image,
+    })),
+  });
+});
+
+// POST /api/orders/whatsapp/:messageId - Confirm a submitted WhatsApp cart as a CRM order
+router.post('/whatsapp/:messageId', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
+  const messageId = getRouteParam(req.params.messageId);
+  try {
+    const existing = await prisma.order.findUnique({
+      where: { whatsappMessageId: messageId },
+      include: { products: true },
+    });
+    if (existing) return res.json(existing);
+
+    const message = await prisma.whatsAppMessage.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        customerId: true,
+        customerName: true,
+        customerPhone: true,
+        content: true,
+        sender: true,
+      },
+    });
+    if (!message || message.sender !== 'customer') {
+      return res.status(404).json({ error: 'Không tìm thấy giỏ hàng WhatsApp của khách.' });
+    }
+
+    const submittedOrder = parseWhatsAppOrder(message.content);
+    if (!submittedOrder) {
+      return res.status(400).json({ error: 'Tin nhắn không chứa đơn hàng WhatsApp hợp lệ.' });
+    }
+
+    const retailerIds = [...new Set(submittedOrder.items.map((item) => item.retailerId))];
+    const matchedProducts = await prisma.product.findMany({
+      where: { metaRetailerId: { in: retailerIds } },
+      select: { id: true, name: true, metaRetailerId: true },
+    });
+    const productByRetailerId = new Map(
+      matchedProducts.map((product) => [product.metaRetailerId, product]),
+    );
+    const currencies = [...new Set(submittedOrder.items.map((item) => item.currency).filter(Boolean))];
+    const unmatchedRetailerIds = retailerIds.filter((id) => !productByRetailerId.has(id));
+    const totalAmount = submittedOrder.items.reduce(
+      (sum, item) => sum + item.quantity * item.itemPrice,
+      0,
+    );
+
+    const created = await prisma.order.create({
+      data: {
+        orderCode: `WA-${Date.now().toString(36).toUpperCase()}`,
+        whatsappMessageId: message.id,
+        customerId: message.customerId,
+        customerName: message.customerName,
+        customerPhone: message.customerPhone,
+        totalAmount,
+        status: 'Processing',
+        notes: JSON.stringify({
+          source: 'WhatsApp Cart',
+          catalogId: submittedOrder.catalogId,
+          currencies,
+          unmatchedRetailerIds,
+        }),
+        products: {
+          create: submittedOrder.items.map((item) => {
+            const product = productByRetailerId.get(item.retailerId);
+            return {
+              productId: product?.id || null,
+              productName: product?.name || `Meta SKU: ${item.retailerId}`,
+              quantity: item.quantity,
+              price: item.itemPrice,
+            };
+          }),
+        },
+      },
+      include: { products: true },
+    });
+
+    realtimeHub.broadcast('orders:sync', {
+      source: 'whatsapp-order-confirmed',
+      orderId: created.id,
+      whatsappMessageId: message.id,
+    });
+    return res.status(201).json(created);
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      const existing = await prisma.order.findUnique({
+        where: { whatsappMessageId: messageId },
+        include: { products: true },
+      });
+      if (existing) return res.json(existing);
+    }
+    console.error('[WHATSAPP ORDER CREATE ERROR]', error);
+    return res.status(500).json({ error: 'Không thể tạo đơn từ giỏ hàng WhatsApp.' });
   }
 });
 

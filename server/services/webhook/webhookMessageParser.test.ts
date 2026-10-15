@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getWebhookSenderIdentifier } from './webhookMessageParser';
+import { getMessageText, getWebhookSenderIdentifier } from './webhookMessageParser';
 
 describe('getWebhookSenderIdentifier', () => {
   it('uses the standard from field first', () => {
@@ -21,3 +21,34 @@ describe('getWebhookSenderIdentifier', () => {
   });
 });
 
+describe('getMessageText WhatsApp orders', () => {
+  it('preserves submitted cart items as structured message content', () => {
+    const content = getMessageText({
+      type: 'order',
+      order: {
+        catalog_id: 'catalog-1',
+        product_items: [
+          { product_retailer_id: 'sku-1', quantity: 2, item_price: '49.50', currency: 'myr' },
+        ],
+      },
+    });
+
+    expect(content).toBe('[whatsapp_order:{"catalogId":"catalog-1","items":[{"retailerId":"sku-1","quantity":2,"itemPrice":49.5,"currency":"MYR"}]}]');
+  });
+});
+
+describe('getMessageText WhatsApp reaction', () => {
+  it('formats reaction emoji fallback text', () => {
+    expect(getMessageText({
+      type: 'reaction',
+      reaction: { message_id: 'wamid.123', emoji: '❤️' },
+    })).toBe('[Cảm xúc: ❤️]');
+  });
+
+  it('formats removed reaction fallback text', () => {
+    expect(getMessageText({
+      type: 'reaction',
+      reaction: { message_id: 'wamid.123', emoji: '' },
+    })).toBe('[Gỡ cảm xúc]');
+  });
+});

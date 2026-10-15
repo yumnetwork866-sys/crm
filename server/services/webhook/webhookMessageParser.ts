@@ -1,3 +1,5 @@
+import { serializeWhatsAppOrder } from '../../utils/whatsappOrder';
+
 /**
  * Extract incoming messages from diverse Meta Webhook payload formats
  */
@@ -108,6 +110,9 @@ export function extractWebhookChanges(body: any): Array<{ field: string; value: 
 export function getMessageText(msgData: any, businessPhoneNumberId?: string): string {
   const directText = msgData?.text?.body;
   if (directText) return directText;
+  if (msgData?.type === 'order') {
+    return serializeWhatsAppOrder(msgData) || '[Đơn hàng WhatsApp không hợp lệ]';
+  }
   const phoneQuery = businessPhoneNumberId ? `?phoneId=${encodeURIComponent(businessPhoneNumberId)}` : '';
   if (msgData?.type === 'image') {
     const mediaId = msgData.image?.id;
@@ -141,6 +146,10 @@ export function getMessageText(msgData: any, businessPhoneNumberId?: string): st
   if (msgData?.type === 'video') return '[Video]';
   if (msgData?.type === 'location') {
     return `[Vị trí] ${msgData.location?.name || ''} (${msgData.location?.latitude || ''}, ${msgData.location?.longitude || ''})`.trim();
+  }
+  if (msgData?.type === 'reaction') {
+    const emoji = msgData.reaction?.emoji;
+    return emoji ? `[Cảm xúc: ${emoji}]` : '[Gỡ cảm xúc]';
   }
   return msgData?.type ? `[${msgData.type} message]` : 'Tin nhắn WhatsApp';
 }

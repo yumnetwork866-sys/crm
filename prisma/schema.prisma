@@ -137,6 +137,7 @@ model Order {
   totalAmount   Decimal  @default(0) @db.Decimal(18, 2)
   status        String   @default("Processing") // 'Completed' | 'Processing' | 'Cancelled'
   notes         String?
+  whatsappMessageId String? @unique
 
   customer Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   products OrderItem[]
@@ -341,6 +342,7 @@ model WhatsAppMessage {
   readAt        DateTime?
   deliveredAt   DateTime?
   isRealSent    Boolean   @default(true)
+  reaction      String?
   timestamp     DateTime  @default(now())
   createdAt     DateTime  @default(now())
 

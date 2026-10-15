@@ -682,6 +682,42 @@ export function useCentralMessages({
           console.error('[REALTIME SSE] Error processing message:status event:', error);
         }
       },
+      'message:reaction': (event) => {
+        try {
+          const { messageId, emoji, customerId, customerPhone } = JSON.parse(event.data);
+          if (!messageId) return;
+          setMessages((previous) =>
+            previous.map((message) => {
+              if (message.id !== messageId) return message;
+              return {
+                ...message,
+                reaction: emoji || null,
+              };
+            })
+          );
+          const msgIdentity = resolveThreadIdentityRef.current(customerId, customerPhone);
+          if (msgIdentity.threadKey) {
+            const targetThreadKey = queryKeys.centralMessages(phoneNumberId, msgIdentity.threadKey);
+            queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+              targetThreadKey,
+              (data) => {
+                if (!data) return data;
+                return {
+                  ...data,
+                  pages: data.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((message) =>
+                      message.id === messageId ? { ...message, reaction: emoji || null } : message
+                    ),
+                  })),
+                };
+              }
+            );
+          }
+        } catch (error) {
+          console.error('[REALTIME SSE] Error processing message:reaction event:', error);
+        }
+      },
       'message:thread_deleted': (event) => {
         try {
           const { customerId, customerPhone } = JSON.parse(event.data);

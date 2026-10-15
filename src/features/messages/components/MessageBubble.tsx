@@ -17,6 +17,7 @@ import {
   extractDocumentInfo,
   extractImageInfo,
   extractProductInfo,
+  extractWhatsAppOrderInfo,
   formatMessagePreview,
   parseMessageContent,
 } from '../utils/messageContent';
@@ -24,6 +25,7 @@ import { DocumentMessageCard } from './DocumentMessageCard';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { ProductMessageCard } from './ProductMessageCard';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { WhatsAppOrderCard } from './WhatsAppOrderCard';
 
 const TranslateIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" {...props}>
@@ -331,6 +333,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
               );
             };
+
+            const whatsappOrder = extractWhatsAppOrderInfo(content);
+            if (whatsappOrder.isOrder) {
+              return (
+                <div className="space-y-1">
+                  {renderQuoteHeader()}
+                  <WhatsAppOrderCard
+                    messageId={msg.id}
+                    orderInfo={whatsappOrder}
+                    timeFormatted={timeFormatted}
+                  />
+                </div>
+              );
+            }
 
             // 0. Catalog Single Product Message
             const productInfo = extractProductInfo(content);
