@@ -324,9 +324,8 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
             )}
           </div>
 
-          <div className="px-1 pt-2 text-[10px] text-slate-400 flex items-center justify-between font-medium shrink-0">
-            <span>↑↓ Chọn • Enter Chèn</span>
-            <span>Esc Đóng • Phím tắt /</span>
+          <div className="px-1 pt-2 text-[10px] text-slate-400 flex items-center font-medium shrink-0">
+            <span>↑↓ Chọn</span>
           </div>
         </div>
       )}
