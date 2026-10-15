@@ -113,7 +113,7 @@ export function WhatsAppOrderCard({
             {totalQuantity} sản phẩm
           </p>
           <p className="mt-1 text-[11px] font-semibold text-emerald-600">
-            {currency} {total.toFixed(2)} (tổng tạm tính)
+            {currency} {total.toFixed(2)}
           </p>
         </div>
         <ChevronDown className="mr-2 mt-2.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -134,12 +134,6 @@ export function WhatsAppOrderCard({
 
       {isExpanded && (
         <div className="border-t border-slate-100 bg-white text-slate-800">
-          {orderInfo.catalogId && (
-            <p className="truncate px-3 pt-2 font-mono text-[9px] text-slate-400">
-              Catalog: {orderInfo.catalogId}
-            </p>
-          )}
-
           <div className="divide-y divide-slate-100 px-3">
             {orderInfo.items.map((item, index) => (
               <div key={`${item.retailerId}-${index}`} className="py-2">
@@ -169,11 +163,6 @@ export function WhatsAppOrderCard({
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="mb-2 flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-600">Tổng tạm tính</span>
-              <strong className="text-emerald-700">{formatMoney(total, currency)}</strong>
-            </div>
-
             {unmatchedCount > 0 && (
               <div className="mb-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
                 <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
