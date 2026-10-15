@@ -42,6 +42,8 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
     setShowEmojiPicker,
     showTemplatePicker,
     setShowTemplatePicker,
+    isTemplatePickerActive,
+    isSlashActive,
     setShowAttachMenu,
     pendingImage,
     setPendingImage,
@@ -55,6 +57,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
     templates,
     filteredSlashTemplates,
     activeSlashIndex,
+    setActiveSlashIndex,
     handleSelectSlashTemplate,
     handleApplyTemplate,
     handleAddEmoji,
@@ -174,7 +177,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   const templateButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!showEmojiPicker && !showTemplatePicker) return;
+    if (!showEmojiPicker && !isTemplatePickerActive) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -183,66 +186,147 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           setShowEmojiPicker(false);
         }
       }
-      if (showTemplatePicker) {
+      if (isTemplatePickerActive) {
         if (!templatePickerRef.current?.contains(target) && !templateButtonRef.current?.contains(target)) {
           setShowTemplatePicker(false);
+          if (isSlashActive) setInputText('');
         }
       }
     };
 
-    const handleEscapeKeyDown = (event: KeyboardEvent) => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowEmojiPicker(false);
         setShowTemplatePicker(false);
+        if (isSlashActive) setInputText('');
+        return;
+      }
+
+      if (isTemplatePickerActive && filteredSlashTemplates.length > 0) {
+        if (document.activeElement !== textareaRef.current) {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActiveSlashIndex((prev) => (prev + 1) % filteredSlashTemplates.length);
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActiveSlashIndex((prev) => (prev - 1 + filteredSlashTemplates.length) % filteredSlashTemplates.length);
+            return;
+          }
+          if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey) {
+            event.preventDefault();
+            const selected = filteredSlashTemplates[activeSlashIndex] || filteredSlashTemplates[0];
+            if (selected) {
+              handleApplyTemplate(selected.content);
+            }
+            return;
+          }
+        }
       }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscapeKeyDown);
+    document.addEventListener('keydown', handleGlobalKeyDown);
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscapeKeyDown);
+      document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [showEmojiPicker, setShowEmojiPicker, showTemplatePicker, setShowTemplatePicker]);
+  }, [
+    showEmojiPicker,
+    setShowEmojiPicker,
+    isTemplatePickerActive,
+    setShowTemplatePicker,
+    isSlashActive,
+    setInputText,
+    filteredSlashTemplates,
+    activeSlashIndex,
+    setActiveSlashIndex,
+    handleApplyTemplate,
+    textareaRef,
+  ]);
 
   return (
     <>
-      {/* Floating Slash Commands Autocomplete Popup */}
-      {inputText.startsWith('/') && filteredSlashTemplates.length > 0 && (
-        <div className="absolute bottom-16 left-16 bg-white border border-slate-300 rounded-2xl p-2 shadow-2xl z-30 w-84 max-h-72 overflow-y-auto animate-fadeIn divide-y divide-slate-100">
-          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Gợi ý câu trả lời nhanh ({filteredSlashTemplates.length})</span>
-            <span>Phím tắt /</span>
+      {/* Unified Quick Templates Popup (Triggered by ⚡ button OR typing /) */}
+      {isTemplatePickerActive && (
+        <div
+          ref={templatePickerRef}
+          className="absolute bottom-16 left-3 sm:left-6 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-88 max-w-[calc(100vw-2rem)] max-h-80 overflow-hidden flex flex-col animate-fadeIn divide-y divide-slate-100"
+        >
+          <div className="flex items-center justify-between pb-2 mb-1 shrink-0">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              Mẫu tin nhắn nhanh ({filteredSlashTemplates.length})
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTemplatePicker(false);
+                  if (isSlashActive) setInputText('');
+                  onOpenQuickTemplatesModal();
+                }}
+                className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                title="Quản lý và thêm mẫu tin nhắn"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTemplatePicker(false);
+                  if (isSlashActive) setInputText('');
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                title="Đóng (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="space-y-1 py-1">
-            {filteredSlashTemplates.map((tmpl, idx) => {
-              const isSelected = idx === activeSlashIndex;
-              return (
-                <div
-                  key={tmpl.id || tmpl.code}
-                  onClick={() => handleSelectSlashTemplate(tmpl.content)}
-                  className={`p-2 rounded-xl cursor-pointer transition group ${
-                    isSelected
-                      ? 'bg-emerald-50 border border-emerald-300 ring-1 ring-emerald-300/50'
-                      : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
-                      {tmpl.title}
-                    </span>
-                    <span className="text-[10px] font-mono bg-emerald-100 text-[#1fa855] px-1.5 py-0.5 rounded font-bold">
-                      {tmpl.code}
-                    </span>
+
+          <div className="space-y-1 py-1 overflow-y-auto flex-1 pr-1">
+            {filteredSlashTemplates.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400">
+                Không tìm thấy mẫu tin nhắn phù hợp
+              </div>
+            ) : (
+              filteredSlashTemplates.map((tmpl, idx) => {
+                const isSelected = idx === activeSlashIndex;
+                return (
+                  <div
+                    key={tmpl.id || tmpl.code}
+                    ref={(el) => {
+                      if (isSelected) {
+                        el?.scrollIntoView({ block: 'nearest' });
+                      }
+                    }}
+                    onClick={() => handleApplyTemplate(tmpl.content)}
+                    className={`p-2 rounded-xl cursor-pointer transition group ${
+                      isSelected
+                        ? 'bg-emerald-50 border border-emerald-300 ring-1 ring-emerald-300/50'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#1fa855] group-hover:underline truncate max-w-[210px]">
+                        {tmpl.title}
+                      </span>
+                      <span className="text-[10px] font-mono bg-emerald-100 text-[#1fa855] px-1.5 py-0.5 rounded font-bold shrink-0 ml-1">
+                        {tmpl.code}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
                   </div>
-                  <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
-          <div className="px-2 pt-1.5 text-[10px] text-slate-400 flex items-center justify-between font-medium">
+
+          <div className="px-1 pt-2 text-[10px] text-slate-400 flex items-center justify-between font-medium shrink-0">
             <span>↑↓ Chọn • Enter Chèn</span>
-            <span>Esc Đóng</span>
+            <span>Esc Đóng • Phím tắt /</span>
           </div>
         </div>
       )}
@@ -560,83 +644,31 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           </button>
 
           {/* Quick Canned Template Trigger */}
-          <div className="relative">
-            <button
-              ref={templateButtonRef}
-              type="button"
-              onClick={() => {
-                setShowTemplatePicker(!showTemplatePicker);
-                setShowEmojiPicker(false);
-                setShowAttachMenu(false);
-              }}
-              className={`p-2 rounded-full transition cursor-pointer ${
-                showTemplatePicker
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'text-amber-600 hover:text-amber-700 hover:bg-amber-100/60'
-              }`}
-              title="Mẫu tin nhắn nhanh (/)"
-              aria-label="Mẫu tin nhắn nhanh"
-              aria-expanded={showTemplatePicker}
-            >
-              <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
-            </button>
-
-            {showTemplatePicker && (
-              <div
-                ref={templatePickerRef}
-                className="absolute bottom-full mb-3 left-0 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-84 max-h-80 overflow-y-auto animate-fadeIn divide-y divide-slate-100"
-              >
-                <div className="flex items-center justify-between pb-2 mb-1">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                    Mẫu Tin Nhắn Nhanh ({templates.length})
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTemplatePicker(false);
-                        onOpenQuickTemplatesModal();
-                      }}
-                      className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition"
-                      title="Quản lý và thêm mẫu tin nhắn"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowTemplatePicker(false)}
-                      className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1 py-1">
-                  {templates.map((tmpl) => (
-                    <div
-                      key={tmpl.id || tmpl.code}
-                      onClick={() => {
-                        handleApplyTemplate(tmpl.content);
-                        setShowTemplatePicker(false);
-                      }}
-                      className="p-2 hover:bg-emerald-50 rounded-xl cursor-pointer transition group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1fa855] group-hover:underline">
-                          {tmpl.title}
-                        </span>
-                        <span className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
-                          {tmpl.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 truncate mt-0.5">{tmpl.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            ref={templateButtonRef}
+            type="button"
+            onClick={() => {
+              const willOpen = !isTemplatePickerActive;
+              setShowTemplatePicker(willOpen);
+              setShowEmojiPicker(false);
+              setShowAttachMenu(false);
+              if (isSlashActive) setInputText('');
+              if (willOpen) {
+                setActiveSlashIndex(0);
+                setTimeout(() => textareaRef.current?.focus(), 0);
+              }
+            }}
+            className={`p-2 rounded-full transition cursor-pointer ${
+              isTemplatePickerActive
+                ? 'bg-amber-100 text-amber-700'
+                : 'text-amber-600 hover:text-amber-700 hover:bg-amber-100/60'
+            }`}
+            title="Mẫu tin nhắn nhanh (/)"
+            aria-label="Mẫu tin nhắn nhanh"
+            aria-expanded={isTemplatePickerActive}
+          >
+            <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
+          </button>
 
           {/* Textarea Input with Clipboard Paste support */}
           <div className="flex-1 bg-white rounded-lg px-3.5 py-2 transition shadow-2xs">
