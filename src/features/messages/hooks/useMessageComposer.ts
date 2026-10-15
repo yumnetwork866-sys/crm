@@ -152,8 +152,12 @@ export function useMessageComposer({
     [activeThreadId]
   );
 
+  const isSlashActive = inputText.startsWith('/');
+  const isTemplatePickerActive = showTemplatePicker || isSlashActive;
+
   const filteredSlashTemplates = useMemo(() => {
-    if (!inputText.startsWith('/')) return [];
+    if (!isTemplatePickerActive) return [];
+    if (!isSlashActive) return templates;
     const keyword = inputText.slice(1).toLowerCase().trim();
     if (!keyword) return templates;
     return templates.filter((template) =>
@@ -161,7 +165,7 @@ export function useMessageComposer({
       || template.title.toLowerCase().includes(keyword)
       || template.content.toLowerCase().includes(keyword)
     );
-  }, [inputText, templates]);
+  }, [isTemplatePickerActive, isSlashActive, inputText, templates]);
 
   const focusComposer = () => textareaRef.current?.focus();
 
@@ -173,17 +177,11 @@ export function useMessageComposer({
     });
   };
 
-  const selectSlashTemplate = (content: string) => {
-    const interpolated = getInterpolatedContent(content);
-    setInputText(interpolated);
-    setActiveSlashIndex(0);
-    focusComposer();
-  };
-
   const applyTemplate = (content: string) => {
     const interpolated = getInterpolatedContent(content);
     setInputText(interpolated);
     setShowTemplatePicker(false);
+    setActiveSlashIndex(0);
     focusComposer();
   };
 
@@ -330,8 +328,8 @@ export function useMessageComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Keyboard navigation when slash command autocomplete is active
-    if (inputText.startsWith('/') && filteredSlashTemplates.length > 0) {
+    // Keyboard navigation when template popup is active
+    if (isTemplatePickerActive && filteredSlashTemplates.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         setActiveSlashIndex((prev) => (prev + 1) % filteredSlashTemplates.length);
@@ -346,13 +344,16 @@ export function useMessageComposer({
         event.preventDefault();
         const selected = filteredSlashTemplates[activeSlashIndex] || filteredSlashTemplates[0];
         if (selected) {
-          selectSlashTemplate(selected.content);
+          applyTemplate(selected.content);
         }
         return;
       }
       if (event.key === 'Escape') {
         event.preventDefault();
-        setInputText('');
+        setShowTemplatePicker(false);
+        if (inputText.startsWith('/')) {
+          setInputText('');
+        }
         return;
       }
     }
@@ -376,6 +377,8 @@ export function useMessageComposer({
     setShowEmojiPicker,
     showTemplatePicker,
     setShowTemplatePicker,
+    isTemplatePickerActive,
+    isSlashActive,
     showAttachMenu,
     setShowAttachMenu,
     pendingImage,
@@ -391,7 +394,7 @@ export function useMessageComposer({
     filteredSlashTemplates,
     activeSlashIndex,
     setActiveSlashIndex,
-    handleSelectSlashTemplate: selectSlashTemplate,
+    handleSelectSlashTemplate: applyTemplate,
     handleApplyTemplate: applyTemplate,
     handleAddEmoji: addEmoji,
     handlePaste,
