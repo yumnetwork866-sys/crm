@@ -304,6 +304,15 @@ export async function sendReaction(req: Request, res: Response) {
       }
     }
 
+    try {
+      await prisma.whatsAppMessage.updateMany({
+        where: { id: messageId },
+        data: { reaction: emoji || null },
+      });
+    } catch (dbErr) {
+      console.error('[DB REACTION UPDATE ERROR]', dbErr);
+    }
+
     realtimeHub.broadcast('message:reaction', {
       messageId,
       emoji: emoji || '',

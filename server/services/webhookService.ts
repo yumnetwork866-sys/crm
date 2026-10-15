@@ -58,6 +58,34 @@ export async function processWebhookPayload(body: any): Promise<number> {
     // Match customer in CRM
     const { customerId, customerName, isCrmCustomer } = await matchCustomerByPhone(fromPhone, senderName, businessPhoneNumberId);
 
+    // Handle WhatsApp reaction: update the target message instead of creating a new message record
+    if (msgData?.type === 'reaction') {
+      const targetMessageId = msgData.reaction?.message_id;
+      const emoji = msgData.reaction?.emoji || null;
+
+      if (targetMessageId) {
+        try {
+          await prisma.whatsAppMessage.updateMany({
+            where: { id: targetMessageId },
+            data: { reaction: emoji },
+          });
+        } catch (dbErr) {
+          console.error('[META WEBHOOK REACTION DB ERROR]', dbErr);
+        }
+
+        realtimeHub.broadcast('message:reaction', {
+          messageId: targetMessageId,
+          emoji: emoji || '',
+          customerId,
+          customerPhone: fromPhone,
+          isRealSent: true,
+        });
+
+        processedCount++;
+      }
+      continue;
+    }
+
     // Resolve reply context if applicable
     let replyContext: any = null;
     if (msgData.context?.id) {

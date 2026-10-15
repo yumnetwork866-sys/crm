@@ -4,6 +4,7 @@ import {
   extractDocumentInfo,
   extractImageInfo,
   extractProductInfo,
+  extractWhatsAppOrderInfo,
   formatMessagePreview,
   isAudioContent,
   isDocumentContent,
@@ -62,6 +63,18 @@ describe('messageContent utility', () => {
       const imgInfo = extractImageInfo(pdfPath);
       expect(imgInfo.isImage).toBe(false);
       expect(imgInfo.imgUrl).toBeNull();
+    });
+  });
+
+  describe('WhatsApp order messages', () => {
+    it('parses submitted cart items and formats a safe preview', () => {
+      const raw = '[whatsapp_order:{"catalogId":"cat-1","items":[{"retailerId":"sku-1","quantity":2,"itemPrice":49.5,"currency":"MYR"}]}]';
+      expect(extractWhatsAppOrderInfo(raw)).toEqual({
+        isOrder: true,
+        catalogId: 'cat-1',
+        items: [{ retailerId: 'sku-1', quantity: 2, itemPrice: 49.5, currency: 'MYR' }],
+      });
+      expect(formatMessagePreview(raw)).toBe('🛒 Đơn hàng WhatsApp · 2 sản phẩm');
     });
   });
 

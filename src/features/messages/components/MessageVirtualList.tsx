@@ -170,7 +170,7 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
                       users={users}
                       effectiveCurrentUser={effectiveCurrentUser}
                       aiProfile={aiProfile}
-                      reaction={messageReactions[msg.id]}
+                      reaction={messageReactions[msg.id] !== undefined ? messageReactions[msg.id] : (msg.reaction || undefined)}
                       activeReactionPickerMsgId={activeReactionPickerMsgId}
                       onSetActiveReactionPickerMsgId={onSetActiveReactionPickerMsgId}
                       showExpandedReactionPickerMsgId={showExpandedReactionPickerMsgId}

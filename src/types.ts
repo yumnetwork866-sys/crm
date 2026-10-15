@@ -38,6 +38,7 @@ export interface CentralMessage {
   errorMessage?: string | null;
   deliveredAt?: string | null;
   isRealSent?: boolean;
+  reaction?: string | null;
   readBy?: string;
   readAt?: string;
   replyTo?: {

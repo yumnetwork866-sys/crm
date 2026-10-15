@@ -108,6 +108,27 @@ export async function saveMirroredMessage(input: {
     input.customerName || `Khách WhatsApp (${customerPhone})`,
     input.businessPhoneNumberId
   );
+
+  if (msgData?.type === 'reaction') {
+    const targetMessageId = msgData.reaction?.message_id;
+    const emoji = msgData.reaction?.emoji || null;
+    if (targetMessageId) {
+      await prisma.whatsAppMessage.updateMany({
+        where: { id: targetMessageId },
+        data: { reaction: emoji },
+      }).catch(() => {});
+      realtimeHub.broadcast('message:reaction', {
+        messageId: targetMessageId,
+        emoji: emoji || '',
+        customerId: matched.customerId,
+        customerPhone,
+        isRealSent: true,
+      });
+      return true;
+    }
+    return false;
+  }
+
   const mirrored = {
     id: String(msgData.id),
     customerId: matched.customerId,

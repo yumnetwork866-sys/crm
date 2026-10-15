@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CentralMessage } from '../../../types';
 import { api } from '../../../utils/apiClient';
+import { realtimeClient } from '../../../services/realtimeClient';
 import type { MessageThread } from '../types';
 
 interface UseMessageInteractionsOptions {
@@ -19,6 +20,24 @@ export function useMessageInteractions({
   const [showExpandedReactionPickerMsgId, setShowExpandedReactionPickerMsgId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return realtimeClient.subscribe({
+      'message:reaction': (event) => {
+        try {
+          const { messageId, emoji } = JSON.parse(event.data);
+          if (messageId) {
+            setMessageReactions((current) => ({
+              ...current,
+              [messageId]: emoji || '',
+            }));
+          }
+        } catch (e) {
+          console.error('[REALTIME] Error parsing message:reaction event:', e);
+        }
+      },
+    });
+  }, []);
 
   useEffect(() => {
     const closeReactionPickers = () => {
@@ -49,7 +68,8 @@ export function useMessageInteractions({
   };
 
   const reactToMessage = async (message: CentralMessage, emoji: string) => {
-    const nextEmoji = messageReactions[message.id] === emoji ? '' : emoji;
+    const currentEmoji = messageReactions[message.id] !== undefined ? messageReactions[message.id] : (message.reaction || '');
+    const nextEmoji = currentEmoji === emoji ? '' : emoji;
     setMessageReactions((current) => ({ ...current, [message.id]: nextEmoji }));
     setActiveReactionPickerMsgId(null);
     setShowExpandedReactionPickerMsgId(null);

@@ -32,6 +32,43 @@ export interface ProductMessageInfo {
   caption: string | null;
 }
 
+export interface WhatsAppOrderItemInfo {
+  retailerId: string;
+  quantity: number;
+  itemPrice: number;
+  currency: string;
+}
+
+export interface WhatsAppOrderInfo {
+  isOrder: boolean;
+  catalogId: string;
+  items: WhatsAppOrderItemInfo[];
+}
+
+export function extractWhatsAppOrderInfo(rawContent: string): WhatsAppOrderInfo {
+  const content = String(rawContent || '').replace(/^\[reply:\{.*?\}\]\n/, '').trim();
+  const match = content.match(/^\[whatsapp_order:(\{[\s\S]*\})\]$/i);
+  if (!match) return { isOrder: false, catalogId: '', items: [] };
+  try {
+    const parsed = JSON.parse(match[1]);
+    const items = Array.isArray(parsed?.items)
+      ? parsed.items.map((item: any) => ({
+          retailerId: String(item?.retailerId || '').trim(),
+          quantity: Math.max(1, Number(item?.quantity) || 1),
+          itemPrice: Math.max(0, Number(item?.itemPrice) || 0),
+          currency: String(item?.currency || '').trim().toUpperCase(),
+        })).filter((item: WhatsAppOrderItemInfo) => item.retailerId)
+      : [];
+    return {
+      isOrder: items.length > 0,
+      catalogId: String(parsed?.catalogId || ''),
+      items,
+    };
+  } catch {
+    return { isOrder: false, catalogId: '', items: [] };
+  }
+}
+
 const AUDIO_EXTENSIONS_REGEX = /\.(mp3|ogg|wav|m4a|aac|webm|opus)(\?[^\s\n]*)?$/i;
 const DOC_EXTENSIONS_REGEX = /\.(pdf|doc|docx|xls|xlsx|csv|txt)(\?[^\s\n]*)?$/i;
 
@@ -123,6 +160,12 @@ export function formatMessagePreview(rawContent: string | null | undefined): str
   // 1. Strip reply reference if present at start
   const clean = rawContent.replace(/^\[reply:\{.*?\}\]\n/, '').trim();
   if (!clean) return '';
+
+  const whatsappOrder = extractWhatsAppOrderInfo(clean);
+  if (whatsappOrder.isOrder) {
+    const quantity = whatsappOrder.items.reduce((sum, item) => sum + item.quantity, 0);
+    return `🛒 Đơn hàng WhatsApp · ${quantity} sản phẩm`;
+  }
 
   // 2. Product message
   if (isProductContent(clean)) {
