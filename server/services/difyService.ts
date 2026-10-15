@@ -646,3 +646,145 @@ export async function autoReplyWithDify(params: {
     return false;
   }
 }
+
+export interface ConversationSummaryResult {
+  summary: string;
+  intent: string;
+  currentStatus: string;
+  suggestedAction: string;
+  source: 'ai' | 'smart_analysis';
+}
+
+function detectIntentFromTranscript(text: string): string {
+  const clean = text.toLowerCase();
+  if (/(giá|bao nhiêu|nhiêu tiền|báo giá|chi phí|khuyến mãi|giảm giá|voucher|discount)/i.test(clean)) {
+    return 'Hỏi giá & Chương trình khuyến mãi';
+  }
+  if (/(đặt|mua|chốt|order|lấy|mua hàng|đặt hàng|gửi đơn|lên đơn)/i.test(clean)) {
+    return 'Đặt mua sản phẩm';
+  }
+  if (/(ship|giao hàng|vận chuyển|phí ship|khi nào tới|bao lâu|địa chỉ|nhận hàng)/i.test(clean)) {
+    return 'Tra cứu vận chuyển & Giao hàng';
+  }
+  if (/(lỗi|hỏng|bể|vỡ|sai|đổi|trả|bảo hành|khiếu nại|hoàn tiền|kém|tệ|lừa)/i.test(clean)) {
+    return 'Khiếu nại & Hỗ trợ kỹ thuật';
+  }
+  if (/(tư vấn|sản phẩm|loại nào|mẫu nào|size|công dụng|hướng dẫn|cách dùng)/i.test(clean)) {
+    return 'Tư vấn thông tin sản phẩm';
+  }
+  return 'Trao đổi & Tìm hiểu thông tin';
+}
+
+function detectCurrentStatus(messages: Array<{ sender: string; content: string }>): string {
+  if (messages.length === 0) return 'Chưa có tin nhắn';
+  const last = messages[messages.length - 1];
+  if (last.sender === 'customer') {
+    return 'Khách hàng đang chờ nhân viên tư vấn phản hồi';
+  }
+  return 'Tư vấn viên đã phản hồi, đang chờ tương tác từ khách';
+}
+
+function detectSuggestedAction(intent: string, lastSender: string): string {
+  if (lastSender === 'customer') {
+    if (intent.includes('Hỏi giá')) return 'Gửi báo giá sản phẩm kèm chương trình ưu đãi hiện hành.';
+    if (intent.includes('Đặt mua')) return 'Xác nhận thông tin giao hàng và hỗ trợ lên đơn hàng mới.';
+    if (intent.includes('Khiếu nại')) return 'Liên hệ trực tiếp hỗ trợ xử lý vấn đề và xoa dịu khách hàng.';
+    if (intent.includes('vận chuyển')) return 'Kiểm tra mã vận đơn và thông báo lộ trình đơn hàng.';
+    return 'Phản hồi giải đáp thắc mắc và gợi ý sản phẩm phù hợp.';
+  }
+  return 'Theo dõi phản hồi từ khách hoặc gửi lời nhắc nhẹ sau 2-4 giờ.';
+}
+
+/**
+ * Generate a concise conversation summary using Dify AI or smart heuristic analysis
+ */
+export async function generateConversationSummary(params: {
+  phone: string;
+  customerName?: string;
+  messages: Array<{ sender: string; content: string; timestamp?: string }>;
+  brandName?: string;
+}): Promise<ConversationSummaryResult> {
+  const { phone, customerName = 'Khách hàng', messages, brandName } = params;
+  const cleanPhone = phone.replace(/\D/g, '') || 'guest_user';
+
+  if (!messages || messages.length === 0) {
+    return {
+      summary: 'Chưa có dữ liệu hội thoại nào để tóm tắt.',
+      intent: 'Chưa xác định',
+      currentStatus: 'Chưa có tin nhắn',
+      suggestedAction: 'Bắt đầu cuộc trò chuyện với khách hàng',
+      source: 'smart_analysis',
+    };
+  }
+
+  // Use last 20 messages for transcript
+  const recentMessages = messages.slice(-20);
+  const transcript = recentMessages
+    .map((m) => {
+      const senderLabel = m.sender === 'customer' ? customerName : 'Tư vấn viên (CRM)';
+      return `${senderLabel}: ${m.content.trim()}`;
+    })
+    .join('\n');
+
+  const intent = detectIntentFromTranscript(transcript);
+  const lastSender = recentMessages[recentMessages.length - 1]?.sender || 'customer';
+  const currentStatus = detectCurrentStatus(recentMessages);
+  const suggestedAction = detectSuggestedAction(intent, lastSender);
+
+  // Try calling Dify AI for LLM summary
+  const config = getDifyConfig();
+  if (config.enabled && config.apiKey.trim()) {
+    try {
+      const controller = new AbortController();
+      const timeoutTimer = setTimeout(() => controller.abort(), Math.min(config.timeoutMs, 10000));
+      const endpoint = `${config.apiUrl}/chat-messages`;
+      const prompt = `[BẢN TÓM TẮT HỘI THOẠI CHO TƯ VẤN VIÊN CRM]\nKhách hàng: ${customerName} (${phone})\nHội thoại gần nhất:\n${transcript}\n\nHãy tóm tắt ngắn gọn trong 3 ý rõ ràng:\n1. Nhu cầu/vấn đề chính của khách\n2. Tiến trình trao đổi hiện tại\n3. Đề xuất hành động tiếp theo cho nhân viên`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.apiKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: {
+            brand_name: resolveBrandName(brandName),
+          },
+          query: prompt,
+          response_mode: 'blocking',
+          user: `summary_agent_${cleanPhone}`,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutTimer);
+
+      if (response.ok) {
+        const data = (await response.json()) as DifyChatResponse;
+        if (data.answer && data.answer.trim().length > 15) {
+          return {
+            summary: data.answer.trim(),
+            intent,
+            currentStatus,
+            suggestedAction,
+            source: 'ai',
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[Dify AI Summary] Bỏ qua lỗi Dify, dùng phân tích thông minh:', err);
+    }
+  }
+
+  // Fallback: Smart heuristic summary
+  const lastCustomerMsg = [...recentMessages].reverse().find((m) => m.sender === 'customer')?.content.trim() || 'Không có';
+  const fallbackSummary = `• Nhu cầu chính: ${intent}. Câu hỏi gần nhất của khách: "${lastCustomerMsg.slice(0, 80)}${lastCustomerMsg.length > 80 ? '...' : ''}"\n• Trạng thái hiện tại: ${currentStatus}\n• Đề xuất tiếp theo: ${suggestedAction}`;
+
+  return {
+    summary: fallbackSummary,
+    intent,
+    currentStatus,
+    suggestedAction,
+    source: 'smart_analysis',
+  };
+}
