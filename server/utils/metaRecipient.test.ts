@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isMetaUserIdentifier, normalizeMetaRecipient, resolveMetaRecipient } from './metaRecipient';
+import {
+  getMetaRecipientAddress,
+  isMetaUserIdentifier,
+  normalizeMetaRecipient,
+  resolveMetaRecipient,
+} from './metaRecipient';
 
 describe('Meta recipient identifiers', () => {
   it('preserves BSUID and username recipients', () => {
@@ -30,6 +35,13 @@ describe('Meta recipient identifiers', () => {
       raw: 'MY.2191861788027791',
       recipient: 'MY.2191861788027791',
     });
+  });
+
+  it('uses recipient for BSUIDs and to for phone numbers', () => {
+    expect(getMetaRecipientAddress('MY.2191861788027791')).toEqual({
+      recipient: 'MY.2191861788027791',
+    });
+    expect(getMetaRecipientAddress('60123456789')).toEqual({ to: '60123456789' });
   });
 });
 

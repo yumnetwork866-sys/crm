@@ -14,6 +14,11 @@ import { pauseAiForCustomer } from '../../services/difyService';
 import { resolveWhatsAppBrandName } from '../../services/webhookService';
 import { getPhoneLookupVariants, normalizePhoneE164, toWhatsAppDigits } from '../../utils/phone';
 import { isMetaUserIdentifier, resolveMetaRecipient } from '../../utils/metaRecipient';
+import {
+  getWhatsAppDeliveryErrorMessage,
+  getWhatsAppErrorDetails,
+  WHATSAPP_UNREACHABLE_ERROR_CODE,
+} from '../../utils/whatsappDeliveryError';
 
 /**
  * Send real WhatsApp Cloud API message and save to CRM
@@ -38,15 +43,17 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 
     let matchedCustomerId: string | null = null;
     let finalCustomerName = customerName;
+    let whatsappReachability: string | null = null;
 
     try {
       if (customerId && !customerId.startsWith('cust_')) {
         const found = await prisma.customer.findUnique({
           where: { id: customerId },
-          select: { id: true, name: true, phone: true, whatsappRecipientId: true }
+          select: { id: true, name: true, phone: true, whatsappRecipientId: true, whatsappReachability: true }
         });
         if (found) {
           matchedCustomerId = found.id;
+          whatsappReachability = found.whatsappReachability;
           if (!finalCustomerName) finalCustomerName = found.name;
           if (!recipient) {
             const resolved = resolveMetaRecipient(rawPhone, found.whatsappRecipientId || found.phone);
@@ -68,18 +75,19 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
                   { phone: rawPhone },
                 ],
               },
-              select: { id: true, name: true, phone: true, whatsappRecipientId: true }
+              select: { id: true, name: true, phone: true, whatsappRecipientId: true, whatsappReachability: true }
             })
           : variants.length > 0
           ? await prisma.customer.findFirst({
               where: {
                 phone: { in: variants }
               },
-              select: { id: true, name: true, phone: true, whatsappRecipientId: true }
+              select: { id: true, name: true, phone: true, whatsappRecipientId: true, whatsappReachability: true }
             })
           : null;
         if (found) {
           matchedCustomerId = found.id;
+          whatsappReachability = found.whatsappReachability;
           if (!finalCustomerName) finalCustomerName = found.name;
         } else if (e164Phone || isUserIdentifier) {
           // Auto-create new customer in CRM when agent initiates/replies to a new WhatsApp contact
@@ -108,6 +116,13 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         }
       }
     } catch (e) {}
+
+    if (matchedCustomerId && whatsappReachability === 'unreachable') {
+      return res.status(409).json({
+        error: 'Liên hệ đang ở trạng thái WhatsApp unreachable. Chỉ có tin nhắn mới từ khách mới mở lại khả năng gửi.',
+        errorCode: 'WHATSAPP_UNREACHABLE',
+      });
+    }
 
     const resolvedCustomerId = matchedCustomerId || (customerId && !customerId.startsWith('cust_') ? customerId : (recipient ? `cust_${recipient}` : (customerId || 'cust_unknown')));
     const resolvedCustomerName = finalCustomerName || (recipient ? `Khách Hàng (${recipient})` : 'Khách Hàng');
@@ -143,6 +158,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     let initialStatus: 'sent' | 'failed' = 'sent';
     let initialErrorCode: string | null = null;
     let initialErrorMessage: string | null = null;
+    let initialErrorDetails: string | null = null;
 
     if (!phoneId || !token || !recipient) {
       initialStatus = 'failed';
@@ -152,15 +168,8 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       initialStatus = 'failed';
       const metaError = metaResult?.error;
       initialErrorCode = metaError?.code ? String(metaError.code) : 'META_DISPATCH_FAILED';
-      if (metaError?.code === 131047 || metaError?.error_subcode === 131047) {
-        initialErrorMessage = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Hãy dùng tin nhắn mẫu (template).';
-      } else if (metaError?.code === 131026) {
-        initialErrorMessage = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
-      } else if (metaError?.code === 190) {
-        initialErrorMessage = 'Access Token của Meta đã hết hạn hoặc bị hủy quyền.';
-      } else {
-        initialErrorMessage = metaError?.message || metaError?.error_user_msg || 'Meta từ chối gửi tin nhắn.';
-      }
+      initialErrorMessage = getWhatsAppDeliveryErrorMessage(metaError);
+      initialErrorDetails = getWhatsAppErrorDetails(metaError);
     }
 
     const authenticatedAgentName = req.user?.name?.trim();
@@ -182,6 +191,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       status: initialStatus,
       errorCode: initialErrorCode,
       errorMessage: initialErrorMessage,
+      errorDetails: initialErrorDetails,
       replyTo: replyTo || undefined
     };
 
@@ -203,11 +213,27 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         status: newMsg.status,
         errorCode: newMsg.errorCode,
         errorMessage: newMsg.errorMessage,
+        errorDetails: newMsg.errorDetails,
         timestamp: new Date(newMsg.timestamp)
       };
 
       if (matchedCustomerId) {
         createData.customerId = matchedCustomerId;
+      }
+
+      if (matchedCustomerId && initialErrorCode === WHATSAPP_UNREACHABLE_ERROR_CODE) {
+        await prisma.customer.update({
+          where: { id: matchedCustomerId },
+          data: {
+            whatsappReachability: 'unreachable',
+            whatsappUnreachableAt: new Date(newMsg.timestamp),
+            whatsappUnreachableReason: WHATSAPP_UNREACHABLE_ERROR_CODE,
+          },
+        }).catch(() => {});
+        realtimeHub.broadcast('customers:sync', {
+          source: 'whatsapp-unreachable',
+          customerId: matchedCustomerId,
+        });
       }
 
       const savedOutDb = await prisma.whatsAppMessage.create({
@@ -252,6 +278,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       status: initialStatus,
       errorCode: initialErrorCode,
       errorMessage: initialErrorMessage,
+      errorDetails: initialErrorDetails,
       metaResponse: metaResult,
       message: newMsg
     });
@@ -272,11 +299,12 @@ export async function sendReaction(req: Request, res: Response) {
       return res.status(400).json({ error: 'Thiếu messageId hoặc số điện thoại người nhận' });
     }
 
-    const rawPhone = customerPhone || (customerId && customerId.startsWith('cust_') ? customerId.replace('cust_', '') : (String(customerId).replace(/\D/g, '').length >= 7 ? customerId : '')) || '';
-    let cleanPhone = rawPhone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '84' + cleanPhone.substring(1);
-    }
+    const rawRecipient = customerPhone
+      || (customerId && /^(cust_|meta_)/.test(customerId)
+        ? customerId.replace(/^(cust_|meta_)/, '')
+        : (!String(customerId).includes('-') ? customerId : ''))
+      || '';
+    const recipient = resolveMetaRecipient(rawRecipient).recipient;
 
     const setting = await getIntegrationSetting();
     const effectiveOverride = (overridePhoneId || senderPhoneId)?.trim();
@@ -288,12 +316,12 @@ export async function sendReaction(req: Request, res: Response) {
     let isRealSent = false;
     let metaResult: any = null;
 
-    if (phoneId && token && cleanPhone && messageId) {
+    if (phoneId && token && recipient && messageId) {
       try {
         const dispatchRes = await dispatchMetaReaction({
           phoneId,
           token,
-          cleanPhone,
+          cleanPhone: recipient,
           messageId,
           emoji
         });
@@ -317,7 +345,7 @@ export async function sendReaction(req: Request, res: Response) {
       messageId,
       emoji: emoji || '',
       customerId,
-      customerPhone: cleanPhone,
+      customerPhone: recipient,
       isRealSent
     });
 

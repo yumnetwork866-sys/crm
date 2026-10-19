@@ -77,8 +77,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onJumpToQuotedMessage,
   onPreviewImage,
   onImageLoad,
-  onRetryMessage,
+  onRetryMessage: requestedRetryMessage,
 }) => {
+  const onRetryMessage = msg.errorCode === '131026' ? undefined : requestedRetryMessage;
   const isAgent = msg.sender === 'agent';
   const isAiMessage = Boolean(
     msg.isAi

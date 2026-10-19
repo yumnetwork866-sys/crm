@@ -315,6 +315,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 stopTyping={stopTyping}
                 onOpenProductPicker={() => setIsProductPickerOpen(true)}
                 onOpenQuickTemplatesModal={() => setIsQuickTemplatesModalOpen(true)}
+                activeThread={activeThread}
+                brandName={businessPhones.find((phone) => phone.id === selectedPhoneId)?.verifiedName || 'YumNetwork'}
               />
             </>
           ) : (

@@ -15,6 +15,11 @@ export function normalizeMetaRecipient(value: string | null | undefined): string
   return isValidE164(recipient) ? toWhatsAppDigits(recipient) : '';
 }
 
+/** Cloud API addresses phone numbers with `to`, but BSUIDs/usernames with `recipient`. */
+export function getMetaRecipientAddress(value: string): { to: string } | { recipient: string } {
+  return isMetaUserIdentifier(value) ? { recipient: value } : { to: value };
+}
+
 /** Prefer the requested recipient, but recover from legacy placeholder values with a customer phone. */
 export function resolveMetaRecipient(
   primary: string | null | undefined,

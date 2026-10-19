@@ -28,6 +28,7 @@ import {
   getGlobalAiStatus,
   toggleGlobalAi,
   summarizeChatConversation,
+  suggestChatReplies,
   getLinkPreview
 } from '../controllers/chatController';
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
@@ -88,6 +89,7 @@ router.post('/messages/react', authenticateToken, requirePermission(Permission.M
 router.post('/messages/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleCustomerAi);
 router.get('/messages/ai-status/:phone', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getCustomerAiStatus);
 router.post('/messages/summarize', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), summarizeChatConversation);
+router.post('/messages/suggest-replies', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), suggestChatReplies);
 router.get('/messages/preferences', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getMessagePreferences);
 router.post('/messages/preferences/import', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), importLegacyMessagePreferences);
 router.patch('/messages/preferences/thread', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateMessageThreadState);

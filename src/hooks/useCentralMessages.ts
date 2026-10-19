@@ -643,7 +643,7 @@ export function useCentralMessages({
       },
       'message:status': (event) => {
         try {
-          const { id, status, errorCode, errorMessage, deliveredAt, readAt } = JSON.parse(
+          const { id, status, errorCode, errorMessage, errorDetails, deliveredAt, readAt } = JSON.parse(
             event.data
           );
           updateConversationsCache((convs) =>
@@ -657,6 +657,8 @@ export function useCentralMessages({
                   errorCode: errorCode !== undefined ? errorCode : conv.lastMessage.errorCode,
                   errorMessage:
                     errorMessage !== undefined ? errorMessage : conv.lastMessage.errorMessage,
+                  errorDetails:
+                    errorDetails !== undefined ? errorDetails : conv.lastMessage.errorDetails,
                   deliveredAt: deliveredAt || conv.lastMessage.deliveredAt,
                   readAt: readAt || conv.lastMessage.readAt,
                   isRead: status === 'read' ? true : conv.lastMessage.isRead,
@@ -672,6 +674,7 @@ export function useCentralMessages({
                 status: status || message.status,
                 errorCode: errorCode !== undefined ? errorCode : message.errorCode,
                 errorMessage: errorMessage !== undefined ? errorMessage : message.errorMessage,
+                errorDetails: errorDetails !== undefined ? errorDetails : message.errorDetails,
                 deliveredAt: deliveredAt || message.deliveredAt,
                 readAt: readAt || message.readAt,
                 isRead: status === 'read' ? true : message.isRead,
@@ -833,6 +836,9 @@ export function useCentralMessages({
       );
       const customerName =
         explicitName || customer?.name || (phone ? `Khách Hàng (${phone})` : 'Khách Hàng');
+      if (customer?.whatsappReachability === 'unreachable') {
+        throw new Error('Liên hệ đang ở trạng thái WhatsApp unreachable. Hãy chờ khách nhắn tin mới.');
+      }
       const temporaryMessage: CentralMessage = {
         id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
         customerId: customer?.id || customerId,
@@ -911,6 +917,7 @@ export function useCentralMessages({
             status: response.message.status || (response.isRealSent ? 'sent' : 'failed'),
             errorCode: response.message.errorCode || response.errorCode,
             errorMessage: response.message.errorMessage || response.errorMessage,
+            errorDetails: response.message.errorDetails || response.errorDetails,
             replyTo: response.message.replyTo || temporaryMessage.replyTo,
           };
           updateConversationsCache((convs) =>
@@ -1078,6 +1085,7 @@ export function useCentralMessages({
     async (messageId: string) => {
       const targetMsg = messages.find((m) => m.id === messageId);
       if (!targetMsg || targetMsg.sender !== 'agent') return;
+      if (targetMsg.errorCode === '131026') return;
 
       setMessages((previous) =>
         previous.map((m) =>
@@ -1110,6 +1118,7 @@ export function useCentralMessages({
                     status: response.message.status || (response.isRealSent ? 'sent' : 'failed'),
                     errorCode: response.message.errorCode || response.errorCode,
                     errorMessage: response.message.errorMessage || response.errorMessage,
+                    errorDetails: response.message.errorDetails || response.errorDetails,
                     replyTo: response.message.replyTo || m.replyTo,
                   }
                 : m

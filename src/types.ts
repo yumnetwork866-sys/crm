@@ -36,6 +36,7 @@ export interface CentralMessage {
   status?: MessageDeliveryStatus;
   errorCode?: string | null;
   errorMessage?: string | null;
+  errorDetails?: string | null;
   deliveredAt?: string | null;
   isRealSent?: boolean;
   reaction?: string | null;
@@ -98,6 +99,11 @@ export interface Customer {
   // 1. Basic Info
   phone: string;
   whatsappRecipientId?: string;
+  whatsappParentRecipientId?: string;
+  whatsappUsername?: string;
+  whatsappReachability?: 'reachable' | 'unreachable';
+  whatsappUnreachableAt?: string | null;
+  whatsappUnreachableReason?: string | null;
   name: string;
   gender: Gender;
   address: string;
