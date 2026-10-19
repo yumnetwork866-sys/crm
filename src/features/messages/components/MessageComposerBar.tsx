@@ -1,15 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FileText,
+  Loader2,
   Mic,
   Package,
   Paperclip,
   Pause,
   Play,
   Reply,
+  RotateCw,
   Send,
   Settings,
   Smile,
+  Sparkles,
   Square,
   Trash2,
   X,
@@ -18,6 +21,8 @@ import {
 import { EmojiPicker } from '../../../components/Common/EmojiPicker';
 import type { useMessageComposer } from '../hooks/useMessageComposer';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { useSuggestedReplies } from '../hooks/useSuggestedReplies';
+import type { MessageThread } from '../types';
 import { formatMessagePreview } from '../utils/messageContent';
 
 export interface MessageComposerBarProps {
@@ -26,6 +31,8 @@ export interface MessageComposerBarProps {
   stopTyping: () => void;
   onOpenProductPicker: () => void;
   onOpenQuickTemplatesModal: () => void;
+  activeThread?: MessageThread | null;
+  brandName?: string;
 }
 
 export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
@@ -34,6 +41,8 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   stopTyping,
   onOpenProductPicker,
   onOpenQuickTemplatesModal,
+  activeThread = null,
+  brandName,
 }) => {
   const {
     inputText,
@@ -68,6 +77,19 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
     handleSendVoiceMessage,
     handleKeyDown,
   } = composer;
+  const isSendDisabled = activeThread?.customer?.whatsappReachability === 'unreachable';
+
+  const suggestedReplies = useSuggestedReplies({
+    activeThread,
+    brandName,
+  });
+
+  const handleApplySuggestion = (text: string) => {
+    setInputText(text);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  };
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -428,6 +450,64 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
         </div>
       )}
 
+      {/* AI Smart Suggested Replies Bar (Auto generated when customer sends message) */}
+      {suggestedReplies.isVisible && (
+        <div className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-slate-50 border-t border-emerald-100 flex flex-col gap-1.5 shrink-0 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+              <span>Gợi ý trả lời</span>
+              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                Tự động
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={suggestedReplies.refreshSuggestions}
+                disabled={suggestedReplies.isLoading}
+                className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/60 rounded-md transition cursor-pointer disabled:opacity-50"
+                title="Tạo lại gợi ý khác"
+              >
+                <RotateCw className={`w-3 h-3 ${suggestedReplies.isLoading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={suggestedReplies.dismissSuggestions}
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-md transition cursor-pointer"
+                title="Ẩn gợi ý này"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          {suggestedReplies.isLoading && suggestedReplies.suggestions.length === 0 ? (
+            <div className="flex items-center gap-2 py-1 text-xs text-emerald-700/80">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+              <span>Đang phân tích tin nhắn và tạo gợi ý phản hồi...</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {suggestedReplies.suggestions.map((text, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleApplySuggestion(text)}
+                  title={text}
+                  className="group shrink-0 max-w-[280px] sm:max-w-[360px] flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-600 text-slate-700 hover:text-white rounded-lg border border-emerald-200 hover:border-emerald-600 shadow-2xs transition text-left cursor-pointer"
+                >
+                  <span className="text-[10px] font-bold text-emerald-700 group-hover:text-white bg-emerald-100 group-hover:bg-emerald-700/60 w-4 h-4 rounded flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  <span className="text-xs truncate font-medium">{text}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* WhatsApp Authentic Input Bar or Voice Recording Bar */}
       {isRecording ? (
         <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-2 z-10">
@@ -485,6 +565,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           <button
             type="button"
             onClick={handleSendVoiceRecord}
+            disabled={isSendDisabled}
             className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
             title="Gửi ngay tin nhắn thoại"
           >
@@ -557,6 +638,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           <button
             type="button"
             onClick={handleSendVoiceRecord}
+            disabled={isSendDisabled}
             className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 animate-bounce duration-1000"
             title="Gửi tin nhắn thoại"
           >
@@ -699,12 +781,13 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           {inputText.trim() || pendingImage || pendingDocument ? (
             <button
               type="button"
+              disabled={isSendDisabled}
               onClick={() => {
                 stopTyping();
                 handleSend();
               }}
-              className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0"
-              title="Gửi tin nhắn (Enter)"
+              className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
             >
               <Send className="w-4 h-4 ml-0.5" />
             </button>

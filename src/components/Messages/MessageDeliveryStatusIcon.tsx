@@ -19,10 +19,12 @@ export const MessageDeliveryStatusIcon: React.FC<MessageDeliveryStatusIconProps>
 }) => {
   // If explicitly marked as failed, or isRealSent is false
   if (status === 'failed' || isRealSent === false) {
-    const errorTooltip = errorMessage || 'Gửi tin nhắn qua Meta thất bại. Bấm để thử lại.';
+    const errorTooltip = errorMessage || (onRetry
+      ? 'Gửi tin nhắn qua Meta thất bại. Bấm để thử lại.'
+      : 'Gửi tin nhắn qua Meta thất bại.');
     return (
       <span
-        className="inline-flex items-center gap-1 group/failed cursor-pointer"
+        className={`inline-flex items-center gap-1 group/failed ${onRetry ? 'cursor-pointer' : 'cursor-default'}`}
         onClick={(e) => {
           e.stopPropagation();
           onRetry?.();

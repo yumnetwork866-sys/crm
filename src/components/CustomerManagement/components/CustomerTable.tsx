@@ -205,9 +205,16 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                       </div>
                     </td>
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <span className="font-medium text-slate-800 text-xs">
-                        {customer.phone || customer.whatsappRecipientId || '—'}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className={`font-medium text-xs ${customer.phone ? 'text-slate-800' : 'text-slate-400'}`}>
+                          {customer.phone || 'Chưa được khách chia sẻ'}
+                        </span>
+                        {customer.whatsappRecipientId && (
+                          <span className="max-w-44 truncate text-[10px] text-slate-400" title={customer.whatsappRecipientId}>
+                            WhatsApp ID: {customer.whatsappRecipientId}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-3 min-w-36">
                       {(() => {

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getMessageText, getWebhookSenderIdentifier } from './webhookMessageParser';
+import {
+  getMessageText,
+  getWebhookSenderIdentifier,
+  getWebhookSenderIdentity,
+} from './webhookMessageParser';
 
 describe('getWebhookSenderIdentifier', () => {
   it('uses the standard from field first', () => {
-    expect(getWebhookSenderIdentifier({ from: '84908123456', user_id: 'ignored' })).toBe('84908123456');
+    expect(getWebhookSenderIdentifier({ from: '84908123456', user_id: 'ignored' })).toBe('+84908123456');
   });
 
   it('accepts BSUID-style from_user_id payloads', () => {
@@ -18,6 +22,25 @@ describe('getWebhookSenderIdentifier', () => {
     expect(getWebhookSenderIdentifier({}, {
       contacts: [{ user_id: 'MY.941245582048923' }],
     })).toBe('MY.941245582048923');
+  });
+
+  it('keeps BSUID and phone as separate identities when Meta provides both', () => {
+    expect(getWebhookSenderIdentity(
+      { from: '60123456789', from_user_id: 'MY.941245582048923' },
+      {
+        contacts: [{
+          user_id: 'MY.941245582048923',
+          wa_id: '60123456789',
+          username: '@customer',
+        }],
+      },
+    )).toEqual({
+      recipient: 'MY.941245582048923',
+      bsuid: 'MY.941245582048923',
+      parentBsuid: '',
+      phone: '+60123456789',
+      username: '@customer',
+    });
   });
 });
 

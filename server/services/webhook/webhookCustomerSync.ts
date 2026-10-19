@@ -44,31 +44,71 @@ export async function resolveWhatsAppBrandName(businessPhoneNumberId?: string | 
 export async function matchCustomerByPhone(
   fromPhone: string,
   senderName: string,
-  businessPhoneNumberId?: string
+  businessPhoneNumberId?: string,
+  options: {
+    incomingActivity?: boolean;
+    incomingActivityAt?: Date;
+    recipientId?: string;
+    parentRecipientId?: string;
+    phone?: string;
+    username?: string;
+  } = {},
 ): Promise<{ customerId: string; customerName: string; isCrmCustomer: boolean }> {
   const isUserIdentifier = isMetaUserIdentifier(fromPhone);
-  const recipientId = normalizeMetaRecipient(fromPhone);
-  const cleanFrom = fromPhone.replace(/\D/g, '');
-  const e164Phone = isUserIdentifier ? '' : normalizePhoneE164(fromPhone);
+  const recipientId = normalizeMetaRecipient(options.recipientId || fromPhone);
+  const parentRecipientId = normalizeMetaRecipient(options.parentRecipientId);
+  const e164Phone = normalizePhoneE164(options.phone || (isUserIdentifier ? '' : fromPhone));
+  const cleanFrom = e164Phone.replace(/\D/g, '');
   let matchedCustomerId = isUserIdentifier ? `meta_${fromPhone}` : `cust_${cleanFrom}`;
   let matchedCustomerName = senderName;
   let isCrmCustomer = false;
 
   try {
     if (isUserIdentifier) {
+      const phoneVariants = getPhoneLookupVariants(e164Phone);
       const matchedCustomer = await prisma.customer.findFirst({
         where: {
           OR: [
-            { whatsappRecipientId: fromPhone },
-            { phone: fromPhone },
+            { whatsappRecipientId: recipientId || fromPhone },
+            ...(parentRecipientId ? [{ whatsappParentRecipientId: parentRecipientId }] : []),
+            ...(phoneVariants.length > 0 ? [{ phone: { in: phoneVariants } }] : []),
           ],
         },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          whatsappRecipientId: true,
+          whatsappParentRecipientId: true,
+          whatsappUsername: true,
+          whatsappUnreachableAt: true,
+        },
       });
       if (matchedCustomer) {
+        const incomingActivityAt = options.incomingActivityAt || new Date();
+        const restoresReachability = options.incomingActivity
+          && (!matchedCustomer.whatsappUnreachableAt || incomingActivityAt > matchedCustomer.whatsappUnreachableAt);
+        const updateData: any = {
+          lastContact: new Date(),
+          ...(restoresReachability ? {
+            whatsappReachability: 'reachable',
+            whatsappUnreachableAt: null,
+            whatsappUnreachableReason: null,
+          } : {}),
+        };
+        if (e164Phone && matchedCustomer.phone !== e164Phone) updateData.phone = e164Phone;
+        if (recipientId && matchedCustomer.whatsappRecipientId !== recipientId) {
+          updateData.whatsappRecipientId = recipientId;
+        }
+        if (parentRecipientId && matchedCustomer.whatsappParentRecipientId !== parentRecipientId) {
+          updateData.whatsappParentRecipientId = parentRecipientId;
+        }
+        if (options.username && matchedCustomer.whatsappUsername !== options.username) {
+          updateData.whatsappUsername = options.username;
+        }
         await prisma.customer.update({
           where: { id: matchedCustomer.id },
-          data: { lastContact: new Date() },
+          data: updateData,
         }).catch(() => {});
         realtimeHub.broadcast('customers:sync', { source: 'whatsapp-activity', customerId: matchedCustomer.id });
         return {
@@ -81,8 +121,10 @@ export async function matchCustomerByPhone(
       const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
       const newCustomer = await prisma.customer.create({
         data: {
-          phone: '',
-          whatsappRecipientId: fromPhone,
+          phone: e164Phone,
+          whatsappRecipientId: recipientId || fromPhone,
+          whatsappParentRecipientId: parentRecipientId || null,
+          whatsappUsername: options.username || null,
           name: senderName || fromPhone,
           source: 'WhatsApp',
           campaign: brandName || 'N/A',
@@ -107,7 +149,7 @@ export async function matchCustomerByPhone(
               ...(recipientId ? [{ whatsappRecipientId: recipientId }] : []),
             ],
           },
-          select: { id: true, name: true, phone: true, whatsappRecipientId: true, campaign: true }
+          select: { id: true, name: true, phone: true, whatsappRecipientId: true, campaign: true, whatsappUnreachableAt: true }
         })
       : null;
 
@@ -116,10 +158,22 @@ export async function matchCustomerByPhone(
       matchedCustomerName = matchedCustomer.name || senderName;
       isCrmCustomer = true;
       const brandName = await resolveWhatsAppBrandName(businessPhoneNumberId);
-      const updateData: any = { lastContact: new Date() };
+      const incomingActivityAt = options.incomingActivityAt || new Date();
+      const restoresReachability = options.incomingActivity
+        && (!matchedCustomer.whatsappUnreachableAt || incomingActivityAt > matchedCustomer.whatsappUnreachableAt);
+      const updateData: any = {
+        lastContact: new Date(),
+        ...(restoresReachability ? {
+          whatsappReachability: 'reachable',
+          whatsappUnreachableAt: null,
+          whatsappUnreachableReason: null,
+        } : {}),
+      };
       if (recipientId && matchedCustomer.whatsappRecipientId !== recipientId) {
         updateData.whatsappRecipientId = recipientId;
       }
+      if (parentRecipientId) updateData.whatsappParentRecipientId = parentRecipientId;
+      if (options.username) updateData.whatsappUsername = options.username;
       if (e164Phone && matchedCustomer.phone !== e164Phone) {
         updateData.phone = e164Phone;
       }
@@ -144,6 +198,8 @@ export async function matchCustomerByPhone(
         data: {
           phone: e164Phone,
           whatsappRecipientId: recipientId || null,
+          whatsappParentRecipientId: parentRecipientId || null,
+          whatsappUsername: options.username || null,
           name: defaultName,
           source: 'WhatsApp',
           campaign: brandName || 'N/A',

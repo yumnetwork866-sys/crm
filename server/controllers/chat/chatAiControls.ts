@@ -8,6 +8,7 @@ import {
   isGlobalAiEnabled,
   setGlobalAiEnabled,
   generateConversationSummary,
+  generateReplySuggestions,
 } from '../../services/difyService';
 
 /**
@@ -137,3 +138,50 @@ export async function summarizeChatConversation(req: Request, res: Response) {
     return res.status(500).json({ error: error.message || 'Lỗi khi tạo tóm tắt hội thoại.' });
   }
 }
+
+/**
+ * Suggest reply messages for CRM agents based on customer context
+ */
+export async function suggestChatReplies(req: Request, res: Response) {
+  try {
+    const { phone, customerName, messages, brandName } = req.body;
+    if (!phone && (!messages || !Array.isArray(messages) || messages.length === 0)) {
+      return res.status(400).json({ error: 'Thiếu thông tin số điện thoại hoặc tin nhắn hội thoại.' });
+    }
+
+    let conversationMessages = messages;
+
+    // If messages not provided or empty, load from database
+    if (!conversationMessages || !Array.isArray(conversationMessages) || conversationMessages.length === 0) {
+      if (phone) {
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        const dbMsgs = await prisma.whatsAppMessage.findMany({
+          where: { customerPhone: cleanPhone },
+          orderBy: { timestamp: 'desc' },
+          take: 15,
+        });
+        conversationMessages = dbMsgs.reverse().map((m) => ({
+          sender: m.sender,
+          content: m.content,
+          timestamp: m.timestamp.toISOString(),
+        }));
+      }
+    }
+
+    const suggestionsResult = await generateReplySuggestions({
+      phone: String(phone || 'unknown'),
+      customerName: customerName ? String(customerName) : 'Khách hàng',
+      messages: conversationMessages || [],
+      brandName: brandName ? String(brandName) : undefined,
+    });
+
+    return res.json({
+      success: true,
+      ...suggestionsResult,
+    });
+  } catch (error: any) {
+    console.error('Error generating reply suggestions:', error);
+    return res.status(500).json({ error: error.message || 'Lỗi khi tạo gợi ý tin nhắn.' });
+  }
+}
+

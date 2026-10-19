@@ -248,6 +248,7 @@ export async function getConversations(req: Request, res: Response) {
       lastMsgStatus: string | null;
       lastMsgErrorCode: string | null;
       lastMsgErrorMessage: string | null;
+      lastMsgErrorDetails: string | null;
     }> = await prisma.$queryRaw`
       WITH RankedMessages AS (
         SELECT 
@@ -272,6 +273,7 @@ export async function getConversations(req: Request, res: Response) {
           "status",
           "errorCode",
           "errorMessage",
+          "errorDetails",
           COALESCE(
             NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
             NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
@@ -333,7 +335,8 @@ export async function getConversations(req: Request, res: Response) {
         rm."isRealSent" as "lastMsgIsRealSent",
         rm."status" as "lastMsgStatus",
         rm."errorCode" as "lastMsgErrorCode",
-        rm."errorMessage" as "lastMsgErrorMessage"
+        rm."errorMessage" as "lastMsgErrorMessage",
+        rm."errorDetails" as "lastMsgErrorDetails"
       FROM RankedMessages rm
       LEFT JOIN UnreadStats us ON us.thread_key = rm.thread_key
       WHERE rm.rn = 1
@@ -379,6 +382,7 @@ export async function getConversations(req: Request, res: Response) {
           status: (t.lastMsgStatus as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
           errorCode: t.lastMsgErrorCode || null,
           errorMessage: t.lastMsgErrorMessage || null,
+          errorDetails: t.lastMsgErrorDetails || null,
         }
       };
     });

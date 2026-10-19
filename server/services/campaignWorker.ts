@@ -193,6 +193,25 @@ async function executeClaimedRecipient(
 ): Promise<boolean> {
   const campaign = recipient.campaign;
   try {
+    if (recipient.customerId) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: recipient.customerId },
+        select: { whatsappReachability: true },
+      });
+      if (customer?.whatsappReachability === 'unreachable') {
+        await failRecipient(
+          recipient.id,
+          campaign.id,
+          recipient.attemptCount + 1,
+          false,
+          'WHATSAPP_UNREACHABLE',
+          'Liên hệ đang ở trạng thái WhatsApp unreachable; chờ khách nhắn tin mới.',
+        );
+        await aggregateCampaign(campaign.id);
+        return true;
+      }
+    }
+
     if (!campaign.templateName) {
       await failRecipient(recipient.id, campaign.id, recipient.attemptCount + 1, false, 'INVALID_TEMPLATE', 'Chiến dịch thiếu tên approved template.');
       await aggregateCampaign(campaign.id);

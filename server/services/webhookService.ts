@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { realtimeHub } from './realtimeHub';
 import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
 import { matchCustomerByPhone } from './webhook/webhookCustomerSync';
-import { extractWebhookItems, getMessageText, getWebhookSenderIdentifier } from './webhook/webhookMessageParser';
+import { extractWebhookItems, getMessageText, getWebhookSenderIdentity } from './webhook/webhookMessageParser';
 import { isMetaUserIdentifier, normalizeMetaRecipient } from '../utils/metaRecipient';
 import {
   processIntegrationLifecycle,
@@ -36,7 +36,8 @@ export async function processWebhookPayload(body: any): Promise<number> {
   let processedCount = smbContactCount + smbMessageCount;
 
   for (const { msgData, valueObj } of extractedItems) {
-    const fromPhone = getWebhookSenderIdentifier(msgData, valueObj);
+    const senderIdentity = getWebhookSenderIdentity(msgData, valueObj);
+    const fromPhone = senderIdentity.recipient;
     if (!fromPhone) {
       console.warn('[META WEBHOOK] Skipping message without from/from_user_id/user_id:', msgData?.id || 'unknown');
       continue;
@@ -56,7 +57,19 @@ export async function processWebhookPayload(body: any): Promise<number> {
     const textBody = getMessageText(msgData, businessPhoneNumberId);
 
     // Match customer in CRM
-    const { customerId, customerName, isCrmCustomer } = await matchCustomerByPhone(fromPhone, senderName, businessPhoneNumberId);
+    const { customerId, customerName, isCrmCustomer } = await matchCustomerByPhone(
+      fromPhone,
+      senderName,
+      businessPhoneNumberId,
+      {
+        incomingActivity: true,
+        incomingActivityAt: new Date(Number(msgData.timestamp) * 1000 || Date.now()),
+        recipientId: senderIdentity.bsuid,
+        parentRecipientId: senderIdentity.parentBsuid,
+        phone: senderIdentity.phone,
+        username: senderIdentity.username,
+      },
+    );
 
     // Handle WhatsApp reaction: update the target message instead of creating a new message record
     if (msgData?.type === 'reaction') {
@@ -139,8 +152,8 @@ export async function processWebhookPayload(body: any): Promise<number> {
       id: msgData.id || `msg_meta_${Date.now()}`,
       customerId,
       customerName,
-      customerPhone: fromPhone,
-      recipientId: normalizeMetaRecipient(fromPhone),
+      customerPhone: senderIdentity.phone || fromPhone,
+      recipientId: senderIdentity.bsuid || normalizeMetaRecipient(fromPhone),
       businessPhoneNumberId,
       sender: 'customer' as const,
       channel: 'WhatsApp',

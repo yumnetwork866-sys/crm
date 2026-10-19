@@ -7,6 +7,9 @@ import {
   createSurveyFlow,
   deleteMessageTemplate,
   dispatchMetaMessage,
+  dispatchMetaReaction,
+  dispatchMetaTemplateMessage,
+  dispatchMetaTextMessage,
   fetchTemplateAnalytics,
   fetchWhatsAppFlows,
   fetchAndCacheMetaMedia,
@@ -20,10 +23,10 @@ afterEach(() => {
 });
 
 describe('dispatchMetaMessage product payload', () => {
-  it('keeps an opaque Meta user ID unchanged in the Graph API to field', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ messages: [{ id: 'wamid.bsuid' }] }), { status: 200 }),
-    );
+  it('addresses an opaque Meta user ID through the recipient field', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => (
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.bsuid' }] }), { status: 200 })
+    ));
     vi.stubGlobal('fetch', fetchMock);
 
     await dispatchMetaMessage({
@@ -34,7 +37,62 @@ describe('dispatchMetaMessage product payload', () => {
     });
 
     const request = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(String(request.body)).to).toBe('MY.941245582048923');
+    const payload = JSON.parse(String(request.body));
+    expect(payload.recipient).toBe('MY.941245582048923');
+    expect(payload.to).toBeUndefined();
+  });
+
+  it('continues addressing phone numbers through the to field', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.phone' }] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await dispatchMetaMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: '60123456789',
+      content: 'Hello',
+    });
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload.to).toBe('60123456789');
+    expect(payload.recipient).toBeUndefined();
+  });
+
+  it('uses recipient for BSUID text, template, and reaction payloads', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => (
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.bsuid' }] }), { status: 200 })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await dispatchMetaTextMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: 'MY.941245582048923',
+      content: 'Hello',
+    });
+    await dispatchMetaTemplateMessage({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: 'MY.941245582048923',
+      templateName: 'follow_up',
+      languageCode: 'ms',
+    });
+    await dispatchMetaReaction({
+      phoneId: 'phone-id',
+      token: 'token',
+      cleanPhone: 'MY.941245582048923',
+      messageId: 'wamid.incoming',
+      emoji: '👍',
+    });
+
+    for (const call of fetchMock.mock.calls) {
+      const payload = JSON.parse(String((call[1] as RequestInit).body));
+      expect(payload.recipient).toBe('MY.941245582048923');
+      expect(payload.to).toBeUndefined();
+    }
   });
 
   it('omits the interactive body when the product has no accompanying text', async () => {

@@ -45,6 +45,11 @@ model Customer {
   id                 String    @id @default(uuid())
   phone              String
   whatsappRecipientId String?
+  whatsappParentRecipientId String?
+  whatsappUsername   String?
+  whatsappReachability String  @default("reachable") // 'reachable' | 'unreachable'
+  whatsappUnreachableAt DateTime?
+  whatsappUnreachableReason String?
   name               String
   gender             String    @default("Khác") // 'Nam' | 'Nữ' | 'Khác'
   address            String    @default("")
@@ -74,6 +79,9 @@ model Customer {
 
   @@index([phone])
   @@index([whatsappRecipientId])
+  @@index([whatsappParentRecipientId])
+  @@index([whatsappUsername])
+  @@index([whatsappReachability])
   @@index([status])
   @@index([ownerId])
   @@index([source])
@@ -337,6 +345,7 @@ model WhatsAppMessage {
   status        String    @default("sent") // 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
   errorCode     String?
   errorMessage  String?
+  errorDetails  String?
   isRead        Boolean   @default(false)
   readBy        String?
   readAt        DateTime?

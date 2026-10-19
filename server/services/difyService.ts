@@ -788,3 +788,224 @@ export async function generateConversationSummary(params: {
     source: 'smart_analysis',
   };
 }
+
+export interface SuggestedRepliesResult {
+  suggestions: string[];
+  source: 'ai' | 'smart_suggestions';
+}
+
+function buildSmartReplySuggestions(
+  lastContent: string,
+  countryProfile: PhoneCountryProfile,
+  brand: string,
+  _customerName: string
+): string[] {
+  const clean = lastContent.toLowerCase();
+
+  // If Malaysia (+60)
+  if (countryProfile.countryCode === '+60') {
+    if (/(harga|price|berapa|cost|diskaun|discount|voucher)/i.test(clean)) {
+      return [
+        `Hai, terima kasih atas pertanyaan anda! Untuk produk ini kami sedang ada promosi istimewa dalam ${countryProfile.currency}. Boleh saya tahu anda mencari saiz atau kuantiti berapa ya?`,
+        `Hai! Kami ada senarai harga promosi terkini. Boleh kongsikan lokasi anda untuk semakan penghantaran percuma ya.`,
+        `Hai, sebut harga rasmi daripada ${brand} sedia membantu anda. Sila beritahu jika anda perlukan maklumat lanjut ya!`,
+      ];
+    }
+    if (/(pos|hantar|shipping|postage|bila sampai|track|alamat)/i.test(clean)) {
+      return [
+        `Hai! Penghantaran ke seluruh Malaysia biasanya mengambil masa 2-4 hari bekerja. Boleh kongsikan alamat atau poskod anda ya?`,
+        `Hai, setiap pesanan di ${brand} akan dibungkus dengan selamat dan dihantar menggunakan kurier pantas dengan nombor penjejakan (tracking number).`,
+      ];
+    }
+    if (/(order|beli|nak|ambil|tempah)/i.test(clean)) {
+      return [
+        `Baik, terima kasih! Boleh kongsikan nama penuh, alamat penghantaran dan nombor telefon untuk kami proseskan pesanan anda sekarang ya.`,
+        `Kami boleh bantu sediakan pesanan anda dengan segera. Anda boleh pilih bayaran secara pemindahan bank atau COD jika tersedia.`,
+      ];
+    }
+    return [
+      `Hai! Terima kasih kerana menghubungi ${brand}. Boleh kami bantu anda hari ini?`,
+      `Hai, kami sedia membantu menjawab sebarang pertanyaan anda tentang produk dan perkhidmatan kami!`,
+    ];
+  }
+
+  // If Singapore (+65) or English
+  if (countryProfile.countryCode === '+65' || countryProfile.primaryLanguage === 'English') {
+    if (/(price|how much|cost|discount|promo|rate)/i.test(clean)) {
+      return [
+        `Hello! Thanks for reaching out. We currently have a special promotion. Which package or quantity are you interested in so I can provide the best quote?`,
+        `Hi there! Our pricing is very competitive with promotional rates in ${countryProfile.currency}. Where would you like this delivered?`,
+        `Hello! I'd be happy to share our official price list and current deals with you.`,
+      ];
+    }
+    if (/(ship|delivery|postage|how long|tracking|address)/i.test(clean)) {
+      return [
+        `Hi! Standard delivery typically takes 2-4 business days. Could you please share your delivery area or postal code?`,
+        `Hello! All parcels from ${brand} are carefully packed and dispatched with tracking provided upon shipment.`,
+      ];
+    }
+    if (/(order|buy|purchase|take this)/i.test(clean)) {
+      return [
+        `Great! Please kindly share your name, delivery address, and contact number so we can process your order right away.`,
+        `Thank you for your order! We will confirm your order details and invoice shortly.`,
+      ];
+    }
+    return [
+      `Hello! Thank you for contacting ${brand}. How may we assist you today?`,
+      `Hi there! Let us know if you have any questions regarding our products or shipping.`,
+    ];
+  }
+
+  // Vietnam / Default Tiếng Việt (+84 or domestic)
+  if (/(giá|bao nhiêu|nhiêu tiền|báo giá|chi phí|khuyến mãi|giảm giá|voucher|discount|ưu đãi)/i.test(clean)) {
+    return [
+      `Dạ em chào anh/chị ạ! Giá sản phẩm bên em hiện đang có chương trình ưu đãi rất tốt. Anh/chị đang quan tâm đến mẫu nào hay số lượng bao nhiêu để em báo giá chi tiết nhất ạ?`,
+      `Dạ em gửi anh/chị bảng giá và các chương trình khuyến mãi đang áp dụng trong tháng này ạ. Anh/chị cần ship về khu vực nào để em kiểm tra ưu đãi freeship cho mình nhé ạ!`,
+      `Dạ em chào anh/chị, bên em có sẵn hàng ạ. Anh/chị xem qua mẫu này và báo em để em hỗ trợ giữ suất ưu đãi kèm quà tặng cho mình nhé ạ!`,
+    ];
+  }
+
+  if (/(ship|giao hàng|vận chuyển|phí ship|khi nào tới|bao lâu|địa chỉ|nhận hàng|vận đơn|tra mã)/i.test(clean)) {
+    return [
+      `Dạ bên em có hỗ trợ giao hàng tận nơi trên toàn quốc và quốc tế, thời gian nhận hàng dự kiến từ 2-4 ngày làm việc tuỳ khu vực ạ.`,
+      `Dạ anh/chị cho em xin địa chỉ nhận hàng cụ thể để em kiểm tra và báo phí ship chính xác kèm ưu đãi hỗ trợ cước vận chuyển cho mình nhé ạ!`,
+      `Dạ đơn hàng của mình sẽ được đóng gói cẩn thận và gửi qua đơn vị chuyển phát nhanh uy tín, có mã vận đơn để mình tiện theo dõi hành trình ạ.`,
+    ];
+  }
+
+  if (/(đặt|mua|chốt|order|lấy|mua hàng|đặt hàng|gửi đơn|lên đơn|cho 1|cho 2|cho mình)/i.test(clean)) {
+    return [
+      `Dạ vâng ạ, em đã ghi nhận thông tin sản phẩm. Anh/chị cho em xin họ tên, số điện thoại và địa chỉ nhận hàng để em lên đơn ngay cho mình nhé ạ!`,
+      `Dạ em xác nhận đơn cho mình ạ. Bên em có hỗ trợ thanh toán khi nhận hàng (COD) hoặc chuyển khoản, anh/chị tiện hình thức nào để em chuẩn bị ạ?`,
+      `Dạ em lên đơn cho anh/chị ngay ạ, hàng sẽ được đóng gói và bàn giao bên vận chuyển trong hôm nay luôn nhé ạ!`,
+    ];
+  }
+
+  if (/(lỗi|hỏng|bể|vỡ|sai|đổi|trả|bảo hành|khiếu nại|hoàn tiền|chưa nhận|lâu quá)/i.test(clean)) {
+    return [
+      `Dạ em chào anh/chị, ${brand} rất xin lỗi vì sự bất tiện này ạ! Anh/chị cho em xin hình ảnh hoặc thông tin chi tiết để em kiểm tra và hỗ trợ xử lý ngay cho mình nhé ạ.`,
+      `Dạ anh/chị hoàn toàn yên tâm ạ, bên em có chính sách bảo hành và đổi trả tận nơi. Em sẽ kiểm tra tình trạng đơn và giải quyết thỏa đáng ngay cho mình ạ!`,
+    ];
+  }
+
+  if (/(cảm ơn|cam on|thanks|thank you|cám ơn|\b(ok|oke)\b)/i.test(clean)) {
+    return [
+      `Dạ vâng ạ, ${brand} cảm ơn anh/chị rất nhiều! Cần hỗ trợ thêm bất cứ thông tin gì anh/chị cứ nhắn em nhé ạ.`,
+      `Dạ chúc anh/chị một ngày thật nhiều niềm vui! Em luôn sẵn sàng hỗ trợ mình bất cứ lúc nào ạ.`,
+    ];
+  }
+
+  if (/(chào|hello|\bhi\b|\balo\b|shop ơi|ad ơi|bạn ơi|có đó ko|tư vấn)/i.test(clean)) {
+    return [
+      `Dạ em chào anh/chị ạ! Rất vui được hỗ trợ anh/chị, mình đang cần tư vấn sản phẩm hay dịch vụ nào của ${brand} ạ?`,
+      `Dạ em chào anh/chị, chúc anh/chị một ngày tốt lành! Anh/chị cần em hỗ trợ thông tin gì cứ nhắn em nhé ạ.`,
+      `Dạ em chào anh/chị! Hôm nay bên em đang có nhiều chương trình ưu đãi hấp dẫn, anh/chị quan tâm dòng nào để em tư vấn chi tiết ạ?`,
+    ];
+  }
+
+  // Fallback generic
+  return [
+    `Dạ em chào anh/chị, em đã nhận được tin nhắn. Anh/chị cần em tư vấn thêm thông tin nào cứ nhắn em nhé ạ!`,
+    `Dạ vâng ạ, ${brand} luôn sẵn sàng hỗ trợ anh/chị. Mình còn thắc mắc gì về sản phẩm hay chính sách giao hàng không ạ?`,
+  ];
+}
+
+/**
+ * Generate 2-3 suggested replies for CRM agents based on customer context
+ */
+export async function generateReplySuggestions(params: {
+  phone: string;
+  customerName?: string;
+  messages: Array<{ sender: string; content: string; timestamp?: string }>;
+  brandName?: string;
+}): Promise<SuggestedRepliesResult> {
+  const { phone, customerName = 'Khách hàng', messages, brandName } = params;
+  const cleanPhone = phone.replace(/\D/g, '') || 'guest_user';
+  const brand = resolveBrandName(brandName);
+  const countryProfile = detectCustomerCountryProfile(phone);
+
+  if (!messages || messages.length === 0) {
+    return {
+      suggestions: [
+        `Dạ em chào anh/chị ạ! Rất vui được hỗ trợ anh/chị, mình đang quan tâm đến sản phẩm nào của ${brand} ạ?`,
+      ],
+      source: 'smart_suggestions',
+    };
+  }
+
+  // Find the latest message from customer
+  const lastCustomerMsg = [...messages].reverse().find((m) => m.sender === 'customer');
+  const lastContent = lastCustomerMsg ? lastCustomerMsg.content.trim() : '';
+
+  // Generate fallback smart suggestions first
+  const smartSuggestions = buildSmartReplySuggestions(lastContent, countryProfile, brand, customerName);
+
+  // If Dify is enabled, try AI generation
+  const config = getDifyConfig();
+  if (config.enabled && config.apiKey.trim() && lastContent) {
+    try {
+      const controller = new AbortController();
+      const timeoutTimer = setTimeout(() => controller.abort(), Math.min(config.timeoutMs, 6000));
+      const endpoint = `${config.apiUrl}/chat-messages`;
+
+      const recentMessages = messages.slice(-10);
+      const transcript = recentMessages
+        .map((m) => {
+          const senderLabel = m.sender === 'customer' ? customerName : 'Tư vấn viên';
+          return `${senderLabel}: ${m.content.trim()}`;
+        })
+        .join('\n');
+
+      const prompt = `[GỢI Ý PHẢN HỒI TIN NHẮN CHO TƯ VẤN VIÊN CRM]\nThương hiệu: ${brand}\nKhách hàng: ${customerName} (${countryProfile.countryName}, ${countryProfile.primaryLanguage})\nTin nhắn mới nhất từ khách: "${lastContent}"\n\nHội thoại gần đây:\n${transcript}\n\nHãy gợi ý đúng 2 đến 3 câu phản hồi ngắn gọn, tự nhiên, lịch sự nhất để nhân viên tư vấn gửi lại khách hàng.\nYêu cầu:\n- Trả về 2-3 dòng, mỗi dòng bắt đầu bằng 1., 2., 3.\n- Ngôn ngữ: ${countryProfile.primaryLanguage}\n- Không viết thêm bất kỳ lời dẫn giải hay giải thích nào khác.`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${config.apiKey.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: {
+            brand_name: brand,
+          },
+          query: prompt,
+          response_mode: 'blocking',
+          user: `suggest_agent_${cleanPhone}`,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutTimer);
+
+      if (response.ok) {
+        const data = (await response.json()) as DifyChatResponse;
+        if (data.answer && data.answer.trim().length > 10) {
+          const rawLines = data.answer.split('\n');
+          const aiSuggestions = rawLines
+            .map((line) => line.replace(/^(\d+[\.\)]|[-•*])\s*/, '').trim())
+            .filter((line) => line.length >= 8 && !/^(chào bạn|dưới đây là|đây là gợi ý)/i.test(line));
+
+          if (aiSuggestions.length > 0) {
+            const merged = [...aiSuggestions];
+            for (const s of smartSuggestions) {
+              if (merged.length < 3 && !merged.includes(s)) {
+                merged.push(s);
+              }
+            }
+            return {
+              suggestions: merged.slice(0, 3),
+              source: 'ai',
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Dify AI Suggest Reply] Bỏ qua lỗi Dify, dùng gợi ý thông minh:', err);
+    }
+  }
+
+  return {
+    suggestions: smartSuggestions.slice(0, 3),
+    source: 'smart_suggestions',
+  };
+}

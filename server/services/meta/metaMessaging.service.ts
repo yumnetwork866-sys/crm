@@ -2,6 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { isSupportedMetaImage, type MetaTemplateDispatchResult } from './types';
 import { uploadMediaToMeta } from './metaMedia.service';
+import { getMetaRecipientAddress } from '../../utils/metaRecipient';
+
+function setMetaRecipient(payload: Record<string, any>, recipient: string): void {
+  delete payload.to;
+  delete payload.recipient;
+  Object.assign(payload, getMetaRecipientAddress(recipient));
+}
 
 /**
  * Dispatch message to Meta WhatsApp Cloud API
@@ -295,6 +302,8 @@ export async function dispatchMetaMessage(options: {
     };
   }
 
+  setMetaRecipient(payload, cleanPhone);
+
   if (contextMessageId && (contextMessageId.startsWith('wamid.') || contextMessageId.length > 15)) {
     payload.context = { message_id: contextMessageId };
   }
@@ -343,6 +352,7 @@ export async function dispatchMetaTextMessage(options: {
       preview_url: false,
     },
   };
+  setMetaRecipient(payload, cleanPhone);
 
   try {
     const response = await fetch(`https://graph.facebook.com/v26.0/${phoneId}/messages`, {
@@ -397,6 +407,7 @@ export async function dispatchMetaTemplateMessage(options: {
       language: { code: languageCode }
     }
   };
+  setMetaRecipient(payload, cleanPhone);
 
   if (bodyParameters.length > 0) {
     payload.template.components = [{
@@ -456,7 +467,7 @@ export async function dispatchMetaReaction(options: {
     return { isRealSent: false, metaResult: null };
   }
 
-  const metaApiUrl = `https://graph.facebook.com/v22.0/${phoneId}/messages`;
+  const metaApiUrl = `https://graph.facebook.com/v26.0/${phoneId}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -467,6 +478,7 @@ export async function dispatchMetaReaction(options: {
       emoji: emoji || ''
     }
   };
+  setMetaRecipient(payload, cleanPhone);
 
   const apiRes = await fetch(metaApiUrl, {
     method: 'POST',

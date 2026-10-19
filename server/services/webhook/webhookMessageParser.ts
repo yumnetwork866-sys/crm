@@ -1,4 +1,6 @@
 import { serializeWhatsAppOrder } from '../../utils/whatsappOrder';
+import { isMetaUserIdentifier } from '../../utils/metaRecipient';
+import { normalizePhoneE164 } from '../../utils/phone';
 
 /**
  * Extract incoming messages from diverse Meta Webhook payload formats
@@ -50,9 +52,21 @@ export function extractWebhookItems(body: any): Array<{ msgData: any; valueObj: 
  * Some Meta payloads omit `from` and expose the recipient-safe identity as
  * `from_user_id` or `user_id` instead.
  */
-export function getWebhookSenderIdentifier(msgData: any, valueObj?: any): string {
-  const candidates = [
-    msgData?.from,
+export interface WebhookSenderIdentity {
+  recipient: string;
+  bsuid: string;
+  parentBsuid: string;
+  phone: string;
+  username: string;
+}
+
+export function getWebhookSenderIdentity(msgData: any, valueObj?: any): WebhookSenderIdentity {
+  const primaryIdentity = String(msgData?.from_user_id || msgData?.user_id || msgData?.from || '');
+  const contact = valueObj?.contacts?.find((item: any) => (
+    [item?.user_id, item?.from_user_id, item?.wa_id]
+      .some((value) => String(value || '') === primaryIdentity)
+  )) || valueObj?.contacts?.[0];
+  const bsuidCandidates = [
     msgData?.from_user_id,
     msgData?.user_id,
     msgData?.from?.user_id,
@@ -60,18 +74,47 @@ export function getWebhookSenderIdentifier(msgData: any, valueObj?: any): string
     msgData?.sender?.id,
     valueObj?.from_user_id,
     valueObj?.user_id,
-    valueObj?.contacts?.[0]?.from_user_id,
-    valueObj?.contacts?.[0]?.user_id,
-    valueObj?.contacts?.[0]?.wa_id,
+    contact?.from_user_id,
+    contact?.user_id,
+    isMetaUserIdentifier(msgData?.from) ? msgData.from : '',
   ];
-
-  for (const candidate of candidates) {
+  let bsuid = '';
+  for (const candidate of bsuidCandidates) {
     if (typeof candidate === 'string' || typeof candidate === 'number') {
       const identifier = String(candidate).trim();
-      if (identifier) return identifier;
+      if (identifier && isMetaUserIdentifier(identifier)) {
+        bsuid = identifier;
+        break;
+      }
     }
   }
-  return '';
+
+  let phone = '';
+  for (const candidate of [msgData?.from, contact?.wa_id]) {
+    const value = String(candidate || '').trim();
+    if (!value || isMetaUserIdentifier(value)) continue;
+    phone = normalizePhoneE164(value);
+    if (phone) break;
+  }
+
+  const parentCandidate = String(
+    msgData?.from_parent_user_id || msgData?.parent_user_id || contact?.parent_user_id || '',
+  ).trim();
+  const username = String(
+    contact?.username || contact?.profile?.username || msgData?.username || msgData?.profile?.username || '',
+  ).trim();
+
+  return {
+    recipient: bsuid || phone,
+    bsuid,
+    parentBsuid: isMetaUserIdentifier(parentCandidate) ? parentCandidate : '',
+    phone,
+    username,
+  };
+}
+
+export function getWebhookSenderIdentifier(msgData: any, valueObj?: any): string {
+  return getWebhookSenderIdentity(msgData, valueObj).recipient;
 }
 
 export function extractWebhookStatuses(body: any): any[] {

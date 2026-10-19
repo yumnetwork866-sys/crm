@@ -10,6 +10,31 @@ import {
   extractWebhookStatuses,
   getMessageText,
 } from './webhookMessageParser';
+import {
+  getWhatsAppDeliveryErrorMessage,
+  getWhatsAppErrorDetails,
+  WHATSAPP_UNREACHABLE_ERROR_CODE,
+} from '../../utils/whatsappDeliveryError';
+
+async function markCustomerWhatsAppUnreachable(customerId: string, eventAt: Date): Promise<boolean> {
+  const updated = await prisma.customer.updateMany({
+    where: {
+      id: customerId,
+      whatsappMessages: {
+        none: {
+          sender: 'customer',
+          timestamp: { gt: eventAt },
+        },
+      },
+    },
+    data: {
+      whatsappReachability: 'unreachable',
+      whatsappUnreachableAt: eventAt,
+      whatsappUnreachableReason: WHATSAPP_UNREACHABLE_ERROR_CODE,
+    },
+  });
+  return updated.count > 0;
+}
 
 export async function processIntegrationLifecycle(body: any): Promise<void> {
   for (const change of extractWebhookChanges(body)) {
@@ -106,7 +131,11 @@ export async function saveMirroredMessage(input: {
   const matched = await matchCustomerByPhone(
     customerPhone,
     input.customerName || `Khách WhatsApp (${customerPhone})`,
-    input.businessPhoneNumberId
+    input.businessPhoneNumberId,
+    {
+      incomingActivity: sender === 'customer',
+      incomingActivityAt: new Date(Number(msgData.timestamp) * 1000 || Date.now()),
+    },
   );
 
   if (msgData?.type === 'reaction') {
@@ -225,6 +254,7 @@ export async function processSmbMessages(body: any): Promise<number> {
 
 export async function processWebhookStatuses(body: any) {
   const affectedCampaigns = new Set<string>();
+  const reachabilityChangedCustomers = new Set<string>();
   for (const item of extractWebhookStatuses(body)) {
     if (!item?.id || !item?.status) continue;
     const eventAt = new Date(Number(item.timestamp) * 1000 || Date.now());
@@ -232,7 +262,7 @@ export async function processWebhookStatuses(body: any) {
     // 1. Process Campaign Broadcast Recipient status
     const recipient = await prisma.broadcastRecipient.findUnique({
       where: { metaMessageId: item.id },
-      select: { id: true, campaignId: true },
+      select: { id: true, campaignId: true, customerId: true },
     }).catch(() => null);
 
     if (recipient) {
@@ -248,14 +278,20 @@ export async function processWebhookStatuses(body: any) {
         });
       } else if (item.status === 'failed') {
         const error = item.errors?.[0];
+        const errorDetails = getWhatsAppErrorDetails(error);
         await prisma.broadcastRecipient.updateMany({
           where: { id: recipient.id, status: { in: ['Pending', 'Processing', 'Retry', 'Sent'] } },
           data: {
             status: 'Failed',
             lastErrorCode: error?.code ? String(error.code) : 'META_FAILED',
-            lastErrorMessage: error?.title || error?.message || 'Meta báo gửi thất bại.',
+            lastErrorMessage: errorDetails || error?.title || error?.message || 'Meta báo gửi thất bại.',
           },
         });
+        if (String(error?.code || '') === WHATSAPP_UNREACHABLE_ERROR_CODE && recipient.customerId) {
+          if (await markCustomerWhatsAppUnreachable(recipient.customerId, eventAt)) {
+            reachabilityChangedCustomers.add(recipient.customerId);
+          }
+        }
       }
       affectedCampaigns.add(recipient.campaignId);
     }
@@ -313,25 +349,28 @@ export async function processWebhookStatuses(body: any) {
       } else if (item.status === 'failed') {
         const error = item.errors?.[0];
         const errCode = error?.code ? String(error.code) : 'META_FAILED';
-        let errMsg = error?.title || error?.message || 'Meta báo gửi thất bại.';
-        if (error?.code === 131047) {
-          errMsg = 'Quá 24 giờ kể từ tin nhắn cuối của khách. Hãy dùng tin nhắn mẫu (template).';
-        } else if (error?.code === 131026) {
-          errMsg = 'Không thể gửi đến số này (Số chưa kích hoạt WhatsApp hoặc đã chặn).';
-        }
+        const errMsg = getWhatsAppDeliveryErrorMessage(error);
+        const errorDetails = getWhatsAppErrorDetails(error);
         await prisma.whatsAppMessage.update({
           where: { id: item.id },
           data: {
             status: 'failed',
             errorCode: errCode,
             errorMessage: errMsg,
+            errorDetails,
           },
         });
+        if (errCode === WHATSAPP_UNREACHABLE_ERROR_CODE && directMsg.customerId) {
+          if (await markCustomerWhatsAppUnreachable(directMsg.customerId, eventAt)) {
+            reachabilityChangedCustomers.add(directMsg.customerId);
+          }
+        }
         realtimeHub.broadcast('message:status', {
           id: item.id,
           status: 'failed',
           errorCode: errCode,
           errorMessage: errMsg,
+          errorDetails,
           customerId: directMsg.customerId,
           customerPhone: directMsg.customerPhone,
           timestamp: eventAt.toISOString(),
@@ -341,5 +380,11 @@ export async function processWebhookStatuses(body: any) {
   }
   if (affectedCampaigns.size > 0) {
     await Promise.all(Array.from(affectedCampaigns, (campaignId) => aggregateCampaign(campaignId)));
+  }
+  for (const customerId of reachabilityChangedCustomers) {
+    realtimeHub.broadcast('customers:sync', {
+      source: 'whatsapp-unreachable',
+      customerId,
+    });
   }
 }
