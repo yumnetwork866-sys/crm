@@ -332,127 +332,13 @@ export function useCentralMessages({
     void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadTotals });
   }, [conversationsQueryKey, queryClient, unreadSummaryQueryKey]);
 
-  const readMutation = useMutation({
-    mutationFn: (variables: {
-      customerId: string;
-      customerPhone: string;
-      messageIds?: string[];
-      readBy: string;
-      phoneNumberId: string;
-    }) => api.post('/meta/messages/read', variables),
-  });
-
   const selectCustomerThread = useCallback(
-    (targetId: string, explicitPhone?: string, messageIds?: string[]) => {
+    (targetId: string, explicitPhone?: string) => {
       const identity = resolveThreadIdentityRef.current(targetId, explicitPhone);
       setSelectedCustomerId(targetId);
       setSelectedCustomerPhone(identity.customerPhone || explicitPhone || '');
-
-      const reader = currentUserRef.current?.name || 'Nguyễn Văn Ánh';
-      const customer = customersRef.current.find(
-        (item) =>
-          item.id === targetId ||
-          isSamePhoneNumber(item.phone, explicitPhone || identity.customerPhone || targetId)
-      );
-      const phone =
-        identity.customerPhone ||
-        explicitPhone ||
-        customer?.phone ||
-        (targetId.startsWith('cust_')
-          ? targetId.replace('cust_', '')
-          : String(targetId).replace(/\D/g, '').length >= 7
-            ? targetId
-            : '');
-      const readAt = new Date().toISOString();
-
-      const currentConvs =
-        queryClient.getQueryData<ConversationListResponse>(conversationsQueryKey)?.data ?? [];
-      const hasUnreadInConv = currentConvs.some((conv) => {
-        const matches =
-          conv.customerId === targetId ||
-          (customer && conv.customerId === customer.id) ||
-          Boolean(phone && isSamePhoneNumber(conv.customerPhone, phone)) ||
-          resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone).threadKey ===
-            identity.threadKey;
-        return matches && conv.unreadCount > 0;
-      });
-
-      const threadKeyForCache = queryKeys.centralMessages(phoneNumberId, identity.threadKey);
-      const cachedThreadMessages = flattenMessagePages(
-        queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(threadKeyForCache)
-      );
-      const hasUnreadInMessages = cachedThreadMessages.some(
-        (m) => !m.isRead && m.sender === 'customer'
-      );
-
-      if (!hasUnreadInConv && !hasUnreadInMessages) {
-        return;
-      }
-
-      updateConversationsCache((convs) =>
-        convs.map((conv) => {
-          const matches =
-            conv.customerId === targetId ||
-            (customer && conv.customerId === customer.id) ||
-            Boolean(phone && isSamePhoneNumber(conv.customerPhone, phone)) ||
-            resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone).threadKey ===
-              identity.threadKey;
-          if (!matches) return conv;
-          return {
-            ...conv,
-            unreadCount: 0,
-            lastMessage: {
-              ...conv.lastMessage,
-              isRead: true,
-              readBy: conv.lastMessage.readBy || reader,
-              readAt: conv.lastMessage.readAt || readAt,
-            },
-          };
-        })
-      );
-
-      queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
-        threadKeyForCache,
-        (data) => {
-          if (!data) return data;
-          const updated = flattenMessagePages(data).map((message) => {
-            const matches =
-              (messageIds?.includes(message.id) ?? false) ||
-              message.customerId === targetId ||
-              (customer && message.customerId === customer.id) ||
-              Boolean(phone && isSamePhoneNumber(message.customerPhone, phone));
-            return matches
-              ? {
-                  ...message,
-                  isRead: true,
-                  readBy: message.readBy || reader,
-                  readAt: message.readAt || readAt,
-                }
-              : message;
-          });
-          return replaceInfinitePagesWithMessages(data, updated);
-        }
-      );
-
-      readMutation.mutate(
-        {
-          customerId: customer?.id || targetId,
-          customerPhone: phone,
-          messageIds,
-          readBy: reader,
-          phoneNumberId,
-        },
-        { onSettled: invalidateUnreadCounts }
-      );
     },
-    [
-      conversationsQueryKey,
-      invalidateUnreadCounts,
-      phoneNumberId,
-      queryClient,
-      readMutation,
-      updateConversationsCache,
-    ]
+    []
   );
 
   useEffect(() => {
@@ -497,11 +383,7 @@ export function useCentralMessages({
 
           const enrichedMessage: CentralMessage = {
             ...newMessage,
-            isRead: isSelected || Boolean(newMessage.isRead),
-            readBy:
-              newMessage.readBy ||
-              (isSelected ? currentUserRef.current?.name || 'Nhân viên' : undefined),
-            readAt: newMessage.readAt || (isSelected ? new Date().toISOString() : undefined),
+            isRead: Boolean(newMessage.isRead),
           };
 
           updateConversationsCache((convs) => {
@@ -518,16 +400,16 @@ export function useCentralMessages({
               const target = convs[matchIdx];
               const shouldIncrementUnread =
                 enrichedMessage.sender === 'customer' &&
-                !isSelected &&
                 !wasKnown &&
                 !enrichedMessage.isRead;
               const updatedConv: ConversationSummary = {
                 ...target,
                 customerName: enrichedMessage.customerName || target.customerName,
                 customerPhone: enrichedMessage.customerPhone || target.customerPhone,
-                unreadCount: isSelected
-                  ? 0
-                  : target.unreadCount + (shouldIncrementUnread ? 1 : 0),
+                // The server is the source of truth for clearing this count after a reply.
+                // Keeping the current count here prevents a stale refetch from making the
+                // badge disappear and then reappear.
+                unreadCount: target.unreadCount + (shouldIncrementUnread ? 1 : 0),
                 lastCustomerMessageAt:
                   enrichedMessage.sender === 'customer'
                     ? enrichedMessage.timestamp
@@ -543,7 +425,7 @@ export function useCentralMessages({
               customerName: enrichedMessage.customerName || 'Khách Hàng',
               customerPhone: enrichedMessage.customerPhone || '',
               unreadCount:
-                enrichedMessage.sender === 'customer' && !isSelected && !enrichedMessage.isRead
+                enrichedMessage.sender === 'customer' && !enrichedMessage.isRead
                   ? 1
                   : 0,
               lastCustomerMessageAt:
@@ -609,7 +491,6 @@ export function useCentralMessages({
               if (!matches) return conv;
               return {
                 ...conv,
-                unreadCount: 0,
                 lastMessage: {
                   ...conv.lastMessage,
                   isRead: true,
@@ -877,7 +758,7 @@ export function useCentralMessages({
             ...existing,
             customerName: temporaryMessage.customerName || existing.customerName,
             customerPhone: temporaryMessage.customerPhone || existing.customerPhone,
-            unreadCount: 0,
+            unreadCount: existing.unreadCount,
             lastMessage: temporaryMessage,
           };
           const remaining = convs.filter((_, idx) => idx !== matchIdx);
@@ -924,7 +805,13 @@ export function useCentralMessages({
             convs.map((conv) =>
               conv.lastMessage.id === temporaryMessage.id ||
               conv.lastMessage.id === resolvedSentMsg.id
-                ? { ...conv, lastMessage: resolvedSentMsg }
+                ? {
+                    ...conv,
+                    // Wait for the canonical conversation query to confirm the reply before
+                    // clearing the badge. This avoids an optimistic-update/refetch race.
+                    unreadCount: conv.unreadCount,
+                    lastMessage: resolvedSentMsg,
+                  }
                 : conv
             )
           );
@@ -1168,19 +1055,16 @@ export function useCentralMessages({
     isError:
       conversationsQuery.isError ||
       messagesQuery.isError ||
-      readMutation.isError ||
       sendMutation.isError ||
       threadDeleteMutation.isError ||
       messageDeleteMutation.isError,
     error:
       conversationsQuery.error ||
       messagesQuery.error ||
-      readMutation.error ||
       sendMutation.error ||
       threadDeleteMutation.error ||
       messageDeleteMutation.error,
     isMutating:
-      readMutation.isPending ||
       sendMutation.isPending ||
       threadDeleteMutation.isPending ||
       messageDeleteMutation.isPending,

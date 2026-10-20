@@ -19,7 +19,7 @@ export function getWhatsAppDeliveryErrorMessage(error: any): string {
     return 'Quá 24 giờ kể từ tin nhắn cuối của khách. Hãy dùng tin nhắn mẫu (template).';
   }
   if (code === Number(WHATSAPP_UNREACHABLE_ERROR_CODE)) {
-    return 'Meta không thể giao tin nhắn đến người nhận này. Tài khoản có thể không còn hoạt động, chưa chấp nhận điều khoản, ứng dụng quá cũ hoặc đã chặn doanh nghiệp.';
+    return 'Meta không thể gửi tin nhắn';
   }
   if (code === 190) {
     return 'Access Token của Meta đã hết hạn hoặc bị hủy quyền.';

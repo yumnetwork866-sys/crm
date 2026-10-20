@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { isSamePhoneNumber } from '../../utils/crmUtils';
 import { QuickTemplatesModal } from '../../features/messages/components/QuickTemplatesModal';
 import type {
   ActiveMessageFilter,
@@ -183,24 +182,6 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       mobileQuery.removeEventListener('change', handleMobileLayoutChange);
     };
   }, []);
-
-  // Sync active thread selection & auto-mark active thread as read
-  useEffect(() => {
-    if (!activeThread) return;
-    const isMatchedSelection =
-      Boolean(selectedCustomerId) &&
-      (activeThread.threadId === selectedCustomerId ||
-        activeThread.customer?.id === selectedCustomerId ||
-        activeThread.lastMessage.customerId === selectedCustomerId ||
-        isSamePhoneNumber(activeThread.customerPhone, selectedCustomerId));
-    if (!isMatchedSelection || activeThread.unreadCount > 0) {
-      onSelectCustomerThread(
-        activeThread.threadId,
-        activeThread.customerPhone,
-        activeThread.messages.map((m) => m.id)
-      );
-    }
-  }, [activeThread, onSelectCustomerThread, selectedCustomerId]);
 
   const composer = useMessageComposer({
     activeThread,
