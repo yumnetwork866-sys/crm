@@ -978,6 +978,13 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   -webkit-text-fill-color: #ffffff !important;
 }
 
+/* Suggested replies use the same green/white hover treatment as the active filter chip. */
+.whatsapp-page .whatsapp-suggested-reply:hover,
+.whatsapp-page .whatsapp-suggested-reply:hover * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 /* Unread counters sit on a solid green badge, including in light mode. */
 .whatsapp-page .unread-count-badge,
 .light-mode .whatsapp-page span.unread-count-badge {

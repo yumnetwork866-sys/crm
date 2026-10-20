@@ -292,7 +292,7 @@ export async function getConversations(req: Request, res: Response) {
         FROM "WhatsAppMessage"
         ${filterSql}
       ),
-      UnreadStats AS (
+      ReplyStats AS (
         SELECT 
           COALESCE(
             NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
@@ -300,17 +300,33 @@ export async function getConversations(req: Request, res: Response) {
             NULLIF("customerId", ''),
             "id"
           ) as thread_key,
-          MAX("customerId") as customer_id,
-          COUNT(*) FILTER (WHERE "sender" = 'customer' AND "isRead" = false) as unread_count,
-          MAX("timestamp") FILTER (WHERE "sender" = 'customer') as last_customer_msg_at
+          "customerId",
+          "sender",
+          "timestamp",
+          MAX("timestamp") FILTER (
+            WHERE "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed'
+          ) OVER (
+            PARTITION BY COALESCE(
+              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
+              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+              NULLIF("customerId", ''),
+              "id"
+            )
+          ) as last_agent_reply_at
         FROM "WhatsAppMessage"
         ${unreadFilterSql}
-        GROUP BY COALESCE(
-          NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-          NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-          NULLIF("customerId", ''),
-          "id"
-        )
+      ),
+      UnreadStats AS (
+        SELECT
+          thread_key,
+          MAX("customerId") as customer_id,
+          COUNT(*) FILTER (
+            WHERE "sender" = 'customer'
+              AND (last_agent_reply_at IS NULL OR "timestamp" > last_agent_reply_at)
+          ) as unread_count,
+          MAX("timestamp") FILTER (WHERE "sender" = 'customer') as last_customer_msg_at
+        FROM ReplyStats
+        GROUP BY thread_key
       )
       SELECT 
         COALESCE(rm."customerId", us.customer_id) as "customerId",
@@ -405,24 +421,44 @@ export async function getConversations(req: Request, res: Response) {
  */
 export async function getUnreadMessageSummary(_req: Request, res: Response) {
   try {
-    const groups = await prisma.whatsAppMessage.groupBy({
-      by: ['businessPhoneNumberId'],
-      where: {
-        sender: 'customer',
-        isRead: false,
-      },
-      _count: { _all: true },
-    });
+    const groups: Array<{ phoneNumberId: string | null; unreadCount: bigint }> =
+      await prisma.$queryRaw`
+        WITH ReplyStats AS (
+          SELECT
+            "businessPhoneNumberId",
+            "sender",
+            "timestamp",
+            MAX("timestamp") FILTER (
+              WHERE "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed'
+            ) OVER (
+              PARTITION BY "businessPhoneNumberId", COALESCE(
+                NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
+                NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+                NULLIF("customerId", ''),
+                "id"
+              )
+            ) as last_agent_reply_at
+          FROM "WhatsAppMessage"
+        )
+        SELECT
+          "businessPhoneNumberId" as "phoneNumberId",
+          COUNT(*) FILTER (
+            WHERE "sender" = 'customer'
+              AND (last_agent_reply_at IS NULL OR "timestamp" > last_agent_reply_at)
+          ) as "unreadCount"
+        FROM ReplyStats
+        GROUP BY "businessPhoneNumberId"
+      `;
 
     const byPhone = groups
-      .filter((group) => Boolean(group.businessPhoneNumberId))
+      .filter((group) => Boolean(group.phoneNumberId) && Number(group.unreadCount) > 0)
       .map((group) => ({
-        phoneNumberId: group.businessPhoneNumberId as string,
-        unreadCount: group._count._all,
+        phoneNumberId: group.phoneNumberId as string,
+        unreadCount: Number(group.unreadCount),
       }));
 
     return res.json({
-      total: groups.reduce((sum, group) => sum + group._count._all, 0),
+      total: groups.reduce((sum, group) => sum + Number(group.unreadCount), 0),
       byPhone,
     });
   } catch (error) {

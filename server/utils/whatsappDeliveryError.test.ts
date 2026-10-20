@@ -12,7 +12,7 @@ describe('WhatsApp delivery errors', () => {
 
   it('uses a non-speculative message for error 131026', () => {
     expect(getWhatsAppDeliveryErrorMessage({ code: 131026 })).toBe(
-      'Meta không thể giao tin nhắn đến người nhận này. Tài khoản có thể không còn hoạt động, chưa chấp nhận điều khoản, ứng dụng quá cũ hoặc đã chặn doanh nghiệp.',
+      'Meta không thể gửi tin nhắn',
     );
   });
 });

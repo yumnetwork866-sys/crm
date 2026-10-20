@@ -457,9 +457,6 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
               <span>Gợi ý trả lời</span>
-              <span className="text-[10px] font-medium text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
-                Tự động
-              </span>
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -495,12 +492,12 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                   type="button"
                   onClick={() => handleApplySuggestion(text)}
                   title={text}
-                  className="group shrink-0 max-w-[280px] sm:max-w-[360px] flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-600 text-slate-700 hover:text-white rounded-lg border border-emerald-200 hover:border-emerald-600 shadow-2xs transition text-left cursor-pointer"
+                  className="whatsapp-suggested-reply group shrink-0 max-w-[280px] sm:max-w-[360px] flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-[#1fa855] text-slate-700 hover:text-white rounded-lg border border-emerald-200 hover:border-[#1fa855] shadow-2xs transition text-left cursor-pointer"
                 >
-                  <span className="text-[10px] font-bold text-emerald-700 group-hover:text-white bg-emerald-100 group-hover:bg-emerald-700/60 w-4 h-4 rounded flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-bold text-[#1fa855] group-hover:text-white bg-emerald-100 group-hover:bg-white/20 w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors">
                     {idx + 1}
                   </span>
-                  <span className="text-xs truncate font-medium">{text}</span>
+                  <span className="text-xs truncate font-medium text-slate-700 group-hover:text-white transition-colors">{text}</span>
                 </button>
               ))}
             </div>
