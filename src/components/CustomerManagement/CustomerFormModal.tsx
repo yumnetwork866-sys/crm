@@ -1,6 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, User, Phone, Mail, Globe, MapPin, Tag, Briefcase, FileText, CheckCircle2 } from 'lucide-react';
-import type { Customer, CustomerGroupId, CustomerStatus, LeadSource, Gender, Product } from '../../types';
+import {
+  X,
+  User,
+  Phone,
+  Mail,
+  Globe,
+  MapPin,
+  Tag,
+  Briefcase,
+  FileText,
+  CheckCircle2,
+  Package,
+  Search,
+} from 'lucide-react';
+import type {
+  Customer,
+  CustomerGroupId,
+  CustomerStatus,
+  LeadSource,
+  Gender,
+  Product,
+} from '../../types';
 import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -13,7 +33,15 @@ interface CustomerFormModalProps {
 }
 
 const GENDER_OPTIONS: Gender[] = ['Nam', 'Nữ', 'Khác'];
-const LEAD_SOURCES: LeadSource[] = ['Facebook', 'TikTok', 'Google', 'Website', 'Zalo', 'Referral', 'Direct'];
+const LEAD_SOURCES: LeadSource[] = [
+  'Facebook',
+  'TikTok',
+  'Google',
+  'Website',
+  'Zalo',
+  'Referral',
+  'Direct',
+];
 const STATUS_OPTIONS: CustomerStatus[] = ['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'];
 const GROUP_OPTIONS: CustomerGroupId[] = ['group_1', 'group_2', 'group_3', 'group_4'];
 
@@ -39,14 +67,16 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const defaultOwner = currentUser?.name || ownerOptions[0] || 'Chưa phân công';
 
   const productOptions = useMemo(() => {
-    const names = new Set<string>();
+    const options = new Map<string, Product | null>();
     for (const p of products) {
-      if (p.name?.trim()) names.add(p.name.trim());
+      const name = p.name?.trim();
+      if (name && !options.has(name)) options.set(name, p);
     }
     for (const interested of initialData?.interestedProducts || []) {
-      if (interested?.trim()) names.add(interested.trim());
+      const name = interested?.trim();
+      if (name && !options.has(name)) options.set(name, null);
     }
-    return Array.from(names);
+    return Array.from(options, ([name, product]) => ({ name, product }));
   }, [products, initialData?.interestedProducts]);
 
   const [phone, setPhone] = useState('');
@@ -68,6 +98,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [group, setGroup] = useState<CustomerGroupId>('group_1');
   const [noteContent, setNoteContent] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+
+  const filteredProductOptions = useMemo(() => {
+    const query = productSearch.trim().toLocaleLowerCase('vi');
+    if (!query) return productOptions;
+
+    return productOptions.filter(({ name, product }) =>
+      [name, product?.code, product?.sku, product?.category]
+        .filter(Boolean)
+        .some((value) => String(value).toLocaleLowerCase('vi').includes(query)),
+    );
+  }, [productOptions, productSearch]);
 
   useEffect(() => {
     if (initialData) {
@@ -89,6 +131,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setStatus(initialData.status || 'New Lead');
       setGroup(getCustomerGroup(initialData));
       setSelectedProducts(initialData.interestedProducts || []);
+      setProductSearch('');
     } else {
       setPhone('');
       setName('');
@@ -107,7 +150,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setStatus('New Lead');
       setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
-      setSelectedProducts(productOptions[0] ? [productOptions[0]] : []);
+      setSelectedProducts(productOptions[0] ? [productOptions[0].name] : []);
+      setProductSearch('');
     }
   }, [initialData, isOpen, defaultOwner, productOptions]);
 
@@ -115,9 +159,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   const handleProductToggle = (productName: string) => {
     setSelectedProducts((prev) =>
-      prev.includes(productName)
-        ? prev.filter((p) => p !== productName)
-        : [...prev, productName]
+      prev.includes(productName) ? prev.filter((p) => p !== productName) : [...prev, productName],
     );
   };
 
@@ -167,7 +209,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden my-8">
-        
         {/* Header */}
         <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/70 flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -186,8 +227,10 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 text-slate-200 max-h-[80vh] overflow-y-auto">
-          
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-6 text-slate-200 max-h-[80vh] overflow-y-auto"
+        >
           {/* Section 1: Basic Info */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
@@ -232,13 +275,17 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 >
                   {GENDER_OPTIONS.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Email (Không bắt buộc)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Email (Không bắt buộc)
+                </label>
                 <input
                   type="email"
                   value={email}
@@ -279,7 +326,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
-
             </div>
           </div>
 
@@ -294,14 +340,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Nguồn Tiếp Cận (Source)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Nguồn Tiếp Cận (Source)
+                </label>
                 <select
                   value={source}
                   onChange={(e) => setSource(e.target.value as LeadSource)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 >
                   {LEAD_SOURCES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -317,7 +367,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Lần Liên Hệ Gần Nhất (Last Contact)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Lần Liên Hệ Gần Nhất (Last Contact)
+                </label>
                 <input
                   type="date"
                   value={lastContact}
@@ -339,7 +391,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Nhân Viên Phụ Trách (Owner)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Nhân Viên Phụ Trách (Owner)
+                </label>
                 <select
                   value={owner}
                   onChange={(e) => setOwner(e.target.value)}
@@ -347,33 +401,43 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 >
                   <option value="Chưa phân công">Chưa phân công</option>
                   {ownerOptions.map((userName) => (
-                    <option key={userName} value={userName}>{userName}</option>
+                    <option key={userName} value={userName}>
+                      {userName}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Trạng Thái Khách Hàng (Status)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Trạng Thái Khách Hàng (Status)
+                </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as CustomerStatus)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium"
                 >
                   {STATUS_OPTIONS.map((st) => (
-                    <option key={st} value={st}>{st}</option>
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Phân Nhóm CRM</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Phân Nhóm CRM
+                </label>
                 <select
                   value={group}
                   onChange={(e) => setGroup(e.target.value as CustomerGroupId)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium"
                 >
                   {GROUP_OPTIONS.map((groupId) => (
-                    <option key={groupId} value={groupId}>{CUSTOMER_GROUPS[groupId].name}</option>
+                    <option key={groupId} value={groupId}>
+                      {CUSTOMER_GROUPS[groupId].name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -381,7 +445,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
             {!initialData && (
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Ghi Chú Ban Đầu</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Ghi Chú Ban Đầu
+                </label>
                 <textarea
                   value={noteContent}
                   onChange={(e) => setNoteContent(e.target.value)}
@@ -396,35 +462,109 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           <hr className="border-slate-800" />
 
           {/* Section 4: Interested Products */}
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
-              <Tag className="w-4 h-4" />
-              <span>4. Sản Phẩm Khách Quan Tâm</span>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+                <Tag className="w-4 h-4" />
+                <span>4. Sản Phẩm Khách Quan Tâm</span>
+              </div>
+              <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-300">
+                Đã chọn {selectedProducts.length}
+              </span>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              {productOptions.length > 0 ? (
-                productOptions.map((prod) => {
-                  const isSelected = selectedProducts.includes(prod);
-                  return (
-                    <button
-                      type="button"
-                      key={prod}
-                      onClick={() => handleProductToggle(prod)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
-                        isSelected
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow'
-                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                      }`}
-                    >
-                      {prod} {isSelected ? '✓' : ''}
-                    </button>
-                  );
-                })
-              ) : (
-                <span className="text-xs text-slate-400 italic">Chưa có danh mục sản phẩm</span>
-              )}
-            </div>
+            {productOptions.length > 0 ? (
+              <>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="search"
+                    value={productSearch}
+                    onChange={(event) => setProductSearch(event.target.value)}
+                    placeholder="Tìm theo tên, mã hoặc danh mục sản phẩm..."
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {filteredProductOptions.map(({ name: productName, product }) => {
+                    const isSelected = selectedProducts.includes(productName);
+                    return (
+                      <label
+                        key={productName}
+                        className={`group flex cursor-pointer items-center gap-3 rounded-xl border p-2.5 transition ${
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-500/15 shadow-sm shadow-indigo-950/40'
+                            : 'border-slate-700 bg-slate-800/70 hover:border-slate-600 hover:bg-slate-800'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleProductToggle(productName)}
+                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-600 bg-slate-900 accent-indigo-600"
+                        />
+
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-slate-500">
+                          <Package className="h-5 w-5" />
+                          {product?.image && (
+                            <img
+                              src={product.image}
+                              alt={productName}
+                              loading="lazy"
+                              className="absolute inset-0 h-full w-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`truncate text-sm font-semibold ${isSelected ? 'text-white' : 'text-slate-200'}`}
+                            title={productName}
+                          >
+                            {productName}
+                          </div>
+                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-slate-400">
+                            {product?.code && (
+                              <span className="shrink-0 font-medium text-slate-300">
+                                {product.code}
+                              </span>
+                            )}
+                            {product?.code && product?.category && (
+                              <span aria-hidden="true">•</span>
+                            )}
+                            <span className="truncate">
+                              {product?.category || 'Ngoài danh mục hiện tại'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <CheckCircle2
+                            className="h-4 w-4 shrink-0 text-indigo-400"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </label>
+                    );
+                  })}
+
+                  {filteredProductOptions.length === 0 && (
+                    <div className="col-span-full rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-xs text-slate-400">
+                      Không tìm thấy sản phẩm phù hợp.
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center">
+                <Package className="mx-auto h-7 w-7 text-slate-600" />
+                <p className="mt-2 text-xs text-slate-400">Chưa có sản phẩm trong danh mục.</p>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}
@@ -443,9 +583,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               {initialData ? 'Lưu Thay Đổi' : 'Thêm Khách Hàng'}
             </button>
           </div>
-
         </form>
-
       </div>
     </div>
   );

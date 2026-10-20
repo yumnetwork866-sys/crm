@@ -52,10 +52,38 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return data as T;
 }
 
+async function download(endpoint: string, options: RequestInit = {}): Promise<{ blob: Blob; filename?: string }> {
+  const legacyToken = localStorage.getItem('yumnetwork_crm_jwt_token')
+    || localStorage.getItem('vietcrm_jwt_token');
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
+      ...(options.headers as Record<string, string>),
+    },
+  });
+
+  if (response.status === 401) clearLegacyStoredTokens();
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message = typeof data.error === 'string'
+      ? data.error
+      : data.error?.message || data.message || `Yêu cầu thất bại với mã lỗi ${response.status}`;
+    throw new Error(message);
+  }
+
+  const disposition = response.headers.get('content-disposition') || '';
+  const filename = disposition.match(/filename="([^"]+)"/i)?.[1];
+  return { blob: await response.blob(), filename };
+}
+
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
   patch: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' })
+  delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+  download: (endpoint: string, body?: any) => download(endpoint, { method: 'POST', body: JSON.stringify(body) }),
 };

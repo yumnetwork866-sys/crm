@@ -41,6 +41,8 @@ interface CustomerFilterBarProps {
   onOpenAddModal: () => void;
   onOpenImportCsv: () => void;
   onExportCustomers: (records: Customer[]) => void;
+  onExportCustomersExcel: (records: Customer[]) => void;
+  isExportingExcel: boolean;
   onUpdateOwner: (customerId: string, owner: string) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
   clearAllFilters: () => void;
@@ -70,6 +72,8 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   onOpenAddModal,
   onOpenImportCsv,
   onExportCustomers,
+  onExportCustomersExcel,
+  isExportingExcel,
   onUpdateOwner,
   onUpdateStatus,
   clearAllFilters,
@@ -313,6 +317,9 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
                   <button type="button" onClick={() => { onExportCustomers(displayedCustomers); setShowActionsMenu(false); }} disabled={!isAdmin} title={isAdmin ? 'Xuất danh sách đang hiển thị' : 'Chỉ Admin được xuất dữ liệu'} className="w-full px-3 py-2.5 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <Download className="w-4 h-4" /> Xuất CSV
                   </button>
+                  <button type="button" onClick={() => { onExportCustomersExcel(displayedCustomers); setShowActionsMenu(false); }} disabled={!isAdmin || isExportingExcel || displayedCustomers.length === 0} title={isAdmin ? 'Mỗi workspace WhatsApp được xuất thành một sheet' : 'Chỉ Admin được xuất dữ liệu'} className="w-full px-3 py-2.5 rounded-lg text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Download className="w-4 h-4" /> {isExportingExcel ? 'Đang xuất Excel…' : 'Xuất Excel'}
+                  </button>
                 </div>
               )}
             </div>
@@ -375,6 +382,9 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           </select>
           <button type="button" onClick={() => onExportCustomers(selectedCustomers)} disabled={!isAdmin} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50">
             <Download className="w-3.5 h-3.5" /> Xuất CSV
+          </button>
+          <button type="button" onClick={() => onExportCustomersExcel(selectedCustomers)} disabled={!isAdmin || isExportingExcel} className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50">
+            <Download className="w-3.5 h-3.5" /> {isExportingExcel ? 'Đang xuất…' : 'Xuất Excel'}
           </button>
           <button type="button" onClick={() => setSelectedCustomerIds([])} className="ml-auto px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5">
             <X className="w-4 h-4" /> Bỏ chọn

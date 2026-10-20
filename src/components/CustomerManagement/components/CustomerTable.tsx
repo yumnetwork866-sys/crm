@@ -1,5 +1,7 @@
 import React from 'react';
 import {
+  ChevronLeft,
+  ChevronRight,
   Edit3,
   MessageSquare,
   ShoppingBag,
@@ -27,7 +29,11 @@ export interface CustomerWhatsAppSourceInfo {
 
 interface CustomerTableProps {
   customersTotalCount: number;
+  filteredCustomersCount: number;
   displayedCustomers: Customer[];
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
   selectedCustomerIds: string[];
   users: AppUser[];
   currentUser?: AppUser | null;
@@ -36,6 +42,8 @@ interface CustomerTableProps {
   hasUnreadMessage: (customer: Customer) => boolean;
   onToggleSelectAll: () => void;
   onToggleSelect: (id: string) => void;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onClearAllFilters: () => void;
   onSelectCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
@@ -79,7 +87,11 @@ const ActionButton = ({
 
 export const CustomerTable: React.FC<CustomerTableProps> = ({
   customersTotalCount,
+  filteredCustomersCount,
   displayedCustomers,
+  currentPage,
+  pageSize,
+  totalPages,
   selectedCustomerIds,
   users,
   currentUser,
@@ -88,6 +100,8 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   hasUnreadMessage,
   onToggleSelectAll,
   onToggleSelect,
+  onPageChange,
+  onPageSizeChange,
   onClearAllFilters,
   onSelectCustomer,
   onEditCustomer,
@@ -98,12 +112,30 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   onUpdateGroup,
   onSelectOwnerUser,
 }) => {
+  const firstDisplayed = filteredCustomersCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastDisplayed = Math.min(currentPage * pageSize, filteredCustomersCount);
+
   return (
     <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          Hiển thị <strong className="text-slate-900">{displayedCustomers.length}</strong> / {customersTotalCount} khách hàng
+          Hiển thị <strong className="text-slate-900">{firstDisplayed}–{lastDisplayed}</strong>
+          {' / '}{filteredCustomersCount} khách hàng
+          {filteredCustomersCount !== customersTotalCount && ` (tổng ${customersTotalCount})`}
         </p>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
+          Số dòng
+          <select
+            value={pageSize}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            aria-label="Số khách hàng mỗi trang"
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </label>
       </div>
 
       <div className="overflow-x-auto">
@@ -350,6 +382,34 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {filteredCustomersCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
+          <span className="text-xs text-slate-500">
+            Trang <strong className="text-slate-800">{currentPage}</strong> / {totalPages}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              aria-label="Trang trước"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Trước
+            </button>
+            <button
+              type="button"
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              aria-label="Trang sau"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Sau <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
