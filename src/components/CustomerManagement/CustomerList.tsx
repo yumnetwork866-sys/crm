@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../../types';
 import type { BusinessPhoneNumber } from '../../features/messages/types';
 import {
@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Permission } from '../../lib/permissions';
 import { CustomerFilterBar, type WorkQueueFilter } from './components/CustomerFilterBar';
 import { CustomerTable, type CustomerWhatsAppSourceInfo } from './components/CustomerTable';
+import { api } from '../../utils/apiClient';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -67,6 +68,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>('all');
   const [selectedOwnerUser, setSelectedOwnerUser] = useState<AppUser | null>(null);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const {
     setSearchQuery,
@@ -190,10 +194,34 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     return true;
   };
 
-  const displayedCustomers = useMemo(
+  const filteredQueueCustomers = useMemo(
     () => filteredCustomers.filter((customer) => matchesWorkQueue(customer, workQueueFilter)),
     [filteredCustomers, workQueueFilter]
   );
+  const totalPages = Math.max(1, Math.ceil(filteredQueueCustomers.length / pageSize));
+  const pageCustomers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredQueueCustomers.slice(start, start + pageSize);
+  }, [currentPage, filteredQueueCustomers, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filterModel.searchQuery,
+    filterModel.selectedStatus,
+    filterModel.selectedSource,
+    filterModel.selectedGender,
+    filterModel.selectedGroup,
+    filterModel.selectedOwner,
+    filterModel.startDate,
+    filterModel.endDate,
+    workQueueFilter,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const queueCounts = useMemo(() => ({
     new: customers.filter((customer) => getCustomerGroup(customer) === 'group_1').length,
@@ -216,7 +244,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   };
 
   const handleToggleSelectAll = () => {
-    const visibleIds = displayedCustomers.map((customer) => customer.id);
+    const visibleIds = pageCustomers.map((customer) => customer.id);
     const areAllVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedCustomerIds.includes(id));
     setSelectedCustomerIds((current) => areAllVisibleSelected
       ? current.filter((id) => !visibleIds.includes(id))
@@ -270,6 +298,33 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     document.body.removeChild(link);
   };
 
+  const exportCustomersExcel = async (records: Customer[]) => {
+    if (!isAdmin) {
+      alert('Quyền bị hạn chế: Chỉ tài khoản Admin mới có quyền xuất dữ liệu.');
+      return;
+    }
+    if (records.length === 0 || isExportingExcel) return;
+
+    setIsExportingExcel(true);
+    try {
+      const { blob, filename } = await api.download('/customers/export/excel', {
+        customerIds: records.map((customer) => customer.id),
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `YumNetworkCRM_KhachHang_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể xuất file Excel khách hàng.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const selectedCustomers = customers.filter((customer) => selectedCustomerIds.includes(customer.id));
 
   return (
@@ -282,13 +337,15 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         sources={sources}
         owners={owners}
         isAdmin={isAdmin}
-        displayedCustomers={displayedCustomers}
+        displayedCustomers={filteredQueueCustomers}
         selectedCustomerIds={selectedCustomerIds}
         setSelectedCustomerIds={setSelectedCustomerIds}
         selectedCustomers={selectedCustomers}
         onOpenAddModal={onOpenAddModal}
         onOpenImportCsv={() => setIsImportCsvOpen(true)}
         onExportCustomers={exportCustomers}
+        onExportCustomersExcel={(records) => void exportCustomersExcel(records)}
+        isExportingExcel={isExportingExcel}
         onUpdateOwner={onUpdateOwner}
         onUpdateStatus={onUpdateStatus}
         clearAllFilters={clearAllFilters}
@@ -296,7 +353,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
       <CustomerTable
         customersTotalCount={customers.length}
-        displayedCustomers={displayedCustomers}
+        filteredCustomersCount={filteredQueueCustomers.length}
+        displayedCustomers={pageCustomers}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        totalPages={totalPages}
         selectedCustomerIds={selectedCustomerIds}
         users={users}
         currentUser={currentUser}
@@ -305,6 +366,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         hasUnreadMessage={hasUnreadMessage}
         onToggleSelectAll={handleToggleSelectAll}
         onToggleSelect={handleToggleSelect}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
         onClearAllFilters={clearAllFilters}
         onSelectCustomer={onSelectCustomer}
         onEditCustomer={onEditCustomer}

@@ -10,6 +10,7 @@ import { matchCustomerByPhone, syncExistingWhatsAppCustomersToCrm } from '../ser
 import { realtimeHub } from '../services/realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 import { isUnassignedOwnerInput, resolveCustomerOwnerId, serializeCustomer } from '../utils/customerOwner';
+import { buildCustomerWorkspaceWorkbook } from '../services/customerExcelExport';
 
 const router = Router();
 
@@ -231,6 +232,64 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
   } catch (error) {
     console.error('Lỗi khi lấy danh sách khách hàng:', error);
     return res.status(500).json({ error: 'Không thể tải danh sách khách hàng từ cơ sở dữ liệu' });
+  }
+});
+
+const customerExcelExportSchema = z.object({
+  customerIds: z.array(z.string().uuid()).min(1).max(5000),
+});
+
+// POST /api/customers/export/excel - Export selected customers, one sheet per WhatsApp workspace
+router.post('/export/excel', requirePermission(Permission.CUSTOMERS_EXPORT), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = customerExcelExportSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Danh sách khách hàng cần xuất không hợp lệ.' });
+  }
+
+  try {
+    const requestedIds = Array.from(new Set(parsed.data.customerIds));
+    const [customerRecords, links, workspaces] = await Promise.all([
+      prisma.customer.findMany({
+        where: { id: { in: requestedIds } },
+        include: { ownerUser: { select: { name: true } } },
+      }),
+      prisma.whatsAppMessage.findMany({
+        where: {
+          customerId: { in: requestedIds },
+          businessPhoneNumberId: { not: null },
+        },
+        select: { customerId: true, businessPhoneNumberId: true },
+        distinct: ['customerId', 'businessPhoneNumberId'],
+      }),
+      prisma.whatsAppConnection.findMany({
+        select: { phoneNumberId: true, verifiedName: true, displayPhoneNumber: true },
+      }),
+    ]);
+
+    const customerById = new Map(customerRecords.map((customer) => [customer.id, customer]));
+    const customers = requestedIds.flatMap((id) => {
+      const customer = customerById.get(id);
+      return customer ? [customer] : [];
+    });
+    const workbook = await buildCustomerWorkspaceWorkbook({
+      customers,
+      links,
+      workspaces: workspaces.map((workspace) => ({
+        id: workspace.phoneNumberId,
+        verifiedName: workspace.verifiedName,
+        displayPhoneNumber: workspace.displayPhoneNumber,
+      })),
+    });
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const filename = `YumNetworkCRM_KhachHang_${date}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', workbook.length.toString());
+    return res.send(workbook);
+  } catch (error) {
+    console.error('Lỗi khi xuất Excel khách hàng:', error);
+    return res.status(500).json({ error: 'Không thể tạo file Excel khách hàng.' });
   }
 });
 

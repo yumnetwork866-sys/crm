@@ -357,6 +357,7 @@ export default function App() {
                   isOpen={isDetailOpen}
                   onClose={() => setIsDetailOpen(false)}
                   customer={selectedCustomer}
+                  products={products}
                   onOpenAddOrder={(cust) => {
                     setIsDetailOpen(false);
                     setOrderCustomer(cust);

@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Globe,
   MapPin,
+  Package,
   PackageSearch,
   Pencil,
   Phone,
@@ -16,7 +17,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import type { Customer, CustomerStatus } from '../../types';
+import type { Customer, CustomerStatus, Product } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getCustomerAvatar, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
@@ -26,6 +27,7 @@ interface CustomerDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   customer: Customer | null;
+  products?: Product[];
   onOpenAddOrder: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onAddNote: (customerId: string, noteText: string) => void;
@@ -37,6 +39,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   isOpen,
   onClose,
   customer,
+  products = [],
   onOpenAddOrder,
   onEditCustomer,
   onAddNote,
@@ -61,6 +64,11 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const landingPageUrl = customer.landingPage && /^https?:\/\//i.test(customer.landingPage)
     ? customer.landingPage
     : null;
+  const productsByName = new Map(
+    products
+      .filter((product) => product.name?.trim())
+      .map((product) => [product.name.trim(), product] as const),
+  );
 
   const handleAddNoteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,20 +373,87 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               )}
 
               {/* Interested products */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <PackageSearch className="h-4 w-4 text-indigo-600" />
-                  <h4 className="text-xs font-bold text-slate-800">Sản phẩm khách quan tâm</h4>
+              <section className="overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-indigo-50/60 shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-indigo-100/80 px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <PackageSearch className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Sản phẩm khách quan tâm
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                    {customer.interestedProducts?.length || 0} sản phẩm
+                  </span>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+
+                <div className="p-4">
                   {customer.interestedProducts && customer.interestedProducts.length > 0 ? (
-                    customer.interestedProducts.map((product) => (
-                      <span key={product} className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                        {product}
-                      </span>
-                    ))
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {customer.interestedProducts.map((productName) => {
+                        const product = productsByName.get(productName.trim());
+                        return (
+                          <div
+                            key={productName}
+                            className="group flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
+                          >
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-slate-400">
+                              <Package className="h-5 w-5" />
+                              {product?.image && (
+                                <img
+                                  src={product.image}
+                                  alt={productName}
+                                  loading="lazy"
+                                  className="absolute inset-0 h-full w-full object-cover transition duration-200 group-hover:scale-105"
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="truncate text-sm font-bold text-slate-900"
+                                title={productName}
+                              >
+                                {productName}
+                              </p>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500">
+                                {product?.code && (
+                                  <span className="shrink-0 font-semibold text-indigo-600">
+                                    {product.code}
+                                  </span>
+                                )}
+                                {product?.code && product?.category && (
+                                  <span className="text-slate-300" aria-hidden="true">
+                                    •
+                                  </span>
+                                )}
+                                <span className="truncate">
+                                  {product?.category || 'Ngoài danh mục hiện tại'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <span className="text-xs font-medium text-slate-500">Chưa chọn sản phẩm quan tâm.</span>
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/70 px-4 py-8 text-center">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                        <Package className="h-5 w-5" />
+                      </span>
+                      <p className="mt-2 text-xs font-semibold text-slate-600">
+                        Chưa chọn sản phẩm quan tâm
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Chỉnh sửa hồ sơ để thêm nhu cầu sản phẩm của khách.
+                      </p>
+                    </div>
                   )}
                 </div>
               </section>
