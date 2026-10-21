@@ -5,6 +5,7 @@ import type { AppUser, CentralMessage, Customer } from '../../../types';
 import { getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../../utils/crmUtils';
 import type { AiProfile } from '../hooks/useAiProfile';
 import type { TypingUser } from '../hooks/useThreadTyping';
+import { useMessageTranslations } from '../hooks/useMessageTranslations';
 import type { MessageDateGroup, MessageThread } from '../types';
 import { MessageBubble } from './MessageBubble';
 
@@ -61,6 +62,7 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
   onRetryMessage,
   isLoadingOlderMessages = false,
 }) => {
+  const { translations, toggleTranslation } = useMessageTranslations();
   const virtualMessageRows = useMemo(() => {
     const rows: Array<{
       key: string;
@@ -182,6 +184,8 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
                       onPreviewImage={onPreviewImage}
                       onImageLoad={handleImageLoad}
                       onRetryMessage={onRetryMessage}
+                      translation={translations[msg.id]}
+                      onToggleTranslation={toggleTranslation}
                     />
                   );
                 })}
