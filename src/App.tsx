@@ -41,6 +41,9 @@ const AutomationHub = React.lazy(() =>
 const ReportsDashboard = React.lazy(() =>
   import('./components/Reports/ReportsDashboard').then((m) => ({ default: m.ReportsDashboard }))
 );
+const AiManagementView = React.lazy(() =>
+  import('./components/Ai/AiManagementView').then((m) => ({ default: m.AiManagementView }))
+);
 const UserManagementView = React.lazy(() =>
   import('./components/UserManagement/UserManagementView').then((m) => ({ default: m.UserManagementView }))
 );
@@ -79,6 +82,7 @@ const getActiveTabFromPath = (pathname: string): ActiveTab => {
     'catalog',
     'segmentation',
     'automation',
+    'ai',
     'reports',
     'users',
     'messages',
@@ -557,6 +561,16 @@ export default function App() {
               }
             />
             <Route
+              path="/ai"
+              element={
+                hasPermission(Permission.MESSAGES_VIEW) ? (
+                  <AiManagementView />
+                ) : (
+                  <Navigate to="/crm" replace />
+                )
+              }
+            />
+            <Route
               path="/users"
               element={
                 canManageUsers ? (
@@ -566,6 +580,7 @@ export default function App() {
                 )
               }
             />
+            <Route path="/users/ai" element={<Navigate to="/ai" replace />} />
             <Route
               path="/users/*"
               element={

@@ -11,9 +11,7 @@ import {
 import {
   Users,
   ShieldCheck,
-  Bot,
 } from 'lucide-react';
-import { AiManagementPanel } from './AiManagementPanel';
 import { UserDirectoryTab } from './components/UserDirectoryTab';
 import { ROLE_COLOR_PRESETS, RolePermissionsMatrixTab } from './components/RolePermissionsMatrixTab';
 
@@ -37,18 +35,16 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const activeSubTab = useMemo<'accounts' | 'permissions' | 'ai'>(() => {
+  const activeSubTab = useMemo<'accounts' | 'permissions'>(() => {
     const segments = location.pathname.replace(/^\//, '').split('/');
     if (segments[0] === 'users') {
       const sub = segments[1];
       if (sub === 'permissions') return 'permissions';
-      if (sub === 'ai') return 'ai';
       if (sub === 'accounts') return 'accounts';
     }
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam === 'permissions') return 'permissions';
-    if (tabParam === 'ai') return 'ai';
     return 'accounts';
   }, [location.pathname, location.search]);
 
@@ -152,18 +148,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
           <ShieldCheck className="w-4 h-4" />
           Phân Quyền
         </button>
-        <button
-          type="button"
-          onClick={() => navigate('/users/ai')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-            activeSubTab === 'ai'
-              ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
-              : 'text-slate-700 hover:text-slate-950'
-          }`}
-        >
-          <Bot className="w-4 h-4" />
-          AI
-        </button>
       </div>
 
       {/* SUB-TAB 1: ACCOUNTS & PASSWORDS MANAGEMENT */}
@@ -212,8 +196,6 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         />
       )}
 
-      {/* SUB-TAB 3: AI MANAGEMENT */}
-      {activeSubTab === 'ai' && <AiManagementPanel />}
     </div>
   );
 };

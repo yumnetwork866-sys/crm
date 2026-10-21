@@ -5,6 +5,7 @@ export type ActiveTab =
   | 'catalog'
   | 'segmentation'
   | 'automation'
+  | 'ai'
   | 'reports'
   | 'users'
   | 'messages'
@@ -40,6 +41,10 @@ export interface CentralMessage {
   deliveredAt?: string | null;
   isRealSent?: boolean;
   reaction?: string | null;
+  translatedContent?: string | null;
+  translatedLanguage?: string | null;
+  translationModel?: string | null;
+  translatedAt?: string | null;
   readBy?: string;
   readAt?: string;
   replyTo?: {

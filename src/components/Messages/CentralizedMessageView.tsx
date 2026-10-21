@@ -24,6 +24,7 @@ import { ThreadSidebar } from '../../features/messages/components/ThreadSidebar'
 import { ConversationHeader } from '../../features/messages/components/ConversationHeader';
 import { MessageVirtualList } from '../../features/messages/components/MessageVirtualList';
 import { MessageComposerBar } from '../../features/messages/components/MessageComposerBar';
+import { useAutoTranslateSetting } from '../../features/messages/hooks/useAutoTranslateSetting';
 
 interface CentralizedMessageViewProps {
   messages: CentralMessage[];
@@ -107,9 +108,12 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     soundEnabled,
     threadStatuses,
     pinnedThreadIds,
+    autoTranslateThreadIds,
     togglePinThread,
     updateThreadStatus: handleUpdateThreadStatus,
+    toggleAutoTranslate,
   } = useMessagePreferences(selectedPhoneId);
+  const { isAutoTranslateEnabled: isGlobalAutoTranslate } = useAutoTranslateSetting();
 
   const isAdmin = hasPermission(Permission.MESSAGES_MANAGE);
 
@@ -288,6 +292,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onPreviewImage={setPreviewLightboxImg}
                 onRetryMessage={onRetryMessage}
                 isLoadingOlderMessages={isLoadingOlderMessages}
+                autoTranslateEnabled={isGlobalAutoTranslate || autoTranslateThreadIds.includes(activeThread.threadId)}
               />
 
               <MessageComposerBar

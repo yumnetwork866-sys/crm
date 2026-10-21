@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown } from 'lucide-react';
 import type { AppUser, CentralMessage, Customer } from '../../../types';
@@ -34,6 +34,7 @@ export interface MessageVirtualListProps {
   onPreviewImage: (imgUrl: string) => void;
   onRetryMessage?: (messageId: string) => void;
   isLoadingOlderMessages?: boolean;
+  autoTranslateEnabled?: boolean;
 }
 
 export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
@@ -61,8 +62,18 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
   onPreviewImage,
   onRetryMessage,
   isLoadingOlderMessages = false,
+  autoTranslateEnabled = false,
 }) => {
-  const { translations, toggleTranslation } = useMessageTranslations();
+  const { translations, toggleTranslation, translateMessage } = useMessageTranslations();
+  const autoTranslatedMessageIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const latestMessage = activeThread.lastMessage;
+    if (!autoTranslateEnabled || latestMessage.sender !== 'customer') return;
+    if (autoTranslatedMessageIdsRef.current.has(latestMessage.id)) return;
+    autoTranslatedMessageIdsRef.current.add(latestMessage.id);
+    void translateMessage(latestMessage);
+  }, [activeThread.lastMessage, autoTranslateEnabled, translateMessage]);
   const virtualMessageRows = useMemo(() => {
     const rows: Array<{
       key: string;

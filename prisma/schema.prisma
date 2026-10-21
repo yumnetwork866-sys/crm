@@ -352,6 +352,10 @@ model WhatsAppMessage {
   deliveredAt   DateTime?
   isRealSent    Boolean   @default(true)
   reaction      String?
+  translatedContent  String?
+  translatedLanguage String?
+  translationModel   String?
+  translatedAt       DateTime?
   timestamp     DateTime  @default(now())
   createdAt     DateTime  @default(now())
 
@@ -376,6 +380,7 @@ model MessageThreadState {
   threadId              String
   status                String   @default("consulting")
   isPinned              Boolean  @default(false)
+  autoTranslate         Boolean  @default(false)
   updatedById           String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

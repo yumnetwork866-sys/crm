@@ -15,6 +15,7 @@ const LEGACY_SHARED_STORAGE_KEYS = [
 interface MessagePreferences {
   threadStatuses: Record<string, ConversationStatus>;
   pinnedThreadIds: string[];
+  autoTranslateThreadIds: string[];
 }
 
 interface ThreadStateEvent {
@@ -22,11 +23,13 @@ interface ThreadStateEvent {
   threadId: string;
   status: ConversationStatus;
   isPinned: boolean;
+  autoTranslate: boolean;
 }
 
 const EMPTY_PREFERENCES: MessagePreferences = {
   threadStatuses: {},
   pinnedThreadIds: [],
+  autoTranslateThreadIds: [],
 };
 
 function readLegacyJson<T>(key: string, fallback: T): T {
@@ -98,7 +101,7 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
   );
 
   const threadMutation = useMutation({
-    mutationFn: (input: { threadId: string; status?: ConversationStatus; isPinned?: boolean }) =>
+    mutationFn: (input: { threadId: string; status?: ConversationStatus; isPinned?: boolean; autoTranslate?: boolean }) =>
       api.patch<ThreadStateEvent>('/meta/messages/preferences/thread', {
         businessPhoneNumberId,
         ...input,
@@ -118,6 +121,12 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
             : input.isPinned
               ? Array.from(new Set([...current.pinnedThreadIds, input.threadId]))
               : current.pinnedThreadIds.filter((id) => id !== input.threadId),
+        autoTranslateThreadIds:
+          input.autoTranslate === undefined
+            ? current.autoTranslateThreadIds
+            : input.autoTranslate
+              ? Array.from(new Set([...current.autoTranslateThreadIds, input.threadId]))
+              : current.autoTranslateThreadIds.filter((id) => id !== input.threadId),
       }));
       return { previous };
     },
@@ -131,6 +140,9 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
         pinnedThreadIds: state.isPinned
           ? Array.from(new Set([...current.pinnedThreadIds, state.threadId]))
           : current.pinnedThreadIds.filter((id) => id !== state.threadId),
+        autoTranslateThreadIds: state.autoTranslate
+          ? Array.from(new Set([...current.autoTranslateThreadIds, state.threadId]))
+          : current.autoTranslateThreadIds.filter((id) => id !== state.threadId),
       }));
     },
   });
@@ -148,6 +160,9 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
             pinnedThreadIds: state.isPinned
               ? Array.from(new Set([...current.pinnedThreadIds, state.threadId]))
               : current.pinnedThreadIds.filter((id) => id !== state.threadId),
+            autoTranslateThreadIds: state.autoTranslate
+              ? Array.from(new Set([...current.autoTranslateThreadIds, state.threadId]))
+              : current.autoTranslateThreadIds.filter((id) => id !== state.threadId),
           }));
         } catch {
           // Ignore malformed realtime events.
@@ -192,12 +207,24 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
     [threadMutation],
   );
 
+  const toggleAutoTranslate = useCallback(
+    (threadId: string) => {
+      threadMutation.mutate({
+        threadId,
+        autoTranslate: !preferences.autoTranslateThreadIds.includes(threadId),
+      });
+    },
+    [preferences.autoTranslateThreadIds, threadMutation],
+  );
+
   return {
     soundEnabled,
     setSoundEnabled: updateSoundEnabled,
     threadStatuses: preferences.threadStatuses,
     pinnedThreadIds: preferences.pinnedThreadIds,
+    autoTranslateThreadIds: preferences.autoTranslateThreadIds,
     togglePinThread,
     updateThreadStatus,
+    toggleAutoTranslate,
   };
 }

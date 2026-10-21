@@ -28,6 +28,8 @@ export interface ConversationHeaderProps {
   onCloseChatSearch: () => void;
   isDrawerOpen: boolean;
   onToggleDrawer: () => void;
+  isAutoTranslateEnabled?: boolean;
+  onToggleAutoTranslate?: () => void;
 }
 
 export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
@@ -45,6 +47,8 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onCloseChatSearch,
   isDrawerOpen,
   onToggleDrawer,
+  isAutoTranslateEnabled,
+  onToggleAutoTranslate,
 }) => {
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -186,7 +190,6 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
 
         {/* Right Action Icons in Header */}
         <div className="flex items-center space-x-2 text-slate-600 shrink-0">
-
           <button
             onClick={onToggleChatSearch}
             aria-pressed={isChatSearchOpen}
