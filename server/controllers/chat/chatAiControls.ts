@@ -10,7 +10,7 @@ import {
   generateConversationSummary,
   generateReplySuggestions,
 } from '../../services/difyService';
-import { translateWithOllama } from '../../services/ollamaTranslationService';
+import { isLikelyVietnamese, translateWithOllama } from '../../services/ollamaTranslationService';
 
 /**
  * Toggle AI auto-reply on/off for a specific customer
@@ -189,14 +189,32 @@ export async function suggestChatReplies(req: Request, res: Response) {
 /** Translate one displayed chat message through the local Ollama TranslateGemma model. */
 export async function translateChatMessage(req: Request, res: Response) {
   try {
+    const messageId = typeof req.body?.messageId === 'string' ? req.body.messageId.trim() : '';
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
     const targetLanguage = typeof req.body?.targetLanguage === 'string'
       ? req.body.targetLanguage.trim()
       : 'vi';
-    if (!text) return res.status(400).json({ error: 'Thiếu nội dung tin nhắn cần dịch.' });
+    if (!messageId || !text) return res.status(400).json({ error: 'Thiếu tin nhắn cần dịch.' });
+
+    const message = await prisma.whatsAppMessage.findUnique({
+      where: { id: messageId },
+      select: { translatedContent: true, translatedLanguage: true, translationModel: true },
+    });
+    if (!message) return res.status(404).json({ error: 'Không tìm thấy tin nhắn.' });
+    if (message.translatedContent && message.translatedLanguage === targetLanguage) {
+      return res.json({ success: true, translation: message.translatedContent, targetLanguage, model: message.translationModel, persisted: true });
+    }
+    if (targetLanguage === 'vi' && isLikelyVietnamese(text)) {
+      return res.json({ success: true, targetLanguage, alreadyTargetLanguage: true });
+    }
 
     const result = await translateWithOllama({ text, targetLanguage });
-    return res.json({ success: true, ...result });
+    const translatedAt = new Date();
+    await prisma.whatsAppMessage.update({
+      where: { id: messageId },
+      data: { translatedContent: result.translation, translatedLanguage: result.targetLanguage, translationModel: result.model, translatedAt },
+    });
+    return res.json({ success: true, ...result, translatedAt: translatedAt.toISOString(), persisted: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi dịch tin nhắn.';
     console.error('[OLLAMA TRANSLATE] Error translating chat message:', error);

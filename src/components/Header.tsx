@@ -11,7 +11,7 @@ import {
   Camera,
   KeyRound,
   Link2,
-  Sparkles,
+  Bot,
   Package,
 } from 'lucide-react';
 import type { ActiveTab, AppUser } from '../types';
@@ -21,7 +21,6 @@ import { ChangePasswordModal } from './Auth/ChangePasswordModal';
 import { ChangeAvatarModal } from './Auth/ChangeAvatarModal';
 import { Permission } from '../lib/permissions';
 import { getUserRoleColor, getUserRoleTextStyle } from '../utils/roleColors';
-import { api } from '../utils/apiClient';
 
 const WhatsAppIcon: React.FC<React.ComponentProps<'svg'>> = ({ className, ...props }) => (
   <svg
@@ -54,13 +53,9 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const { logout, hasPermission } = useAuth();
   const canManageUsers = hasPermission(Permission.USERS_MANAGE);
-  const canViewAi = hasPermission(Permission.MESSAGES_VIEW);
-  const canManageAi = hasPermission(Permission.MESSAGES_MANAGE);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-  const [isGlobalAiEnabled, setIsGlobalAiEnabled] = useState(true);
-  const [isAiStatusLoading, setIsAiStatusLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -134,91 +129,40 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [isDropdownOpen]);
 
-  useEffect(() => {
-    if (!currentUser || !canViewAi || !isDropdownOpen) return;
-    let cancelled = false;
-    setIsAiStatusLoading(true);
-    api.get<{ isAiEnabled: boolean }>('/meta/ai-status')
-      .then((response) => {
-        if (!cancelled && typeof response.isAiEnabled === 'boolean') {
-          setIsGlobalAiEnabled(response.isAiEnabled);
-        }
-      })
-      .catch((error) => console.error('Không thể tải trạng thái AI:', error))
-      .finally(() => {
-        if (!cancelled) setIsAiStatusLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [canViewAi, currentUser, isDropdownOpen]);
-
-  useEffect(() => {
-    const handleAiStatusChange = (event: Event) => {
-      const detail = (event as CustomEvent).detail;
-      if (detail?.scope === 'global' && typeof detail.isAiEnabled === 'boolean') {
-        setIsGlobalAiEnabled(detail.isAiEnabled);
-      }
-    };
-    window.addEventListener('ai:status_change', handleAiStatusChange);
-    return () => window.removeEventListener('ai:status_change', handleAiStatusChange);
-  }, []);
-
-  const handleToggleGlobalAi = async () => {
-    if (!canManageAi || isAiStatusLoading) return;
-    const previous = isGlobalAiEnabled;
-    const enabled = !previous;
-    setIsGlobalAiEnabled(enabled);
-    setIsAiStatusLoading(true);
-    try {
-      const response = await api.post<{ isAiEnabled: boolean }>('/meta/ai-toggle', { enabled });
-      setIsGlobalAiEnabled(response.isAiEnabled);
-    } catch (error) {
-      setIsGlobalAiEnabled(previous);
-      console.error('Không thể bật/tắt AI toàn hệ thống:', error);
-    } finally {
-      setIsAiStatusLoading(false);
-    }
-  };
-
   const navItems = [
     {
       id: 'crm' as ActiveTab,
       label: 'Khách Hàng',
-      subtitle: 'Thông tin & Data',
       icon: Users,
       permission: Permission.CUSTOMERS_VIEW,
     },
     {
       id: 'orders' as ActiveTab,
       label: 'Bán Hàng',
-      subtitle: 'Đơn hàng & Sản phẩm',
       icon: ShoppingBag,
       permission: Permission.ORDERS_VIEW,
     },
     {
       id: 'segmentation' as ActiveTab,
       label: 'Phân Nhóm',
-      subtitle: 'Nhóm 1 - 4 Tự động',
       icon: Layers,
       permission: Permission.CUSTOMERS_VIEW,
     },
     {
       id: 'automation' as ActiveTab,
       label: 'Automation',
-      subtitle: 'Tự động & Gửi hàng loạt',
       icon: Zap,
       permission: Permission.AUTOMATION_VIEW,
     },
     {
       id: 'reports' as ActiveTab,
       label: 'Báo Cáo',
-      subtitle: 'Analytics & Sales',
       icon: BarChart3,
       permission: Permission.REPORTS_VIEW,
     },
     {
       id: 'messages' as ActiveTab,
       label: 'WhatsApp',
-      subtitle: 'WhatsApp Cloud API',
       icon: WhatsAppIcon,
       badge: unreadMessagesCount,
       permission: Permission.MESSAGES_VIEW,
@@ -226,9 +170,14 @@ export const Header: React.FC<HeaderProps> = ({
     {
       id: 'meta-verification' as ActiveTab,
       label: 'Meta',
-      subtitle: 'Kết nối WABA & Catalog',
       icon: Link2,
       permission: Permission.ADMINISTRATOR,
+    },
+    {
+      id: 'ai' as ActiveTab,
+      label: 'AI',
+      icon: Bot,
+      permission: Permission.MESSAGES_VIEW,
     },
   ];
 
@@ -276,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => {
                       if (item.id === 'automation') onChangeTab(item.id);
                     }}
-                    title={item.subtitle}
+                    title={item.label}
                     className={({ isActive }) => `topbar-nav-link group relative flex min-h-11 grow shrink-0 basis-auto items-center justify-center gap-2 px-3 py-2.5 sm:px-3.5 text-left whitespace-nowrap transition-all duration-200 ease-out cursor-pointer bg-transparent! shadow-none! border-0! ${
                       isActive
                         ? 'text-indigo-600 font-black'
@@ -413,34 +362,6 @@ export const Header: React.FC<HeaderProps> = ({
                     <KeyRound className="w-4 h-4 text-amber-400 transition-transform duration-150 group-hover:scale-110" />
                     <span>Đổi mật khẩu</span>
                   </button>
-
-                  {canViewAi && (
-                    <div className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-300 transition-all duration-150 hover:bg-slate-800/50">
-                      <Sparkles className={`w-4 h-4 transition-transform duration-150 ${isGlobalAiEnabled ? 'text-purple-400' : 'text-slate-500'}`} />
-                      <span className="min-w-0 flex-1">Trợ lý AI</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={isGlobalAiEnabled}
-                        aria-label={`${isGlobalAiEnabled ? 'Tắt' : 'Bật'} Trợ lý AI`}
-                        onClick={() => void handleToggleGlobalAi()}
-                        disabled={!canManageAi || isAiStatusLoading}
-                        title={canManageAi ? 'Áp dụng chung cho tất cả người dùng và cuộc hội thoại' : 'Bạn không có quyền thay đổi trạng thái AI'}
-                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-not-allowed disabled:opacity-60 ${
-                          isGlobalAiEnabled
-                            ? 'border-purple-400 bg-purple-500'
-                            : 'border-slate-600 bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                            isGlobalAiEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  )}
 
                   {canManageUsers && (
                     <button

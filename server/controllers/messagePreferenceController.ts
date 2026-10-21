@@ -21,7 +21,8 @@ const updateThreadSchema = z.object({
   threadId: threadIdSchema,
   status: z.enum(conversationStatuses).optional(),
   isPinned: z.boolean().optional(),
-}).refine((data) => data.status !== undefined || data.isPinned !== undefined, {
+  autoTranslate: z.boolean().optional(),
+}).refine((data) => data.status !== undefined || data.isPinned !== undefined || data.autoTranslate !== undefined, {
   message: 'Cần cung cấp trạng thái hoặc giá trị ghim.',
 });
 
@@ -79,18 +80,20 @@ export async function getMessagePreferences(req: AuthenticatedRequest, res: Resp
     const businessPhoneNumberId = parsedPhoneNumberId.data;
     const states = await prisma.messageThreadState.findMany({
       where: { businessPhoneNumberId },
-      select: { threadId: true, status: true, isPinned: true },
+      select: { threadId: true, status: true, isPinned: true, autoTranslate: true },
     });
 
     const threadStatuses: Record<string, string> = {};
     const pinnedThreadIds: string[] = [];
+    const autoTranslateThreadIds: string[] = [];
 
     states.forEach((state) => {
       threadStatuses[state.threadId] = state.status;
       if (state.isPinned) pinnedThreadIds.push(state.threadId);
+      if (state.autoTranslate) autoTranslateThreadIds.push(state.threadId);
     });
 
-    return res.json({ threadStatuses, pinnedThreadIds, internalNotes: {} });
+    return res.json({ threadStatuses, pinnedThreadIds, autoTranslateThreadIds, internalNotes: {} });
   } catch (error) {
     console.error('[MESSAGE PREFERENCES GET ERROR]', error);
     return res.status(500).json({ error: 'Không thể tải trạng thái hội thoại.' });
@@ -104,7 +107,7 @@ export async function updateMessageThreadState(req: AuthenticatedRequest, res: R
   }
 
   try {
-    const { businessPhoneNumberId, threadId, status, isPinned } = parsed.data;
+    const { businessPhoneNumberId, threadId, status, isPinned, autoTranslate } = parsed.data;
     const state = await prisma.messageThreadState.upsert({
       where: { businessPhoneNumberId_threadId: { businessPhoneNumberId, threadId } },
       create: {
@@ -112,14 +115,16 @@ export async function updateMessageThreadState(req: AuthenticatedRequest, res: R
         threadId,
         status: status ?? 'consulting',
         isPinned: isPinned ?? false,
+        autoTranslate: autoTranslate ?? false,
         updatedById: req.user?.id,
       },
       update: {
         ...(status !== undefined ? { status } : {}),
         ...(isPinned !== undefined ? { isPinned } : {}),
+        ...(autoTranslate !== undefined ? { autoTranslate } : {}),
         updatedById: req.user?.id,
       },
-      select: { threadId: true, status: true, isPinned: true, updatedAt: true },
+      select: { threadId: true, status: true, isPinned: true, autoTranslate: true, updatedAt: true },
     });
 
     const event = {

@@ -27,6 +27,14 @@ export interface TranslationResult {
   model: string;
 }
 
+const VIETNAMESE_MARKS = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
+const VIETNAMESE_WORDS = /\b(?:không|được|mình|bạn|anh|chị|em|cảm|ơn|giá|giao|hàng|sản phẩm|bao nhiêu|nhé|ạ)\b/gi;
+
+export function isLikelyVietnamese(text: string): boolean {
+  if (VIETNAMESE_MARKS.test(text)) return true;
+  return (text.match(VIETNAMESE_WORDS) || []).length >= 2;
+}
+
 const readPositiveInteger = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;

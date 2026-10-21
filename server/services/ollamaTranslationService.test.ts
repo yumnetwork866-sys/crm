@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { translateWithOllama } from './ollamaTranslationService';
+import { isLikelyVietnamese, translateWithOllama } from './ollamaTranslationService';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -7,6 +7,11 @@ afterEach(() => {
 });
 
 describe('translateWithOllama', () => {
+  it('recognizes Vietnamese messages before invoking the model', () => {
+    expect(isLikelyVietnamese('Dạ sản phẩm này giá bao nhiêu vậy ạ?')).toBe(true);
+    expect(isLikelyVietnamese('Berapa harga barang ini?')).toBe(false);
+  });
+
   it('calls translategemma:12b and returns only the normalized translation', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       message: { content: 'Translation: Xin chào!' },

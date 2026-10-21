@@ -1,13 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import type { CentralMessage } from '../../../types';
 import { api } from '../../../utils/apiClient';
-import { formatMessagePreview } from '../utils/messageContent';
+import { getTranslatableMessageText } from '../utils/messageTranslation';
 
 interface TranslateMessageResponse {
-  success: boolean;
-  translation: string;
-  targetLanguage: string;
-  model: string;
+  translation?: string;
+  alreadyTargetLanguage?: boolean;
 }
 
 export interface MessageTranslationState {
@@ -15,6 +13,7 @@ export interface MessageTranslationState {
   isLoading: boolean;
   isVisible: boolean;
   error?: string;
+  notice?: string;
 }
 
 export function useMessageTranslations() {
@@ -23,29 +22,19 @@ export function useMessageTranslations() {
   translationsRef.current = translations;
   const requestVersionsRef = useRef<Record<string, number>>({});
 
-  const toggleTranslation = useCallback(async (message: CentralMessage) => {
+  const translateMessage = useCallback(async (message: CentralMessage, show = true) => {
     const current = translationsRef.current[message.id];
     if (current?.isLoading) return;
-    if (current?.text) {
+    const persistedText = current?.text || message.translatedContent || undefined;
+    if (persistedText) {
       setTranslations((previous) => ({
         ...previous,
-        [message.id]: { ...previous[message.id], isVisible: !previous[message.id].isVisible },
+        [message.id]: { text: persistedText, isLoading: false, isVisible: show },
       }));
       return;
     }
-
-    const text = formatMessagePreview(message.content).trim();
-    if (!text) {
-      setTranslations((previous) => ({
-        ...previous,
-        [message.id]: {
-          isLoading: false,
-          isVisible: true,
-          error: 'Tin nhắn này không có nội dung văn bản để dịch.',
-        },
-      }));
-      return;
-    }
+    const text = getTranslatableMessageText(message);
+    if (!text) return;
 
     const requestVersion = (requestVersionsRef.current[message.id] || 0) + 1;
     requestVersionsRef.current[message.id] = requestVersion;
@@ -56,17 +45,16 @@ export function useMessageTranslations() {
 
     try {
       const response = await api.post<TranslateMessageResponse>('/meta/messages/translate', {
+        messageId: message.id,
         text,
         targetLanguage: 'vi',
       });
       if (requestVersionsRef.current[message.id] !== requestVersion) return;
       setTranslations((previous) => ({
         ...previous,
-        [message.id]: {
-          text: response.translation,
-          isLoading: false,
-          isVisible: true,
-        },
+        [message.id]: response.alreadyTargetLanguage
+          ? { isLoading: false, isVisible: true, notice: 'Tin nhắn đã là tiếng Việt.' }
+          : { text: response.translation, isLoading: false, isVisible: true },
       }));
     } catch (error) {
       if (requestVersionsRef.current[message.id] !== requestVersion) return;
@@ -81,6 +69,23 @@ export function useMessageTranslations() {
     }
   }, []);
 
-  return { translations, toggleTranslation };
-}
+  const toggleTranslation = useCallback(async (message: CentralMessage) => {
+    const current = translationsRef.current[message.id];
+    const persistedText = current?.text || message.translatedContent || undefined;
+    if (current?.isLoading) return;
+    if (persistedText) {
+      setTranslations((previous) => ({
+        ...previous,
+        [message.id]: {
+          text: persistedText,
+          isLoading: false,
+          isVisible: !(previous[message.id]?.isVisible ?? false),
+        },
+      }));
+      return;
+    }
+    await translateMessage(message);
+  }, [translateMessage]);
 
+  return { translations, toggleTranslation, translateMessage };
+}
