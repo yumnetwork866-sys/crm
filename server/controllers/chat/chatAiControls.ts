@@ -10,6 +10,7 @@ import {
   generateConversationSummary,
   generateReplySuggestions,
 } from '../../services/difyService';
+import { translateWithOllama } from '../../services/ollamaTranslationService';
 
 /**
  * Toggle AI auto-reply on/off for a specific customer
@@ -182,6 +183,24 @@ export async function suggestChatReplies(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Error generating reply suggestions:', error);
     return res.status(500).json({ error: error.message || 'Lỗi khi tạo gợi ý tin nhắn.' });
+  }
+}
+
+/** Translate one displayed chat message through the local Ollama TranslateGemma model. */
+export async function translateChatMessage(req: Request, res: Response) {
+  try {
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    const targetLanguage = typeof req.body?.targetLanguage === 'string'
+      ? req.body.targetLanguage.trim()
+      : 'vi';
+    if (!text) return res.status(400).json({ error: 'Thiếu nội dung tin nhắn cần dịch.' });
+
+    const result = await translateWithOllama({ text, targetLanguage });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Lỗi khi dịch tin nhắn.';
+    console.error('[OLLAMA TRANSLATE] Error translating chat message:', error);
+    return res.status(502).json({ error: message });
   }
 }
 
