@@ -33,7 +33,7 @@ import {
   getLinkPreview
 } from '../controllers/chatController';
 import { verifyMetaWebhookSignature } from '../middleware/metaWebhookSignature';
-import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission, requireAnyPermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import {
   createMessageInternalNote,
@@ -104,8 +104,8 @@ router.get('/messages/preferences/quick-templates', authenticateToken, requirePe
 router.post('/messages/preferences/quick-templates', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), createMessageQuickTemplate);
 router.patch('/messages/preferences/quick-templates/:id', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), updateMessageQuickTemplate);
 router.delete('/messages/preferences/quick-templates/:id', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessageQuickTemplate);
-router.get('/ai-status', authenticateToken, requirePermission(Permission.MESSAGES_VIEW), getGlobalAiStatus);
-router.post('/ai-toggle', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), toggleGlobalAi);
+router.get('/ai-status', authenticateToken, requireAnyPermission([Permission.AI_VIEW, Permission.MESSAGES_VIEW]), getGlobalAiStatus);
+router.post('/ai-toggle', authenticateToken, requireAnyPermission([Permission.AI_MANAGE, Permission.MESSAGES_MANAGE]), toggleGlobalAi);
 router.delete('/messages', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), clearAllMessages);
 router.delete('/messages/thread/:customerId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteThread);
 router.delete('/messages/item/:messageId', authenticateToken, requirePermission(Permission.MESSAGES_MANAGE), deleteMessage);

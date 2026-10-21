@@ -11,7 +11,7 @@ import {
   Camera,
   KeyRound,
   Link2,
-  Bot,
+  Wand2,
   Package,
 } from 'lucide-react';
 import type { ActiveTab, AppUser } from '../types';
@@ -176,8 +176,8 @@ export const Header: React.FC<HeaderProps> = ({
     {
       id: 'ai' as ActiveTab,
       label: 'AI',
-      icon: Bot,
-      permission: Permission.MESSAGES_VIEW,
+      icon: Wand2,
+      permission: Permission.AI_VIEW,
     },
   ];
 

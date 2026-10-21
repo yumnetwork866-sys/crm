@@ -6,6 +6,7 @@ import { getDiceBearAvatar, STAFF_DICEBEAR_STYLE } from '../../../utils/crmUtils
 import type { AiProfile } from '../hooks/useAiProfile';
 import type { TypingUser } from '../hooks/useThreadTyping';
 import { useMessageTranslations } from '../hooks/useMessageTranslations';
+import { canTranslateMessage } from '../utils/messageTranslation';
 import type { MessageDateGroup, MessageThread } from '../types';
 import { MessageBubble } from './MessageBubble';
 
@@ -64,16 +65,17 @@ export const MessageVirtualList: React.FC<MessageVirtualListProps> = ({
   isLoadingOlderMessages = false,
   autoTranslateEnabled = false,
 }) => {
-  const { translations, toggleTranslation, translateMessage } = useMessageTranslations();
-  const autoTranslatedMessageIdsRef = useRef(new Set<string>());
+  const { translations, toggleTranslation, translateMessages } = useMessageTranslations();
 
   useEffect(() => {
-    const latestMessage = activeThread.lastMessage;
-    if (!autoTranslateEnabled || latestMessage.sender !== 'customer') return;
-    if (autoTranslatedMessageIdsRef.current.has(latestMessage.id)) return;
-    autoTranslatedMessageIdsRef.current.add(latestMessage.id);
-    void translateMessage(latestMessage);
-  }, [activeThread.lastMessage, autoTranslateEnabled, translateMessage]);
+    if (!autoTranslateEnabled) return;
+    const customerMessages = displayedMessages.filter(
+      (m) => m.sender === 'customer' && !m.translatedContent && canTranslateMessage(m)
+    );
+    if (customerMessages.length > 0) {
+      translateMessages(customerMessages);
+    }
+  }, [displayedMessages, autoTranslateEnabled, translateMessages]);
   const virtualMessageRows = useMemo(() => {
     const rows: Array<{
       key: string;

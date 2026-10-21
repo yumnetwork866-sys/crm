@@ -13,7 +13,7 @@ import { getUserRoleTextStyle } from '../../../utils/roleColors';
 import type { AiProfile } from '../hooks/useAiProfile';
 import type { MessageThread } from '../types';
 import type { MessageTranslationState } from '../hooks/useMessageTranslations';
-import { canTranslateMessage } from '../utils/messageTranslation';
+import { canTranslateMessage, getTranslatableMessageText } from '../utils/messageTranslation';
 import {
   extractAudioInfo,
   extractDocumentInfo,
@@ -28,6 +28,8 @@ import { LinkPreviewCard } from './LinkPreviewCard';
 import { ProductMessageCard } from './ProductMessageCard';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { WhatsAppOrderCard } from './WhatsAppOrderCard';
+
+
 
 const TranslateIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" {...props}>
@@ -86,8 +88,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onToggleTranslation,
 }) => {
   const onRetryMessage = msg.errorCode === '131026' ? undefined : requestedRetryMessage;
-  const canTranslate = Boolean(msg.translatedContent) || canTranslateMessage(msg);
   const isAgent = msg.sender === 'agent';
+  const translatableText = getTranslatableMessageText(msg);
+  const canTranslate = Boolean(msg.translatedContent) || Boolean(translatableText);
+  const isAgentTranslationVisible = isAgent && Boolean(translation?.isVisible);
+  const showTranslationBox = isAgent
+    ? Boolean(translation?.isLoading) || (isAgentTranslationVisible && Boolean(translation?.error || translation?.notice || translation?.text || msg.translatedContent))
+    : Boolean(translation?.isLoading || translation?.error || translation?.text || msg.translatedContent);
   const isAiMessage = Boolean(
     msg.isAi
     || (msg.agentName && /trợ lý ai|ai assistant|yum assistant|^🤖/i.test(msg.agentName.trim()))
@@ -235,11 +242,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       )}
 
-      {/* Outgoing Message: Left side Action Buttons (Reply + React) in a Unified Pill */}
+      {/* Outgoing Message: Left side Action Buttons (Translate + Reply + React) in a Unified Pill */}
       {isAgent && (
         <div className={`mr-1.5 self-center flex items-center bg-white/90 backdrop-blur-xs border border-slate-200/90 rounded-full p-0.5 shadow-2xs transition-opacity duration-150 shrink-0 ${
           activeReactionPickerMsgId === msg.id ? 'opacity-100 z-30' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
         }`}>
+          {canTranslate && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void onToggleTranslation(msg);
+              }}
+              disabled={translation?.isLoading}
+              className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 disabled:cursor-wait ${
+                isAgentTranslationVisible ? 'bg-[#e6f7f2] text-[#1fa855]' : ''
+              }`}
+              title={isAgentTranslationVisible ? 'Ẩn bản dịch' : 'Dịch sang tiếng Việt'}
+              aria-label="Dịch tin nhắn"
+            >
+              {translation?.isLoading
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <TranslateIcon className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={(e) => {
@@ -267,23 +294,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </button>
             {activeReactionPickerMsgId === msg.id && renderReactionPicker(true)}
           </div>
-          {canTranslate && <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void onToggleTranslation(msg);
-            }}
-            disabled={translation?.isLoading}
-            className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 disabled:cursor-wait ${
-              translation?.isVisible ? 'bg-[#e6f7f2] text-[#1fa855]' : ''
-            }`}
-            title={translation?.isVisible ? 'Ẩn bản dịch' : 'Dịch sang tiếng Việt'}
-            aria-label="Dịch tin nhắn"
-          >
-            {translation?.isLoading
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <TranslateIcon className="w-3.5 h-3.5" />}
-          </button>}
         </div>
       )}
 
@@ -661,29 +671,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             );
           })()}
 
-          {translation?.isVisible && (
+          {showTranslationBox && (
             <div className="mt-2 min-h-8 min-w-36 rounded-r-md border-l-2 border-[#1fa855] bg-emerald-50/70 px-2 py-1.5 text-[12.5px] leading-relaxed text-[#111b21]">
-              {translation.isLoading ? (
+              {translation?.isLoading ? (
                 <div className="flex min-h-5 items-center gap-1.5 text-[11px] text-[#667781] select-none">
                   <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
                   <div className="h-2.5 w-24 animate-pulse rounded-full bg-emerald-200/80" aria-label="Đang dịch" />
                 </div>
-              ) : translation.error ? (
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void onToggleTranslation(msg);
-                  }}
-                  className="text-left text-[11px] font-medium text-rose-600 underline decoration-dotted underline-offset-2 cursor-pointer"
-                  title={translation.error}
-                >
-                  Không thể dịch · Thử lại
-                </button>
-              ) : translation.notice ? (
-                <div className="text-[11px] font-medium text-[#667781]">{translation.notice}</div>
+              ) : translation?.error ? (
+                <span className="text-[11px] font-medium text-rose-600" title={translation.error}>
+                  Không thể dịch tin nhắn
+                </span>
               ) : (
-                <div className="whitespace-pre-wrap wrap-break-word">{translation.text}</div>
+                <div className="whitespace-pre-wrap wrap-break-word">{translation?.text || msg.translatedContent}</div>
               )}
             </div>
           )}
@@ -739,23 +739,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </button>
             {activeReactionPickerMsgId === msg.id && renderReactionPicker(false)}
           </div>
-          {canTranslate && <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              void onToggleTranslation(msg);
-            }}
-            disabled={translation?.isLoading}
-            className={`w-6 h-6 rounded-full text-[#667781] hover:text-[#111b21] hover:bg-[#f0f2f5] flex items-center justify-center transition cursor-pointer hover:scale-105 disabled:cursor-wait ${
-              translation?.isVisible ? 'bg-[#e6f7f2] text-[#1fa855]' : ''
-            }`}
-            title={translation?.isVisible ? 'Ẩn bản dịch' : 'Dịch sang tiếng Việt'}
-            aria-label="Dịch tin nhắn"
-          >
-            {translation?.isLoading
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <TranslateIcon className="w-3.5 h-3.5" />}
-          </button>}
+
+
+
           <button
             type="button"
             onClick={(e) => {

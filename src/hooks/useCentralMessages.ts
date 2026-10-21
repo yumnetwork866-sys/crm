@@ -602,6 +602,26 @@ export function useCentralMessages({
           console.error('[REALTIME SSE] Error processing message:reaction event:', error);
         }
       },
+      'message:translated': (event) => {
+        try {
+          const { messageId, translatedContent, translatedLanguage, translationModel, translatedAt } = JSON.parse(event.data);
+          if (!messageId) return;
+          setMessages((previous) =>
+            previous.map((message) => {
+              if (message.id !== messageId) return message;
+              return {
+                ...message,
+                translatedContent,
+                translatedLanguage,
+                translationModel,
+                translatedAt,
+              };
+            })
+          );
+        } catch (error) {
+          console.error('[REALTIME SSE] Error processing message:translated event:', error);
+        }
+      },
       'message:thread_deleted': (event) => {
         try {
           const { customerId, customerPhone } = JSON.parse(event.data);

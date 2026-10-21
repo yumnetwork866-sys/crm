@@ -3,7 +3,7 @@ import { Permission } from '../../src/lib/permissions';
 
 export { Permission };
 export type PermissionKey = keyof typeof Permission;
-export const ALL_PERMISSIONS = (1n << 21n) - 1n;
+export const ALL_PERMISSIONS = (1n << 23n) - 1n;
 
 export const PERMISSION_DEFINITIONS: Array<{
   key: PermissionKey;
@@ -31,6 +31,8 @@ export const PERMISSION_DEFINITIONS: Array<{
   { key: 'USERS_READ', label: 'Xem tài khoản', group: 'Quản trị' },
   { key: 'USERS_MANAGE', label: 'Quản lý tài khoản và quyền', group: 'Quản trị' },
   { key: 'AUDIT_VIEW', label: 'Xem nhật ký bảo mật', group: 'Quản trị' },
+  { key: 'AI_VIEW', label: 'Xem trang AI', group: 'Trí tuệ nhân tạo (AI)' },
+  { key: 'AI_MANAGE', label: 'Quản lý AI (Bật/tắt rep tin nhắn, cấu hình)', group: 'Trí tuệ nhân tạo (AI)' },
 ];
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<string, bigint> = {
