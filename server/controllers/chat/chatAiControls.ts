@@ -214,6 +214,13 @@ export async function translateChatMessage(req: Request, res: Response) {
       where: { id: messageId },
       data: { translatedContent: result.translation, translatedLanguage: result.targetLanguage, translationModel: result.model, translatedAt },
     });
+    realtimeHub.broadcast('message:translated', {
+      messageId,
+      translatedContent: result.translation,
+      translatedLanguage: result.targetLanguage,
+      translationModel: result.model,
+      translatedAt: translatedAt.toISOString(),
+    });
     return res.json({ success: true, ...result, translatedAt: translatedAt.toISOString(), persisted: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi dịch tin nhắn.';

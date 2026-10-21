@@ -4,9 +4,10 @@ export const AUTO_TRANSLATE_STORAGE_KEY = 'yumcrm_auto_translate_enabled';
 
 export function getAutoTranslateSetting(): boolean {
   try {
-    return localStorage.getItem(AUTO_TRANSLATE_STORAGE_KEY) === 'true';
+    const value = localStorage.getItem(AUTO_TRANSLATE_STORAGE_KEY);
+    return value !== 'false';
   } catch {
-    return false;
+    return true;
   }
 }
 

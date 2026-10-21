@@ -20,6 +20,8 @@ export const Permission = {
   USERS_READ: 1n << 18n,
   USERS_MANAGE: 1n << 19n,
   AUDIT_VIEW: 1n << 20n,
+  AI_VIEW: 1n << 21n,
+  AI_MANAGE: 1n << 22n,
 } as const;
 
 export function hasPermission(mask: string | undefined, required: bigint): boolean {

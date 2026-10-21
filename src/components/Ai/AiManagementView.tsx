@@ -18,8 +18,8 @@ interface AiStatusResponse {
 export const AiManagementView: React.FC = () => {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const canManageAi = hasPermission(Permission.MESSAGES_MANAGE);
-  const canManageProfile = hasPermission(Permission.USERS_MANAGE);
+  const canManageAi = hasPermission(Permission.AI_MANAGE);
+  const canManageProfile = hasPermission(Permission.AI_MANAGE);
   const { isAutoTranslateEnabled, toggleAutoTranslate } = useAutoTranslateSetting();
   const [isAiEnabled, setIsAiEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,7 +146,7 @@ export const AiManagementView: React.FC = () => {
       {!canManageAi && (
         <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
           <Bot className="h-4 w-4 shrink-0" />
-          Bạn có quyền xem cấu hình AI nhưng cần quyền quản lý tin nhắn để thay đổi trạng thái toàn hệ thống.
+          Bạn có quyền xem cấu hình AI nhưng cần quyền quản lý AI để thay đổi trạng thái toàn hệ thống.
         </div>
       )}
     </div>

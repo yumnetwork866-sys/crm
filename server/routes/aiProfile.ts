@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
-import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
+import { authenticateToken, requirePermission, requireAnyPermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { realtimeHub } from '../services/realtimeHub';
@@ -34,7 +34,7 @@ router.get(
 
 router.put(
   '/',
-  requirePermission(Permission.USERS_MANAGE),
+  requireAnyPermission([Permission.AI_MANAGE, Permission.USERS_MANAGE]),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = profileSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Ảnh đại diện AI không hợp lệ.' });

@@ -563,7 +563,7 @@ export default function App() {
             <Route
               path="/ai"
               element={
-                hasPermission(Permission.MESSAGES_VIEW) ? (
+                hasPermission(Permission.AI_VIEW) ? (
                   <AiManagementView />
                 ) : (
                   <Navigate to="/crm" replace />
