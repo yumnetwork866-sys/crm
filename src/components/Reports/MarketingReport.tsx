@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import type { Customer, MarketingCampaignReport, LeadSource } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
-import { exportMarketingReportCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Download, FileSpreadsheet, Plus, Edit3, X, Save, DollarSign } from 'lucide-react';
+import { Plus, Edit3, X, Save, DollarSign } from 'lucide-react';
 
 interface MarketingReportProps {
   customers: Customer[];
   marketingReports: MarketingCampaignReport[];
   onUpdateMarketingReports?: (reports: MarketingCampaignReport[]) => void;
-  isAdmin?: boolean;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
@@ -20,7 +18,6 @@ export const MarketingReport: React.FC<MarketingReportProps> = ({
   customers,
   marketingReports,
   onUpdateMarketingReports,
-  isAdmin = true,
 }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [draftReports, setDraftReports] = useState<MarketingCampaignReport[]>([]);
@@ -211,26 +208,6 @@ export const MarketingReport: React.FC<MarketingReportProps> = ({
               <DollarSign className="w-4 h-4 text-indigo-400" />
               <span>Quản Lý / Nhập Chi Phí Ads</span>
             </button>
-
-            {isAdmin ? (
-              <button
-                onClick={() => exportMarketingReportCsv(marketingReports)}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 transition cursor-pointer"
-                title="Xuất bảng báo cáo Marketing sang file CSV/Excel"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Xuất Excel/CSV</span>
-              </button>
-            ) : (
-              <button
-                disabled
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/40 text-slate-500 border border-slate-800 cursor-not-allowed opacity-60"
-                title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-slate-500" />
-                <span>Xuất Excel/CSV (Chỉ Admin)</span>
-              </button>
-            )}
           </div>
         </div>
 

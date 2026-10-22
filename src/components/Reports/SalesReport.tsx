@@ -1,17 +1,14 @@
 import React, { useMemo } from 'react';
 import type { Customer } from '../../types';
 import { formatVND } from '../../utils/crmUtils';
-import { exportSalesReportCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface SalesReportProps {
   customers: Customer[];
-  isAdmin?: boolean;
 }
 
-export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = true }) => {
+export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
   const { users } = useAuth();
   const totalLeads = customers.length;
   const wonCustomers = customers.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
@@ -133,25 +130,6 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers, isAdmin = t
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="font-bold text-white text-sm">Bảng Hiệu Suất Chi Tiết Của Đội Ngũ Sales</h3>
-          {isAdmin ? (
-            <button
-              onClick={() => exportSalesReportCsv(customers, salesRepNames)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 transition cursor-pointer self-start sm:self-auto"
-              title="Xuất bảng báo cáo Sales sang file CSV/Excel"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất Excel/CSV</span>
-            </button>
-          ) : (
-            <button
-              disabled
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/40 text-slate-500 border border-slate-800 cursor-not-allowed opacity-60 self-start sm:self-auto"
-              title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-slate-500" />
-              <span>Xuất Excel/CSV (Chỉ Admin)</span>
-            </button>
-          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

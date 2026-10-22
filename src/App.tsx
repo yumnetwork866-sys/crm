@@ -553,10 +553,7 @@ export default function App() {
               element={
                 <ReportsDashboard
                   customers={customers}
-                  marketingReports={marketingReports}
                   campaigns={campaigns}
-                  currentUser={currentUser}
-                  onUpdateMarketingReports={(reports) => setMarketingReports(reports)}
                 />
               }
             />

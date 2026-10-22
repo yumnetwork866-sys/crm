@@ -982,7 +982,7 @@ export async function generateReplySuggestions(params: {
         if (data.answer && data.answer.trim().length > 10) {
           const rawLines = data.answer.split('\n');
           const aiSuggestions = rawLines
-            .map((line) => line.replace(/^(\d+[\.\)]|[-•*])\s*/, '').trim())
+            .map((line) => line.replace(/^(\d+[.)]|[-•*])\s*/, '').trim())
             .filter((line) => line.length >= 8 && !/^(chào bạn|dưới đây là|đây là gợi ý)/i.test(line));
 
           if (aiSuggestions.length > 0) {

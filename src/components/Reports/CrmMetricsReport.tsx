@@ -1,18 +1,15 @@
 import React from 'react';
 import type { Customer } from '../../types';
 import { calculateCrmMetrics, formatVND } from '../../utils/crmUtils';
-import { exportCustomersCsv, exportOrdersCsv } from '../../utils/reportExporter';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
-import { FileSpreadsheet } from 'lucide-react';
 
 interface CrmMetricsReportProps {
   customers: Customer[];
-  isAdmin?: boolean;
 }
 
 const COLORS = ['#6366f1', '#10b981'];
 
-export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers, isAdmin = true }) => {
+export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers }) => {
   const metrics = calculateCrmMetrics(customers);
 
   const newVsReturningData = [
@@ -91,45 +88,6 @@ export const CrmMetricsReport: React.FC<CrmMetricsReportProps> = ({ customers, i
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-white text-sm">Top Khách Hàng Có LTV Cao Nhất</h3>
-            {isAdmin ? (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => exportCustomersCsv(customers)}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-500/30 transition cursor-pointer"
-                  title="Xuất toàn bộ danh sách Khách hàng CRM"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Xuất KH (CSV)</span>
-                </button>
-                <button
-                  onClick={() => exportOrdersCsv(customers)}
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 transition cursor-pointer"
-                  title="Xuất toàn bộ Đơn hàng CRM"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Xuất Đơn (CSV)</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex space-x-2">
-                <button
-                  disabled
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800/40 text-slate-500 border border-slate-800 cursor-not-allowed opacity-60"
-                  title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Xuất KH (Chỉ Admin)</span>
-                </button>
-                <button
-                  disabled
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800/40 text-slate-500 border border-slate-800 cursor-not-allowed opacity-60"
-                  title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Xuất Đơn (Chỉ Admin)</span>
-                </button>
-              </div>
-            )}
           </div>
           <div className="h-64 overflow-y-auto">
             <div className="space-y-2">

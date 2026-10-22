@@ -1,46 +1,25 @@
 import React, { useState, useMemo } from 'react';
-import type { Customer, MarketingCampaignReport, BroadcastCampaign, AppUser } from '../../types';
+import type { Customer, BroadcastCampaign } from '../../types';
 import { SalesReport } from './SalesReport';
 import { WhatsAppReport } from './WhatsAppReport';
 import { CrmMetricsReport } from './CrmMetricsReport';
-import {
-  exportSalesReportCsv,
-  exportCustomersCsv,
-  exportOrdersCsv,
-  exportWhatsAppReportCsv,
-  exportFullExecutiveSummaryCsv,
-} from '../../utils/reportExporter';
 import {
   BarChart3,
   DollarSign,
   MessageSquare,
   RefreshCw,
-  Download,
-  FileSpreadsheet,
-  ChevronDown,
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { Permission } from '../../lib/permissions';
 
 interface ReportsDashboardProps {
   customers: Customer[];
-  marketingReports: MarketingCampaignReport[];
   campaigns: BroadcastCampaign[];
-  currentUser?: AppUser | null;
-  onUpdateMarketingReports?: (reports: MarketingCampaignReport[]) => void;
 }
 
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   customers,
-  marketingReports,
   campaigns,
-  currentUser,
-  onUpdateMarketingReports,
 }) => {
-  const { hasPermission } = useAuth();
-  const isAdmin = hasPermission(Permission.REPORTS_EXPORT);
   const [subTab, setSubTab] = useState<'sales' | 'whatsapp' | 'crm'>('sales');
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Date Filter States
   const [datePreset, setDatePreset] = useState<'all' | 'today' | '7days' | 'this_month' | 'custom'>('all');
@@ -100,24 +79,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     });
   }, [campaigns, startDate, endDate]);
 
-  const handleExportCurrentTab = () => {
-    if (!isAdmin) {
-      alert('Quyền bị hạn chế: Chỉ tài khoản Admin mới có quyền xuất dữ liệu.');
-      return;
-    }
-    switch (subTab) {
-      case 'sales':
-        exportSalesReportCsv(filteredCustomers);
-        break;
-      case 'whatsapp':
-        exportWhatsAppReportCsv(filteredCampaigns);
-        break;
-      case 'crm':
-        exportFullExecutiveSummaryCsv(filteredCustomers, marketingReports, filteredCampaigns);
-        break;
-    }
-  };
-
   return (
     <div className="space-y-6">
       
@@ -129,97 +90,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             <span>Trung Tâm Báo Cáo & Analytics CRM</span>
           </h2>
         </div>
-
-        {/* Global Export Button Group */}
-        {isAdmin ? (
-          <div className="relative flex items-center space-x-2">
-            <button
-              onClick={handleExportCurrentTab}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition cursor-pointer active:scale-95"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Xuất Báo Cáo Tab Này (CSV)</span>
-            </button>
-
-            <div className="relative">
-              <button
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="export-dropdown-btn p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700 transition cursor-pointer"
-                title="Tùy chọn xuất các tập tin dữ liệu khác"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-
-              {isExportMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 text-xs animate-fade-in space-y-1">
-                  <div className="px-3 py-1.5 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800">
-                    Tùy Chọn Xuất File Dữ Liệu
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      exportFullExecutiveSummaryCsv(filteredCustomers, marketingReports, filteredCampaigns);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-emerald-300 hover:bg-slate-800 font-semibold flex items-center space-x-2 transition"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                    <span>Báo Cáo Tổng Hợp Executive (Full)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportSalesReportCsv(filteredCustomers);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
-                  >
-                    <DollarSign className="w-4 h-4 text-emerald-400" />
-                    <span>Báo Cáo Hiệu Suất Đội Ngũ Sales</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportCustomersCsv(filteredCustomers);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
-                  >
-                    <Download className="w-4 h-4 text-indigo-300" />
-                    <span>Danh Sách Khách Hàng Dưới Bộ Lọc</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportOrdersCsv(filteredCustomers);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
-                  >
-                    <Download className="w-4 h-4 text-emerald-300" />
-                    <span>Chi Tiết Dữ Liệu Các Đơn Hàng</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportWhatsAppReportCsv(filteredCampaigns);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
-                  >
-                    <MessageSquare className="w-4 h-4 text-teal-400" />
-                    <span>Báo Cáo Broadcast WhatsApp</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-medium bg-slate-800/40 text-slate-500 border border-slate-800/80 cursor-not-allowed opacity-60" title="Chỉ tài khoản Admin mới có quyền xuất dữ liệu báo cáo">
-            <FileSpreadsheet className="w-4 h-4 text-slate-500" />
-            <span>Xuất Báo Cáo (Chỉ Admin)</span>
-          </div>
-        )}
       </div>
 
       {/* Date Filter */}
@@ -318,15 +188,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
       {/* Render selected sub-report with filtered data */}
       {subTab === 'sales' && (
-        <SalesReport customers={filteredCustomers} isAdmin={isAdmin} />
+        <SalesReport customers={filteredCustomers} />
       )}
 
       {subTab === 'whatsapp' && (
-        <WhatsAppReport customers={filteredCustomers} campaigns={filteredCampaigns} isAdmin={isAdmin} />
+        <WhatsAppReport customers={filteredCustomers} campaigns={filteredCampaigns} />
       )}
 
       {subTab === 'crm' && (
-        <CrmMetricsReport customers={filteredCustomers} isAdmin={isAdmin} />
+        <CrmMetricsReport customers={filteredCustomers} />
       )}
 
     </div>
