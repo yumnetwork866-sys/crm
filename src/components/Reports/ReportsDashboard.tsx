@@ -1,11 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { Customer, MarketingCampaignReport, BroadcastCampaign, AppUser } from '../../types';
-import { MarketingReport } from './MarketingReport';
 import { SalesReport } from './SalesReport';
 import { WhatsAppReport } from './WhatsAppReport';
 import { CrmMetricsReport } from './CrmMetricsReport';
 import {
-  exportMarketingReportCsv,
   exportSalesReportCsv,
   exportCustomersCsv,
   exportOrdersCsv,
@@ -14,7 +12,6 @@ import {
 } from '../../utils/reportExporter';
 import {
   BarChart3,
-  TrendingUp,
   DollarSign,
   MessageSquare,
   RefreshCw,
@@ -42,7 +39,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 }) => {
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission(Permission.REPORTS_EXPORT);
-  const [subTab, setSubTab] = useState<'marketing' | 'sales' | 'whatsapp' | 'crm'>('marketing');
+  const [subTab, setSubTab] = useState<'sales' | 'whatsapp' | 'crm'>('sales');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Date Filter States
@@ -109,9 +106,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       return;
     }
     switch (subTab) {
-      case 'marketing':
-        exportMarketingReportCsv(marketingReports);
-        break;
       case 'sales':
         exportSalesReportCsv(filteredCustomers);
         break;
@@ -171,17 +165,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
                     <span>Báo Cáo Tổng Hợp Executive (Full)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      exportMarketingReportCsv(marketingReports);
-                      setIsExportMenuOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-slate-800 flex items-center space-x-2 transition"
-                  >
-                    <TrendingUp className="w-4 h-4 text-indigo-400" />
-                    <span>Báo Cáo Marketing Ads (CPL/ROAS)</span>
                   </button>
 
                   <button
@@ -297,18 +280,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       {/* Sub-navigation tabs */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex flex-wrap gap-2 text-xs font-semibold">
         <button
-          onClick={() => setSubTab('marketing')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl transition ${
-            subTab === 'marketing'
-              ? 'bg-indigo-600 text-white shadow'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4" />
-          <span>Báo Cáo Marketing (CPL & ROAS)</span>
-        </button>
-
-        <button
           onClick={() => setSubTab('sales')}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl transition ${
             subTab === 'sales'
@@ -346,15 +317,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       </div>
 
       {/* Render selected sub-report with filtered data */}
-      {subTab === 'marketing' && (
-        <MarketingReport
-          customers={filteredCustomers}
-          marketingReports={marketingReports}
-          onUpdateMarketingReports={onUpdateMarketingReports}
-          isAdmin={isAdmin}
-        />
-      )}
-
       {subTab === 'sales' && (
         <SalesReport customers={filteredCustomers} isAdmin={isAdmin} />
       )}
