@@ -357,7 +357,48 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Lần Liên Hệ Đầu (First Contact)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Tên Chiến Dịch (Campaign)
+                </label>
+                <input
+                  type="text"
+                  value={campaign}
+                  onChange={(e) => setCampaign(e.target.value)}
+                  placeholder="Ví dụ: Tet Sale 2026 - Beauty"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Tập Quảng Cáo (Ad Set)
+                </label>
+                <input
+                  type="text"
+                  value={adSet}
+                  onChange={(e) => setAdSet(e.target.value)}
+                  placeholder="Ví dụ: Interest Skincare 25-40"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Trang Đích (Landing Page)
+                </label>
+                <input
+                  type="text"
+                  value={landingPage}
+                  onChange={(e) => setLandingPage(e.target.value)}
+                  placeholder="/landing-sp"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Lần Liên Hệ Đầu (First Contact)
+                </label>
                 <input
                   type="date"
                   value={firstContact}
