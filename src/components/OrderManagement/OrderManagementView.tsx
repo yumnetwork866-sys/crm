@@ -29,7 +29,7 @@ interface OrderManagementViewProps {
   onCreateOrder: (order: CustomerOrder) => void;
   onUpdateOrderStatus: (orderId: string, customerId: string, status: CustomerOrder['status']) => void;
   onDeleteOrder: (orderId: string, customerId: string) => void;
-  onImportOrders?: (importedOrders: { customerPhone: string; order: CustomerOrder }[]) => void;
+  onImportOrders?: (importedOrders: { customerPhone: string; customerName?: string; order: CustomerOrder }[]) => void | Promise<any>;
 }
 
 export const OrderManagementView: React.FC<OrderManagementViewProps> = ({

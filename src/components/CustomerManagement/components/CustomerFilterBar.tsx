@@ -13,10 +13,11 @@ import {
   UserRoundX,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import type { Customer, CustomerStatus } from '../../../types';
 import type { CustomerFilterModel } from '../../../hooks/useCustomers';
-import { CUSTOMER_GROUPS, formatDate } from '../../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatDate, getCustomerStatusLabel } from '../../../utils/crmUtils';
 
 export type WorkQueueFilter = 'all' | 'new' | 'quoted' | 'purchased_once' | 'vip' | 'unassigned';
 
@@ -45,6 +46,7 @@ interface CustomerFilterBarProps {
   isExportingExcel: boolean;
   onUpdateOwner: (customerId: string, owner: string) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
+  onOpenQuickAssign: (customerIds: string[]) => void;
   clearAllFilters: () => void;
 }
 
@@ -76,6 +78,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   isExportingExcel,
   onUpdateOwner,
   onUpdateStatus,
+  onOpenQuickAssign,
   clearAllFilters,
 }) => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -185,11 +188,9 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
               className="bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             >
               <option value="ALL">Tất cả trạng thái</option>
-              <option value="New Lead">New Lead</option>
-              <option value="Contacted">Contacted</option>
-              <option value="Quoted">Quoted</option>
-              <option value="Won">Won</option>
-              <option value="Lost">Lost</option>
+              {(['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'] as CustomerStatus[]).map((status) => (
+                <option key={status} value={status}>{getCustomerStatusLabel(status)}</option>
+              ))}
             </select>
 
             <select
@@ -199,6 +200,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
               className="bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             >
               <option value="ALL">Tất cả Sales</option>
+              <option value="UNASSIGNED">Chưa phân công</option>
               {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
             </select>
 
@@ -330,8 +332,8 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
             <span className="text-[11px] font-semibold text-slate-500">Đang lọc:</span>
             {workQueueFilter !== 'all' && <FilterChip label={queueCards.find((card) => card.id === workQueueFilter)?.label || workQueueFilter} onClear={() => setWorkQueueFilter('all')} />}
-            {selectedStatus !== 'ALL' && <FilterChip label={`Trạng thái: ${selectedStatus}`} onClear={() => setSelectedStatus('ALL')} />}
-            {selectedOwner !== 'ALL' && <FilterChip label={`Sales: ${selectedOwner}`} onClear={() => setSelectedOwner('ALL')} />}
+            {selectedStatus !== 'ALL' && <FilterChip label={`Trạng thái: ${getCustomerStatusLabel(selectedStatus)}`} onClear={() => setSelectedStatus('ALL')} />}
+            {selectedOwner !== 'ALL' && <FilterChip label={selectedOwner === 'UNASSIGNED' ? 'Sales: Chưa phân công' : `Sales: ${selectedOwner}`} onClear={() => setSelectedOwner('ALL')} />}
             {selectedSource !== 'ALL' && <FilterChip label={`Nguồn: ${selectedSource}`} onClear={() => setSelectedSource('ALL')} />}
             {selectedGroup !== 'ALL' && <FilterChip label={`Nhóm: ${CUSTOMER_GROUPS[selectedGroup as keyof typeof CUSTOMER_GROUPS]?.name}`} onClear={() => setSelectedGroup('ALL')} />}
             {selectedGender !== 'ALL' && <FilterChip label={`Giới tính: ${selectedGender}`} onClear={() => setSelectedGender('ALL')} />}
@@ -346,6 +348,17 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           <div className="mr-2">
             <div className="text-sm font-bold">Đã chọn {selectedCustomerIds.length} khách hàng</div>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenQuickAssign(selectedCustomerIds);
+              setSelectedCustomerIds([]);
+            }}
+            className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 border border-amber-500 text-xs font-bold flex items-center gap-1.5"
+            title="Chia nhanh các khách đã chọn cho nhiều sales"
+          >
+            <Zap className="w-3.5 h-3.5" /> Chia nhanh
+          </button>
           <select
             value={bulkOwner}
             onChange={(event) => {
@@ -374,11 +387,9 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white"
           >
             <option value="">Đổi trạng thái…</option>
-            <option value="New Lead">New Lead</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Quoted">Quoted</option>
-            <option value="Won">Won</option>
-            <option value="Lost">Lost</option>
+            {(['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'] as CustomerStatus[]).map((status) => (
+              <option key={status} value={status}>{getCustomerStatusLabel(status)}</option>
+            ))}
           </select>
           <button type="button" onClick={() => onExportCustomers(selectedCustomers)} disabled={!isAdmin} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50">
             <Download className="w-3.5 h-3.5" /> Xuất CSV

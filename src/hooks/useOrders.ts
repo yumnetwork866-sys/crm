@@ -172,47 +172,19 @@ export function useOrders() {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (orders: { customerPhone: string; order: CustomerOrder }[]) => orders,
-    onMutate: async (importedOrders) => {
-      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
-      let updated = [...previous];
-      importedOrders.forEach(({ customerPhone, order }) => {
-        const normalizedPhone = customerPhone.replace(/\s+/g, '');
-        const index = updated.findIndex((customer) => customer.phone.replace(/\s+/g, '') === normalizedPhone);
-        if (index === -1) {
-          const customerId = `cust_ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          updated = [{
-            id: customerId,
-            phone: customerPhone,
-            name: order.customerName || `Khách Hàng (${customerPhone})`,
-            gender: 'Nữ',
-            address: 'Malaysia',
-            source: 'Direct',
-            campaign: 'Import CSV Đơn Hàng',
-            firstContact: new Date().toISOString().split('T')[0],
-            lastContact: new Date().toISOString().split('T')[0],
-            owner: currentUser?.name || 'Chưa phân công',
-            status: order.status === 'Completed' ? 'Won' : 'Contacted',
-            notes: [],
-            totalOrders: 1,
-            totalSpent: order.status === 'Completed' ? order.totalAmount : 0,
-            interestedProducts: order.products.map((product) => product.productName),
-            orders: [{ ...order, customerId }],
-          }, ...updated];
-          return;
-        }
-        const customer = updated[index];
-        updated[index] = {
-          ...withOrderSummary(customer, [{ ...order, customerId: customer.id }, ...customer.orders]),
-          status: customer.status === 'Won' ? 'Won' : order.status === 'Completed' ? 'Won' : customer.status,
-          lastPurchaseDate: order.date,
-        };
-      });
-      queryClient.setQueryData(queryKeys.customers, updated);
-      return { previous };
+    mutationFn: async (orders: { customerPhone: string; customerName?: string; order: CustomerOrder }[]) => {
+      return api.post<{
+        createdCount: number;
+        created: unknown[];
+      }>('/orders/bulk', { orders });
     },
-    onError: (_error, _orders, context) => {
-      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders });
     },
   });
 
@@ -234,8 +206,8 @@ export function useOrders() {
   const deleteOrder = useCallback((orderId: string, customerId: string) => {
     deleteMutation.mutate({ orderId, customerId });
   }, [deleteMutation]);
-  const importOrders = useCallback((orders: { customerPhone: string; order: CustomerOrder }[]) => {
-    importMutation.mutate(orders);
+  const importOrders = useCallback(async (orders: { customerPhone: string; customerName?: string; order: CustomerOrder }[]) => {
+    return await importMutation.mutateAsync(orders);
   }, [importMutation]);
 
   const error = addMutation.error || createMutation.error || statusMutation.error || deleteMutation.error || importMutation.error;

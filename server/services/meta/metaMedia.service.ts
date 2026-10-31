@@ -1,11 +1,14 @@
-import fs from 'fs';
-import path from 'path';
 import { prisma } from '../../lib/prisma';
 import {
   getIntegrationSetting,
   getMetaAccessToken,
   getMetaAccessTokenForPhone,
 } from './integrationSettings.service';
+import {
+  saveUploadedFile,
+  getUploadedFile,
+  extensionFromMime,
+} from '../fileStorage.service';
 
 /**
  * Upload media directly to Meta Graph API for real WhatsApp image dispatch
@@ -124,63 +127,29 @@ async function fetchMetaMediaBinary(mediaId: string, token: string): Promise<{ b
   return { buffer, contentType };
 }
 
-async function saveMediaToDisk(chatDir: string, mediaId: string, contentType: string, buffer: Buffer): Promise<void> {
-  let ext = 'jpg';
-  if (contentType.includes('png')) ext = 'png';
-  else if (contentType.includes('webp')) ext = 'webp';
-  else if (contentType.includes('ogg')) ext = 'ogg';
-  else if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
-  else if (contentType.includes('mpeg') || contentType.includes('mp3')) ext = 'mp3';
-  else if (contentType.includes('wav')) ext = 'wav';
-  else if (contentType.includes('webm')) ext = 'webm';
-  else if (contentType.includes('aac')) ext = 'aac';
-  else if (contentType.includes('pdf')) ext = 'pdf';
-  else if (contentType.includes('word') || contentType.includes('docx')) ext = 'docx';
-  else if (contentType.includes('msword')) ext = 'doc';
-  else if (contentType.includes('excel') || contentType.includes('spreadsheet') || contentType.includes('xlsx')) ext = 'xlsx';
-  else if (contentType.includes('csv')) ext = 'csv';
-  else if (contentType.includes('plain')) ext = 'txt';
-  const diskPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
-  await fs.promises.writeFile(diskPath, buffer).catch((err) => {
-    console.warn('Could not write cache file to disk:', err);
-  });
+async function saveMediaToDatabase(mediaId: string, contentType: string, buffer: Buffer): Promise<void> {
+  const ext = extensionFromMime(contentType);
+  const filename = `meta_${mediaId}.${ext}`;
+  try {
+    await saveUploadedFile('chat', filename, contentType, buffer);
+  } catch (err) {
+    console.warn('Could not save media cache to database:', err);
+  }
 }
 
 /**
- * Fetch media from Meta CDN, cache to disk, and return file buffer + mimeType
+ * Fetch media from Meta CDN, cache to database, and return file buffer + mimeType
  */
 export async function fetchAndCacheMetaMedia(
   mediaId: string,
   preferredPhoneNumberId?: string
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
-  const chatDir = path.resolve(process.cwd(), 'public/uploads/chat');
-  if (!fs.existsSync(chatDir)) {
-    fs.mkdirSync(chatDir, { recursive: true });
-  }
-
-  // 1. Check disk cache
-  const potentialExtensions = ['jpg', 'png', 'webp', 'jpeg', 'ogg', 'mp3', 'm4a', 'wav', 'webm', 'aac', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
-  for (const ext of potentialExtensions) {
-    const cachedPath = path.join(chatDir, `meta_${mediaId}.${ext}`);
-    if (fs.existsSync(cachedPath)) {
-      let mimeType = 'image/jpeg';
-      if (ext === 'png') mimeType = 'image/png';
-      else if (ext === 'webp') mimeType = 'image/webp';
-      else if (ext === 'ogg') mimeType = 'audio/ogg';
-      else if (ext === 'm4a') mimeType = 'audio/mp4';
-      else if (ext === 'mp3') mimeType = 'audio/mpeg';
-      else if (ext === 'wav') mimeType = 'audio/wav';
-      else if (ext === 'webm') mimeType = 'audio/webm';
-      else if (ext === 'aac') mimeType = 'audio/aac';
-      else if (ext === 'pdf') mimeType = 'application/pdf';
-      else if (ext === 'doc') mimeType = 'application/msword';
-      else if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      else if (ext === 'xls') mimeType = 'application/vnd.ms-excel';
-      else if (ext === 'xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      else if (ext === 'csv') mimeType = 'text/csv';
-      else if (ext === 'txt') mimeType = 'text/plain';
-      const buffer = await fs.promises.readFile(cachedPath);
-      return { buffer, contentType: mimeType };
+  // 1. Check database cache
+  const cachedExtensions = ['jpg', 'png', 'webp', 'jpeg', 'ogg', 'mp3', 'm4a', 'wav', 'webm', 'aac', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
+  for (const ext of cachedExtensions) {
+    const cached = await getUploadedFile('chat', `meta_${mediaId}.${ext}`);
+    if (cached) {
+      return { buffer: cached.buffer, contentType: cached.mimeType };
     }
   }
 
@@ -208,7 +177,7 @@ export async function fetchAndCacheMetaMedia(
       triedTokens.add(directToken);
       const media = await fetchMetaMediaBinary(mediaId, directToken);
       if (media) {
-        await saveMediaToDisk(chatDir, mediaId, media.contentType, media.buffer);
+        await saveMediaToDatabase(mediaId, media.contentType, media.buffer);
         return media;
       }
     }
@@ -256,7 +225,7 @@ export async function fetchAndCacheMetaMedia(
         })
       );
       if (media) {
-        await saveMediaToDisk(chatDir, mediaId, media.contentType, media.buffer);
+        await saveMediaToDatabase(mediaId, media.contentType, media.buffer);
         return media;
       }
     } catch {

@@ -8,12 +8,14 @@ import {
   isSamePhoneNumber,
 } from '../../utils/crmUtils';
 import type { CustomerFilterModel } from '../../hooks/useCustomers';
+import type { QuickAssignInput } from '../../hooks/useCustomers';
 import { ImportCustomerCsvModal } from '../CsvImport/ImportCustomerCsvModal';
 import { UserInfoModal } from '../Common/UserInfoModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { Permission } from '../../lib/permissions';
 import { CustomerFilterBar, type WorkQueueFilter } from './components/CustomerFilterBar';
 import { CustomerTable, type CustomerWhatsAppSourceInfo } from './components/CustomerTable';
+import { QuickAssignModal } from './components/QuickAssignModal';
 import { api } from '../../utils/apiClient';
 
 interface CustomerListProps {
@@ -31,7 +33,8 @@ interface CustomerListProps {
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
   onUpdateGroup: (customerId: string, group: CustomerGroupId) => void;
   onUpdateOwner: (customerId: string, owner: string) => void;
-  onImportCustomers?: (newCustomers: Customer[]) => void;
+  onQuickAssignCustomers?: (input: QuickAssignInput) => Promise<boolean>;
+  onImportCustomers?: (newCustomers: Customer[]) => void | Promise<any>;
 }
 
 const UNASSIGNED_OWNERS = ['', 'Chưa phân công', 'Unassigned'];
@@ -60,6 +63,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onUpdateStatus,
   onUpdateGroup,
   onUpdateOwner,
+  onQuickAssignCustomers,
   onImportCustomers,
 }) => {
   const { hasPermission, users } = useAuth();
@@ -71,6 +75,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [quickAssignCustomerIds, setQuickAssignCustomerIds] = useState<string[] | null>(null);
 
   const {
     setSearchQuery,
@@ -348,6 +353,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         isExportingExcel={isExportingExcel}
         onUpdateOwner={onUpdateOwner}
         onUpdateStatus={onUpdateStatus}
+        onOpenQuickAssign={(ids) => setQuickAssignCustomerIds(ids)}
         clearAllFilters={clearAllFilters}
       />
 
@@ -381,11 +387,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
       <UserInfoModal user={selectedOwnerUser} onClose={() => setSelectedOwnerUser(null)} />
 
+      <QuickAssignModal
+        isOpen={quickAssignCustomerIds !== null}
+        onClose={() => setQuickAssignCustomerIds(null)}
+        customerIds={quickAssignCustomerIds || []}
+        customers={customers}
+        onApply={onQuickAssignCustomers || (async () => false)}
+      />
+
       {isImportCsvOpen && (
         <ImportCustomerCsvModal
           isOpen={isImportCsvOpen}
           onClose={() => setIsImportCsvOpen(false)}
           onImportCustomers={(newCustomers) => onImportCustomers?.(newCustomers)}
+          onQuickAssign={onQuickAssignCustomers
+            ? (newCustomers) => setQuickAssignCustomerIds(newCustomers.map((customer) => customer.id))
+            : undefined}
           existingCustomersCount={customers.length}
         />
       )}

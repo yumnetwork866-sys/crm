@@ -42,18 +42,22 @@ const customerSchema = z.object({
   phone: z.string().min(8, 'Số điện thoại không hợp lệ'),
   gender: z.string().default('Khác'),
   address: z.string().default(''),
-  email: z.string().email().optional().or(z.literal('')),
-  note: z.string().optional(),
+  email: z.string().optional().nullable().transform((val) => {
+    if (!val || !val.trim() || !val.includes('@')) return null;
+    return val.trim();
+  }),
+  note: z.string().optional().nullable(),
   source: z.string().default('Direct'),
   campaign: z.string().default('N/A'),
-  adSet: z.string().optional(),
-  landingPage: z.string().optional(),
+  adSet: z.string().optional().nullable(),
+  landingPage: z.string().optional().nullable(),
   owner: z.string().default('Chưa phân công'),
   ownerId: z.string().nullable().optional(),
   status: z.string().default('New Lead'),
-  group: z.enum(['group_1', 'group_2', 'group_3', 'group_4']).default('group_1'),
-  interestedProducts: z.array(z.string()).default([])
-});
+  group: z.enum(['group_1', 'group_2', 'group_3', 'group_4']).catch('group_1').default('group_1'),
+  interestedProducts: z.array(z.string()).default([]),
+  notes: z.array(z.any()).optional(),
+}).passthrough();
 
 const ownerUserSelect = {
   id: true,
@@ -401,6 +405,147 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
   }
 });
 
+// POST /api/customers/bulk - Nhập hàng loạt khách hàng từ CSV
+router.post('/bulk', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rawList = Array.isArray(req.body) ? req.body : req.body.customers;
+    const bulkSchema = z.array(customerSchema).min(1).max(2000);
+    const parsed = bulkSchema.safeParse(rawList);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dữ liệu nhập CSV không hợp lệ.' });
+    }
+
+    const rows = parsed.data;
+
+    // Resolve tên owner → ownerId (tối đa 1 truy vấn mỗi tên unique)
+    const ownerNames = Array.from(new Set(rows.map((row) => row.owner).filter((name) => !isUnassignedOwnerInput(name))));
+    const ownerIdByName = new Map<string, string>();
+    for (const ownerName of ownerNames) {
+      const resolved = await resolveCustomerOwnerId({ owner: ownerName });
+      if (resolved.ownerId) ownerIdByName.set(ownerName, resolved.ownerId);
+    }
+
+    const phoneVariantsForLookup = rows
+      .map((row) => normalizePhoneE164(row.phone))
+      .filter((phone): phone is string => Boolean(phone));
+    const existingCustomers = await prisma.customer.findMany({
+      where: { phone: { in: phoneVariantsForLookup } },
+      select: { phone: true },
+    });
+    const existingPhones = new Set(existingCustomers.map((customer) => customer.phone));
+
+    const preparedRows: Array<{
+      data: {
+        name: string;
+        phone: string;
+        gender: string;
+        address: string;
+        email: string | null;
+        note: string | null;
+        source: string;
+        campaign: string;
+        adSet: string | null;
+        landingPage: string | null;
+        ownerId: string | null;
+        status: string;
+        group: string;
+        interestedProducts: string[];
+      };
+      notes: Array<{ author: string; content: string; type: string; createdAt: Date }>;
+    }> = [];
+    const seenPhones = new Set<string>();
+    const skipped: Array<{ phone: string; reason: string }> = [];
+
+    for (const row of rows) {
+      const normalizedPhone = normalizePhoneE164(row.phone);
+      if (!normalizedPhone) {
+        skipped.push({ phone: row.phone, reason: 'Số điện thoại không hợp lệ' });
+        continue;
+      }
+      if (seenPhones.has(normalizedPhone) || existingPhones.has(normalizedPhone)) {
+        skipped.push({ phone: normalizedPhone, reason: 'Số điện thoại đã tồn tại trong CRM' });
+        continue;
+      }
+      seenPhones.add(normalizedPhone);
+
+      const ownerId = row.ownerId
+        ? ownerIdByName.get(row.ownerId) ?? null
+        : ownerIdByName.get(row.owner) ?? null;
+
+      const noteList = Array.isArray((row as any).notes)
+        ? (row as any).notes.slice(0, 20).map((n: any) => ({
+            author: n.author || 'Hệ Thống',
+            content: String(n.content || ''),
+            type: n.type || 'note',
+            createdAt: n.createdAt ? new Date(n.createdAt) : new Date(),
+          }))
+        : [];
+
+      preparedRows.push({
+        data: {
+          name: row.name,
+          phone: normalizedPhone,
+          gender: row.gender,
+          address: row.address,
+          email: row.email || null,
+          note: row.note || null,
+          source: row.source,
+          campaign: row.campaign,
+          adSet: row.adSet || null,
+          landingPage: row.landingPage || null,
+          ownerId,
+          status: row.status,
+          group: row.group,
+          interestedProducts: row.interestedProducts,
+        },
+        notes: noteList,
+      });
+    }
+
+    if (preparedRows.length === 0) {
+      return res.status(400).json({ error: 'Không có dòng dữ liệu hợp lệ nào để nhập.', skipped });
+    }
+
+    await prisma.customer.createMany({
+      data: preparedRows.map((row) => row.data),
+    });
+
+    const createdCustomers = await prisma.customer.findMany({
+      where: { phone: { in: preparedRows.map((row) => row.data.phone) } },
+      include: {
+        ownerUser: { select: ownerUserSelect },
+        notes: { orderBy: { createdAt: 'desc' } },
+        orders: { include: { products: true }, orderBy: { date: 'desc' } },
+        automationLogs: { orderBy: { sentAt: 'desc' } },
+      },
+    });
+
+    const customerByPhone = new Map(createdCustomers.map((customer) => [customer.phone, customer]));
+    const notesToCreate = preparedRows.flatMap((row) => {
+      const customer = customerByPhone.get(row.data.phone);
+      if (!customer || row.notes.length === 0) return [];
+      return row.notes.map((note) => ({ ...note, customerId: customer.id }));
+    });
+    if (notesToCreate.length > 0) {
+      await prisma.customerNote.createMany({ data: notesToCreate });
+    }
+
+    realtimeHub.broadcast('customers:sync', {
+      source: 'customers-bulk-imported',
+      customerIds: createdCustomers.map((customer) => customer.id),
+    });
+
+    return res.status(201).json({
+      createdCount: createdCustomers.length,
+      created: createdCustomers.map(serializeCustomer),
+      skipped,
+    });
+  } catch (error) {
+    console.error('Lỗi nhập hàng loạt khách hàng:', error);
+    return res.status(500).json({ error: 'Lỗi khi nhập hàng loạt khách hàng' });
+  }
+});
+
 // PUT /api/customers/:id - Update Customer
 router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -449,6 +594,112 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
   } catch (error) {
     console.error('Lỗi khi cập nhật khách hàng:', error);
     return res.status(500).json({ error: 'Lỗi khi cập nhật thông tin khách hàng' });
+  }
+});
+
+// POST /api/customers/bulk-owner - Chia khách hàng nhanh cho nhiều sales
+const bulkOwnerSchema = z.object({
+  customerIds: z.array(z.string().min(1)).min(1).max(2000),
+  owners: z.array(z.string().trim().min(1)).min(1).max(50),
+  strategy: z.enum(['round_robin', 'load_balance', 'random']).default('round_robin'),
+});
+
+router.post('/bulk-owner', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = bulkOwnerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dữ liệu chia số không hợp lệ.' });
+    }
+    const { customerIds, owners, strategy } = parsed.data;
+    const uniqueIds = Array.from(new Set(customerIds));
+
+    const resolvedOwners: Array<{ ownerId: string; ownerName: string }> = [];
+    for (const owner of owners) {
+      const resolved = await resolveCustomerOwnerId({ owner });
+      if (resolved.ownerId && !resolvedOwners.some((entry) => entry.ownerId === resolved.ownerId)) {
+        resolvedOwners.push({ ownerId: resolved.ownerId, ownerName: resolved.ownerName });
+      }
+    }
+    if (resolvedOwners.length === 0) {
+      return res.status(400).json({ error: 'Không tìm thấy tài khoản sales hợp lệ để chia số.' });
+    }
+
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (customers.length === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy khách hàng nào.' });
+    }
+
+    const countsByOwnerId = new Map<string, number>();
+    if (strategy === 'load_balance') {
+      const currentCounts = await prisma.customer.groupBy({
+        by: ['ownerId'],
+        where: { ownerId: { in: resolvedOwners.map((entry) => entry.ownerId) } },
+        _count: { _all: true },
+      });
+      currentCounts.forEach((group) => {
+        if (group.ownerId) countsByOwnerId.set(group.ownerId, group._count._all);
+      });
+    }
+
+    const orderedIds = customers.map((customer) => customer.id);
+    if (strategy === 'random') {
+      for (let i = orderedIds.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [orderedIds[i], orderedIds[j]] = [orderedIds[j], orderedIds[i]];
+      }
+    }
+
+    const assignment = new Map<string, { ownerId: string; ownerName: string }>();
+    orderedIds.forEach((customerId, index) => {
+      let chosen: { ownerId: string; ownerName: string };
+      if (strategy === 'load_balance') {
+        chosen = resolvedOwners.reduce((best, current) =>
+          (countsByOwnerId.get(current.ownerId) || 0) < (countsByOwnerId.get(best.ownerId) || 0) ? current : best
+        );
+        countsByOwnerId.set(chosen.ownerId, (countsByOwnerId.get(chosen.ownerId) || 0) + 1);
+      } else {
+        chosen = resolvedOwners[index % resolvedOwners.length];
+      }
+      assignment.set(customerId, chosen);
+    });
+
+    const byOwner = new Map<string, { ownerId: string; ownerName: string; customerIds: string[] }>();
+    assignment.forEach((value, customerId) => {
+      const entry = byOwner.get(value.ownerId) || { ownerId: value.ownerId, ownerName: value.ownerName, customerIds: [] };
+      entry.customerIds.push(customerId);
+      byOwner.set(value.ownerId, entry);
+    });
+
+    await prisma.$transaction(
+      Array.from(byOwner.values()).map((entry) =>
+        prisma.customer.updateMany({
+          where: { id: { in: entry.customerIds } },
+          data: { ownerId: entry.ownerId },
+        })
+      )
+    );
+
+    realtimeHub.broadcast('customers:sync', {
+      source: 'bulk-owner-assigned',
+      customerIds: orderedIds,
+    });
+
+    return res.json({
+      assignedCount: assignment.size,
+      counts: Array.from(byOwner.values()).map((entry) => ({ owner: entry.ownerName, total: entry.customerIds.length })),
+      assigned: Array.from(assignment.entries()).map(([customerId, value]) => ({
+        customerId,
+        ownerId: value.ownerId,
+        ownerName: value.ownerName,
+      })),
+    });
+  } catch (error) {
+    console.error('Lỗi chia số khách hàng:', error);
+    return res.status(500).json({ error: 'Lỗi khi chia khách hàng cho sales.' });
   }
 });
 

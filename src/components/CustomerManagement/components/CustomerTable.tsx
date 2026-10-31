@@ -20,6 +20,7 @@ import {
   getDiceBearAvatar,
   STAFF_DICEBEAR_STYLE,
   getStatusColorClass,
+  getCustomerStatusLabel,
 } from '../../../utils/crmUtils';
 import { findUserByName, getUserRoleTextStyle } from '../../../utils/roleColors';
 
@@ -316,11 +317,9 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                         onChange={(event) => onUpdateStatus(customer.id, event.target.value as CustomerStatus)}
                         className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${getStatusColorClass(customer.status)}`}
                       >
-                        <option value="New Lead">New Lead</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Quoted">Quoted</option>
-                        <option value="Won">Won</option>
-                        <option value="Lost">Lost</option>
+                        {(['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'] as CustomerStatus[]).map((status) => (
+                          <option key={status} value={status}>{getCustomerStatusLabel(status)}</option>
+                        ))}
                       </select>
                     </td>
 

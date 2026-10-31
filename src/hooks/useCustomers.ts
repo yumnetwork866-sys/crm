@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppUser, Customer, CustomerGroupId, CustomerStatus } from '../types';
-import { compareVietnameseNames, formatDateTime, getCustomerGroup, isSamePhoneNumber } from '../utils/crmUtils';
+import { compareVietnameseNames, formatDateTime, getCustomerGroup, getCustomerStatusLabel, isSamePhoneNumber } from '../utils/crmUtils';
 import { api } from '../utils/apiClient';
 import { mapApiCustomerToFrontend } from '../utils/apiMappers';
 import { queryKeys } from '../lib/queryClient';
@@ -10,6 +10,14 @@ import { queryKeys } from '../lib/queryClient';
 export const sortCustomersByName = (list: Customer[]): Customer[] => {
   return [...list].sort((a, b) => compareVietnameseNames(a.name, b.name));
 };
+
+export type QuickAssignStrategy = 'round_robin' | 'load_balance' | 'random';
+
+export interface QuickAssignInput {
+  customerIds: string[];
+  ownerNames: string[];
+  strategy: QuickAssignStrategy;
+}
 
 export interface CustomerFilterModel {
   searchQuery: string;
@@ -45,6 +53,17 @@ const matchesGender = (customerGender: string | undefined, filterGender: string)
       || !['nam', 'male', 'm', 'nữ', 'nu', 'female', 'f'].includes(customerValue);
   }
   return customerValue === filterValue;
+};
+
+const UNASSIGNED_OWNER_LABELS = ['', 'chưa phân công', 'chua phan cong', 'unassigned', 'none', 'null'];
+
+const matchesOwnerFilter = (owner: string | undefined, filter: string) => {
+  if (filter === 'ALL') return true;
+  const ownerValue = (owner || '').trim().toLowerCase();
+  if (filter === 'UNASSIGNED') {
+    return UNASSIGNED_OWNER_LABELS.includes(ownerValue);
+  }
+  return (owner || '') === filter;
 };
 
 export function useCustomers(currentUser: AppUser | null, enabled = true) {
@@ -139,15 +158,14 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   });
 
   const importMutation = useMutation({
-    mutationFn: async (newCustomers: Customer[]) => newCustomers,
-    onMutate: async (newCustomers) => {
-      const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
-      queryClient.setQueryData<Customer[]>(queryKeys.customers, [...newCustomers, ...previous]);
-      return { previous };
+    mutationFn: async (newCustomers: Customer[]) => {
+      return api.post<{
+        createdCount: number;
+        created: unknown[];
+        skipped: Array<{ phone: string; reason: string }>;
+      }>('/customers/bulk', { customers: newCustomers });
     },
-    onError: (_error, _customers, context) => {
-      if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
   });
 
   const deleteMutation = useMutation({
@@ -174,7 +192,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
         group: customer ? getCustomerGroup(customer) : 'group_1',
       });
       await api.post(`/customers/${customerId}/notes`, {
-        content: `Chuyển trạng thái từ "${customer?.status || ''}" sang "${status}".`,
+        content: `Chuyển trạng thái từ "${getCustomerStatusLabel(customer?.status || '')}" sang "${getCustomerStatusLabel(status)}".`,
         type: 'system',
         author: 'Hệ Thống',
       });
@@ -190,7 +208,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
           notes: [...(customer.notes || []), {
             id: `n_${Date.now()}`,
             author: 'Hệ Thống',
-            content: `Chuyển trạng thái từ "${customer.status}" sang "${status}".`,
+            content: `Chuyển trạng thái từ "${getCustomerStatusLabel(customer.status)}" sang "${getCustomerStatusLabel(status)}".`,
             createdAt: formatDateTime(new Date()),
             type: 'system' as const,
           }],
@@ -366,7 +384,37 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   const saveCustomer = useCallback(async (data: Partial<Customer>) => {
     await saveMutation.mutateAsync(data).catch((error) => console.error('Error saving customer:', error));
   }, [saveMutation]);
-  const importCustomers = useCallback((newCustomers: Customer[]) => importMutation.mutate(newCustomers), [importMutation]);
+  const importCustomers = useCallback(async (newCustomers: Customer[]) => {
+    return await importMutation.mutateAsync(newCustomers);
+  }, [importMutation]);
+  const quickAssignMutation = useMutation({
+    mutationFn: async ({ customerIds, ownerNames, strategy }: QuickAssignInput) =>
+      api.post<{
+        assignedCount: number;
+        counts: Array<{ owner: string; total: number }>;
+        assigned: Array<{ customerId: string; ownerId: string | null; ownerName: string }>;
+      }>('/customers/bulk-owner', { customerIds, owners: ownerNames, strategy }),
+    onSuccess: (result) => {
+      const ownerMap = new Map(result.assigned.map((entry) => [entry.customerId, entry.ownerName]));
+      queryClient.setQueryData<Customer[]>(queryKeys.customers, (current = []) =>
+        current.map((customer) =>
+          ownerMap.has(customer.id) ? { ...customer, owner: ownerMap.get(customer.id)! } : customer
+        )
+      );
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.customers }),
+  });
+
+  const quickAssignCustomers = useCallback(async ({ customerIds, ownerNames, strategy }: QuickAssignInput) => {
+    try {
+      await quickAssignMutation.mutateAsync({ customerIds, ownerNames, strategy });
+      return true;
+    } catch (error) {
+      console.error('Error distributing customers:', error);
+      return false;
+    }
+  }, [quickAssignMutation]);
+
   const deleteCustomer = useCallback(async (customerId: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa khách hàng này khỏi CRM?')) return false;
     try {
@@ -453,7 +501,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
         if (selectedStatus !== 'ALL' && customer.status !== selectedStatus) return false;
         if (selectedSource !== 'ALL' && customer.source !== selectedSource) return false;
         if (!matchesGender(customer.gender, selectedGender)) return false;
-        if (selectedOwner !== 'ALL' && customer.owner !== selectedOwner) return false;
+        if (!matchesOwnerFilter(customer.owner, selectedOwner)) return false;
         if (selectedGroup !== 'ALL' && getCustomerGroup(customer) !== selectedGroup) return false;
         if (startDate && customer.firstContact && customer.firstContact < startDate) return false;
         if (endDate && customer.firstContact && customer.firstContact > endDate) return false;
@@ -493,7 +541,8 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   ]);
 
   const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
-    || statusMutation.error || groupMutation.error || noteMutation.error || deleteNoteMutation.error || automationMutation.error;
+    || statusMutation.error || groupMutation.error || noteMutation.error || deleteNoteMutation.error || automationMutation.error
+    || quickAssignMutation.error;
   return {
     customers,
     setCustomers,
@@ -501,6 +550,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
     fetchCustomers,
     saveCustomer,
     importCustomers,
+    quickAssignCustomers,
     deleteCustomer,
     updateStatus,
     updateGroup,
@@ -514,6 +564,7 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
     isError: customersQuery.isError || Boolean(mutationError),
     error: customersQuery.error || mutationError,
     isMutating: saveMutation.isPending || importMutation.isPending || deleteMutation.isPending
-      || statusMutation.isPending || groupMutation.isPending || noteMutation.isPending || deleteNoteMutation.isPending || automationMutation.isPending,
+      || statusMutation.isPending || groupMutation.isPending || noteMutation.isPending || deleteNoteMutation.isPending || automationMutation.isPending
+      || quickAssignMutation.isPending,
   };
 }

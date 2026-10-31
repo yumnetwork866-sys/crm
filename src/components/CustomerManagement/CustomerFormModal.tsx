@@ -21,7 +21,7 @@ import type {
   Gender,
   Product,
 } from '../../types';
-import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup, getCustomerStatusLabel } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerFormModalProps {
@@ -315,7 +315,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 <label className="block text-xs font-medium text-slate-300 mb-1">
                   <span className="flex items-center gap-1">
                     <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Ghi Chú Thông Tin Khách Hàng (Note)</span>
+                    <span>Ghi Chú Thông Tin Khách Hàng</span>
                   </span>
                 </label>
                 <textarea
@@ -335,13 +335,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
               <Globe className="w-4 h-4" />
-              <span>2. Nguồn Khách Hang (Lead Source)</span>
+              <span>2. Nguồn Khách Hàng</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Nguồn Tiếp Cận (Source)
+                  Nguồn Tiếp Cận
                 </label>
                 <select
                   value={source}
@@ -358,46 +358,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Tên Chiến Dịch (Campaign)
-                </label>
-                <input
-                  type="text"
-                  value={campaign}
-                  onChange={(e) => setCampaign(e.target.value)}
-                  placeholder="Ví dụ: Tet Sale 2026 - Beauty"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Tập Quảng Cáo (Ad Set)
-                </label>
-                <input
-                  type="text"
-                  value={adSet}
-                  onChange={(e) => setAdSet(e.target.value)}
-                  placeholder="Ví dụ: Interest Skincare 25-40"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Trang Đích (Landing Page)
-                </label>
-                <input
-                  type="text"
-                  value={landingPage}
-                  onChange={(e) => setLandingPage(e.target.value)}
-                  placeholder="/landing-sp"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Lần Liên Hệ Đầu (First Contact)
+                  Lần Liên Hệ Đầu
                 </label>
                 <input
                   type="date"
@@ -409,7 +370,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Lần Liên Hệ Gần Nhất (Last Contact)
+                  Lần Liên Hệ Gần Nhất
                 </label>
                 <input
                   type="date"
@@ -433,7 +394,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Nhân Viên Phụ Trách (Owner)
+                  Nhân Viên Phụ Trách
                 </label>
                 <select
                   value={owner}
@@ -451,7 +412,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Trạng Thái Khách Hàng (Status)
+                  Trạng Thái Khách Hàng
                 </label>
                 <select
                   value={status}
@@ -460,7 +421,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 >
                   {STATUS_OPTIONS.map((st) => (
                     <option key={st} value={st}>
-                      {st}
+                      {getCustomerStatusLabel(st)}
                     </option>
                   ))}
                 </select>

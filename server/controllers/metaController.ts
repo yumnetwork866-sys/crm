@@ -19,8 +19,7 @@ import { encryptMetaToken } from '../services/metaTokenCrypto';
 import { verifyWebhookChallenge } from '../services/webhookService';
 import { enqueueWebhookPayload } from '../services/queueService';
 import { prisma } from '../lib/prisma';
-import fs from 'fs';
-import path from 'path';
+import { saveUploadedFile, getUploadedFile } from '../services/fileStorage.service';
 import crypto from 'crypto';
 
 /**
@@ -334,43 +333,36 @@ export async function saveConfig(req: Request, res: Response) {
 const AVATAR_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 ngày (24 giờ) cho avatar
 
 async function getOrUpdateWabaAvatar(phoneId: string, token: string, forceRefresh = false): Promise<string | undefined> {
-  const uploadsDir = path.resolve(process.cwd(), 'public/uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
   const filename = `waba_avatar_${phoneId}.jpg`;
-  const filePath = path.join(uploadsDir, filename);
+  const publicUrl = `/uploads/${filename}`;
 
   const now = Date.now();
-  // 1. Kiểm tra cache file avatar trên đĩa: nếu đã tải và trong vòng 24h thì dùng ngay (0ms)
-  if (!forceRefresh && fs.existsSync(filePath)) {
-    try {
-      const stat = fs.statSync(filePath);
-      if (now - stat.mtimeMs < AVATAR_CACHE_TTL_MS && stat.size > 0) {
-        return `/uploads/${filename}`;
-      }
-    } catch {
-      // Bỏ qua lỗi stat
+  // 1. Kiểm tra cache avatar trong database: nếu đã tải và trong vòng 24h thì dùng ngay (0ms)
+  if (!forceRefresh) {
+    const cached = await getUploadedFile('', filename).catch(() => null);
+    if (cached && cached.size > 0 && now - cached.createdAt.getTime() < AVATAR_CACHE_TTL_MS) {
+      return publicUrl;
     }
   }
 
-  // 2. Nếu chưa có hoặc file đã quá 1 ngày (24h): gọi Meta để lấy profile và tải avatar mới về
+  // 2. Nếu chưa có hoặc cache đã quá 1 ngày (24h): gọi Meta để lấy profile và tải avatar mới về
   try {
     const profile = await fetchWhatsAppBusinessProfile(phoneId, token);
     if (profile?.profile_picture_url) {
       const res = await fetch(profile.profile_picture_url, { signal: AbortSignal.timeout(10_000) });
       if (res.ok) {
         const buffer = Buffer.from(await res.arrayBuffer());
-        fs.writeFileSync(filePath, buffer);
-        return `/uploads/${filename}`;
+        await saveUploadedFile('', filename, 'image/jpeg', buffer);
+        return publicUrl;
       }
     }
   } catch (err) {
     console.warn(`[WABA Avatar] Lỗi khi cập nhật avatar cho ${phoneId}:`, err);
   }
 
-  if (fs.existsSync(filePath)) {
-    return `/uploads/${filename}`;
+  const existing = await getUploadedFile('', filename).catch(() => null);
+  if (existing) {
+    return publicUrl;
   }
   return undefined;
 }

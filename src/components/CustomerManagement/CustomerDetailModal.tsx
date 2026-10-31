@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Calculator,
   CalendarClock,
-  ExternalLink,
   Globe,
   MapPin,
   Package,
@@ -18,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Customer, CustomerStatus, Product } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getCustomerAvatar, getOwnerAvatar, getStatusColorClass } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatVND, formatDate, formatDateTime, getCustomerGroup, getCustomerAvatar, getOwnerAvatar, getStatusColorClass, getCustomerStatusLabel } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import { findUserByName, getUserRoleTextStyle } from '../../utils/roleColors';
 import { UserInfoModal } from '../Common/UserInfoModal';
@@ -61,9 +60,6 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
 
   const averageOrderValue = customer.totalOrders > 0 ? customer.totalSpent / customer.totalOrders : 0;
   const marketName = customer.country || 'Malaysia';
-  const landingPageUrl = customer.landingPage && /^https?:\/\//i.test(customer.landingPage)
-    ? customer.landingPage
-    : null;
   const productsByName = new Map(
     products
       .filter((product) => product.name?.trim())
@@ -114,11 +110,9 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     aria-label="Trạng thái khách hàng"
                     className={`cursor-pointer rounded-lg border px-2 py-0.5 text-[11px] font-bold shadow-sm outline-none ${getStatusColorClass(customer.status)}`}
                   >
-                    <option value="New Lead">New Lead</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Quoted">Quoted</option>
-                    <option value="Won">Won</option>
-                    <option value="Lost">Lost</option>
+                    {(['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'] as CustomerStatus[]).map((status) => (
+                      <option key={status} value={status}>{getCustomerStatusLabel(status)}</option>
+                    ))}
                   </select>
                   <span className="text-slate-300">•</span>
                   <div className="inline-flex items-center gap-1.5 text-[11px]">
@@ -319,32 +313,6 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                           <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-bold text-indigo-700">
                             {customer.source || 'Trực tiếp'}
                           </span>
-                        )}
-                      </dd>
-                    </div>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-3">
-                      <dt className="font-medium text-slate-500">Chiến dịch / Thương hiệu</dt>
-                      <dd className="font-semibold text-slate-900">
-                        {customer.campaign && !['N/A', 'n/a', 'NA', 'na', 'Default Campaign'].includes(customer.campaign.trim())
-                          ? customer.campaign
-                          : 'Không có chiến dịch'}
-                      </dd>
-                    </div>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-3">
-                      <dt className="font-medium text-slate-500">Tập quảng cáo</dt>
-                      <dd className="font-semibold text-slate-900">
-                        {customer.adSet && !['N/A', 'n/a', 'NA', 'na'].includes(customer.adSet.trim()) ? customer.adSet : 'Chưa có'}
-                      </dd>
-                    </div>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-3">
-                      <dt className="font-medium text-slate-500">Trang đích</dt>
-                      <dd className="min-w-0">
-                        {landingPageUrl ? (
-                          <a href={landingPageUrl} target="_blank" rel="noreferrer" className="inline-flex max-w-full items-center gap-1 font-semibold text-indigo-600 hover:underline">
-                            <span className="truncate">{customer.landingPage}</span><ExternalLink className="h-3 w-3 shrink-0" />
-                          </a>
-                        ) : (
-                          <span className="font-semibold text-slate-900">{customer.landingPage || 'Chưa có'}</span>
                         )}
                       </dd>
                     </div>

@@ -23,11 +23,17 @@ const countFor = (counts: Map<string, number>, statuses: string[]) =>
   statuses.reduce((total, status) => total + (counts.get(status) || 0), 0);
 
 export async function aggregateCampaign(campaignId: string): Promise<void> {
-  const grouped = await prisma.broadcastRecipient.groupBy({
-    by: ['status'],
-    where: { campaignId },
-    _count: { _all: true },
-  });
+  const [campaign, grouped] = await Promise.all([
+    prisma.broadcastCampaign.findUnique({
+      where: { id: campaignId },
+      select: { launchedAt: true },
+    }),
+    prisma.broadcastRecipient.groupBy({
+      by: ['status'],
+      where: { campaignId },
+      _count: { _all: true },
+    }),
+  ]);
   const counts = new Map(grouped.map((item) => [item.status, item._count._all]));
   const total = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
   const sentCount = countFor(counts, ['Sent', 'Delivered', 'Read']);
@@ -35,6 +41,28 @@ export async function aggregateCampaign(campaignId: string): Promise<void> {
   const readCount = countFor(counts, ['Read']);
   const failedCount = countFor(counts, ['Failed']);
   const remaining = countFor(counts, ['Pending', 'Processing', 'Retry']);
+
+  // Số khách đã phản hồi: tính tin nhắn khách gửi lại SAU khi chiến dịch bắt đầu
+  const launchedAt = campaign?.launchedAt ?? null;
+  const campaignCustomerIds = await prisma.broadcastRecipient.findMany({
+    where: { campaignId, customerId: { not: null } },
+    select: { customerId: true },
+    distinct: ['customerId'],
+  });
+  let respondedCount = 0;
+  if (launchedAt && campaignCustomerIds.length > 0) {
+    const respondedGroups = await prisma.whatsAppMessage.groupBy({
+      by: ['customerId'],
+      where: {
+        customerId: { in: campaignCustomerIds.map((item) => item.customerId as string) },
+        sender: 'customer',
+        channel: 'WhatsApp',
+        timestamp: { gte: launchedAt },
+      },
+      _count: { _all: true },
+    });
+    respondedCount = respondedGroups.length;
+  }
 
   let status = 'Sending';
   if (total === 0) status = 'Failed';
@@ -58,6 +86,7 @@ export async function aggregateCampaign(campaignId: string): Promise<void> {
       deliveredCount,
       readCount,
       failedCount,
+      respondedCount,
       lastError: latestFailure?.lastErrorMessage || null,
       completedAt: remaining === 0 ? new Date() : null,
     },
@@ -382,6 +411,19 @@ async function runWorkerCycle() {
     } else if (!isBullMqConnected()) {
       await Promise.all(Array.from({ length: WORKER_CONCURRENCY }, () => processRecipient()));
     }
+
+    // Refresh số liệu (Responses) cho các chiến dịch đã hoàn tất nhưng khách vẫn nhắn lại sau đó
+    const statsStaleBefore = new Date(Date.now() - 60_000);
+    const recentCompletedCampaigns = await prisma.broadcastCampaign.findMany({
+      where: {
+        status: { in: ['Completed', 'PartiallyFailed'] },
+        completedAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+        updatedAt: { lt: statsStaleBefore },
+      },
+      select: { id: true },
+      take: 25,
+    });
+    await Promise.all(recentCompletedCampaigns.map((campaign) => aggregateCampaign(campaign.id)));
   } catch (error) {
     console.error('[CAMPAIGN WORKER ERROR]', error);
   } finally {

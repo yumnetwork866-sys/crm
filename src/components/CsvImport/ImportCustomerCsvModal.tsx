@@ -8,19 +8,21 @@ import { useAuth } from '../../contexts/AuthContext';
 interface ImportCustomerCsvModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportCustomers: (newCustomers: Customer[]) => void;
+  onImportCustomers: (newCustomers: Customer[]) => void | Promise<any>;
+  onQuickAssign?: (newCustomers: Customer[]) => void;
   existingCustomersCount: number;
 }
 
 const SAMPLE_CSV_CUSTOMER = `Họ Tên,SĐT,Giới Tính,Địa Chỉ,Email,Ghi Chú,Nguồn Lead,Trạng Thái
-"Ahmad Zakaria","+60 12 888 9911","Nam","Bukit Bintang, 55100 Kuala Lumpur","ahmad.z@gmail.com","Quan tâm bộ mỹ phẩm da dầu","Facebook","New Lead"
-"Siti Aminah","+60 17 333 4455","Nữ","Subang Jaya, 47500 Selangor","siti.aminah@yahoo.com","Thường đặt giao giờ hành chính","TikTok","Contacted"
-"Nguyễn Thị Hương","0918112233","Nữ","Georgetown, 10040 Penang","huong.nguyen@gmail.com","Khách quen hỏi mua combo serum","Zalo","Quoted"`;
+"Ahmad Zakaria","+60 12 888 9911","Nam","Bukit Bintang, 55100 Kuala Lumpur","ahmad.z@gmail.com","Quan tâm bộ mỹ phẩm da dầu","Facebook","Khách Mới"
+"Siti Aminah","+60 17 333 4455","Nữ","Subang Jaya, 47500 Selangor","siti.aminah@yahoo.com","Thường đặt giao giờ hành chính","TikTok","Đã Liên Hệ"
+"Nguyễn Thị Hương","0918112233","Nữ","Georgetown, 10040 Penang","huong.nguyen@gmail.com","Khách quen hỏi mua combo serum","Zalo","Đã Báo Giá"`;
 
 export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
   isOpen,
   onClose,
   onImportCustomers,
+  onQuickAssign,
   existingCustomersCount,
 }) => {
   const { currentUser } = useAuth();
@@ -94,10 +96,10 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
       else if (/direct/i.test(sourceRaw)) source = 'Direct';
 
       let status: CustomerStatus = 'New Lead';
-      if (/contacted/i.test(statusRaw) || /da lien he/i.test(statusRaw)) status = 'Contacted';
-      else if (/quoted/i.test(statusRaw) || /da bao gia/i.test(statusRaw)) status = 'Quoted';
-      else if (/won/i.test(statusRaw) || /da mua/i.test(statusRaw) || /thanh cong/i.test(statusRaw)) status = 'Won';
-      else if (/lost/i.test(statusRaw) || /that bai/i.test(statusRaw)) status = 'Lost';
+      if (/contacted|liên hệ/i.test(statusRaw)) status = 'Contacted';
+      else if (/quoted|báo giá/i.test(statusRaw)) status = 'Quoted';
+      else if (/won|chốt|mua|thành công/i.test(statusRaw)) status = 'Won';
+      else if (/lost|thất bại/i.test(statusRaw)) status = 'Lost';
 
       return {
         name,
@@ -130,7 +132,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
     reader.readAsText(file, 'UTF-8');
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (parsedCustomers.length === 0) return;
 
     const formattedCustomers: Customer[] = parsedCustomers.map((c, idx) => ({
@@ -162,9 +164,19 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
       orders: [],
     }));
 
-    onImportCustomers(formattedCustomers);
-    onClose();
-    alert(`Đã nhập thành công ${formattedCustomers.length} khách hàng mới vào hệ thống CRM!`);
+    try {
+      if (onQuickAssign) {
+        await onImportCustomers(formattedCustomers);
+        onClose();
+        onQuickAssign(formattedCustomers);
+        return;
+      }
+      await onImportCustomers(formattedCustomers);
+      onClose();
+      alert(`Đã nhập thành công ${formattedCustomers.length} khách hàng mới vào hệ thống CRM!`);
+    } catch (err: any) {
+      alert(err?.message || 'Có lỗi khi nhập danh sách khách hàng từ CSV');
+    }
   };
 
   return (

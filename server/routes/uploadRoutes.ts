@@ -1,27 +1,15 @@
 import type { Response } from 'express';
 import { Router } from 'express';
 import path from 'path';
-import fs from 'fs';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken } from '../middleware/authMiddleware';
 import { hasPermission, Permission } from '../auth/permissions';
+import { saveUploadedFile, publicFileUrl } from '../services/fileStorage.service';
 
 const router = Router();
 
 // Require authentication for all upload operations
 router.use(authenticateToken);
-
-// Ensure base upload directories exist
-const BASE_UPLOAD_DIR = path.resolve(process.cwd(), 'public/uploads');
-const CHAT_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'chat');
-const PRODUCTS_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'products');
-const AI_UPLOAD_DIR = path.join(BASE_UPLOAD_DIR, 'ai');
-
-[BASE_UPLOAD_DIR, CHAT_UPLOAD_DIR, PRODUCTS_UPLOAD_DIR, AI_UPLOAD_DIR].forEach((dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -88,13 +76,8 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    // Choose target directory and sanitize folder name
+    // Choose folder and sanitize folder name
     const cleanFolder = folder === 'products' ? 'products' : folder === 'ai' ? 'ai' : 'chat';
-    const targetSubdir = cleanFolder === 'products'
-      ? PRODUCTS_UPLOAD_DIR
-      : cleanFolder === 'ai'
-        ? AI_UPLOAD_DIR
-        : CHAT_UPLOAD_DIR;
 
     // Generate unique safe filename without path traversal vulnerabilities
     const rand = Math.random().toString(36).substring(2, 8);
@@ -111,12 +94,11 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       ? `${safeCustomName}_${Date.now()}.${ext}`
       : `${prefix}_${Date.now()}_${rand}.${ext}`;
 
-    const filePath = path.join(targetSubdir, filename);
-    await fs.promises.writeFile(filePath, buffer);
+    await saveUploadedFile(cleanFolder, filename, mimeType, buffer);
 
-    const publicUrl = `/uploads/${cleanFolder}/${filename}`;
+    const publicUrl = publicFileUrl(cleanFolder, filename);
 
-    console.log(`[STORAGE] Uploaded image: ${publicUrl} (${buffer.length} bytes) by user: ${req.user?.email || 'unknown'}`);
+    console.log(`[STORAGE] Uploaded file to database: ${publicUrl} (${buffer.length} bytes) by user: ${req.user?.email || 'unknown'}`);
 
     return res.json({
       success: true,

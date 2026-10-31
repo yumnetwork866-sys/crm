@@ -448,3 +448,16 @@ model MarketingReport {
   @@index([campaignName])
   @@index([source])
 }
+
+model UploadedFile {
+  id        String   @id @default(uuid())
+  folder    String @default("") // '' | 'chat' | 'products' | 'ai'
+  filename  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@unique([folder, filename])
+  @@index([folder])
+}

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Product } from '../../../types';
 import { formatVND } from '../../../utils/crmUtils';
 import {
   AlertTriangle,
   CheckCheck,
+  ChevronLeft,
+  ChevronRight,
   Edit2,
   Image as ImageIcon,
   Loader2,
@@ -194,6 +196,21 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   onOpenEditModal,
   onDeleteProduct,
 }) => {
+  const [productPage, setProductPage] = useState(1);
+  const productPageSize = 20;
+
+  const productTotalPages = Math.max(1, Math.ceil(filteredProducts.length / productPageSize));
+  const productStart = (productPage - 1) * productPageSize;
+  const visibleProducts = filteredProducts.slice(productStart, productStart + productPageSize);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [filteredProducts.length]);
+
+  useEffect(() => {
+    setProductPage((page) => Math.min(page, productTotalPages));
+  }, [productTotalPages]);
+
   return (
     <div className={`${isMetaView ? 'hidden' : ''} bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl`}>
       <div className="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -242,14 +259,14 @@ export const ProductTable: React.FC<ProductTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 text-slate-300">
-            {filteredProducts.length === 0 ? (
+            {visibleProducts.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-8 text-center text-slate-500">
                   Không tìm thấy sản phẩm nào phù hợp.
                 </td>
               </tr>
             ) : (
-              filteredProducts.map((product) => {
+              visibleProducts.map((product) => {
                 const profit = product.price - (product.costPrice || 0);
                 const margin = product.price > 0 ? ((profit / product.price) * 100).toFixed(0) : '0';
                 const isSelected = selectedProductIds.includes(product.id);
@@ -389,6 +406,38 @@ export const ProductTable: React.FC<ProductTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {filteredProducts.length > productPageSize ? (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 px-4 py-3">
+          <p className="text-[11px] text-slate-400">
+            Hiển thị <span className="font-bold text-slate-200">{productStart + 1}</span>
+            {' '}- <span className="font-bold text-slate-200">{Math.min(productStart + productPageSize, filteredProducts.length)}</span>
+            {' '}trong tổng số <span className="font-bold text-slate-200">{filteredProducts.length}</span> sản phẩm
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setProductPage((page) => Math.max(1, page - 1))}
+              disabled={productPage === 1}
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition"
+              title="Trang trước"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-2 text-xs text-slate-300">
+              Trang <span className="font-bold text-white">{productPage}</span> / {productTotalPages}
+            </span>
+            <button
+              onClick={() => setProductPage((page) => Math.min(productTotalPages, page + 1))}
+              disabled={productPage >= productTotalPages}
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition"
+              title="Trang sau"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

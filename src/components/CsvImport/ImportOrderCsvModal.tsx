@@ -9,7 +9,7 @@ interface ImportOrderCsvModalProps {
   onClose: () => void;
   customers: Customer[];
   products: Product[];
-  onImportOrders: (importedOrders: { customerPhone: string; order: CustomerOrder }[]) => void;
+  onImportOrders: (importedOrders: { customerPhone: string; customerName?: string; order: CustomerOrder }[]) => void | Promise<any>;
 }
 
 const SAMPLE_CSV_ORDER = `Mã Đơn,SĐT Khách Hàng,Tên Khách Hàng,Tên Sản Phẩm,Số Lượng,Đơn Giá,Trạng Thái,Ngày Lập,Ghi Chú
@@ -131,12 +131,16 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
     reader.readAsText(file, 'UTF-8');
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (parsedOrders.length === 0) return;
 
-    onImportOrders(parsedOrders.map((o) => ({ customerPhone: o.customerPhone, order: o.order })));
-    onClose();
-    alert(`Đã nhập thành công ${parsedOrders.length} đơn hàng vào hệ thống!`);
+    try {
+      await onImportOrders(parsedOrders.map((o) => ({ customerPhone: o.customerPhone, customerName: o.customerName, order: o.order })));
+      onClose();
+      alert(`Đã nhập thành công ${parsedOrders.length} đơn hàng vào hệ thống!`);
+    } catch (err: any) {
+      alert(err?.message || 'Có lỗi khi nhập danh sách đơn hàng từ CSV');
+    }
   };
 
   return (

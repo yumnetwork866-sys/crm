@@ -1,8 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { isSupportedMetaImage, type MetaTemplateDispatchResult } from './types';
 import { uploadMediaToMeta } from './metaMedia.service';
 import { getMetaRecipientAddress } from '../../utils/metaRecipient';
+import { resolveUploadsFile, mimeFromExtension } from '../fileStorage.service';
 
 function setMetaRecipient(payload: Record<string, any>, recipient: string): void {
   delete payload.to;
@@ -211,12 +210,10 @@ export async function dispatchMetaMessage(options: {
             uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, rawMime, filename);
           }
         } else if (docUrl && docUrl.startsWith('/uploads/')) {
-          const localPath = path.resolve(process.cwd(), 'public', docUrl.replace(/^\//, ''));
-          if (fs.existsSync(localPath)) {
-            const buffer = await fs.promises.readFile(localPath);
-            const ext = path.extname(localPath).toLowerCase().replace('.', '');
-            const mimeType = ext === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-            uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, filename);
+          const localFile = await resolveUploadsFile(docUrl);
+          if (localFile) {
+            const mimeType = mimeFromExtension(localFile.filename.split('.').pop() || '');
+            uploadedMediaId = await uploadMediaToMeta(phoneId, token, localFile.buffer, mimeType, filename);
           }
         }
 
@@ -249,17 +246,13 @@ export async function dispatchMetaMessage(options: {
     const parts = content.split('\n');
     const imgPath = parts[0];
     const caption = parts.slice(1).join('\n').trim();
-    const localFilePath = path.resolve(process.cwd(), 'public', imgPath.replace(/^\//, ''));
-
     let uploadedMediaId: string | null = null;
-    if (fs.existsSync(localFilePath)) {
+    const imageFile = await resolveUploadsFile(imgPath);
+    if (imageFile) {
       try {
-        const buffer = await fs.promises.readFile(localFilePath);
-        const ext = path.extname(localFilePath).toLowerCase();
-        const mimeType = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : 'image/jpeg');
-        uploadedMediaId = await uploadMediaToMeta(phoneId, token, buffer, mimeType, path.basename(localFilePath));
+        uploadedMediaId = await uploadMediaToMeta(phoneId, token, imageFile.buffer, imageFile.mimeType, imageFile.filename);
       } catch (readErr) {
-        console.warn('Could not read file from disk for Meta upload:', readErr);
+        console.warn('Could not read file for Meta upload:', readErr);
       }
     }
 

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Layers, Users, ShoppingBag, ArrowRight, Send, DollarSign, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Layers, Users, ShoppingBag, ArrowRight, Send, DollarSign, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Customer, CustomerGroupId } from '../../types';
-import { CUSTOMER_GROUPS, formatVND, getCustomerGroup } from '../../utils/crmUtils';
+import { CUSTOMER_GROUPS, formatVND, getCustomerGroup, getCustomerStatusLabel } from '../../utils/crmUtils';
 
 interface SegmentationViewProps {
   customers: Customer[];
@@ -15,6 +15,8 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
   onNavigateToBroadcast,
 }) => {
   const [activeGroupTab, setActiveGroupTab] = useState<CustomerGroupId>('group_1');
+  const [memberPage, setMemberPage] = useState(1);
+  const memberPageSize = 20;
 
   // Categorize customers into the 4 strict groups
   const groupedCustomers: Record<CustomerGroupId, Customer[]> = {
@@ -30,6 +32,19 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
   });
 
   const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+
+  const activeMembers = groupedCustomers[activeGroupTab];
+  const memberTotalPages = Math.max(1, Math.ceil(activeMembers.length / memberPageSize));
+  const memberStart = (memberPage - 1) * memberPageSize;
+  const visibleMembers = activeMembers.slice(memberStart, memberStart + memberPageSize);
+
+  useEffect(() => {
+    setMemberPage(1);
+  }, [activeGroupTab]);
+
+  useEffect(() => {
+    setMemberPage((page) => Math.min(page, memberTotalPages));
+  }, [memberTotalPages]);
 
   return (
     <div className="space-y-6">
@@ -146,14 +161,14 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-300">
-              {groupedCustomers[activeGroupTab].length === 0 ? (
+              {visibleMembers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-slate-500">
                     Chưa có khách hàng nào thuộc phân nhóm này.
                   </td>
                 </tr>
               ) : (
-                groupedCustomers[activeGroupTab].map((cust) => (
+                visibleMembers.map((cust) => (
                   <tr key={cust.id} className="transition">
                     <td className="py-3 px-4 font-bold text-slate-900">{cust.name}</td>
                     <td className="py-3 px-3 text-slate-400">
@@ -161,7 +176,7 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
                       {cust.country ? ` (${cust.country})` : ''}
                     </td>
                     <td className="py-3 px-3 text-indigo-300">{cust.source}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-200">{cust.status}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-200">{getCustomerStatusLabel(cust.status)}</td>
                     <td className="py-3 px-3 text-right font-bold text-emerald-400">
                       {formatVND(cust.totalSpent)} ({cust.totalOrders} đơn)
                     </td>
@@ -179,6 +194,38 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {activeMembers.length > memberPageSize ? (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800 pt-4">
+            <p className="text-[11px] text-slate-400">
+              Hiển thị <span className="font-bold text-slate-200">{memberStart + 1}</span>
+              {' '}- <span className="font-bold text-slate-200">{Math.min(memberStart + memberPageSize, activeMembers.length)}</span>
+              {' '}trong tổng số <span className="font-bold text-slate-200">{activeMembers.length}</span> khách
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setMemberPage((page) => Math.max(1, page - 1))}
+                disabled={memberPage === 1}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition"
+                title="Trang trước"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-2 text-xs text-slate-300">
+                Trang <span className="font-bold text-white">{memberPage}</span> / {memberTotalPages}
+              </span>
+              <button
+                onClick={() => setMemberPage((page) => Math.min(memberTotalPages, page + 1))}
+                disabled={memberPage >= memberTotalPages}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 transition"
+                title="Trang sau"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
 
       </div>
 

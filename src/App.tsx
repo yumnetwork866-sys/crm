@@ -139,6 +139,7 @@ export default function App() {
     setCustomers,
     saveCustomer: handleSaveCustomer,
     importCustomers: handleImportCustomers,
+    quickAssignCustomers: handleQuickAssignCustomers,
     deleteCustomer,
     updateStatus: handleUpdateStatus,
     updateGroup: handleUpdateGroup,
@@ -468,6 +469,7 @@ export default function App() {
                   onUpdateOwner={(customerId, owner) => {
                     void handleSaveCustomer({ id: customerId, owner });
                   }}
+                  onQuickAssignCustomers={handleQuickAssignCustomers}
                   onImportCustomers={handleImportCustomers}
                 />
               }

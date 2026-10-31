@@ -5,6 +5,7 @@ import { authenticateToken, requirePermission } from '../middleware/authMiddlewa
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
+import { z } from 'zod';
 import { realtimeHub } from '../services/realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 import { parseWhatsAppOrder } from '../utils/whatsappOrder';
@@ -332,6 +333,144 @@ router.delete('/:id', requirePermission(Permission.ORDERS_MANAGE), async (req: A
   } catch (error) {
     console.error('Lỗi xóa đơn hàng:', error);
     return res.status(500).json({ error: 'Lỗi khi xóa đơn hàng' });
+  }
+});
+
+// POST /api/orders/bulk - Nhập hàng loạt đơn hàng từ CSV
+const bulkOrderSchema = z.array(z.object({
+  customerPhone: z.string().trim(),
+  customerName: z.string().trim().optional(),
+  order: z.object({
+    orderCode: z.string().trim().optional(),
+    date: z.string().optional(),
+    products: z.array(z.object({
+      productName: z.string().trim().min(1),
+      quantity: z.coerce.number().min(1).default(1),
+      price: z.coerce.number().min(0).default(0),
+    }).passthrough()).min(1, 'Đơn hàng phải có ít nhất 1 sản phẩm'),
+    totalAmount: z.coerce.number().min(0).default(0),
+    status: z.enum(['Completed', 'Processing', 'Cancelled']).default('Completed'),
+    notes: z.string().optional(),
+  }).passthrough(),
+}).passthrough()).min(1).max(2000);
+
+router.post('/bulk', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rawList = Array.isArray(req.body) ? req.body : req.body.orders;
+    const parsed = bulkOrderSchema.safeParse(rawList);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dữ liệu nhập CSV đơn hàng không hợp lệ.' });
+    }
+
+    const rows = parsed.data;
+    const phoneVariantsForLookup = Array.from(new Set(
+      rows.flatMap((row) => getPhoneLookupVariants(normalizePhoneE164(row.customerPhone) || row.customerPhone))
+    ));
+    const foundCustomers = phoneVariantsForLookup.length > 0
+      ? await prisma.customer.findMany({
+          where: { phone: { in: phoneVariantsForLookup } },
+          select: { id: true, phone: true },
+        })
+      : [];
+    const customerIdByPhone = new Map(foundCustomers.map((customer) => [customer.phone, customer.id]));
+
+    const createdOrders: Array<Awaited<ReturnType<typeof prisma.order.create>>> = [];
+    const linkedCustomerIds = new Set<string>();
+    const baseCode = Date.now().toString(36).toUpperCase();
+
+    await prisma.$transaction(async (tx) => {
+      for (const [index, row] of rows.entries()) {
+        const normalizedPhone = normalizePhoneE164(row.customerPhone) || '';
+        let customerId = normalizedPhone ? customerIdByPhone.get(normalizedPhone) ?? null : null;
+
+        // Tự động tạo khách hàng nếu chưa tồn tại
+        if (!customerId && normalizedPhone) {
+          const newCust = await tx.customer.create({
+            data: {
+              name: row.customerName || `Khách Hàng (${normalizedPhone})`,
+              phone: normalizedPhone,
+              source: 'Direct',
+              campaign: 'Import CSV Đơn Hàng',
+              ownerId: req.user?.id || null,
+              status: row.order.status === 'Completed' ? 'Won' : 'Contacted',
+            },
+          });
+          customerId = newCust.id;
+          customerIdByPhone.set(normalizedPhone, customerId);
+        }
+
+        if (customerId) linkedCustomerIds.add(customerId);
+
+        const orderCode = row.order.orderCode?.trim()
+          || `DH-${baseCode}-${index + 1}`;
+        const orderDate = row.order.date ? new Date(row.order.date) : new Date();
+        if (Number.isNaN(orderDate.getTime())) {
+          throw new Error(`Ngày lập đơn không hợp lệ: ${row.order.date}`);
+        }
+
+        const created = await tx.order.create({
+          data: {
+            orderCode,
+            whatsappMessageId: null,
+            customerId: customerId || null,
+            customerName: row.customerName || 'Khách vãng lai',
+            customerPhone: normalizedPhone,
+            totalAmount: row.order.totalAmount,
+            status: row.order.status,
+            notes: row.order.notes || '',
+            date: orderDate,
+            products: {
+              create: row.order.products.map((product: { productName: string; quantity: number; price: number }) => ({
+                productName: product.productName,
+                quantity: product.quantity,
+                price: product.price,
+              })),
+            },
+          },
+          include: { products: true },
+        });
+        createdOrders.push(created);
+      }
+    });
+
+    // Cập nhật lại thống kê của khách liên quan
+    for (const customerId of linkedCustomerIds) {
+      const [customerOrders, completedOrders] = await Promise.all([
+        prisma.order.count({ where: { customerId } }),
+        prisma.order.findMany({ where: { customerId, status: 'Completed' }, select: { totalAmount: true } }),
+      ]);
+      const totalSpent = completedOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: {
+          totalOrders: customerOrders,
+          totalSpent,
+          ...(completedOrders.length > 0 ? { lastPurchaseDate: new Date(), status: 'Won' } as any : {}),
+        },
+      });
+    }
+
+    if (linkedCustomerIds.size > 0) {
+      realtimeHub.broadcast('customers:sync', {
+        source: 'orders-bulk-imported',
+        customerIds: Array.from(linkedCustomerIds),
+      });
+    }
+    realtimeHub.broadcast('orders:sync', {
+      source: 'orders-bulk-imported',
+      orderIds: createdOrders.map((order) => order.id),
+    });
+
+    return res.status(201).json({
+      createdCount: createdOrders.length,
+      created: createdOrders,
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return res.status(409).json({ error: 'Mã đơn hàng bị trùng. Vui lòng kiểm tra lại cột "Mã Đơn" trong file CSV.' });
+    }
+    console.error('Lỗi nhập hàng loạt đơn hàng:', error);
+    return res.status(500).json({ error: error?.message || 'Lỗi khi nhập hàng loạt đơn hàng' });
   }
 });
 

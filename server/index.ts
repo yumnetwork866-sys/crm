@@ -13,6 +13,7 @@ import campaignRoutes from './routes/campaigns';
 import automationStepRoutes from './routes/automationSteps';
 import metaRoutes from './routes/metaRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import uploadFileRoutes from './routes/uploadFileRoutes';
 import permissionRoutes from './routes/permissions';
 import marketingReportRoutes from './routes/marketingReports';
 import catalogRoutes from './routes/catalogRoutes';
@@ -32,7 +33,8 @@ dotenv.config({ quiet: true });
 const app = express();
 const PORT = process.env.PORT || 5002;
 
-// Ensure base upload directories exist & serve statically (Stage 2 Disk Storage)
+// Serve uploads: DB-backed route first, disk fallback for legacy files not yet imported
+app.use('/uploads', uploadFileRoutes);
 const UPLOADS_DIR = path.resolve(process.cwd(), 'public/uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });

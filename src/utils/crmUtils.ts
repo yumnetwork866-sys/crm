@@ -17,6 +17,18 @@ export function getStatusColorClass(status: CustomerStatus | string): string {
   }
 }
 
+const CUSTOMER_STATUS_LABELS: Record<CustomerStatus, string> = {
+  'New Lead': 'Khách Mới',
+  'Contacted': 'Đã Liên Hệ',
+  'Quoted': 'Đã Báo Giá',
+  'Won': 'Đã Chốt Đơn',
+  'Lost': 'Thất Bại',
+};
+
+export function getCustomerStatusLabel(status: CustomerStatus | string): string {
+  return CUSTOMER_STATUS_LABELS[status as CustomerStatus] || status;
+}
+
 export const DICEBEAR_STYLE = 'moods';
 export const STAFF_DICEBEAR_STYLE = 'avataaars';
 
