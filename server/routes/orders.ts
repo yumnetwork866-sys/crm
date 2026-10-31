@@ -298,6 +298,43 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
   }
 });
 
+// DELETE /api/orders/:id
+router.delete('/:id', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = getRouteParam(req.params.id);
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    }
+
+    await prisma.order.delete({ where: { id } });
+
+    if (existing.customerId) {
+      const customerOrders = await prisma.order.findMany({
+        where: { customerId: existing.customerId, status: 'Completed' }
+      });
+      const totalSpent = customerOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+      const totalOrdersAll = await prisma.order.count({ where: { customerId: existing.customerId } });
+
+      await prisma.customer.update({
+        where: { id: existing.customerId },
+        data: {
+          totalOrders: totalOrdersAll,
+          totalSpent: totalSpent
+        }
+      });
+      realtimeHub.broadcast('customers:sync', { source: 'order-deleted', customerId: existing.customerId });
+    }
+
+    realtimeHub.broadcast('orders:sync', { source: 'order-deleted', orderId: id });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Lỗi xóa đơn hàng:', error);
+    return res.status(500).json({ error: 'Lỗi khi xóa đơn hàng' });
+  }
+});
+
 // PATCH /api/orders/:id/status
 router.patch('/:id/status', requirePermission(Permission.ORDERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {
   try {

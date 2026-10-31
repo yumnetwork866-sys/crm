@@ -148,8 +148,12 @@ export function useOrders() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async ({ orderId, customerId }: { orderId: string; customerId: string }) => ({ orderId, customerId }),
+    mutationFn: async ({ orderId }: { orderId: string; customerId: string }) => {
+      await api.delete(`/orders/${orderId}`);
+      return { orderId };
+    },
     onMutate: async ({ orderId, customerId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.customers });
       const previous = queryClient.getQueryData<Customer[]>(queryKeys.customers) || [];
       queryClient.setQueryData<Customer[]>(queryKeys.customers, previous.map((customer) =>
         customer.id === customerId
@@ -160,6 +164,10 @@ export function useOrders() {
     },
     onError: (_error, _variables, context) => {
       if (context) queryClient.setQueryData(queryKeys.customers, context.previous);
+    },
+    onSettled: (_data, _error, { customerId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders });
     },
   });
 

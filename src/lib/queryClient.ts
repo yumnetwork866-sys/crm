@@ -3,6 +3,7 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryKeys = {
   customers: ['customers'] as const,
   products: ['products'] as const,
+  orders: ['orders'] as const,
   campaigns: ['campaigns'] as const,
   whatsappTemplates: ['whatsapp-templates'] as const,
   automationSteps: ['automation-steps'] as const,
