@@ -107,7 +107,8 @@ export function getCustomerGroup(customer: Customer): CustomerGroupId {
   if (orderCount === 1) {
     return 'group_3';
   }
-  if (customer.status === 'Quoted' || customer.status === 'Contacted') {
+  // Đã qua tư vấn (kể cả đã chốt đơn nhưng chưa nhập đơn / đã mất) → nhóm "Đã hỏi giá", không bao giờ về lại "Khách mới"
+  if (customer.status === 'Quoted' || customer.status === 'Contacted' || customer.status === 'Won' || customer.status === 'Lost') {
     return 'group_2';
   }
   return 'group_1';
