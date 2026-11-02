@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AppUser, CentralMessage, Customer, CustomerGroupId, CustomerStatus } from '../../types';
+import type { AppUser, CentralMessage, Customer, CustomerStatus } from '../../types';
 import type { BusinessPhoneNumber } from '../../features/messages/types';
 import {
   CUSTOMER_GROUPS,
@@ -31,7 +31,6 @@ interface CustomerListProps {
   onOpenAddOrder: (customer: Customer) => void;
   onOpenChat: (customer: Customer) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
-  onUpdateGroup: (customerId: string, group: CustomerGroupId) => void;
   onUpdateOwner: (customerId: string, owner: string) => void;
   onQuickAssignCustomers?: (input: QuickAssignInput) => Promise<boolean>;
   onImportCustomers?: (newCustomers: Customer[]) => void | Promise<any>;
@@ -61,7 +60,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onOpenAddOrder,
   onOpenChat,
   onUpdateStatus,
-  onUpdateGroup,
   onUpdateOwner,
   onQuickAssignCustomers,
   onImportCustomers,
@@ -381,7 +379,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         onOpenAddOrder={onOpenAddOrder}
         onOpenChat={onOpenChat}
         onUpdateStatus={onUpdateStatus}
-        onUpdateGroup={onUpdateGroup}
         onSelectOwnerUser={(user) => setSelectedOwnerUser(user)}
       />
 

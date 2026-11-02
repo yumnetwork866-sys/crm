@@ -9,12 +9,10 @@ import {
   UserRoundX,
   Users,
 } from 'lucide-react';
-import type { AppUser, Customer, CustomerGroupId, CustomerStatus } from '../../../types';
+import type { AppUser, Customer, CustomerStatus } from '../../../types';
 import {
-  CUSTOMER_GROUPS,
   formatDate,
   formatVND,
-  getCustomerGroup,
   getCustomerAvatar,
   getOwnerAvatar,
   getDiceBearAvatar,
@@ -52,7 +50,6 @@ interface CustomerTableProps {
   onOpenAddOrder: (customer: Customer) => void;
   onOpenChat: (customer: Customer) => void;
   onUpdateStatus: (customerId: string, status: CustomerStatus) => void;
-  onUpdateGroup: (customerId: string, group: CustomerGroupId) => void;
   onSelectOwnerUser: (user: AppUser) => void;
 }
 
@@ -110,7 +107,6 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
   onOpenAddOrder,
   onOpenChat,
   onUpdateStatus,
-  onUpdateGroup,
   onSelectOwnerUser,
 }) => {
   const firstDisplayed = filteredCustomersCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -176,7 +172,6 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
               displayedCustomers.map((customer) => {
                 const isSelected = selectedCustomerIds.includes(customer.id);
                 const unread = hasUnreadMessage(customer);
-                const group = getCustomerGroup(customer);
                 const unassigned = unassignedOwners.includes(customer.owner || '');
                 const ownerUser = findUserByName(users, customer.owner)
                   ?? (currentUser?.name === customer.owner ? currentUser : undefined);
@@ -221,17 +216,6 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                            <select
-                              value={group}
-                              onChange={(event) => onUpdateGroup(customer.id, event.target.value as CustomerGroupId)}
-                              aria-label={`Phân nhóm CRM của ${customer.name}`}
-                              className={`max-w-32 rounded-full px-2 py-0.5 text-[10px] font-bold border focus:outline-none cursor-pointer ${CUSTOMER_GROUPS[group].badgeColor}`}
-                            >
-                              <option value="group_1">Khách mới</option>
-                              <option value="group_2">Đã hỏi giá</option>
-                              <option value="group_3">Đã mua 1 lần</option>
-                              <option value="group_4">VIP</option>
-                            </select>
                             {unread && <SignalBadge label="Chưa đọc" className="bg-teal-50 text-teal-700 border-teal-200" />}
                           </div>
                         </div>

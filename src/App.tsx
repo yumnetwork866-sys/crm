@@ -142,7 +142,6 @@ export default function App() {
     quickAssignCustomers: handleQuickAssignCustomers,
     deleteCustomer,
     updateStatus: handleUpdateStatus,
-    updateGroup: handleUpdateGroup,
     addNote: handleAddNote,
     deleteNote: handleDeleteNote,
     runAutomationSimulation,
@@ -463,9 +462,6 @@ export default function App() {
                     handleSelectCustomerThread(cust.id, cust.phone);
                   }}
                   onUpdateStatus={handleUpdateStatus}
-                  onUpdateGroup={(customerId, group) => {
-                    void handleUpdateGroup(customerId, group);
-                  }}
                   onUpdateOwner={(customerId, owner) => {
                     void handleSaveCustomer({ id: customerId, owner });
                   }}

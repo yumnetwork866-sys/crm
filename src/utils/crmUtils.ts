@@ -98,15 +98,13 @@ export const CUSTOMER_GROUPS: Record<CustomerGroupId, CustomerGroupInfo> = {
  * Nhóm 4: Đã mua từ 2 lần trở lên
  */
 export function getCustomerGroup(customer: Customer): CustomerGroupId {
-  if (customer.group && Object.hasOwn(CUSTOMER_GROUPS, customer.group)) {
-    return customer.group;
-  }
-
-  // Legacy fallback for customer records created before the independent group field.
-  if (customer.totalOrders >= 2) {
+  // Nhóm là kết quả tự suy luận từ trạng thái + số đơn hàng — không cho phép chỉnh tay
+  // (field `group` cũ trong DB chỉ để tương thích, không còn được dùng để quyết định hiển thị)
+  const orderCount = Math.max(customer.totalOrders || 0, customer.orders?.length || 0);
+  if (orderCount >= 2) {
     return 'group_4';
   }
-  if (customer.totalOrders === 1) {
+  if (orderCount === 1) {
     return 'group_3';
   }
   if (customer.status === 'Quoted' || customer.status === 'Contacted') {

@@ -15,13 +15,12 @@ import {
 } from 'lucide-react';
 import type {
   Customer,
-  CustomerGroupId,
   CustomerStatus,
   LeadSource,
   Gender,
   Product,
 } from '../../types';
-import { CUSTOMER_GROUPS, formatDateTime, getCustomerGroup, getCustomerStatusLabel } from '../../utils/crmUtils';
+import { formatDateTime, getCustomerStatusLabel } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerFormModalProps {
@@ -43,7 +42,6 @@ const LEAD_SOURCES: LeadSource[] = [
   'Direct',
 ];
 const STATUS_OPTIONS: CustomerStatus[] = ['New Lead', 'Contacted', 'Quoted', 'Won', 'Lost'];
-const GROUP_OPTIONS: CustomerGroupId[] = ['group_1', 'group_2', 'group_3', 'group_4'];
 
 export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   isOpen,
@@ -95,7 +93,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   const [owner, setOwner] = useState('Chưa phân công');
   const [status, setStatus] = useState<CustomerStatus>('New Lead');
-  const [group, setGroup] = useState<CustomerGroupId>('group_1');
   const [noteContent, setNoteContent] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState('');
@@ -129,7 +126,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
       setOwner(initialData.owner || defaultOwner);
       setStatus(initialData.status || 'New Lead');
-      setGroup(getCustomerGroup(initialData));
       setSelectedProducts(initialData.interestedProducts || []);
       setProductSearch('');
     } else {
@@ -148,7 +144,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setLastContact(today);
       setOwner(defaultOwner);
       setStatus('New Lead');
-      setGroup('group_1');
       setNoteContent('Khách hàng mới tạo từ form');
       setSelectedProducts(productOptions[0] ? [productOptions[0].name] : []);
       setProductSearch('');
@@ -186,7 +181,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       lastContact: lastContact || new Date().toISOString().split('T')[0],
       owner,
       status,
-      group,
       interestedProducts: selectedProducts,
       ...(noteContent && !initialData
         ? {
@@ -383,14 +377,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
           <hr className="border-slate-800" />
 
-          {/* Section 3: Status, Group & Assignment */}
+          {/* Section 3: Status & Assignment */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
               <Briefcase className="w-4 h-4" />
-              <span>3. Trạng Thái, Phân Nhóm & Nhân Viên Phụ Trách</span>
+              <span>3. Trạng Thái & Nhân Viên Phụ Trách</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
                   Nhân Viên Phụ Trách
@@ -421,23 +415,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   {STATUS_OPTIONS.map((st) => (
                     <option key={st} value={st}>
                       {getCustomerStatusLabel(st)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Phân Nhóm CRM
-                </label>
-                <select
-                  value={group}
-                  onChange={(e) => setGroup(e.target.value as CustomerGroupId)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium"
-                >
-                  {GROUP_OPTIONS.map((groupId) => (
-                    <option key={groupId} value={groupId}>
-                      {CUSTOMER_GROUPS[groupId].name}
                     </option>
                   ))}
                 </select>
