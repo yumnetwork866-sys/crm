@@ -11,26 +11,20 @@ interface SalesReportProps {
 export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
   const { users } = useAuth();
   const totalLeads = customers.length;
-  const wonCustomers = customers.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
+  // Tiêu chí thống nhất: khách ĐÃ MUA = có ít nhất 1 đơn hàng thật trong hệ thống
+  const hasOrders = (c: Customer) => c.totalOrders >= 1;
+  const wonCustomers = customers.filter(hasOrders);
   const wonCount = wonCustomers.length;
   const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) : '0';
   const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
 
-  // Status Funnel Breakdown
-  const statusCounts = {
-    'New Lead': customers.filter((c) => c.status === 'New Lead').length,
-    Contacted: customers.filter((c) => c.status === 'Contacted').length,
-    Quoted: customers.filter((c) => c.status === 'Quoted').length,
-    Won: wonCount,
-    Lost: customers.filter((c) => c.status === 'Lost').length,
-  };
-
+  // Phễu chuyển đổi — mỗi khách chỉ đứng ở đúng 1 bậc (không đếm trùng)
   const funnelData = [
-    { name: '1. Khách Mới', count: statusCounts['New Lead'], fill: '#6366f1' },
-    { name: '2. Đã Liên Hệ', count: statusCounts['Contacted'], fill: '#06b6d4' },
-    { name: '3. Đã Báo Giá', count: statusCounts['Quoted'], fill: '#f59e0b' },
-    { name: '4. Chốt Đơn (Won)', count: statusCounts['Won'], fill: '#10b981' },
-    { name: '5. Thất Bại (Lost)', count: statusCounts['Lost'], fill: '#f43f5e' },
+    { name: '4. Chốt Đơn (Đã Mua)', count: customers.filter(hasOrders).length, fill: '#10b981' },
+    { name: '3. Đã Báo Giá', count: customers.filter((c) => !hasOrders(c) && c.status === 'Quoted').length, fill: '#f59e0b' },
+    { name: '2. Đã Liên Hệ', count: customers.filter((c) => !hasOrders(c) && c.status === 'Contacted').length, fill: '#06b6d4' },
+    { name: '1. Khách Mới', count: customers.filter((c) => !hasOrders(c) && c.status === 'New Lead').length, fill: '#6366f1' },
+    { name: '5. Thất Bại (Lost)', count: customers.filter((c) => c.status === 'Lost').length, fill: '#f43f5e' },
   ];
 
   const salesRepNames = useMemo(() => {
@@ -49,10 +43,10 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi'));
   }, [users, customers]);
 
-  // Sales Rep Performance
+  // Sales Rep Performance — cùng tiêu chí: Đã Mua = có ít nhất 1 đơn hàng thật
   const salesRepPerformance = salesRepNames.map((repName) => {
     const assigned = customers.filter((c) => c.owner === repName);
-    const won = assigned.filter((c) => c.status === 'Won' || c.totalOrders >= 1);
+    const won = assigned.filter(hasOrders);
     const rev = assigned.reduce((sum, c) => sum + c.totalSpent, 0);
     const conv = assigned.length > 0 ? ((won.length / assigned.length) * 100).toFixed(1) : '0';
 
@@ -137,7 +131,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
               <tr className="bg-slate-800 text-slate-300 uppercase text-[10px]">
                 <th className="py-2.5 px-4">Nhân Viên Sales</th>
                 <th className="py-2.5 px-3 text-right">Khách Được Giao</th>
-                <th className="py-2.5 px-3 text-right">Số Đơn Won</th>
+                <th className="py-2.5 px-3 text-right">Khách Đã Mua</th>
                 <th className="py-2.5 px-3 text-right">Tỷ Lệ Chuyển Đổi %</th>
                 <th className="py-2.5 px-4 text-right">Tổng Doanh Thu</th>
               </tr>
