@@ -34,10 +34,10 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
     : '0.0';
 
   const statusDistributionData = [
-    { name: 'Đã Đọc (Read)', count: totalRead },
-    { name: 'Đã Nhận (Delivered)', count: totalDelivered - totalRead },
-    { name: 'Phản Hỏi (Responded)', count: totalResponded },
-    { name: 'Gửi thất bại', count: totalFailed },
+    { name: 'Đã đọc', count: totalRead },
+    { name: 'Đã nhận', count: totalDelivered - totalRead },
+    { name: 'Phản hồi', count: totalResponded },
+    { name: 'Gửi lỗi', count: totalFailed },
   ];
 
   return (
@@ -47,45 +47,37 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">1. Tin Nhắn Đã Gửi</div>
+          <div className="text-[11px] text-slate-400">Tin nhắn đã gửi</div>
           <div className="text-xl font-bold text-white mt-1">{totalSent.toLocaleString()}</div>
-          <div className="text-[10px] text-teal-400 mt-1">Automation + Broadcast</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">2. Tin Nhắn Đã Nhận</div>
+          <div className="text-[11px] text-slate-400">Tin nhắn đã nhận</div>
           <div className="text-xl font-bold text-[#00793d] mt-1">{totalDelivered.toLocaleString()}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Theo webhook WhatsApp</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">3. Tỷ Lệ Đọc (Open Rate)</div>
+          <div className="text-[11px] text-slate-400">Tỷ lệ đọc</div>
           <div className="text-xl font-bold text-emerald-400 mt-1">{readRate}%</div>
-          <div className="text-[10px] text-emerald-400 mt-1">Dữ liệu thực từ Meta</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">4. Tỷ Lệ Phản Hỏi</div>
+          <div className="text-[11px] text-slate-400">Tỷ lệ phản hồi</div>
           <div className="text-xl font-bold text-amber-300 mt-1">{responseRate}%</div>
-          <div className="text-[10px] text-slate-400 mt-1">Khách tương tác lại</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-[11px] text-slate-400">5. Tỷ Lệ Gửi Thất Bại</div>
+          <div className="text-[11px] text-slate-400">Tỷ lệ gửi lỗi</div>
           <div className="text-xl font-bold text-rose-400 mt-1">{failureRate}%</div>
-          <div className="text-[10px] text-slate-400 mt-1">Theo phản hồi WhatsApp API</div>
         </div>
 
       </div>
 
       {/* Visual Charts */}
-      <h3 className="font-bold text-white text-sm">Báo Cáo Chi Tiết Broadcast & Messaging WhatsApp</h3>
-
-      {/* Visual Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-          <h3 className="font-bold text-white text-sm">Phân Phối Trạng Thái Tin Nhắn WhatsApp</h3>
+          <h3 className="font-bold text-white text-sm">Trạng thái tin nhắn</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -109,7 +101,7 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
-          <h3 className="font-bold text-white text-sm">Chỉ Số Tỷ Lệ Đọc & Tương Tác Theo Chiến Dịch</h3>
+          <h3 className="font-bold text-white text-sm">Tin nhắn theo chiến dịch</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={campaigns}>
@@ -117,8 +109,8 @@ export const WhatsAppReport: React.FC<WhatsAppReportProps> = ({ customers, campa
                 <YAxis stroke="#94a3b8" fontSize={10} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="stats.readCount" name="Số Tin Đã Đọc" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="stats.respondedCount" name="Số Khách Phản Hỏi" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="stats.readCount" name="Đã đọc" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="stats.respondedCount" name="Phản hồi" fill="#f59e0b" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

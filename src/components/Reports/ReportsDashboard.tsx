@@ -87,7 +87,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-indigo-400" />
-            <span>Trung Tâm Báo Cáo & Analytics CRM</span>
+            <span>Báo cáo CRM</span>
           </h2>
         </div>
       </div>
@@ -158,7 +158,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           }`}
         >
           <DollarSign className="w-4 h-4" />
-          <span>Báo Cáo Sales (Phễu & Doanh Thu)</span>
+          <span>Sales</span>
         </button>
 
         <button
@@ -170,7 +170,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           }`}
         >
           <MessageSquare className="w-4 h-4" />
-          <span>Báo Cáo WhatsApp (Tỷ Lệ Đọc)</span>
+          <span>WhatsApp</span>
         </button>
 
         <button
@@ -182,7 +182,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           }`}
         >
           <RefreshCw className="w-4 h-4" />
-          <span>Báo Cáo CRM (AOV & LTV)</span>
+          <span>Khách hàng</span>
         </button>
       </div>
 
