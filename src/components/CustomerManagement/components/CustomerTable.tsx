@@ -203,17 +203,6 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
                             >
                               {customer.name}
                             </button>
-                            <span
-                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold shrink-0 ${
-                                customer.gender === 'Nam'
-                                  ? 'bg-sky-50 text-sky-700 border-sky-200'
-                                  : customer.gender === 'Nữ'
-                                    ? 'bg-pink-50 text-pink-700 border-pink-200'
-                                    : 'bg-slate-50 text-slate-700 border-slate-200'
-                              }`}
-                            >
-                              {customer.gender === 'Khác' || !customer.gender ? 'Chưa rõ' : customer.gender}
-                            </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                             {unread && <SignalBadge label="Chưa đọc" className="bg-teal-50 text-teal-700 border-teal-200" />}
