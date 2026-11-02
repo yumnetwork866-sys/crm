@@ -165,8 +165,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) {
-      alert('Vui lòng nhập Tên và Số điện thoại khách hàng!');
+    if (!name.trim()) {
+      alert('Vui lòng nhập Tên khách hàng!');
       return;
     }
 
@@ -255,14 +255,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Số Điện Thoại (WhatsApp) <span className="text-rose-500">*</span>
+                  Số Điện Thoại (WhatsApp)
                 </label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+60 12 345 6789..."
-                  required
+                  placeholder="Tùy chọn — Ẩn số có thể bỏ trống"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>

@@ -39,7 +39,7 @@ function compareVietnameseNames(nameA: string = '', nameB: string = ''): number 
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Tên khách hàng không được để trống'),
-  phone: z.string().min(8, 'Số điện thoại không hợp lệ'),
+  phone: z.string().default(''),
   gender: z.string().default('Khác'),
   address: z.string().default(''),
   email: z.string().optional().nullable().transform((val) => {
@@ -349,8 +349,9 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
     }
 
     const data = parseResult.data;
-    const normalizedPhone = normalizePhoneE164(data.phone);
-    if (!normalizedPhone) {
+    const rawPhone = (data.phone || '').trim();
+    const normalizedPhone = rawPhone ? normalizePhoneE164(rawPhone) : '';
+    if (rawPhone && !normalizedPhone) {
       return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
     }
 
@@ -579,11 +580,16 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
     }
 
     if (phone !== undefined) {
-      const normalizedPhone = normalizePhoneE164(phone);
-      if (!normalizedPhone) {
-        return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
+      const rawPhone = (phone || '').trim();
+      if (rawPhone) {
+        const normalizedPhone = normalizePhoneE164(rawPhone);
+        if (!normalizedPhone) {
+          return res.status(400).json({ error: 'Số điện thoại không hợp lệ' });
+        }
+        updatePayload.phone = normalizedPhone;
+      } else {
+        updatePayload.phone = '';
       }
-      updatePayload.phone = normalizedPhone;
     }
 
     if (ownerId !== undefined || owner !== undefined) {
