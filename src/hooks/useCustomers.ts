@@ -543,6 +543,23 @@ export function useCustomers(currentUser: AppUser | null, enabled = true) {
   const mutationError = saveMutation.error || importMutation.error || deleteMutation.error
     || statusMutation.error || groupMutation.error || noteMutation.error || deleteNoteMutation.error || automationMutation.error
     || quickAssignMutation.error;
+
+  useEffect(() => {
+    if (!mutationError) return;
+    const timer = setTimeout(() => {
+      saveMutation.reset();
+      importMutation.reset();
+      deleteMutation.reset();
+      statusMutation.reset();
+      groupMutation.reset();
+      noteMutation.reset();
+      deleteNoteMutation.reset();
+      automationMutation.reset();
+      quickAssignMutation.reset();
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [mutationError, saveMutation, importMutation, deleteMutation, statusMutation, groupMutation, noteMutation, deleteNoteMutation, automationMutation, quickAssignMutation]);
+
   return {
     customers,
     setCustomers,

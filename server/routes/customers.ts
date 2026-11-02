@@ -560,11 +560,23 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
       return res.status(400).json({ error: parseResult.error.issues[0].message });
     }
 
-    const { owner, ownerId, phone, ...restData } = parseResult.data;
+    const { owner, ownerId, phone, id: _ignoredId, firstContact, lastContact, ...restData } = parseResult.data;
     const updatePayload: Record<string, any> = {
       ...restData,
-      lastContact: new Date(),
     };
+
+    if (firstContact !== undefined) {
+      const firstContactDate = new Date(String(firstContact));
+      if (!isNaN(firstContactDate.getTime())) {
+        updatePayload.firstContact = firstContactDate;
+      }
+    }
+    if (lastContact !== undefined) {
+      const lastContactDate = new Date(String(lastContact));
+      updatePayload.lastContact = isNaN(lastContactDate.getTime()) ? new Date() : lastContactDate;
+    } else {
+      updatePayload.lastContact = new Date();
+    }
 
     if (phone !== undefined) {
       const normalizedPhone = normalizePhoneE164(phone);
