@@ -6,29 +6,50 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface SalesReportProps {
   customers: Customer[];
+  dateRange?: { start: string; end: string };
 }
 
-export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
+export const SalesReport: React.FC<SalesReportProps> = ({ customers, dateRange }) => {
   const { users } = useAuth();
-  const totalLeads = customers.length;
+
+  // Khi có bộ lọc thời gian, chỉ tính ĐƠN HÀNG nằm trong khoảng lọc
+  // (totalOrders/totalSpent gốc là số liệu trọn đời, không khớp cửa sổ lọc)
+  const rangeActive = Boolean(dateRange?.start || dateRange?.end);
+  const baseCustomers = useMemo(() => {
+    if (!rangeActive) return customers;
+    return customers.map((c) => {
+      const inRangeOrders = (c.orders || []).filter((o) => {
+        const od = (o.date || '').slice(0, 10);
+        return (!dateRange?.start || od >= dateRange.start) && (!dateRange?.end || od <= dateRange.end);
+      });
+      if (inRangeOrders.length === (c.orders || []).length) return c;
+      return {
+        ...c,
+        totalOrders: inRangeOrders.length,
+        totalSpent: inRangeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+      };
+    });
+  }, [customers, rangeActive, dateRange?.start, dateRange?.end]);
+
+  const totalLeads = baseCustomers.length;
   // Tiêu chí thống nhất: khách ĐÃ MUA = có ít nhất 1 đơn hàng thật trong hệ thống
   const hasOrders = (c: Customer) => c.totalOrders >= 1;
-  const wonCustomers = customers.filter(hasOrders);
+  const wonCustomers = baseCustomers.filter(hasOrders);
   const wonCount = wonCustomers.length;
   const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) : '0';
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+  const totalRevenue = baseCustomers.reduce((sum, c) => sum + c.totalSpent, 0);
 
   // Phễu bán hàng — suy bậc của từng khách ĐÚNG theo cùng công thức phân nhóm ở tab khách hàng
   // (getCustomerGroup): Khách mới / Đã hỏi giá / Đã mua 1 lần / VIP → tổng = tổng số khách, không trùng lặp
   const groupOf = (c: Customer) => getCustomerGroup(c);
   const noOrdersLost = (c: Customer) => groupOf(c) === 'group_2' && c.status === 'Lost';
   const funnelData = [
-    { name: 'Khách mới', count: customers.filter((c) => groupOf(c) === 'group_1').length, fill: '#6366f1' },
-    { name: 'Đã liên hệ', count: customers.filter((c) => groupOf(c) === 'group_2' && c.status === 'Contacted').length, fill: '#06b6d4' },
-    { name: 'Đã hỏi giá', count: customers.filter((c) => groupOf(c) === 'group_2' && (c.status === 'Quoted' || c.status === 'Won')).length, fill: '#f59e0b' },
-    { name: 'Đã mua 1 lần', count: customers.filter((c) => groupOf(c) === 'group_3').length, fill: '#10b981' },
-    { name: 'VIP (≥2 đơn)', count: customers.filter((c) => groupOf(c) === 'group_4').length, fill: '#7c3aed' },
-    { name: 'Thất bại', count: customers.filter(noOrdersLost).length, fill: '#f43f5e' },
+    { name: 'Khách mới', count: baseCustomers.filter((c) => groupOf(c) === 'group_1').length, fill: '#6366f1' },
+    { name: 'Đã liên hệ', count: baseCustomers.filter((c) => groupOf(c) === 'group_2' && c.status === 'Contacted').length, fill: '#06b6d4' },
+    { name: 'Đã hỏi giá', count: baseCustomers.filter((c) => groupOf(c) === 'group_2' && (c.status === 'Quoted' || c.status === 'Won')).length, fill: '#f59e0b' },
+    { name: 'Đã mua 1 lần', count: baseCustomers.filter((c) => groupOf(c) === 'group_3').length, fill: '#10b981' },
+    { name: 'VIP (≥2 đơn)', count: baseCustomers.filter((c) => groupOf(c) === 'group_4').length, fill: '#7c3aed' },
+    { name: 'Thất bại', count: baseCustomers.filter(noOrdersLost).length, fill: '#f43f5e' },
   ];
 
   const salesRepNames = useMemo(() => {
@@ -38,18 +59,18 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
         names.add(u.name.trim());
       }
     }
-    for (const c of customers) {
+    for (const c of baseCustomers) {
       const owner = c.owner?.trim();
       if (owner && !['Chưa phân công', 'Unassigned'].includes(owner)) {
         names.add(owner);
       }
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [users, customers]);
+  }, [users, baseCustomers]);
 
   // Sales Rep Performance — cùng tiêu chí: Đã Mua = có ít nhất 1 đơn hàng thật
   const salesRepPerformance = salesRepNames.map((repName) => {
-    const assigned = customers.filter((c) => c.owner === repName);
+    const assigned = baseCustomers.filter((c) => c.owner === repName);
     const won = assigned.filter(hasOrders);
     const rev = assigned.reduce((sum, c) => sum + c.totalSpent, 0);
     const conv = assigned.length > 0 ? ((won.length / assigned.length) * 100).toFixed(1) : '0';

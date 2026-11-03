@@ -177,7 +177,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
       {/* Render selected sub-report with filtered data */}
       {subTab === 'sales' && (
-        <SalesReport customers={filteredCustomers} />
+        <SalesReport customers={filteredCustomers} dateRange={{ start: startDate, end: endDate }} />
       )}
 
       {subTab === 'whatsapp' && (
