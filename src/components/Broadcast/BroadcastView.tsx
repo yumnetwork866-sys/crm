@@ -365,12 +365,12 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
 
             {/* Sub-Filters: Product & Country */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+              <div className="min-w-0">
                 <label className="block text-slate-300 font-medium mb-1">Theo Sản Phẩm Quan Tâm</label>
                 <select
                   value={targetProduct}
                   onChange={(e) => setTargetProduct(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none"
+                  className="w-full max-w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none truncate cursor-pointer"
                 >
                   <option value="ALL">Tất cả sản phẩm</option>
                   {productOptions.map((p) => (
@@ -379,7 +379,7 @@ export const BroadcastView: React.FC<BroadcastViewProps> = ({
                 </select>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-slate-300 font-medium mb-1">Theo Giới Tính</label>
                 <select
                   value={targetGender}
