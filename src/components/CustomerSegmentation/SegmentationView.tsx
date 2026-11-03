@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Layers, Users, ShoppingBag, ArrowRight, Send, DollarSign, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, ShoppingBag, ArrowRight, Send, DollarSign, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Customer, CustomerGroupId } from '../../types';
 import { CUSTOMER_GROUPS, formatVND, getCustomerGroup, getCustomerStatusLabel } from '../../utils/crmUtils';
 
@@ -53,14 +53,7 @@ export const SegmentationView: React.FC<SegmentationViewProps> = ({
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
-              <Layers className="w-4 h-4" />
-              <span>Hệ Thống Phân Nhóm Tự Động</span>
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">CRM Phân Nhóm Khách Hàng (1 - 4)</h2>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
-              Dựa trên hành vi tương tác và lịch sử mua hàng, CRM tự động xếp hạng khách hàng để tối ưu hóa chiến dịch Marketing & Automation.
-            </p>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">Phân Nhóm Khách Hàng</h2>
           </div>
 
           <div className="flex items-center space-x-3 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700/60 text-xs text-slate-300">
