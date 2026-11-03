@@ -466,7 +466,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
       {/* Modal 1: Create New Order */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative text-slate-100 max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl relative text-slate-100 max-h-[90vh] overflow-y-auto">
             
             <button
               type="button"
@@ -479,7 +479,7 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
 
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-emerald-400" />
-              <span>Tạo Đơn Hàng Mới Cho Khách Hàng</span>
+              <span>Tạo Đơn Hàng Mới</span>
             </h2>
 
             <form onSubmit={handleSaveNewOrder} className="space-y-4">
