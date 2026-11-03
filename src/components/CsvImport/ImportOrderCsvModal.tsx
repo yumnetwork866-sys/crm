@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, Download, ShoppingBag, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import type { Customer, CustomerOrder, Product } from '../../types';
-import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
+import { parseCsvContent, downloadCsvFile, normalizeHeaderKey } from '../../utils/csvParser';
 import { formatVND } from '../../utils/crmUtils';
 
 interface ImportOrderCsvModalProps {
@@ -62,9 +62,9 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
 
     const findValue = (row: Record<string, string>, possibleKeys: string[]) => {
       for (const k of Object.keys(row)) {
-        const normalized = k.toLowerCase().replace(/[^a-z0-9áàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ]/g, '');
+        const normalized = normalizeHeaderKey(k);
         for (const pk of possibleKeys) {
-          if (normalized.includes(pk)) return row[k];
+          if (normalized.includes(pk)) return row[k]?.trim() || '';
         }
       }
       return '';

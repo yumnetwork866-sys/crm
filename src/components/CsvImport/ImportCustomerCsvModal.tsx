@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, UserPlus, Info } from 'lucide-react';
 import type { Customer, CustomerStatus, LeadSource, Gender } from '../../types';
-import { parseCsvContent, downloadCsvFile } from '../../utils/csvParser';
+import { parseCsvContent, downloadCsvFile, normalizeHeaderKey } from '../../utils/csvParser';
 import { formatDate, formatDateTime } from '../../utils/crmUtils';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -65,9 +65,9 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
     // Helper map key
     const findValue = (row: Record<string, string>, possibleKeys: string[]) => {
       for (const k of Object.keys(row)) {
-        const normalized = k.toLowerCase().replace(/[^a-z0-9áàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ]/g, '');
+        const normalized = normalizeHeaderKey(k);
         for (const pk of possibleKeys) {
-          if (normalized.includes(pk)) return row[k];
+          if (normalized.includes(pk)) return row[k]?.trim() || '';
         }
       }
       return '';
