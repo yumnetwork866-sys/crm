@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { Customer } from '../../types';
-import { formatVND } from '../../utils/crmUtils';
+import { formatVND, getCustomerGroup } from '../../utils/crmUtils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -18,13 +18,17 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
   const conversionRate = totalLeads > 0 ? ((wonCount / totalLeads) * 100).toFixed(1) : '0';
   const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
 
-  // Phễu chuyển đổi — mỗi khách chỉ đứng ở đúng 1 bậc (không đếm trùng)
+  // Phễu bán hàng — suy bậc của từng khách ĐÚNG theo cùng công thức phân nhóm ở tab khách hàng
+  // (getCustomerGroup): Khách mới / Đã hỏi giá / Đã mua 1 lần / VIP → tổng = tổng số khách, không trùng lặp
+  const groupOf = (c: Customer) => getCustomerGroup(c);
+  const noOrdersLost = (c: Customer) => groupOf(c) === 'group_2' && c.status === 'Lost';
   const funnelData = [
-    { name: '4. Đã mua', count: customers.filter(hasOrders).length, fill: '#10b981' },
-    { name: '3. Đã báo giá', count: customers.filter((c) => !hasOrders(c) && c.status === 'Quoted').length, fill: '#f59e0b' },
-    { name: '2. Đã liên hệ', count: customers.filter((c) => !hasOrders(c) && c.status === 'Contacted').length, fill: '#06b6d4' },
-    { name: '1. Khách mới', count: customers.filter((c) => !hasOrders(c) && c.status === 'New Lead').length, fill: '#6366f1' },
-    { name: '5. Thất bại', count: customers.filter((c) => c.status === 'Lost').length, fill: '#f43f5e' },
+    { name: '1. Khách mới', count: customers.filter((c) => groupOf(c) === 'group_1').length, fill: '#6366f1' },
+    { name: '2. Đã liên hệ', count: customers.filter((c) => groupOf(c) === 'group_2' && c.status === 'Contacted').length, fill: '#06b6d4' },
+    { name: '3. Đã hỏi giá', count: customers.filter((c) => groupOf(c) === 'group_2' && (c.status === 'Quoted' || c.status === 'Won')).length, fill: '#f59e0b' },
+    { name: '4. Đã mua 1 lần', count: customers.filter((c) => groupOf(c) === 'group_3').length, fill: '#10b981' },
+    { name: '5. VIP (≥2 đơn)', count: customers.filter((c) => groupOf(c) === 'group_4').length, fill: '#7c3aed' },
+    { name: 'Thất bại', count: customers.filter(noOrdersLost).length, fill: '#f43f5e' },
   ];
 
   const salesRepNames = useMemo(() => {
@@ -95,7 +99,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={funnelData} layout="vertical">
                 <XAxis type="number" stroke="#94a3b8" />
-                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} width={120} />
+                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} width={130} />
                 <Tooltip />
                 <Bar dataKey="count" name="Số khách" fill="#10b981" radius={[0, 4, 4, 0]} />
               </BarChart>
