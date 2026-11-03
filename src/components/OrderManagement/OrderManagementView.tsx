@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Customer, CustomerOrder, Product } from '../../types';
 import { formatDate, formatVND } from '../../utils/crmUtils';
 import { ImportOrderCsvModal } from '../CsvImport/ImportOrderCsvModal';
@@ -64,6 +64,22 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
     },
   ]);
   const [orderNotes, setOrderNotes] = useState('');
+
+  // Modal init state captured trước khi products tải xong → productId "prd_001" không tồn tại
+  // trong danh sách làm select bị trống; tự sửa lại dòng item khi mở modal/products sẵn sàng
+  useEffect(() => {
+    if (!isCreateModalOpen || products.length === 0) return;
+    setOrderItems((items) => {
+      let changed = false;
+      const fixed = items.map((item) => {
+        const found = products.find((p) => p.id === item.productId);
+        if (found) return item;
+        changed = true;
+        return { ...item, productId: products[0].id, productName: products[0].name, price: products[0].price };
+      });
+      return changed ? fixed : items;
+    });
+  }, [isCreateModalOpen, products]);
 
   // Gather ALL orders from all customers
   const allOrdersWithCustomerInfo: (CustomerOrder & { customerName: string; customerPhone: string; customerId: string })[] = [];
