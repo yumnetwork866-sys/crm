@@ -12,7 +12,7 @@ interface ImportOrderCsvModalProps {
   onImportOrders: (importedOrders: { customerPhone: string; customerName?: string; order: CustomerOrder }[]) => void | Promise<any>;
 }
 
-const SAMPLE_CSV_ORDER = `Mã Đơn,SĐT Khách Hàng,Tên Khách Hàng,Tên Sản Phẩm,Số Lượng,Đơn Giá,Trạng Thái,Ngày Lập,Ghi Chú
+const SAMPLE_CSV_ORDER = `Order Code,Customer Phone,Customer Name,Product Name,Quantity,Unit Price,Status,Order Date,Note
 "DH-IMP-801","+60 12 888 9911","Ahmad Zakaria","Bộ Sản Phẩm Chống Lão Hóa Premium",1,2800000,"Completed","2026-07-22","Khách mua qua tư vấn Facebook"
 "DH-IMP-802","0908123456","Nguyễn Thị Minh Châu","Kem Dưỡng Da Collagen Premium",2,1800000,"Completed","2026-07-23","Giao hỏa tốc"
 "DH-IMP-803","0987654321","Trần Hoài Nam","Sữa Rửa Mặt Dịu Nhẹ Balance",1,450000,"Processing","2026-07-24","Chờ xác nhận giao hàng"`;
@@ -35,7 +35,7 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Nhap_Don_Hang_YumNetwork_CRM.csv', SAMPLE_CSV_ORDER);
+    downloadCsvFile('Sample_Import_Orders_YumNetwork_CRM.csv', SAMPLE_CSV_ORDER);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {
@@ -170,7 +170,7 @@ export const ImportOrderCsvModal: React.FC<ImportOrderCsvModalProps> = ({
                 <span>Cấu trúc dữ liệu đơn hàng CSV</span>
               </p>
               <p className="text-slate-400">
-                Gồm cột: <strong className="text-slate-200">Mã Đơn, SĐT Khách Hàng, Tên Khách Hàng, Tên Sản Phẩm, Số Lượng, Đơn Giá, Trạng Thái, Ngày Lập, Ghi Chú</strong>.
+                Gồm cột: <strong className="text-slate-200">Order Code, Customer Phone, Customer Name, Product Name, Quantity, Unit Price, Status, Order Date, Note</strong>.
               </p>
             </div>
             <button

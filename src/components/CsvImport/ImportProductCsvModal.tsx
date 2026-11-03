@@ -10,7 +10,7 @@ interface ImportProductCsvModalProps {
   onImportProducts: (products: Product[]) => void | Promise<void>;
 }
 
-const SAMPLE_CSV_PRODUCT = `Mã SP,Tên Sản Phẩm,Danh Mục,Giá Bán,Giá Vốn,Tồn Kho,SKU,Mô Tả
+const SAMPLE_CSV_PRODUCT = `Code,Product Name,Category,Price,Cost Price,Stock,SKU,Description
 "SP-801","Kem Chống Nắng Ultra Light SPF50","Mỹ Phẩm",450000,180000,100,"SKU-SUN-801","Chống nắng kiềm dầu cho da nhạy cảm"
 "SP-802","Việt Quất Sấy Khô Premium","Thực Phẩm Chức Năng",320000,120000,80,"SKU-FOOD-802","Sản phẩm bổ sung Vitamin E & C"
 "SP-803","Áo Phông Cotton Form Rộng","Thời Trang",250000,90000,150,"SKU-FASH-803","Thấm hút mồ hôi tốt"`;
@@ -31,7 +31,7 @@ export const ImportProductCsvModal: React.FC<ImportProductCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Danh_Sach_San_Pham_YumNetwork_CRM.csv', SAMPLE_CSV_PRODUCT);
+    downloadCsvFile('Sample_Import_Products_YumNetwork_CRM.csv', SAMPLE_CSV_PRODUCT);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {
@@ -211,7 +211,7 @@ export const ImportProductCsvModal: React.FC<ImportProductCsvModalProps> = ({
                 <span>Cấu trúc dữ liệu sản phẩm CSV</span>
               </p>
               <p className="text-slate-400">
-                Hỗ trợ cột: <strong className="text-slate-200">Mã SP, Tên Sản Phẩm, Danh Mục, Giá Bán, Giá Vốn, Tồn Kho, SKU, Mô Tả</strong>. Tự động nhận diện dấu phẩy, chấm phẩy hoặc Tab.
+                Hỗ trợ cột: <strong className="text-slate-200">Code, Product Name, Category, Price, Cost Price, Stock, SKU, Description</strong>. Tự động nhận diện dấu phẩy, chấm phẩy hoặc Tab.
               </p>
             </div>
             <button

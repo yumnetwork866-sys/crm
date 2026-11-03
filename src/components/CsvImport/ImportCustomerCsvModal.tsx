@@ -13,10 +13,10 @@ interface ImportCustomerCsvModalProps {
   existingCustomersCount: number;
 }
 
-const SAMPLE_CSV_CUSTOMER = `Họ Tên,SĐT,Giới Tính,Địa Chỉ,Email,Ghi Chú,Nguồn Lead,Trạng Thái
-"Ahmad Zakaria","+60 12 888 9911","Nam","Bukit Bintang, 55100 Kuala Lumpur","ahmad.z@gmail.com","Quan tâm bộ mỹ phẩm da dầu","Facebook","Khách Mới"
-"Siti Aminah","+60 17 333 4455","Nữ","Subang Jaya, 47500 Selangor","siti.aminah@yahoo.com","Thường đặt giao giờ hành chính","TikTok","Đã Liên Hệ"
-"Nguyễn Thị Hương","0918112233","Nữ","Georgetown, 10040 Penang","huong.nguyen@gmail.com","Khách quen hỏi mua combo serum","Zalo","Đã Báo Giá"`;
+const SAMPLE_CSV_CUSTOMER = `Name,Phone,Gender,Address,Email,Note,Lead Source,Status
+"Ahmad Zakaria","+60 12 888 9911","Male","Bukit Bintang, 55100 Kuala Lumpur","ahmad.z@gmail.com","Quan tâm bộ mỹ phẩm da dầu","Facebook","New Lead"
+"Siti Aminah","+60 17 333 4455","Female","Subang Jaya, 47500 Selangor","siti.aminah@yahoo.com","Thường đặt giao giờ hành chính","TikTok","Contacted"
+"Nguyễn Thị Hương","0918112233","Female","Georgetown, 10040 Penang","huong.nguyen@gmail.com","Khách quen hỏi mua combo serum","Zalo","Quoted"`;
 
 export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
   isOpen,
@@ -37,7 +37,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
   if (!isOpen) return null;
 
   const handleDownloadSample = () => {
-    downloadCsvFile('Mau_Nhap_Khach_Hang_YumNetwork_CRM.csv', SAMPLE_CSV_CUSTOMER);
+    downloadCsvFile('Sample_Import_Customers_YumNetwork_CRM.csv', SAMPLE_CSV_CUSTOMER);
   };
 
   const processCsvRawText = (rawText: string, fileLabel?: string) => {
@@ -78,7 +78,8 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
       const phone = findValue(r, ['sdt', 'phone', 'dienthoai', 'mobile', 'whatsapp']) || `09${Math.floor(10000000 + Math.random() * 90000000)}`;
       const genderRaw = findValue(r, ['gioitinh', 'gender', 'sex']).toLowerCase();
       let gender: Gender = 'Nữ';
-      if (genderRaw.includes('nam') || genderRaw.includes('male') || genderRaw === 'm') gender = 'Nam';
+      if (/female|nữ/i.test(genderRaw) || genderRaw === 'f') gender = 'Nữ';
+      else if (/male|nam/i.test(genderRaw) || genderRaw === 'm') gender = 'Nam';
       else if (genderRaw.includes('khac') || genderRaw.includes('other')) gender = 'Khác';
 
       const address = findValue(r, ['diachi', 'address', 'location', 'tinh thanh']) || 'Kuala Lumpur, Malaysia';
@@ -206,7 +207,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
                 <span>Hướng dẫn cấu trúc file CSV</span>
               </p>
               <p className="text-slate-400">
-                File CSV gồm các cột: <strong className="text-slate-200">Họ Tên, SĐT, Giới Tính, Địa Chỉ, Email, Ghi Chú, Nguồn Lead, Trạng Thái</strong>.
+                File CSV gồm các cột: <strong className="text-slate-200">Name, Phone, Gender, Address, Email, Note, Lead Source, Status</strong>.
               </p>
             </div>
             <button
@@ -275,7 +276,7 @@ export const ImportCustomerCsvModal: React.FC<ImportCustomerCsvModalProps> = ({
               <textarea
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
-                placeholder={`Dán nội dung CSV vào đây...\nVí dụ:\nHọ Tên,SĐT,Giới Tính,Địa Chỉ\nNguyễn Văn A,0901234567,Nam,Kuala Lumpur`}
+                placeholder={`Dán nội dung CSV vào đây...\nVí dụ:\nName,Phone,Gender,Address\nNguyễn Văn A,0901234567,Male,Kuala Lumpur`}
                 rows={5}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
               />
