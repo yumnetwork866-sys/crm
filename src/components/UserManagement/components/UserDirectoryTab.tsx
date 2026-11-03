@@ -71,37 +71,36 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
   return (
     <>
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-white border border-slate-300 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-          <div>
-            <div className="text-xs font-bold text-slate-600">Tổng Số Thành Viên</div>
-            <div className="text-2xl font-black text-slate-950 mt-1">{totalUsers} nhân sự</div>
+      <div className="bg-white border border-slate-300 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+        <div className="flex-1 w-full px-5 py-3.5 flex items-center justify-between sm:justify-start gap-2">
+          <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
+            <Users className="w-4 h-4" />
           </div>
-          <div className="p-3 bg-indigo-100 text-indigo-700 rounded-xl border border-indigo-200">
-            <Users className="w-6 h-6" />
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Tổng Số Thành Viên</div>
+            <div className="text-base font-black text-slate-950">{totalUsers} nhân sự</div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-300 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-          <div>
-            <div className="text-xs font-bold text-slate-600">Thành Viên Hoạt Động</div>
-            <div className="text-2xl font-black text-emerald-700 mt-1">{activeUsers} Active</div>
+        <div className="flex-1 w-full px-5 py-3.5 flex items-center justify-between sm:justify-start gap-2">
+          <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200">
+            <CheckCircle2 className="w-4 h-4" />
           </div>
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200">
-            <CheckCircle2 className="w-6 h-6" />
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Thành Viên Hoạt Động</div>
+            <div className="text-base font-black text-emerald-700">{activeUsers} Active</div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-300 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-          <div>
-            <div className="text-xs font-bold text-slate-600">Quản Lý &amp; Admin</div>
-            <div className="text-2xl font-black text-purple-700 mt-1">{adminCount} nhân sự</div>
+        <div className="flex-1 w-full px-5 py-3.5 flex items-center justify-between sm:justify-start gap-2">
+          <div className="p-2.5 bg-purple-100 text-purple-700 rounded-xl border border-purple-200">
+            <ShieldCheck className="w-4 h-4" />
           </div>
-          <div className="p-3 bg-purple-100 text-purple-700 rounded-xl border border-purple-200">
-            <ShieldCheck className="w-6 h-6" />
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Quản Lý &amp; Admin</div>
+            <div className="text-base font-black text-purple-700">{adminCount} nhân sự</div>
           </div>
         </div>
-
       </div>
 
       {/* Control Bar: Search & Action */}
