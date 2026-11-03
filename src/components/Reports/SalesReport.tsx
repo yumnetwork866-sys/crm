@@ -23,11 +23,11 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
   const groupOf = (c: Customer) => getCustomerGroup(c);
   const noOrdersLost = (c: Customer) => groupOf(c) === 'group_2' && c.status === 'Lost';
   const funnelData = [
-    { name: '1. Khách mới', count: customers.filter((c) => groupOf(c) === 'group_1').length, fill: '#6366f1' },
-    { name: '2. Đã liên hệ', count: customers.filter((c) => groupOf(c) === 'group_2' && c.status === 'Contacted').length, fill: '#06b6d4' },
-    { name: '3. Đã hỏi giá', count: customers.filter((c) => groupOf(c) === 'group_2' && (c.status === 'Quoted' || c.status === 'Won')).length, fill: '#f59e0b' },
-    { name: '4. Đã mua 1 lần', count: customers.filter((c) => groupOf(c) === 'group_3').length, fill: '#10b981' },
-    { name: '5. VIP (≥2 đơn)', count: customers.filter((c) => groupOf(c) === 'group_4').length, fill: '#7c3aed' },
+    { name: 'Khách mới', count: customers.filter((c) => groupOf(c) === 'group_1').length, fill: '#6366f1' },
+    { name: 'Đã liên hệ', count: customers.filter((c) => groupOf(c) === 'group_2' && c.status === 'Contacted').length, fill: '#06b6d4' },
+    { name: 'Đã hỏi giá', count: customers.filter((c) => groupOf(c) === 'group_2' && (c.status === 'Quoted' || c.status === 'Won')).length, fill: '#f59e0b' },
+    { name: 'Đã mua 1 lần', count: customers.filter((c) => groupOf(c) === 'group_3').length, fill: '#10b981' },
+    { name: 'VIP (≥2 đơn)', count: customers.filter((c) => groupOf(c) === 'group_4').length, fill: '#7c3aed' },
     { name: 'Thất bại', count: customers.filter(noOrdersLost).length, fill: '#f43f5e' },
   ];
 
@@ -99,7 +99,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers }) => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={funnelData} layout="vertical">
                 <XAxis type="number" stroke="#94a3b8" />
-                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} width={130} />
+                <YAxis dataKey="name" type="category" tick={{ fill: '#000' }} tickLine={false} fontSize={12} width={110} />
                 <Tooltip />
                 <Bar dataKey="count" name="Số khách" fill="#10b981" radius={[0, 4, 4, 0]} />
               </BarChart>
