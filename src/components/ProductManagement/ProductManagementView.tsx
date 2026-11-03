@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { FileUp, Plus, Search } from 'lucide-react';
 import type { Product } from '../../types';
 import { ImportProductCsvModal } from '../CsvImport/ImportProductCsvModal';
 import { api } from '../../utils/apiClient';
@@ -180,6 +181,23 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   const allVisibleMetaProductsSelected = filteredMetaProducts.length > 0
     && filteredMetaProducts.every((product) => selectedMetaProductIds.includes(product.id));
 
+  const handleOpenAddModal = () => {
+    setEditingProduct(null);
+    setFormData({
+      code: '',
+      name: '',
+      category: 'Mỹ Phẩm',
+      price: 500000,
+      costPrice: 200000,
+      stock: 50,
+      status: 'In Stock',
+      sku: '',
+      description: '',
+      image: '',
+    });
+    setIsModalOpen(true);
+  };
+
   const handleOpenEditModal = (p: Product) => {
     setEditingProduct(p);
     setFormData(p);
@@ -274,6 +292,37 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
               if (metaNextCursor) void loadMetaCatalogProducts(viewCatalogId, metaNextCursor, true);
             }}
           />
+        </div>
+      )}
+
+      {!isMetaView && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Tìm theo tên, mã hoặc SKU sản phẩm..."
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-800 shadow-xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-500"
+          >
+            <Plus className="h-4 w-4" />
+            Thêm sản phẩm
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsImportCsvOpen(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <FileUp className="h-4 w-4" />
+            Nhập CSV
+          </button>
         </div>
       )}
 
