@@ -1,6 +1,5 @@
 import React from 'react';
 import type { AppUser, RolePermissionPolicy, UserRole } from '../../../types';
-import { formatVND } from '../../../utils/crmUtils';
 import {
   Users,
   ShieldCheck,
@@ -11,7 +10,6 @@ import {
   Edit2,
   Trash2,
   Phone,
-  Award,
 } from 'lucide-react';
 
 interface UserDirectoryTabProps {
@@ -52,7 +50,6 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
   const totalUsers = users.length;
   const activeUsers = users.filter((u) => u.status === 'active').length;
   const adminCount = users.filter((u) => u.role === 'Admin' || u.role === 'Sales Manager').length;
-  const totalTeamRevenue = users.reduce((sum, u) => sum + (u.totalRevenue || 0), 0);
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -74,7 +71,7 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
   return (
     <>
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-300 p-4 rounded-2xl flex items-center justify-between shadow-sm">
           <div>
             <div className="text-xs font-bold text-slate-600">Tổng Số Thành Viên</div>
@@ -105,15 +102,6 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-300 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-          <div>
-            <div className="text-xs font-bold text-slate-600">Tổng Doanh Thu Đội Ngũ</div>
-            <div className="text-2xl font-black text-emerald-700 mt-1">{formatVND(totalTeamRevenue)}</div>
-          </div>
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200">
-            <Award className="w-6 h-6" />
-          </div>
-        </div>
       </div>
 
       {/* Control Bar: Search & Action */}
@@ -178,7 +166,6 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
                 <th className="py-3 px-3">Vai Trò</th>
                 <th className="py-3 px-3">Liên Hệ</th>
                 <th className="py-3 px-3 text-right">Đảm nhận</th>
-                <th className="py-3 px-3 text-right">Doanh Số</th>
                 <th className="py-3 px-3 text-center">Trạng Thái</th>
                 <th className="py-3 px-4 text-right">Thao Tác</th>
               </tr>
@@ -186,7 +173,7 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
             <tbody className="divide-y divide-slate-200 text-slate-900 font-semibold">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 font-bold">
+                  <td colSpan={6} className="py-8 text-center text-slate-500 font-bold">
                     Không tìm thấy tài khoản nhân sự phù hợp.
                   </td>
                 </tr>
@@ -241,11 +228,6 @@ export const UserDirectoryTab: React.FC<UserDirectoryTabProps> = ({
                       {/* Assigned Leads */}
                       <td className="py-3.5 px-3 text-right font-black text-slate-950">
                         {user.assignedLeadsCount || 0} khách
-                      </td>
-
-                      {/* Revenue */}
-                      <td className="py-3.5 px-3 text-right font-black text-emerald-700">
-                        {formatVND(user.totalRevenue || 0)}
                       </td>
 
                       {/* Status */}

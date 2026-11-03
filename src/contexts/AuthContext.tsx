@@ -184,7 +184,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status: data.user.status || 'active',
       lastActive: 'Đang hoạt động',
       assignedLeadsCount: data.user.assignedLeadsCount || 0,
-      totalRevenue: data.user.totalRevenue || 0,
       permissionAllow: data.user.permissionAllow,
       permissionDeny: data.user.permissionDeny,
       effectivePermissions: data.user.effectivePermissions,

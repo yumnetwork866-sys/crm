@@ -48,16 +48,25 @@ const updateUserSchema = z.object({
   permissionDeny: permissionMaskSchema.optional(),
 }).strict();
 
-async function serializeUser(user: User) {
+async function serializeUser(user: User, assignedLeadsCount: number) {
   const { password: _password, permissionAllow, permissionDeny, ...safeUser } = user;
   return {
     ...safeUser,
     totalRevenue: Number(user.totalRevenue ?? 0),
+    assignedLeadsCount,
     permissionAllow: permissionAllow.toString(),
     permissionDeny: permissionDeny.toString(),
     effectivePermissions: (await getEffectivePermissions(user.role, permissionAllow, permissionDeny)).toString(),
     roleColor: await getRoleColor(user.role),
   };
+}
+
+async function getAssignedLeadsByOwner(): Promise<Map<string, number>> {
+  const grouped = await prisma.customer.groupBy({
+    by: ['ownerId'],
+    _count: { ownerId: true },
+  });
+  return new Map(grouped.map((row) => [row.ownerId ?? '', Number(row._count.ownerId)]));
 }
 
 async function serializeMessageProfile(user: User) {
@@ -92,8 +101,11 @@ router.use(authenticateToken);
 // GET /api/users
 router.get('/', requirePermission(Permission.USERS_READ), async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
-    return res.json(await Promise.all(users.map(serializeUser)));
+    const [users, leadCounts] = await Promise.all([
+      prisma.user.findMany({ orderBy: { createdAt: 'desc' } }),
+      getAssignedLeadsByOwner(),
+    ]);
+    return res.json(await Promise.all(users.map((user) => serializeUser(user, leadCounts.get(user.id) ?? 0))));
   } catch (error) {
     console.error('Lỗi khi lấy danh sách người dùng:', error);
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách người dùng' });
@@ -139,7 +151,7 @@ router.post('/', requirePermission(Permission.USERS_MANAGE), async (req: Authent
       },
     });
 
-    const serialized = await serializeUser(newUser);
+    const serialized = await serializeUser(newUser, await prisma.customer.count({ where: { ownerId: newUser.id } }));
     realtimeHub.broadcast('user:profile_updated', await serializeMessageProfile(newUser));
     return res.status(201).json(serialized);
   } catch (error) {
@@ -215,7 +227,8 @@ router.put('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Authe
     });
 
     invalidateAuthCache(target.id);
-    const serialized = await serializeUser(updated);
+    const leadCounts = await getAssignedLeadsByOwner();
+    const serialized = await serializeUser(updated, leadCounts.get(updated.id) ?? 0);
     realtimeHub.broadcast('user:profile_updated', await serializeMessageProfile(updated));
     return res.json(serialized);
   } catch (error) {

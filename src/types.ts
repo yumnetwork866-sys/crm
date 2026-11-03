@@ -404,7 +404,6 @@ export interface AppUser {
   status: 'active' | 'inactive';
   lastActive: string;
   assignedLeadsCount?: number;
-  totalRevenue?: number;
   permissionAllow?: string;
   permissionDeny?: string;
   effectivePermissions?: string;
