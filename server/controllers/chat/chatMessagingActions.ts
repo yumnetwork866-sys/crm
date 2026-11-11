@@ -241,6 +241,38 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       });
       console.log(`[DB SAVE SUCCESS] Saved OUTGOING message ${savedOutDb.id} to PostgreSQL Database!`);
 
+      // Tự động đánh dấu tất cả các tin nhắn trước đó của khách trong thread này là đã phản hồi / đã đọc
+      try {
+        const readConditions: any[] = [];
+        if (matchedCustomerId) {
+          readConditions.push({ customerId: matchedCustomerId });
+        }
+        if (recipient) {
+          readConditions.push({ recipientId: recipient });
+        }
+        if (cleanPhone && cleanPhone.length >= 7) {
+          const lastDigits = cleanPhone.slice(-9);
+          readConditions.push({ customerPhone: { contains: lastDigits } });
+        }
+        if (readConditions.length > 0) {
+          await prisma.whatsAppMessage.updateMany({
+            where: {
+              OR: readConditions,
+              sender: 'customer',
+              isRead: false,
+              ...(phoneId ? { businessPhoneNumberId: phoneId } : {}),
+            },
+            data: {
+              isRead: true,
+              readBy: authenticatedAgentName || agentName || 'Nhân viên',
+              readAt: new Date(),
+            },
+          });
+        }
+      } catch (markReadErr) {
+        console.warn('Failed to mark previous customer messages as read on agent send:', markReadErr);
+      }
+
       if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
         const existingCust = await prisma.customer.findUnique({
           where: { id: matchedCustomerId },
@@ -264,6 +296,12 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 
     // Broadcast instant real-time event
     realtimeHub.broadcast('message:new', newMsg);
+    realtimeHub.broadcast('message:read', {
+      customerId: matchedCustomerId || resolvedCustomerId,
+      customerPhone: resolvedCustomerPhone,
+      readBy: authenticatedAgentName || agentName || 'Nhân viên',
+      readAt: new Date().toISOString(),
+    });
 
     // Khi nhân viên gửi tin nhắn từ CRM: Tự động tạm dừng AI trong 30 phút để nhân viên chăm sóc
     // Sau 30 phút nếu nhân viên không gửi thêm tin nhắn nào, AI sẽ tự động hoạt động trở lại

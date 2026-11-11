@@ -180,13 +180,26 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     return map;
   }, [customers, centralMessages, businessPhones]);
 
-  const hasUnreadMessage = (customer: Customer) => centralMessages.some((message) =>
-    message.sender === 'customer' && !message.isRead && (
-      message.customerId === customer.id ||
-      message.recipientId === customer.whatsappRecipientId ||
-      isSamePhoneNumber(message.customerPhone, customer.phone)
-    )
-  );
+  const hasUnreadMessage = (customer: Customer) => {
+    let latestMsg: CentralMessage | null = null;
+    for (let i = centralMessages.length - 1; i >= 0; i--) {
+      const message = centralMessages[i];
+      if (
+        message.customerId === customer.id ||
+        (customer.whatsappRecipientId && message.recipientId === customer.whatsappRecipientId) ||
+        (customer.phone && isSamePhoneNumber(message.customerPhone, customer.phone))
+      ) {
+        latestMsg = message;
+        break;
+      }
+    }
+    // Một hội thoại chỉ tính là cần xử lý khi tin nhắn cuối cùng (hoặc tin nhắn mới nhất)
+    // là của khách, chưa có phản hồi từ nhân viên VÀ trong vòng 24 giờ.
+    if (!latestMsg || latestMsg.sender !== 'customer') return false;
+    const isOlderThan24h =
+      Date.now() - new Date(latestMsg.timestamp).getTime() > 24 * 60 * 60 * 1000;
+    return !isOlderThan24h;
+  };
 
   const matchesWorkQueue = (customer: Customer, filter: WorkQueueFilter) => {
     if (filter === 'new') return getCustomerGroup(customer) === 'group_1';

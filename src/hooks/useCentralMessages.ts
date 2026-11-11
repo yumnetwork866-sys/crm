@@ -330,6 +330,7 @@ export function useCentralMessages({
     void queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
     void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
     void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadTotals });
+    void queryClient.invalidateQueries({ queryKey: ['customers'] });
   }, [conversationsQueryKey, queryClient, unreadSummaryQueryKey]);
 
   const selectCustomerThread = useCallback(
@@ -398,38 +399,31 @@ export function useCentralMessages({
 
             if (matchIdx >= 0) {
               const target = convs[matchIdx];
-              const shouldIncrementUnread =
-                enrichedMessage.sender === 'customer' &&
-                !wasKnown &&
-                !enrichedMessage.isRead;
+              const isCustomerMsg = enrichedMessage.sender === 'customer';
+              const shouldIncrementUnread = isCustomerMsg && !wasKnown;
               const updatedConv: ConversationSummary = {
                 ...target,
                 customerName: enrichedMessage.customerName || target.customerName,
                 customerPhone: enrichedMessage.customerPhone || target.customerPhone,
-                // The server is the source of truth for clearing this count after a reply.
-                // Keeping the current count here prevents a stale refetch from making the
-                // badge disappear and then reappear.
-                unreadCount: target.unreadCount + (shouldIncrementUnread ? 1 : 0),
-                lastCustomerMessageAt:
-                  enrichedMessage.sender === 'customer'
-                    ? enrichedMessage.timestamp
-                    : target.lastCustomerMessageAt,
+                unreadCount: isCustomerMsg
+                  ? target.unreadCount + (shouldIncrementUnread ? 1 : 0)
+                  : 0,
+                lastCustomerMessageAt: isCustomerMsg
+                  ? enrichedMessage.timestamp
+                  : target.lastCustomerMessageAt,
                 lastMessage: enrichedMessage,
               };
               const remaining = convs.filter((_, idx) => idx !== matchIdx);
               return [updatedConv, ...remaining];
             }
 
+            const isCustomerMsg = enrichedMessage.sender === 'customer';
             const newConv: ConversationSummary = {
               customerId: enrichedMessage.customerId,
               customerName: enrichedMessage.customerName || 'Khách Hàng',
               customerPhone: enrichedMessage.customerPhone || '',
-              unreadCount:
-                enrichedMessage.sender === 'customer' && !enrichedMessage.isRead
-                  ? 1
-                  : 0,
-              lastCustomerMessageAt:
-                enrichedMessage.sender === 'customer' ? enrichedMessage.timestamp : null,
+              unreadCount: isCustomerMsg ? 1 : 0,
+              lastCustomerMessageAt: isCustomerMsg ? enrichedMessage.timestamp : null,
               lastMessage: enrichedMessage,
             };
             return [newConv, ...convs];
@@ -491,6 +485,7 @@ export function useCentralMessages({
               if (!matches) return conv;
               return {
                 ...conv,
+                unreadCount: 0,
                 lastMessage: {
                   ...conv.lastMessage,
                   isRead: true,
@@ -778,7 +773,7 @@ export function useCentralMessages({
             ...existing,
             customerName: temporaryMessage.customerName || existing.customerName,
             customerPhone: temporaryMessage.customerPhone || existing.customerPhone,
-            unreadCount: existing.unreadCount,
+            unreadCount: 0,
             lastMessage: temporaryMessage,
           };
           const remaining = convs.filter((_, idx) => idx !== matchIdx);
@@ -827,9 +822,7 @@ export function useCentralMessages({
               conv.lastMessage.id === resolvedSentMsg.id
                 ? {
                     ...conv,
-                    // Wait for the canonical conversation query to confirm the reply before
-                    // clearing the badge. This avoids an optimistic-update/refetch race.
-                    unreadCount: conv.unreadCount,
+                    unreadCount: 0,
                     lastMessage: resolvedSentMsg,
                   }
                 : conv
@@ -840,6 +833,7 @@ export function useCentralMessages({
               message.id === temporaryMessage.id ? resolvedSentMsg : message
             )
           );
+          invalidateUnreadCounts();
         }
       } catch (sendErr: any) {
         console.warn('Lỗi khi gửi tin nhắn:', sendErr);

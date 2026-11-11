@@ -155,7 +155,7 @@ export function buildMessageThreads({
           message.customerPhone || customer?.phone || (cleanPhone ? `+${cleanPhone}` : ''),
         lastMessage: message,
         lastCustomerMessageAt: message.sender === 'customer' ? message.timestamp : null,
-        unreadCount: !message.isRead && message.sender === 'customer' ? 1 : 0,
+        unreadCount: message.sender === 'customer' ? 1 : 0,
         messages: [message],
         isPinned: pinnedThreadIds.includes(threadKey),
       });
@@ -194,13 +194,6 @@ export function buildMessageThreads({
     ) {
       existing.customerName = customer.name;
     }
-    if (
-      !threadsFromConversations.has(threadKey) &&
-      !message.isRead &&
-      message.sender === 'customer'
-    ) {
-      existing.unreadCount += 1;
-    }
   });
 
   map.forEach((thread) => {
@@ -210,6 +203,19 @@ export function buildMessageThreads({
           new Date(first.timestamp).getTime() - new Date(second.timestamp).getTime()
       );
       thread.lastMessage = thread.messages[thread.messages.length - 1] || thread.lastMessage;
+    }
+
+    // Một hội thoại chỉ tính là cần xử lý khi tin nhắn cuối cùng (hoặc tin nhắn mới nhất)
+    // là của khách, chưa có phản hồi từ nhân viên và trong vòng 24 giờ.
+    // Nếu tin nhắn mới nhất là của agent (nhân viên đã rep) -> unreadCount luôn bằng 0.
+    if (thread.lastMessage?.sender === 'agent') {
+      thread.unreadCount = 0;
+    } else if (!threadsFromConversations.has(thread.threadId) && thread.lastMessage?.timestamp) {
+      const isOlderThan24h =
+        Date.now() - new Date(thread.lastMessage.timestamp).getTime() > 24 * 60 * 60 * 1000;
+      if (isOlderThan24h) {
+        thread.unreadCount = 0;
+      }
     }
   });
 

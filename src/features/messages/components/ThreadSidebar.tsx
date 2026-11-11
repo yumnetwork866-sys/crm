@@ -135,7 +135,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
 
   const filterOptions = [
     { id: 'all', label: `Tất cả (${threads.length})` },
-    { id: 'unread', label: `Chưa đọc (${threads.reduce((sum, thread) => sum + thread.unreadCount, 0)})` },
+    { id: 'unread', label: `Chưa đọc (${threads.filter((thread) => thread.unreadCount > 0).length})` },
     { id: 'vip', label: 'Khách VIP' },
     { id: 'repeat', label: 'Đã mua 1 lần' },
     { id: 'new', label: 'Khách mới' },

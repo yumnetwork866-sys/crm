@@ -322,6 +322,7 @@ export async function getConversations(req: Request, res: Response) {
           MAX("customerId") as customer_id,
           COUNT(*) FILTER (
             WHERE "sender" = 'customer'
+              AND "timestamp" >= NOW() - INTERVAL '24 hours'
               AND (last_agent_reply_at IS NULL OR "timestamp" > last_agent_reply_at)
           ) as unread_count,
           MAX("timestamp") FILTER (WHERE "sender" = 'customer') as last_customer_msg_at
@@ -334,7 +335,11 @@ export async function getConversations(req: Request, res: Response) {
         rm."customerPhone",
         rm."recipientId",
         rm."businessPhoneNumberId",
-        COALESCE(us.unread_count, 0) as "unreadCount",
+        CASE
+          WHEN rm."sender" = 'agent' THEN 0
+          WHEN rm."timestamp" < NOW() - INTERVAL '24 hours' THEN 0
+          ELSE GREATEST(1, COALESCE(us.unread_count, 1))
+        END as "unreadCount",
         us.last_customer_msg_at as "lastCustomerMessageAt",
         rm."id" as "lastMsgId",
         rm."content" as "lastMsgContent",
@@ -428,6 +433,12 @@ export async function getUnreadMessageSummary(_req: Request, res: Response) {
             "businessPhoneNumberId",
             "sender",
             "timestamp",
+            COALESCE(
+              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
+              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+              NULLIF("customerId", ''),
+              "id"
+            ) as thread_key,
             MAX("timestamp") FILTER (
               WHERE "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed'
             ) OVER (
@@ -437,13 +448,24 @@ export async function getUnreadMessageSummary(_req: Request, res: Response) {
                 NULLIF("customerId", ''),
                 "id"
               )
-            ) as last_agent_reply_at
+            ) as last_agent_reply_at,
+            ROW_NUMBER() OVER (
+              PARTITION BY "businessPhoneNumberId", COALESCE(
+                NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
+                NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
+                NULLIF("customerId", ''),
+                "id"
+              )
+              ORDER BY "timestamp" DESC, "id" DESC
+            ) as rn
           FROM "WhatsAppMessage"
         )
         SELECT
           "businessPhoneNumberId" as "phoneNumberId",
-          COUNT(*) FILTER (
-            WHERE "sender" = 'customer'
+          COUNT(DISTINCT thread_key) FILTER (
+            WHERE rn = 1
+              AND "sender" = 'customer'
+              AND "timestamp" >= NOW() - INTERVAL '24 hours'
               AND (last_agent_reply_at IS NULL OR "timestamp" > last_agent_reply_at)
           ) as "unreadCount"
         FROM ReplyStats
