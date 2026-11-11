@@ -16,6 +16,7 @@ import uploadRoutes from './routes/uploadRoutes';
 import uploadFileRoutes from './routes/uploadFileRoutes';
 import permissionRoutes from './routes/permissions';
 import marketingReportRoutes from './routes/marketingReports';
+import reportRoutes from './routes/reports';
 import catalogRoutes from './routes/catalogRoutes';
 import aiProfileRoutes from './routes/aiProfile';
 import { processRecipientById, startCampaignWorker } from './services/campaignWorker';
@@ -196,6 +197,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/automation-steps', automationStepRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/reports/marketing', marketingReportRoutes);
+app.use('/api/reports', reportRoutes);
 
 const httpServer = http.createServer(app);
 

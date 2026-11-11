@@ -103,7 +103,7 @@ export default function App() {
   const routeSegment = location.pathname.replace(/^\//, '').split('/')[0];
   const shouldLoadCustomers = ['crm', 'orders', 'segmentation', 'automation', 'reports', 'messages'].includes(routeSegment);
   const shouldLoadProducts = ['crm', 'orders', 'catalog', 'products', 'automation', 'messages', 'meta-verification'].includes(routeSegment);
-  const shouldLoadCampaigns = routeSegment === 'automation' || routeSegment === 'reports';
+  const shouldLoadCampaigns = routeSegment === 'automation';
   const shouldLoadReports = routeSegment === 'reports';
   const shouldLoadFullMessages = routeSegment === 'crm' || routeSegment === 'messages';
 
@@ -549,10 +549,7 @@ export default function App() {
             <Route
               path="/reports"
               element={
-                <ReportsDashboard
-                  customers={customers}
-                  campaigns={campaigns}
-                />
+                <ReportsDashboard customers={customers} />
               }
             />
             <Route

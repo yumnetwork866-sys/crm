@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import type { Customer, BroadcastCampaign } from '../../types';
+import type { Customer } from '../../types';
 import { SalesReport } from './SalesReport';
 import { WhatsAppReport } from './WhatsAppReport';
 import { CrmMetricsReport } from './CrmMetricsReport';
+import { useWhatsAppReport } from '../../hooks/useWhatsAppReport';
 import {
   DollarSign,
   MessageSquare,
@@ -11,13 +12,9 @@ import {
 
 interface ReportsDashboardProps {
   customers: Customer[];
-  campaigns: BroadcastCampaign[];
 }
 
-export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
-  customers,
-  campaigns,
-}) => {
+export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({ customers }) => {
   const [subTab, setSubTab] = useState<'sales' | 'whatsapp' | 'crm'>('sales');
 
   // Date Filter States
@@ -69,14 +66,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     });
   }, [customers, startDate, endDate]);
 
-  // Filtered Broadcast Campaigns based on date range
-  const filteredCampaigns = useMemo(() => {
-    if (!startDate && !endDate) return campaigns;
-    return campaigns.filter((camp) => {
-      const cDate = camp.createdAt ? camp.createdAt.slice(0, 10) : '';
-      return (!startDate || cDate >= startDate) && (!endDate || cDate <= endDate);
-    });
-  }, [campaigns, startDate, endDate]);
+  const { stats: whatsappStats, isLoading: isWhatsappLoading } = useWhatsAppReport(startDate, endDate);
 
   return (
     <div className="space-y-6">
@@ -181,7 +171,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       )}
 
       {subTab === 'whatsapp' && (
-        <WhatsAppReport customers={filteredCustomers} campaigns={filteredCampaigns} />
+        <WhatsAppReport stats={whatsappStats} isLoading={isWhatsappLoading} />
       )}
 
       {subTab === 'crm' && (

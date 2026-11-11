@@ -22,6 +22,7 @@ export const queryKeys = {
     ['meta-catalog-products', scopeId, phoneNumberId, catalogId] as const,
   aiProfile: ['ai-profile'] as const,
   marketingReports: ['marketing-reports'] as const,
+  whatsappReport: (start = '', end = '') => ['whatsapp-report', start, end] as const,
 };
 
 export const queryClient = new QueryClient({

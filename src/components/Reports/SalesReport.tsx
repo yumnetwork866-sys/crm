@@ -22,9 +22,9 @@ export const SalesReport: React.FC<SalesReportProps> = ({ customers, dateRange }
         const od = (o.date || '').slice(0, 10);
         return (!dateRange?.start || od >= dateRange.start) && (!dateRange?.end || od <= dateRange.end);
       });
-      if (inRangeOrders.length === (c.orders || []).length) return c;
       return {
         ...c,
+        orders: inRangeOrders,
         totalOrders: inRangeOrders.length,
         totalSpent: inRangeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
       };

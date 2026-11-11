@@ -1,7 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import type { Customer, CustomerOrder, Product } from '../../types';
-import { formatDate, formatVND } from '../../utils/crmUtils';
-import { ImportOrderCsvModal } from '../CsvImport/ImportOrderCsvModal';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ShoppingBag,
   Plus,
@@ -20,8 +17,175 @@ import {
   DollarSign,
   Phone,
   Sparkles,
-  Upload
+  Upload,
+  ChevronDown
 } from 'lucide-react';
+import type { Customer, CustomerOrder, Product } from '../../types';
+import { formatDate, formatVND } from '../../utils/crmUtils';
+import { ImportOrderCsvModal } from '../CsvImport/ImportOrderCsvModal';
+
+interface ProductSelectDropdownProps {
+  value: string;
+  products: Product[];
+  onChange: (productId: string) => void;
+}
+
+const ProductSelectDropdown: React.FC<ProductSelectDropdownProps> = ({
+  value,
+  products,
+  onChange,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedProduct = products.find((p) => p.id === value) || products[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const filteredProducts = useMemo(() => {
+    if (!search.trim()) return products;
+    const term = search.toLowerCase().trim();
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        (p.code && p.code.toLowerCase().includes(term))
+    );
+  }, [products, search]);
+
+  return (
+    <div className="relative flex-1 min-w-0" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition text-left cursor-pointer"
+        title="Nhấp để chọn sản phẩm"
+      >
+        <span className="truncate mr-2 font-medium">
+          {selectedProduct
+            ? `${selectedProduct.name} - ${formatVND(selectedProduct.price)}`
+            : 'Chọn sản phẩm...'}
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col">
+          {products.length > 5 && (
+            <div className="p-2 border-b border-slate-800 bg-slate-950">
+              <div className="relative flex items-center">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Tìm sản phẩm..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-7 pr-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-y-auto max-h-56 py-1 divide-y divide-slate-800/40">
+            {filteredProducts.map((p) => {
+              const isSelected = p.id === value;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(p.id);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition cursor-pointer hover:bg-indigo-600/20 ${
+                    isSelected
+                      ? 'bg-indigo-600/25 text-indigo-300 font-semibold'
+                      : 'text-slate-200'
+                  }`}
+                >
+                  <span className="truncate pr-2">{p.name}</span>
+                  <span className="shrink-0 text-emerald-400 font-bold ml-2">
+                    {formatVND(p.price)}
+                  </span>
+                </button>
+              );
+            })}
+            {filteredProducts.length === 0 && (
+              <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                Không tìm thấy sản phẩm
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ProductItemRow = React.memo<{
+  item: { productId: string; productName: string; quantity: number; price: number };
+  products: Product[];
+  onProductChange: (index: number, productId: string) => void;
+  onQuantityChange: (index: number, quantity: number) => void;
+  onRemove: (index: number) => void;
+  index: number;
+}>(({ item, products, onProductChange, onQuantityChange, onRemove, index }) => (
+  <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+    <ProductSelectDropdown
+      value={item.productId}
+      products={products}
+      onChange={(productId) => onProductChange(index, productId)}
+    />
+
+    <input
+      type="number"
+      min="1"
+      value={item.quantity}
+      onChange={(e) => onQuantityChange(index, Math.max(1, parseInt(e.target.value, 10) || 1))}
+      className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none shrink-0"
+    />
+
+    <div className="w-24 text-right font-bold text-emerald-400 text-xs shrink-0">
+      {formatVND(item.price * item.quantity)}
+    </div>
+
+    <button
+      type="button"
+      onClick={() => onRemove(index)}
+      className="p-1.5 text-slate-900 dark:text-rose-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/40 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg transition shrink-0 cursor-pointer"
+      title="Xóa dòng sản phẩm"
+    >
+      <Trash2 className="w-4 h-4 text-slate-900 dark:text-rose-400" />
+    </button>
+  </div>
+));
+ProductItemRow.displayName = 'ProductItemRow';
 
 interface OrderManagementViewProps {
   customers: Customer[];
@@ -64,6 +228,9 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
     },
   ]);
   const [orderNotes, setOrderNotes] = useState('');
+
+  const productsRef = useRef(products);
+  productsRef.current = products;
 
   // Modal init state captured trước khi products tải xong → productId "prd_001" không tồn tại
   // trong danh sách làm select bị trống; tự sửa lại dòng item khi mở modal/products sẵn sàng
@@ -129,24 +296,8 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
     ]);
   };
 
-  const handleRemoveItemRow = (index: number) => {
-    if (orderItems.length > 1) {
-      setOrderItems((prev) => prev.filter((_, i) => i !== index));
-    } else {
-      const firstPrd = products[0];
-      setOrderItems([
-        {
-          productId: firstPrd ? firstPrd.id : 'prd_001',
-          productName: firstPrd ? firstPrd.name : 'Sản Phẩm Mới',
-          quantity: 1,
-          price: firstPrd ? firstPrd.price : 500000,
-        },
-      ]);
-    }
-  };
-
-  const handleProductChange = (index: number, prdId: string) => {
-    const found = products.find((p) => p.id === prdId);
+  const handleProductChange = useCallback((index: number, prdId: string) => {
+    const found = productsRef.current.find((p) => p.id === prdId);
     if (!found) return;
     setOrderItems((prev) =>
       prev.map((item, i) => {
@@ -161,7 +312,30 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
         return item;
       })
     );
-  };
+  }, []);
+
+  const handleQuantityChange = useCallback((index: number, quantity: number) => {
+    setOrderItems((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, quantity } : it))
+    );
+  }, []);
+
+  const handleRemoveItemRow = useCallback((index: number) => {
+    setOrderItems((prev) => {
+      if (prev.length > 1) {
+        return prev.filter((_, i) => i !== index);
+      }
+      const firstPrd = productsRef.current[0];
+      return [
+        {
+          productId: firstPrd ? firstPrd.id : 'prd_001',
+          productName: firstPrd ? firstPrd.name : 'Sản Phẩm Mới',
+          quantity: 1,
+          price: firstPrd ? firstPrd.price : 500000,
+        },
+      ];
+    });
+  }, []);
 
   const calculateTotalOrderAmount = () => {
     return orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -564,48 +738,15 @@ export const OrderManagementView: React.FC<OrderManagementViewProps> = ({
 
                 <div className="space-y-2">
                   {orderItems.map((item, index) => (
-                    <div
+                    <ProductItemRow
                       key={index}
-                      className="flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-800"
-                    >
-                      <select
-                        value={item.productId}
-                        onChange={(e) => handleProductChange(index, e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
-                      >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} - {formatVND(p.price)}
-                          </option>
-                        ))}
-                      </select>
-
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => {
-                          const q = parseInt(e.target.value) || 1;
-                          setOrderItems((prev) =>
-                            prev.map((it, i) => (i === index ? { ...it, quantity: q } : it))
-                          );
-                        }}
-                        className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none"
-                      />
-
-                      <div className="w-24 text-right font-bold text-emerald-400 text-xs">
-                        {formatVND(item.price * item.quantity)}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItemRow(index)}
-                        className="p-1.5 text-slate-900 dark:text-rose-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-950/40 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg transition shrink-0 cursor-pointer"
-                        title="Xóa dòng sản phẩm"
-                      >
-                        <Trash2 className="w-4 h-4 text-slate-900 dark:text-rose-400" />
-                      </button>
-                    </div>
+                      index={index}
+                      item={item}
+                      products={products}
+                      onProductChange={handleProductChange}
+                      onQuantityChange={handleQuantityChange}
+                      onRemove={handleRemoveItemRow}
+                    />
                   ))}
                 </div>
               </div>
