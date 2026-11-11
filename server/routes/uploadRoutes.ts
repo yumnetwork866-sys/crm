@@ -5,6 +5,9 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken } from '../middleware/authMiddleware';
 import { hasPermission, Permission } from '../auth/permissions';
 import { saveUploadedFile, publicFileUrl } from '../services/fileStorage.service';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('uploadRoutes');
 
 const router = Router();
 
@@ -98,7 +101,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     const publicUrl = publicFileUrl(cleanFolder, filename);
 
-    console.log(`[STORAGE] Uploaded file to database: ${publicUrl} (${buffer.length} bytes) by user: ${req.user?.email || 'unknown'}`);
+    log.info(`[STORAGE] Uploaded file to database: ${publicUrl} (${buffer.length} bytes) by user: ${req.user?.email || 'unknown'}`);
 
     return res.json({
       success: true,
@@ -108,7 +111,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       mimeType,
     });
   } catch (err: any) {
-    console.error('[STORAGE ERROR] Failed to save image:', err);
+    log.error({ err: err }, '[STORAGE ERROR] Failed to save image:');
     return res.status(500).json({ success: false, error: err.message || 'Lỗi khi lưu ảnh vào máy chủ.' });
   }
 });

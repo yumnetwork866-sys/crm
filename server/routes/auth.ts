@@ -39,6 +39,9 @@ const registerSchema = z.object({
 
 import dotenv from 'dotenv';
 import { normalizePhoneE164 } from '../utils/phone';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('auth');
 
 async function serializeUser(user: User) {
   const { password: _password, permissionAllow, permissionDeny, ...safeUser } = user;
@@ -96,7 +99,7 @@ export async function ensureAdminUser(): Promise<void> {
           status: 'active'
         }
       });
-      console.log(`[Auth] Đã tự động tạo tài khoản Admin từ .env (${adminEmail})`);
+      log.info(`[Auth] Đã tự động tạo tài khoản Admin từ .env (${adminEmail})`);
     } else {
       const isMatch = await bcrypt.compare(adminPassword, existing.password);
       if (!isMatch || existing.role !== 'Admin' || existing.status !== 'active' || existing.email !== adminEmail) {
@@ -109,11 +112,11 @@ export async function ensureAdminUser(): Promise<void> {
             status: 'active'
           }
         });
-        console.log(`[Auth] Đã đồng bộ tài khoản Admin từ .env (${adminEmail})`);
+        log.info(`[Auth] Đã đồng bộ tài khoản Admin từ .env (${adminEmail})`);
       }
     }
   } catch (err) {
-    console.warn('[Auth] Không thể đồng bộ tài khoản Admin từ .env:', err);
+    log.warn({ err: err }, '[Auth] Không thể đồng bộ tài khoản Admin từ .env:');
   }
 }
 
@@ -209,7 +212,7 @@ router.post('/login', async (req: Request, res: Response) => {
       user: await serializeUser(user)
     });
   } catch (error) {
-    console.error('Lỗi khi đăng nhập:', error);
+    log.error({ err: error }, 'Lỗi khi đăng nhập:');
     return res.status(500).json({ error: 'Lỗi hệ thống khi đăng nhập.' });
   }
 });
@@ -256,7 +259,7 @@ router.post('/register', authenticateToken, requirePermission(Permission.USERS_M
       user: await serializeUser(newUser)
     });
   } catch (error) {
-    console.error('Lỗi khi đăng ký:', error);
+    log.error({ err: error }, 'Lỗi khi đăng ký:');
     return res.status(500).json({ error: 'Lỗi hệ thống khi đăng ký.' });
   }
 });
@@ -314,7 +317,7 @@ router.post('/change-password', authenticateToken, async (req: AuthenticatedRequ
 
     return res.json({ message: 'Đổi mật khẩu thành công!' });
   } catch (error) {
-    console.error('Lỗi khi đổi mật khẩu:', error);
+    log.error({ err: error }, 'Lỗi khi đổi mật khẩu:');
     return res.status(500).json({ error: 'Lỗi hệ thống khi đổi mật khẩu.' });
   }
 });
@@ -349,7 +352,7 @@ router.post('/change-avatar', authenticateToken, async (req: AuthenticatedReques
       user: await serializeUser(updatedUser)
     });
   } catch (error) {
-    console.error('Lỗi khi đổi ảnh đại diện:', error);
+    log.error({ err: error }, 'Lỗi khi đổi ảnh đại diện:');
     return res.status(500).json({ error: 'Lỗi hệ thống khi đổi ảnh đại diện.' });
   }
 });

@@ -12,6 +12,9 @@ import { normalizeMetaRecipient } from '../utils/metaRecipient';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('ai');
 
 interface DifyChatResponse {
   answer: string;
@@ -41,7 +44,7 @@ export function getDifyConfig() {
         }
       }
     } catch (e) {
-      console.warn('[Dify AI] Không thể đọc động file .env:', e);
+      log.warn({ err: e }, '[Dify AI] Không thể đọc động file .env:');
     }
   }
 
@@ -88,9 +91,9 @@ export function pauseAiForCustomer(phone: string, durationMinutes = 0) {
   const until = durationMinutes > 0 ? Date.now() + durationMinutes * 60 * 1000 : Number.MAX_SAFE_INTEGER;
   customerAiPausedUntil.set(cleanPhone, until);
   if (durationMinutes > 0) {
-    console.log(`[Dify AI] Tạm dừng AI cho khách ${cleanPhone} trong ${durationMinutes} phút (đến ${new Date(until).toLocaleTimeString('vi-VN')})`);
+    log.info(`[Dify AI] Tạm dừng AI cho khách ${cleanPhone} trong ${durationMinutes} phút (đến ${new Date(until).toLocaleTimeString('vi-VN')})`);
   } else {
-    console.log(`[Dify AI] Tắt AI cho khách ${cleanPhone} cho đến khi bấm Bật lại trên CRM`);
+    log.info(`[Dify AI] Tắt AI cho khách ${cleanPhone} cho đến khi bấm Bật lại trên CRM`);
   }
 }
 
@@ -100,7 +103,7 @@ export function pauseAiForCustomer(phone: string, durationMinutes = 0) {
 export function resumeAiForCustomer(phone: string) {
   const cleanPhone = phone.replace(/\D/g, '');
   customerAiPausedUntil.delete(cleanPhone);
-  console.log(`[Dify AI] Đã bật lại AI cho khách ${cleanPhone}`);
+  log.info(`[Dify AI] Đã bật lại AI cho khách ${cleanPhone}`);
 }
 
 export function resolveBrandName(rawBrand?: string): string {
@@ -326,7 +329,7 @@ export async function askDify(
 
   try {
     const endpoint = `${config.apiUrl}/chat-messages`;
-    console.log(`[Dify API] Gửi câu hỏi của khách (${cleanPhone} - ${countryProfile.countryName}) [Brand: ${finalBrandName}] sang Dify: "${query.slice(0, 80)}..."`);
+    log.debug({ country: countryProfile.countryName, brand: finalBrandName }, 'Calling Dify');
 
     // Gắn chỉ thị ngôn ngữ tự động vào câu hỏi dựa trên quốc gia của đầu số điện thoại
     const contextualQuery = `[Ngữ cảnh: ${countryProfile.instruction}]: ${query.trim()}`;
@@ -355,7 +358,7 @@ export async function askDify(
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
-      console.warn(`[Dify API Warn] Dify phản hồi lỗi HTTP ${response.status}:`, errText);
+      log.warn({ err: errText }, `[Dify API Warn] Dify phản hồi lỗi HTTP ${response.status}:`);
       return null;
     }
 
@@ -373,9 +376,9 @@ export async function askDify(
   } catch (error: any) {
     clearTimeout(timeoutTimer);
     if (error?.name === 'AbortError') {
-      console.warn(`[Dify API Timeout] Quá thời gian chờ (${config.timeoutMs}ms) khi gọi Dify RAG.`);
+      log.warn(`[Dify API Timeout] Quá thời gian chờ (${config.timeoutMs}ms) khi gọi Dify RAG.`);
     } else {
-      console.error('[Dify API Error] Lỗi khi kết nối Dify:', error?.message || error);
+      log.error({ err: error }, '[Dify API Error] Lỗi khi kết nối Dify:');
     }
     return null;
   }
@@ -481,7 +484,7 @@ export async function autoReplyWithDify(params: {
     incomingText.includes('Continue setting up your account') ||
     incomingText.includes('Setup guidance')
   ) {
-    console.log(`[Dify AI] Bỏ qua tin nhắn hệ thống từ WhatsApp Business (${fromPhone}).`);
+    log.debug('System message skipped');
     return false;
   }
 
@@ -511,15 +514,15 @@ export async function autoReplyWithDify(params: {
     if (isAngryOrComplaining) {
       answer = handoverMsgs.angry;
       shouldPauseAfterReply = true;
-      console.log(`[Dify AI] Khách tức giận/khiếu nại (${fromPhone}): Kích hoạt phản hồi xoa dịu theo ngôn ngữ bản địa.`);
+      log.info(`[Dify AI] Khách tức giận/khiếu nại (${fromPhone}): Kích hoạt phản hồi xoa dịu theo ngôn ngữ bản địa.`);
     } else if (isDemandingHuman) {
       answer = handoverMsgs.human;
       shouldPauseAfterReply = true;
-      console.log(`[Dify AI] Khách yêu cầu gặp người thật (${fromPhone}): Kích hoạt phản hồi chuyển giao theo ngôn ngữ bản địa.`);
+      log.info(`[Dify AI] Khách yêu cầu gặp người thật (${fromPhone}): Kích hoạt phản hồi chuyển giao theo ngôn ngữ bản địa.`);
     } else if (isExplicitCustomerOptOut) {
       answer = handoverMsgs.optOut;
       shouldPauseAfterReply = true;
-      console.log(`[Dify AI] Khách yêu cầu dừng bot (${fromPhone}): Tạm dừng bot.`);
+      log.info(`[Dify AI] Khách yêu cầu dừng bot (${fromPhone}): Tạm dừng bot.`);
     } else {
       // 3. Normal question: Query Dify RAG with dynamic brand name
       const rawAnswer = await askDify(trimmed, fromPhone, brandName);
@@ -558,7 +561,7 @@ export async function autoReplyWithDify(params: {
         isRealSent = dispatchRes.isRealSent;
         metaSentId = dispatchRes.metaResult?.messages?.[0]?.id || null;
       } catch (dispatchErr) {
-        console.error('[Dify AI] Lỗi gửi tin nhắn WhatsApp phản hồi:', dispatchErr);
+        log.error({ err: dispatchErr }, '[Dify AI] Lỗi gửi tin nhắn WhatsApp phản hồi:');
       }
     }
 
@@ -566,7 +569,7 @@ export async function autoReplyWithDify(params: {
     if (shouldPauseAfterReply) {
       pauseAiForCustomer(fromPhone, 0);
       realtimeHub.broadcast('ai:status', { phone: fromPhone, isAiActive: false });
-      console.log(`[Dify AI] Đã tắt AI tự động cho khách ${fromPhone} (khách muốn gặp người / tức giận / chuyển giao). Chờ nhân viên bật lại trên CRM.`);
+      log.info(`[Dify AI] Đã tắt AI tự động cho khách ${fromPhone} (khách muốn gặp người / tức giận / chuyển giao). Chờ nhân viên bật lại trên CRM.`);
     }
 
     // 5. Create message payload for CRM UI & Database
@@ -634,15 +637,15 @@ export async function autoReplyWithDify(params: {
         }).catch(() => {});
       }
     } catch (dbErr: any) {
-      console.warn('[Dify AI] Không lưu được tin AI vào DB:', dbErr?.message || dbErr);
+      log.warn({ err: dbErr }, '[Dify AI] Không lưu được tin AI vào DB:');
     }
 
     // 7. Broadcast realtime update to CRM UI
     realtimeHub.broadcast('message:new', aiMsg);
-    console.log(`[Dify AI Auto-reply] Đã trả lời tự động cho ${customerName} (${fromPhone}): "${answer.slice(0, 80)}..."`);
+    log.info({ customerId, wabaId: businessPhoneNumberId, incomingMessageId: incomingMsgId }, 'AI reply sent');
     return true;
   } catch (err) {
-    console.error('[Dify AI Auto-reply Error]', err);
+    log.error({ err: err }, '[Dify AI Auto-reply Error]');
     return false;
   }
 }
@@ -772,7 +775,7 @@ export async function generateConversationSummary(params: {
         }
       }
     } catch (err) {
-      console.warn('[Dify AI Summary] Bỏ qua lỗi Dify, dùng phân tích thông minh:', err);
+      log.warn({ err: err }, '[Dify AI Summary] Bỏ qua lỗi Dify, dùng phân tích thông minh:');
     }
   }
 
@@ -1000,7 +1003,7 @@ export async function generateReplySuggestions(params: {
         }
       }
     } catch (err) {
-      console.warn('[Dify AI Suggest Reply] Bỏ qua lỗi Dify, dùng gợi ý thông minh:', err);
+      log.warn({ err: err }, '[Dify AI Suggest Reply] Bỏ qua lỗi Dify, dùng gợi ý thông minh:');
     }
   }
 

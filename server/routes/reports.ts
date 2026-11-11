@@ -5,6 +5,9 @@ import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('reports');
 
 const router = Router();
 
@@ -103,7 +106,7 @@ router.get('/whatsapp', requirePermission(Permission.REPORTS_VIEW), async (req: 
       })),
     });
   } catch (error) {
-    console.error('[REPORTS] Lỗi khi lấy thống kê WhatsApp:', error);
+    log.error({ err: error }, '[REPORTS] Lỗi khi lấy thống kê WhatsApp:');
     return res.status(500).json({ error: 'Lỗi khi lấy thống kê WhatsApp' });
   }
 });

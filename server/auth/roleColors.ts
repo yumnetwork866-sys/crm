@@ -1,5 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { DEFAULT_ROLE_COLORS, FALLBACK_ROLE_COLOR } from '../../src/utils/roleColors';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('roleColors');
 
 export { DEFAULT_ROLE_COLORS, FALLBACK_ROLE_COLOR };
 
@@ -14,7 +17,7 @@ export async function getRoleColor(role: string): Promise<string> {
     });
     return resolveRoleColor(role, policy?.color);
   } catch (error) {
-    console.warn('[RoleColor] Không thể đọc màu vai trò, dùng màu mặc định:', error);
+    log.warn({ err: error }, '[RoleColor] Không thể đọc màu vai trò, dùng màu mặc định:');
     return resolveRoleColor(role);
   }
 }

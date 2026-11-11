@@ -5,6 +5,9 @@ import { authenticateToken, requirePermission, requireAnyPermission } from '../m
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { realtimeHub } from '../services/realtimeHub';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('aiProfile');
 
 const router = Router();
 router.use(authenticateToken);
@@ -26,7 +29,7 @@ router.get(
       });
       return res.json({ name: setting?.aiName || getDefaultAiName(), avatarUrl: setting?.aiAvatarUrl || null });
     } catch (error) {
-      console.error('[AI PROFILE GET ERROR]', error);
+      log.error({ err: error }, '[AI PROFILE GET ERROR]');
       return res.status(500).json({ error: 'Không thể tải hồ sơ AI.' });
     }
   },
@@ -62,7 +65,7 @@ router.put(
       realtimeHub.broadcast('ai:profile', profile);
       return res.json(profile);
     } catch (error) {
-      console.error('[AI PROFILE UPDATE ERROR]', error);
+      log.error({ err: error }, '[AI PROFILE UPDATE ERROR]');
       return res.status(503).json({
         error: 'Database chưa sẵn sàng. Vui lòng khởi động PostgreSQL và thử lại.',
       });

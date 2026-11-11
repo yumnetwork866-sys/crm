@@ -3,6 +3,9 @@ import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 import { prisma } from '../../lib/prisma';
 import { realtimeHub } from '../../services/realtimeHub';
 import { isMetaUserIdentifier } from '../../utils/metaRecipient';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('chatReadStatus');
 
 /**
  * Mark messages as read in DB with user attribution
@@ -63,7 +66,7 @@ export async function markMessagesAsRead(req: Request, res: Response) {
         });
       }
     } catch (dbErr) {
-      console.warn('DB mark read offline fallback:', dbErr);
+      log.warn({ err: dbErr }, 'DB mark read offline fallback:');
     }
 
     realtimeHub.broadcast('message:read', {
@@ -76,7 +79,7 @@ export async function markMessagesAsRead(req: Request, res: Response) {
 
     return res.json({ success: true, message: 'Đã đánh dấu đã đọc', readBy: reader, readAt: nowIso });
   } catch (err: any) {
-    console.error('Error in /messages/read:', err);
+    log.error({ err: err }, 'Error in /messages/read:');
     return res.status(500).json({ error: err.message || 'Lỗi cập nhật trạng thái đã đọc' });
   }
 }

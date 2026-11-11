@@ -5,6 +5,9 @@ import {
   getMetaCatalogAccessToken,
   getMetaAccessTokenForPhone,
 } from './metaApiClient';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('metaCatalogService');
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -287,7 +290,7 @@ export async function fetchMetaCatalogs(phoneNumberId?: string): Promise<{
       }
     }
   } catch (err) {
-    console.warn('[META CATALOG] Không thể lấy catalog theo /me/assigned_product_catalogs:', err);
+    log.warn({ err: err }, '[META CATALOG] Không thể lấy catalog theo /me/assigned_product_catalogs:');
   }
 
   // 2. Try fetching catalogs owned by the Business Account if businessId exists
@@ -311,7 +314,7 @@ export async function fetchMetaCatalogs(phoneNumberId?: string): Promise<{
         }
       }
     } catch (err) {
-      console.warn('[META CATALOG] Không thể lấy catalog theo businessId:', err);
+      log.warn({ err: err }, '[META CATALOG] Không thể lấy catalog theo businessId:');
     }
   }
 
@@ -350,7 +353,7 @@ export async function fetchMetaCatalogs(phoneNumberId?: string): Promise<{
         }
       }
     } catch (err) {
-      console.warn('[META CATALOG] Không thể lấy catalog theo businesses:', err);
+      log.warn({ err: err }, '[META CATALOG] Không thể lấy catalog theo businesses:');
     }
   }
 

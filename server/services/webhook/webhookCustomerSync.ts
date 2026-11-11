@@ -3,6 +3,9 @@ import { getIntegrationSetting } from '../metaApiClient';
 import { realtimeHub } from '../realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../../utils/phone';
 import { isMetaUserIdentifier, normalizeMetaRecipient } from '../../utils/metaRecipient';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('webhookCustomerSync');
 
 /**
  * Verifies webhook subscription request from Meta
@@ -18,14 +21,14 @@ export async function verifyWebhookChallenge(query: any): Promise<{ isValid: boo
     process.env.META_VERIFY_TOKEN,
   ].filter(Boolean).map((t) => String(t).trim());
 
-  console.log(`[META WEBHOOK VERIFY REQUEST] Received mode: "${mode}", token: "${token}"`);
+  log.debug({ mode }, 'Webhook verification received');
 
   if (mode === 'subscribe' && token && validTokens.includes(String(token).trim())) {
-    console.log('Meta Webhook Verified Successfully! Returning challenge:', challenge);
+    log.info('Webhook verified');
     return { isValid: true, challenge: String(challenge) };
   }
 
-  console.warn(`Meta Webhook Verification Failed. Expected Token: "${validTokens.join(' | ')}", Received Token: "${token}"`);
+  log.warn('Webhook verification failed');
   return { isValid: false };
 }
 
@@ -186,7 +189,7 @@ export async function matchCustomerByPhone(
         data: updateData
       }).catch(() => {});
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-activity', customerId: matchedCustomer.id });
-      console.log(`[WEBHOOK CUSTOMER MATCH] Matched incoming phone ${fromPhone} to CRM customer: ${matchedCustomer.name} (${matchedCustomer.id})`);
+      log.debug({ customerId: matchedCustomer.id }, 'Customer matched');
     } else if (cleanFrom.length >= 7 && e164Phone) {
       // Auto-create new customer in CRM so they immediately appear in the Customer page
       const defaultName = (senderName && !senderName.startsWith('Khách WhatsApp'))
@@ -213,11 +216,11 @@ export async function matchCustomerByPhone(
       matchedCustomerId = newCustomer.id;
       matchedCustomerName = newCustomer.name;
       isCrmCustomer = true;
-      console.log(`[WEBHOOK AUTO-CREATED CUSTOMER] Auto-created CRM customer ${newCustomer.name} (${newCustomer.id}) for phone ${e164Phone} from brand ${brandName || 'N/A'}`);
+      log.info({ customerId: newCustomer.id, brand: brandName }, 'Customer created');
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-auto-create', customerId: newCustomer.id });
     }
   } catch (lookupErr) {
-    console.warn('[WEBHOOK CUSTOMER LOOKUP ERROR]', lookupErr);
+    log.warn({ err: lookupErr }, '[WEBHOOK CUSTOMER LOOKUP ERROR]');
   }
 
   return { customerId: matchedCustomerId, customerName: matchedCustomerName, isCrmCustomer };
@@ -325,7 +328,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
       }
 
       if (syncedCount > 0) {
-        console.log(`[SYNC WHATSAPP TO CRM] Successfully provisioned ${syncedCount} customers from WhatsApp messages.`);
+        log.info(`[SYNC WHATSAPP TO CRM] Successfully provisioned ${syncedCount} customers from WhatsApp messages.`);
         realtimeHub.broadcast('customers:sync', { source: 'whatsapp-batch-sync' });
       }
     }
@@ -368,7 +371,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
     }
 
     if (brandUpdatedCount > 0) {
-      console.log(`[SYNC WHATSAPP BRAND] Backfilled brand names for ${brandUpdatedCount} WhatsApp customers.`);
+      log.info(`[SYNC WHATSAPP BRAND] Backfilled brand names for ${brandUpdatedCount} WhatsApp customers.`);
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-brand-reconcile' });
     }
 
@@ -407,7 +410,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
     }
 
     if (promotedCount > 0) {
-      console.log(`[SYNC WHATSAPP STATUS] Automatically promoted ${promotedCount} customers from 'New Lead' to 'Contacted' because replies were already sent.`);
+      log.info(`[SYNC WHATSAPP STATUS] Automatically promoted ${promotedCount} customers from 'New Lead' to 'Contacted' because replies were already sent.`);
       realtimeHub.broadcast('customers:sync', { source: 'whatsapp-status-reconcile' });
     }
 
@@ -458,7 +461,7 @@ export async function syncExistingWhatsAppCustomersToCrm(): Promise<number> {
 
     return syncedCount + promotedCount;
   } catch (err) {
-    console.warn('[SYNC WHATSAPP CUSTOMERS ERROR]', err);
+    log.warn({ err: err }, '[SYNC WHATSAPP CUSTOMERS ERROR]');
     return 0;
   }
 }

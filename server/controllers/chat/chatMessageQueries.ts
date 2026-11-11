@@ -9,6 +9,9 @@ import {
 } from '../../services/metaApiClient';
 import { fetchLinkPreview } from '../../services/linkPreviewService';
 import { isMetaUserIdentifier } from '../../utils/metaRecipient';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('chatMessageQueries');
 
 /**
  * Fetch WhatsApp messages with Cursor-based pagination & thread filtering
@@ -127,7 +130,7 @@ export async function getMessages(req: Request, res: Response) {
           ]
         });
       } catch (e) {
-        console.warn('DB query error in cursor-based messages:', e);
+        log.warn({ err: e }, 'DB query error in cursor-based messages:');
       }
 
       const hasMore = dbMsgs.length > limit;
@@ -170,7 +173,7 @@ export async function getMessages(req: Request, res: Response) {
 
     return res.json(formatted);
   } catch (error) {
-    console.error('Lỗi khi lấy tin nhắn:', error);
+    log.error({ err: error }, 'Lỗi khi lấy tin nhắn:');
     return res.status(500).json({ error: 'Không thể tải tin nhắn' });
   }
 }
@@ -191,7 +194,7 @@ export async function getMediaProxy(req: Request, res: Response) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(media.buffer);
   } catch (err: any) {
-    console.error('[META MEDIA PROXY ERROR]', err);
+    log.error({ err: err }, '[META MEDIA PROXY ERROR]');
     return res.status(500).json({ error: err.message || 'Media proxy failed' });
   }
 }
@@ -407,7 +410,7 @@ export async function getConversations(req: Request, res: Response) {
       count: conversations.length,
     });
   } catch (error) {
-    console.error('[CHAT CONTROLLER] getConversations error:', error);
+    log.error({ err: error }, '[CHAT CONTROLLER] getConversations error:');
     return res.status(500).json({ error: 'Không thể tải danh sách cuộc hội thoại.' });
   }
 }
@@ -462,7 +465,7 @@ export async function getUnreadMessageSummary(_req: Request, res: Response) {
       byPhone,
     });
   } catch (error) {
-    console.error('Error fetching global unread message summary:', error);
+    log.error({ err: error }, 'Error fetching global unread message summary:');
     return res.status(500).json({ error: 'Không thể lấy tổng số tin nhắn chưa đọc.' });
   }
 }
@@ -482,7 +485,7 @@ export async function getLinkPreview(req: Request, res: Response) {
     }
     return res.json(preview);
   } catch (err: any) {
-    console.warn('[LINK PREVIEW ERROR]', err?.message || err);
+    log.warn({ err: err }, '[LINK PREVIEW ERROR]');
     return res.status(500).json({ error: 'Lỗi khi lấy thông tin xem trước liên kết.' });
   }
 }

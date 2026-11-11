@@ -11,6 +11,9 @@ import { realtimeHub } from '../services/realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 import { isUnassignedOwnerInput, resolveCustomerOwnerId, serializeCustomer } from '../utils/customerOwner';
 import { buildCustomerWorkspaceWorkbook } from '../services/customerExcelExport';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('customers');
 
 const router = Router();
 
@@ -234,7 +237,7 @@ router.get('/', requirePermission(Permission.CUSTOMERS_VIEW), async (req: Authen
 
     return res.json(customers);
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách khách hàng:', error);
+    log.error({ err: error }, 'Lỗi khi lấy danh sách khách hàng:');
     return res.status(500).json({ error: 'Không thể tải danh sách khách hàng từ cơ sở dữ liệu' });
   }
 });
@@ -292,7 +295,7 @@ router.post('/export/excel', requirePermission(Permission.CUSTOMERS_EXPORT), asy
     res.setHeader('Content-Length', workbook.length.toString());
     return res.send(workbook);
   } catch (error) {
-    console.error('Lỗi khi xuất Excel khách hàng:', error);
+    log.error({ err: error }, 'Lỗi khi xuất Excel khách hàng:');
     return res.status(500).json({ error: 'Không thể tạo file Excel khách hàng.' });
   }
 });
@@ -401,7 +404,7 @@ router.post('/', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: Aut
 
     return res.status(201).json(serializeCustomer(newCustomer));
   } catch (error) {
-    console.error('Lỗi khi tạo khách hàng mới:', error);
+    log.error({ err: error }, 'Lỗi khi tạo khách hàng mới:');
     return res.status(500).json({ error: 'Không thể tạo khách hàng mới' });
   }
 });
@@ -542,7 +545,7 @@ router.post('/bulk', requirePermission(Permission.CUSTOMERS_MANAGE), async (req:
       skipped,
     });
   } catch (error) {
-    console.error('Lỗi nhập hàng loạt khách hàng:', error);
+    log.error({ err: error }, 'Lỗi nhập hàng loạt khách hàng:');
     return res.status(500).json({ error: 'Lỗi khi nhập hàng loạt khách hàng' });
   }
 });
@@ -610,7 +613,7 @@ router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: A
 
     return res.json(serializeCustomer(updated));
   } catch (error) {
-    console.error('Lỗi khi cập nhật khách hàng:', error);
+    log.error({ err: error }, 'Lỗi khi cập nhật khách hàng:');
     return res.status(500).json({ error: 'Lỗi khi cập nhật thông tin khách hàng' });
   }
 });
@@ -716,7 +719,7 @@ router.post('/bulk-owner', requirePermission(Permission.CUSTOMERS_MANAGE), async
       })),
     });
   } catch (error) {
-    console.error('Lỗi chia số khách hàng:', error);
+    log.error({ err: error }, 'Lỗi chia số khách hàng:');
     return res.status(500).json({ error: 'Lỗi khi chia khách hàng cho sales.' });
   }
 });
@@ -865,7 +868,7 @@ router.post('/:id/automation-logs', requirePermission(Permission.AUTOMATION_MANA
 
     return res.status(201).json(newLog);
   } catch (error) {
-    console.error('Lỗi khi thêm nhật ký automation:', error);
+    log.error({ err: error }, 'Lỗi khi thêm nhật ký automation:');
     return res.status(500).json({ error: 'Không thể thêm nhật ký automation' });
   }
 });

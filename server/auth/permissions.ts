@@ -1,5 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { Permission } from '../../src/lib/permissions';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('permissions');
 
 export { Permission };
 export type PermissionKey = keyof typeof Permission;
@@ -64,7 +67,7 @@ export async function getRolePermissionMask(role: string): Promise<bigint> {
     const policy = await prisma.rolePermission.findUnique({ where: { role } });
     return policy?.permissions ?? ROLE_DEFAULT_PERMISSIONS[role] ?? 0n;
   } catch (error) {
-    console.warn('[Permissions] Không thể đọc role policy, dùng cấu hình mặc định:', error);
+    log.warn({ err: error }, '[Permissions] Không thể đọc role policy, dùng cấu hình mặc định:');
     return ROLE_DEFAULT_PERMISSIONS[role] ?? 0n;
   }
 }

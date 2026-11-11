@@ -21,6 +21,9 @@ import { enqueueWebhookPayload } from '../services/queueService';
 import { prisma } from '../lib/prisma';
 import { saveUploadedFile, getUploadedFile } from '../services/fileStorage.service';
 import crypto from 'crypto';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('metaController');
 
 /**
  * Read current integration configuration
@@ -56,7 +59,7 @@ export async function getConfig(req: Request, res: Response) {
       updatedAt: setting.updatedAt
     });
   } catch (error) {
-    console.error('Lỗi khi đọc cấu hình Meta Integration:', error);
+    log.error({ err: error }, 'Lỗi khi đọc cấu hình Meta Integration:');
     return res.status(500).json({ error: 'Lỗi khi lấy cấu hình tích hợp Meta' });
   }
 }
@@ -261,7 +264,7 @@ export async function completeEmbeddedSignup(req: Request, res: Response) {
       syncWarnings,
     });
   } catch (error: any) {
-    console.error('[META EMBEDDED SIGNUP] Không thể hoàn tất kết nối:', error?.message || error);
+    log.error({ err: error }, '[META EMBEDDED SIGNUP] Không thể hoàn tất kết nối:');
     return res.status(502).json({ error: error?.message || 'Không thể hoàn tất Embedded Signup với Meta.' });
   }
 }
@@ -325,7 +328,7 @@ export async function saveConfig(req: Request, res: Response) {
       lastConnectedAt: updated.lastConnectedAt
     });
   } catch (error) {
-    console.error('Lỗi khi lưu cấu hình Meta Integration:', error);
+    log.error({ err: error }, 'Lỗi khi lưu cấu hình Meta Integration:');
     return res.status(500).json({ error: 'Không thể lưu cấu hình tích hợp Meta' });
   }
 }
@@ -357,7 +360,7 @@ async function getOrUpdateWabaAvatar(phoneId: string, token: string, forceRefres
       }
     }
   } catch (err) {
-    console.warn(`[WABA Avatar] Lỗi khi cập nhật avatar cho ${phoneId}:`, err);
+    log.warn({ err: err }, `[WABA Avatar] Lỗi khi cập nhật avatar cho ${phoneId}:`);
   }
 
   const existing = await getUploadedFile('', filename).catch(() => null);
@@ -425,7 +428,7 @@ export async function fetchPhoneNumbers(req: Request, res: Response) {
       phoneNumbers: phoneNumbersWithProfiles,
     });
   } catch (error: any) {
-    console.error('Fetch Phone Numbers Exception:', error);
+    log.error({ err: error }, 'Fetch Phone Numbers Exception:');
     return res.status(500).json({ success: false, error: error.message || 'Lỗi hệ thống khi tải danh sách số điện thoại.' });
   }
 }
@@ -483,7 +486,7 @@ export async function getBusinessPhones(req: Request, res: Response) {
       selectedPhoneNumberId: setting.whatsappPhoneNumberId || normalized[0]?.id || '',
     });
   } catch (error: any) {
-    console.error('[META BUSINESS PHONES]', error?.message || error);
+    log.error({ err: error }, '[META BUSINESS PHONES]');
     return res.status(502).json({ error: error?.message || 'Không thể tải số WhatsApp Business từ Meta.' });
   }
 }
@@ -576,7 +579,7 @@ export async function testConnection(req: Request, res: Response) {
       lastConnectedAt: now
     });
   } catch (error: any) {
-    console.error('Test Connection Exception:', error);
+    log.error({ err: error }, 'Test Connection Exception:');
     return res.status(500).json({
       success: false,
       error: error.message || 'Lỗi không xác định khi kiểm tra kết nối WhatsApp API'
@@ -598,7 +601,7 @@ export function handleDataDeletion(req: Request, res: Response) {
       confirmation_code: confirmationCode
     });
   } catch (error) {
-    console.error('Meta Data Deletion Callback Error:', error);
+    log.error({ err: error }, 'Meta Data Deletion Callback Error:');
     return res.status(500).json({ error: 'Failed to process data deletion callback' });
   }
 }

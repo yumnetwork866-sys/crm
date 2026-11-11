@@ -51,6 +51,9 @@ function getGroupId(targetGroup: string) {
 }
 
 import { toWhatsAppDigits } from '../utils/phone';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('campaigns');
 
 function normalizeWhatsAppPhone(phone: string): string | null {
   const defaultCountryCode = (process.env.DEFAULT_PHONE_COUNTRY_CODE || '60').replace(/\D/g, '');
@@ -315,7 +318,7 @@ router.post(
       kickCampaignWorker();
       return res.status(202).json(campaign);
     } catch (error: any) {
-      console.error('[CAMPAIGN LAUNCH ERROR]', error);
+      log.error({ err: error }, '[CAMPAIGN LAUNCH ERROR]');
       return res.status(500).json({ error: error?.message || 'Không thể khởi chạy chiến dịch.' });
     }
   },

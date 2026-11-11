@@ -2,6 +2,9 @@ import { prisma } from '../../lib/prisma';
 import { decryptMetaToken } from '../metaTokenCrypto';
 import type { IntegrationSettingData } from './types';
 import { fetchWabaPhoneNumbers, fetchWhatsAppPhoneDetails } from './metaOnboarding.service';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('integrationSettings.service');
 
 // In-memory fallback setting store when Database connection (PostgreSQL) is offline or unavailable
 let inMemorySetting: IntegrationSettingData = {
@@ -101,14 +104,14 @@ export async function getMetaAccessToken(setting?: IntegrationSettingData): Prom
     resolvedSetting.whatsappTokenExpiresAt
     && new Date(resolvedSetting.whatsappTokenExpiresAt).getTime() <= Date.now()
   ) {
-    console.warn('[META TOKEN] Access token đã hết hạn; cần chạy lại Embedded Signup.');
+    log.warn('[META TOKEN] Access token đã hết hạn; cần chạy lại Embedded Signup.');
     return '';
   }
   if (resolvedSetting.whatsappAccessTokenEncrypted) {
     try {
       return decryptMetaToken(resolvedSetting.whatsappAccessTokenEncrypted);
     } catch (error) {
-      console.error('[META TOKEN] Không thể giải mã access token đã lưu:', error instanceof Error ? error.message : error);
+      log.error({ err: error }, '[META TOKEN] Không thể giải mã access token đã lưu:');
       return '';
     }
   }
@@ -134,14 +137,14 @@ export async function getMetaAccessTokenForPhone(
   }).catch(() => null);
   if (connection) {
     if (connection.tokenExpiresAt && connection.tokenExpiresAt.getTime() <= Date.now()) {
-      console.warn(`[META TOKEN] Token của Phone Number ID ${normalizedPhoneId} đã hết hạn.`);
+      log.warn(`[META TOKEN] Token của Phone Number ID ${normalizedPhoneId} đã hết hạn.`);
       return '';
     }
     if (connection.accessTokenEncrypted) {
       try {
         return decryptMetaToken(connection.accessTokenEncrypted);
       } catch (error) {
-        console.error('[META TOKEN] Không thể giải mã token của kết nối WhatsApp:', error instanceof Error ? error.message : error);
+        log.error({ err: error }, '[META TOKEN] Không thể giải mã token của kết nối WhatsApp:');
         return '';
       }
     }
@@ -199,7 +202,7 @@ export async function syncEnvironmentWhatsAppConnections(): Promise<void> {
       }
     }
   } catch (error) {
-    console.warn('[META CONNECTIONS] Không thể đồng bộ kết nối từ biến môi trường:', error instanceof Error ? error.message : error);
+    log.warn({ err: error }, '[META CONNECTIONS] Không thể đồng bộ kết nối từ biến môi trường:');
   }
 }
 
@@ -231,14 +234,14 @@ export async function resolvePhoneNumberId(setting: IntegrationSettingData): Pro
       if (Array.isArray(data?.data) && data.data.length > 0) {
         const autoPhoneId = data.data[0].id;
         const autoPhoneDisplay = data.data[0].display_phone_number || autoPhoneId;
-        console.log(`[META AUTO-RESOLVE] Tự động lấy Phone Number ID: ${autoPhoneId} (${autoPhoneDisplay}) từ WABA ID ${wabaId}`);
+        log.info(`[META AUTO-RESOLVE] Tự động lấy Phone Number ID: ${autoPhoneId} (${autoPhoneDisplay}) từ WABA ID ${wabaId}`);
         setting.whatsappPhoneNumberId = autoPhoneId;
         inMemorySetting.whatsappPhoneNumberId = autoPhoneId;
         return autoPhoneId;
       }
     }
   } catch (err: any) {
-    console.warn('[META AUTO-RESOLVE] Không thể tự động lấy Phone Number ID:', err.message || err);
+    log.warn({ err: err }, '[META AUTO-RESOLVE] Không thể tự động lấy Phone Number ID:');
   }
   return '';
 }

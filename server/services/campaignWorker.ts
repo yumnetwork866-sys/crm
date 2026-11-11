@@ -8,6 +8,9 @@ import {
 } from './metaApiClient';
 import { enqueueCampaignRecipients, isBullMqConnected } from './queueService';
 import { getLatestCustomerInboundAt, isWhatsAppSessionOpen } from './whatsappSessionWindow';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('campaignWorker');
 
 const WORKER_INTERVAL_MS = Math.max(1_000, Number(process.env.CAMPAIGN_WORKER_INTERVAL_MS) || 15_000);
 const WORKER_CONCURRENCY = Math.max(1, Math.min(20, Number(process.env.CAMPAIGN_WORKER_CONCURRENCY) || 5));
@@ -98,7 +101,7 @@ async function ensureQueueSchema() {
   try {
     if (!prisma.broadcastRecipient) {
       if (Date.now() - lastSchemaWarningAt > 60_000) {
-        console.warn('[CAMPAIGN WORKER PAUSED] Prisma Client chưa có model BroadcastRecipient. Hãy chạy: npm run db:generate hoặc npm run db:push');
+        log.warn('[CAMPAIGN WORKER PAUSED] Prisma Client chưa có model BroadcastRecipient. Hãy chạy: npm run db:generate hoặc npm run db:push');
         lastSchemaWarningAt = Date.now();
       }
       return false;
@@ -109,7 +112,7 @@ async function ensureQueueSchema() {
   } catch (error: any) {
     if (error?.code !== 'P2021') throw error;
     if (Date.now() - lastSchemaWarningAt > 60_000) {
-      console.warn('[CAMPAIGN WORKER PAUSED] Bảng BroadcastRecipient chưa tồn tại. Hãy chạy: npm run db:push');
+      log.warn('[CAMPAIGN WORKER PAUSED] Bảng BroadcastRecipient chưa tồn tại. Hãy chạy: npm run db:push');
       lastSchemaWarningAt = Date.now();
     }
     return false;
@@ -425,7 +428,7 @@ async function runWorkerCycle() {
     });
     await Promise.all(recentCompletedCampaigns.map((campaign) => aggregateCampaign(campaign.id)));
   } catch (error) {
-    console.error('[CAMPAIGN WORKER ERROR]', error);
+    log.error({ err: error }, '[CAMPAIGN WORKER ERROR]');
   } finally {
     isRunning = false;
   }

@@ -11,6 +11,9 @@ import {
   generateReplySuggestions,
 } from '../../services/difyService';
 import { isLikelyVietnamese, translateWithOllama } from '../../services/ollamaTranslationService';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('chatAiControls');
 
 /**
  * Toggle AI auto-reply on/off for a specific customer
@@ -37,7 +40,7 @@ export async function toggleCustomerAi(req: Request, res: Response) {
       message: isActive ? 'Đã bật phản hồi AI cho khách hàng.' : 'Đã tạm dừng phản hồi AI cho khách hàng.'
     });
   } catch (error: any) {
-    console.error('Error toggling customer AI:', error);
+    log.error({ err: error }, 'Error toggling customer AI:');
     return res.status(500).json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI.' });
   }
 }
@@ -58,7 +61,7 @@ export async function getCustomerAiStatus(req: Request, res: Response) {
       isAiActive: isActive
     });
   } catch (error: any) {
-    console.error('Error getting customer AI status:', error);
+    log.error({ err: error }, 'Error getting customer AI status:');
     return res.status(500).json({ error: error.message || 'Lỗi khi kiểm tra trạng thái AI.' });
   }
 }
@@ -68,7 +71,7 @@ export async function getGlobalAiStatus(req: Request, res: Response) {
   try {
     return res.json({ isAiEnabled: await isGlobalAiEnabled() });
   } catch (error: any) {
-    console.error('Error getting global AI status:', error);
+    log.error({ err: error }, 'Error getting global AI status:');
     return res.status(500).json({ error: error.message || 'Lỗi khi kiểm tra trạng thái AI toàn hệ thống.' });
   }
 }
@@ -89,7 +92,7 @@ export async function toggleGlobalAi(req: Request, res: Response) {
         : 'Đã tắt AI tự động cho toàn hệ thống.',
     });
   } catch (error: any) {
-    console.error('Error toggling global AI:', error);
+    log.error({ err: error }, 'Error toggling global AI:');
     return res.status(500).json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI toàn hệ thống.' });
   }
 }
@@ -135,7 +138,7 @@ export async function summarizeChatConversation(req: Request, res: Response) {
       ...summaryResult,
     });
   } catch (error: any) {
-    console.error('Error generating chat conversation summary:', error);
+    log.error({ err: error }, 'Error generating chat conversation summary:');
     return res.status(500).json({ error: error.message || 'Lỗi khi tạo tóm tắt hội thoại.' });
   }
 }
@@ -181,7 +184,7 @@ export async function suggestChatReplies(req: Request, res: Response) {
       ...suggestionsResult,
     });
   } catch (error: any) {
-    console.error('Error generating reply suggestions:', error);
+    log.error({ err: error }, 'Error generating reply suggestions:');
     return res.status(500).json({ error: error.message || 'Lỗi khi tạo gợi ý tin nhắn.' });
   }
 }
@@ -224,7 +227,7 @@ export async function translateChatMessage(req: Request, res: Response) {
     return res.json({ success: true, ...result, translatedAt: translatedAt.toISOString(), persisted: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi dịch tin nhắn.';
-    console.error('[OLLAMA TRANSLATE] Error translating chat message:', error);
+    log.error({ err: error }, '[OLLAMA TRANSLATE] Error translating chat message:');
     return res.status(502).json({ error: message });
   }
 }

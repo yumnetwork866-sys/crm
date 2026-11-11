@@ -7,6 +7,9 @@ import { getRouteParam } from '../utils/requestParams';
 import { getPhoneLookupVariants } from '../utils/phone';
 import { matchCustomerByPhone } from '../services/webhookService';
 import { createHash, randomUUID } from 'node:crypto';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('messagePreferenceController');
 
 const conversationStatuses = ['consulting', 'ordered', 'callback', 'completed'] as const;
 const phoneNumberIdSchema = z.string().trim().min(1).max(128);
@@ -95,7 +98,7 @@ export async function getMessagePreferences(req: AuthenticatedRequest, res: Resp
 
     return res.json({ threadStatuses, pinnedThreadIds, autoTranslateThreadIds, internalNotes: {} });
   } catch (error) {
-    console.error('[MESSAGE PREFERENCES GET ERROR]', error);
+    log.error({ err: error }, '[MESSAGE PREFERENCES GET ERROR]');
     return res.status(500).json({ error: 'Không thể tải trạng thái hội thoại.' });
   }
 }
@@ -135,7 +138,7 @@ export async function updateMessageThreadState(req: AuthenticatedRequest, res: R
     realtimeHub.broadcast('message:preferences:thread', event);
     return res.json(event);
   } catch (error) {
-    console.error('[MESSAGE THREAD STATE UPDATE ERROR]', error);
+    log.error({ err: error }, '[MESSAGE THREAD STATE UPDATE ERROR]');
     return res.status(500).json({ error: 'Không thể cập nhật hội thoại.' });
   }
 }
@@ -200,7 +203,7 @@ export async function importLegacyMessagePreferences(req: AuthenticatedRequest, 
     }
     return res.json({ importedThreadStates: statesResult.count, importedNotes: notesResult.count });
   } catch (error) {
-    console.error('[MESSAGE PREFERENCES IMPORT ERROR]', error);
+    log.error({ err: error }, '[MESSAGE PREFERENCES IMPORT ERROR]');
     return res.status(500).json({ error: 'Không thể nhập dữ liệu hội thoại cũ.' });
   }
 }
@@ -240,7 +243,7 @@ export async function createMessageInternalNote(req: AuthenticatedRequest, res: 
       timestamp: note.createdAt.toISOString(),
     });
   } catch (error) {
-    console.error('[MESSAGE INTERNAL NOTE CREATE ERROR]', error);
+    log.error({ err: error }, '[MESSAGE INTERNAL NOTE CREATE ERROR]');
     return res.status(500).json({ error: 'Không thể lưu ghi chú nội bộ.' });
   }
 }
@@ -266,7 +269,7 @@ export async function deleteMessageInternalNote(req: AuthenticatedRequest, res: 
     });
     return res.json({ threadId: existingNote.customerId, noteId: existingNote.id });
   } catch (error) {
-    console.error('[MESSAGE INTERNAL NOTE DELETE ERROR]', error);
+    log.error({ err: error }, '[MESSAGE INTERNAL NOTE DELETE ERROR]');
     return res.status(500).json({ error: 'Không thể xóa ghi chú nội bộ.' });
   }
 }
@@ -329,7 +332,7 @@ export async function getMessageQuickTemplates(_req: AuthenticatedRequest, res: 
     });
     return res.json(templates);
   } catch (error) {
-    console.error('[QUICK TEMPLATES GET ERROR]', error);
+    log.error({ err: error }, '[QUICK TEMPLATES GET ERROR]');
     return res.status(500).json({ error: 'Không thể tải danh sách mẫu tin nhắn nhanh.' });
   }
 }
@@ -361,7 +364,7 @@ export async function createMessageQuickTemplate(req: AuthenticatedRequest, res:
     realtimeHub.broadcast('message:preferences:quick_templates', { action: 'created', template: created });
     return res.status(201).json(created);
   } catch (error) {
-    console.error('[QUICK TEMPLATE CREATE ERROR]', error);
+    log.error({ err: error }, '[QUICK TEMPLATE CREATE ERROR]');
     return res.status(500).json({ error: 'Không thể tạo mẫu tin nhắn nhanh.' });
   }
 }
@@ -397,7 +400,7 @@ export async function updateMessageQuickTemplate(req: AuthenticatedRequest, res:
     realtimeHub.broadcast('message:preferences:quick_templates', { action: 'updated', template: updated });
     return res.json(updated);
   } catch (error) {
-    console.error('[QUICK TEMPLATE UPDATE ERROR]', error);
+    log.error({ err: error }, '[QUICK TEMPLATE UPDATE ERROR]');
     return res.status(500).json({ error: 'Không thể cập nhật mẫu tin nhắn nhanh.' });
   }
 }
@@ -412,7 +415,7 @@ export async function deleteMessageQuickTemplate(req: AuthenticatedRequest, res:
     realtimeHub.broadcast('message:preferences:quick_templates', { action: 'deleted', id });
     return res.json({ id });
   } catch (error) {
-    console.error('[QUICK TEMPLATE DELETE ERROR]', error);
+    log.error({ err: error }, '[QUICK TEMPLATE DELETE ERROR]');
     return res.status(500).json({ error: 'Không thể xóa mẫu tin nhắn nhanh.' });
   }
 }

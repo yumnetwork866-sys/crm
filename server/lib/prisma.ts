@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { createLogger } from './logger';
+
+const log = createLogger('database');
 
 // Ensure Prisma.Decimal fields serialize as numbers in JSON responses
 // while preserving exact DECIMAL(18, 2) storage in PostgreSQL.
@@ -15,11 +18,15 @@ if (!databaseUrl) {
 
 const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 
-const createPrismaClient = () =>
-  new PrismaClient({
+const createPrismaClient = () => {
+  const client = new PrismaClient({
     adapter: new PrismaPg(databaseUrl),
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    log: [{ level: 'warn', emit: 'event' }, { level: 'error', emit: 'event' }],
   });
+  client.$on('warn', (event) => log.warn({ target: event.target }, event.message));
+  client.$on('error', (event) => log.error({ target: event.target }, event.message));
+  return client;
+};
 
 export const prisma =
   globalForPrisma.prisma && 'messageQuickTemplate' in globalForPrisma.prisma

@@ -11,6 +11,9 @@ import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { realtimeHub } from '../services/realtimeHub';
 import { normalizePhoneE164 } from '../utils/phone';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('users');
 
 const router = Router();
 const userRoleSchema = z.string().trim().min(2).max(50);
@@ -108,7 +111,7 @@ router.get('/', requirePermission(Permission.USERS_READ), async (_req: Authentic
     ]);
     return res.json(await Promise.all(users.map((user) => serializeUser(user, leadCounts.get(user.id) ?? 0))));
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách người dùng:', error);
+    log.error({ err: error }, 'Lỗi khi lấy danh sách người dùng:');
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách người dùng' });
   }
 });
@@ -119,7 +122,7 @@ router.get('/message-profiles', async (_req: AuthenticatedRequest, res: Response
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
     return res.json(await Promise.all(users.map(serializeMessageProfile)));
   } catch (error) {
-    console.error('Lỗi khi lấy hồ sơ nhân viên cho tin nhắn:', error);
+    log.error({ err: error }, 'Lỗi khi lấy hồ sơ nhân viên cho tin nhắn:');
     return res.status(500).json({ error: 'Không thể tải hồ sơ nhân viên.' });
   }
 });
@@ -255,7 +258,7 @@ router.delete('/:id', requirePermission(Permission.USERS_MANAGE), async (req: Au
     invalidateAuthCache(target.id);
     return res.json({ message: 'Xóa tài khoản thành công.' });
   } catch (error) {
-    console.error('Lỗi khi xóa người dùng:', error);
+    log.error({ err: error }, 'Lỗi khi xóa người dùng:');
     return res.status(500).json({ error: 'Lỗi khi xóa người dùng' });
   }
 });

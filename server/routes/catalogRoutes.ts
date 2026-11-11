@@ -9,6 +9,9 @@ import {
   importProductsFromMetaCatalog,
 } from '../services/metaCatalogService';
 import { prisma } from '../lib/prisma';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('catalogRoutes');
 
 const router = Router();
 
@@ -32,7 +35,7 @@ router.get(
         ...result,
       });
     } catch (error: any) {
-      console.error('[API CATALOG] Lỗi khi dò tìm danh sách catalog:', error?.message || error);
+      log.error({ err: error }, '[API CATALOG] Lỗi khi dò tìm danh sách catalog:');
       return res.status(500).json({
         success: false,
         error: error?.message || 'Không thể lấy danh sách Meta Catalog từ Graph API.',
@@ -60,7 +63,7 @@ router.get(
       const result = await fetchMetaCatalogProducts(catalogId, { limit, after }, phoneNumberId);
       return res.json({ success: true, ...result });
     } catch (error: any) {
-      console.error('[API CATALOG] Lỗi khi lấy sản phẩm catalog:', error?.message || error);
+      log.error({ err: error }, '[API CATALOG] Lỗi khi lấy sản phẩm catalog:');
       return res.status(502).json({
         success: false,
         error: error?.message || 'Không thể lấy sản phẩm từ Meta Catalog.',
@@ -94,7 +97,7 @@ router.post(
         phoneNumberId: typeof phoneNumberId === 'string' ? phoneNumberId.trim() : null,
       });
     } catch (error: any) {
-      console.error('[API CATALOG] Lỗi khi lưu catalogId:', error?.message || error);
+      log.error({ err: error }, '[API CATALOG] Lỗi khi lưu catalogId:');
       return res.status(500).json({ error: 'Lỗi khi lưu cấu hình Catalog.' });
     }
   }
@@ -152,7 +155,7 @@ router.post(
 
       return res.json(result);
     } catch (error: any) {
-      console.error('[API CATALOG] Lỗi đồng bộ sản phẩm:', error?.message || error);
+      log.error({ err: error }, '[API CATALOG] Lỗi đồng bộ sản phẩm:');
       return res.status(500).json({
         success: false,
         error: error?.message || 'Lỗi khi đồng bộ sản phẩm sang Meta Catalog.',
@@ -178,7 +181,7 @@ router.post(
         ...result,
       });
     } catch (error: any) {
-      console.error('[API CATALOG] Lỗi kéo sản phẩm từ Meta:', error?.message || error);
+      log.error({ err: error }, '[API CATALOG] Lỗi kéo sản phẩm từ Meta:');
       return res.status(500).json({
         success: false,
         error: error?.message || 'Không thể kéo sản phẩm từ Meta Catalog.',

@@ -5,6 +5,20 @@
 2. Run the app:
    `npm run dev`
 
+## Production with PM2
+
+Build the frontend, then start or update only the CRM process:
+
+```bash
+npm run build
+pm2 startOrRestart ecosystem.config.cjs --only crm --update-env
+pm2 save
+```
+
+The configuration runs `npm run server` with `NODE_ENV=production` and disables
+watching. The server serves the built frontend from `dist`. Rebuild the frontend
+and restart the CRM process when deploying changes.
+
 ## Meta WhatsApp Embedded Signup
 
 The Meta connection page is available to CRM administrators at `/meta-verification`.
@@ -100,3 +114,37 @@ DIFY_WORKER_CONCURRENCY=5
 CAMPAIGN_WORKER_CONCURRENCY=5
 ```
 
+
+## Server logging
+
+Server modules use Pino through `server/lib/logger.ts`. Development defaults to
+compact, colored terminal output when attached to a terminal; production writes
+one JSON record per line to stdout. Configure `LOG_FORMAT=pretty|json` to override,
+`LOG_LEVEL=trace|debug|info|warn|error|fatal|silent` to filter, and `NO_COLOR=1` to disable color.
+The `npm run dev` script uses the development environment; `npm run server` uses production.
+
+Each HTTP response includes `X-Request-Id`. A valid incoming ID (1–100 letters,
+digits, dots, underscores or hyphens) is reused; otherwise the server creates a UUID.
+The ID follows asynchronous work, including Redis jobs, in-memory jobs and retries.
+Queue records also carry a `jobId` and `queue`. For older Redis jobs created before
+this change, the originating request ID is unavailable.
+
+Successful GET/HEAD/OPTIONS requests, SSE broadcasts, DB saves and job completions
+are debug logs. Mutating requests and message send/receive events are info logs;
+HTTP 4xx responses are warnings and 5xx responses are errors. Requests log their
+path, status and duration without query strings, headers or bodies. Aborted
+requests log status 499. Webhook payloads and chat contents are not logged by default.
+Known credential fields are redacted in structured records; never interpolate
+credentials into log messages. JSON error records retain structured error details and stacks. Pretty output hides
+error stacks unless `LOG_LEVEL=debug` or `trace`. Ordinary SSE disconnects stay at debug level.
+
+Use a module logger and searchable fields for new events:
+
+```ts
+const log = createLogger('whatsapp');
+log.info({ messageId, wabaId }, 'Message sent');
+log.error({ err, messageId }, 'Message send failed');
+```
+
+JSON stdout can be collected later by a log aggregation service such as Loki.
+No external logging service is required or configured by this change.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getLogContext, withLogContext, type LogContext } from '../lib/logContext';
 import {
   enqueueCampaignRecipients,
   enqueueDifyAutoReply,
@@ -13,12 +14,15 @@ describe('queueService (BullMQ + In-Memory Fallback)', () => {
     process.env.QUEUE_MODE = 'memory';
 
     const processedWebhooks: unknown[] = [];
+    const contexts: LogContext[] = [];
     const processedDify: string[] = [];
     const processedMedia: string[] = [];
     const processedRecipients: string[] = [];
 
     const health = await initMessageQueues({
       onWebhookPayload: async ({ payload }) => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        contexts.push({ ...getLogContext() });
         processedWebhooks.push(payload);
       },
       onDifyAutoReply: async (data) => {
@@ -35,7 +39,8 @@ describe('queueService (BullMQ + In-Memory Fallback)', () => {
     expect(health.mode).toBe('memory-fallback');
     expect(health.redisConnected).toBe(false);
 
-    await enqueueWebhookPayload({ object: 'whatsapp_business_account' });
+    await withLogContext({ requestId: 'webhook-a' }, () => enqueueWebhookPayload({ object: 'whatsapp_business_account' }));
+    await withLogContext({ requestId: 'webhook-b' }, () => enqueueWebhookPayload({ object: 'other-event' }));
     await enqueueDifyAutoReply({
       fromPhone: '84901234567',
       customerName: 'Khách Test',
@@ -51,7 +56,10 @@ describe('queueService (BullMQ + In-Memory Fallback)', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(processedWebhooks).toHaveLength(1);
+    expect(processedWebhooks).toHaveLength(2);
+    expect(contexts.map((context) => context.requestId).sort()).toEqual(['webhook-a', 'webhook-b']);
+    expect(new Set(contexts.map((context) => context.jobId)).size).toBe(2);
+    expect(contexts.every((context) => context.queue === 'webhook-ingest')).toBe(true);
     expect(processedDify).toEqual(['Xin chào shop']);
     expect(processedMedia).toEqual(['media_123']);
     expect(processedRecipients).toEqual(['rec_1', 'rec_2']);

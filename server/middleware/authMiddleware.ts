@@ -2,6 +2,9 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { getEffectivePermissions, hasPermission } from '../auth/permissions';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('authMiddleware');
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -131,7 +134,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
     if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn.' });
     }
-    console.error('[Auth] Không thể xác thực quyền người dùng:', error);
+    log.error({ err: error }, '[Auth] Không thể xác thực quyền người dùng:');
     return res.status(500).json({ error: 'Không thể xác thực quyền truy cập.' });
   }
 }

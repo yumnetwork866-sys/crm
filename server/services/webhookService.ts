@@ -10,6 +10,9 @@ import {
   processSmbMessages,
   processWebhookStatuses,
 } from './webhook/webhookStatusHandler';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('webhook');
 
 export * from './webhook/webhookCustomerSync';
 export * from './webhook/webhookMessageParser';
@@ -26,7 +29,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     } catch (e) {}
   }
 
-  console.log('[META WEBHOOK POST RECEIVED]', JSON.stringify(parsedBody, null, 2));
+  log.debug({ entryCount: Array.isArray(parsedBody?.entry) ? parsedBody.entry.length : 0 }, 'Webhook received');
 
   await processIntegrationLifecycle(parsedBody);
   await processWebhookStatuses(parsedBody);
@@ -39,7 +42,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     const senderIdentity = getWebhookSenderIdentity(msgData, valueObj);
     const fromPhone = senderIdentity.recipient;
     if (!fromPhone) {
-      console.warn('[META WEBHOOK] Skipping message without from/from_user_id/user_id:', msgData?.id || 'unknown');
+      log.warn({ err: msgData?.id || 'unknown' }, '[META WEBHOOK] Skipping message without from/from_user_id/user_id:');
       continue;
     }
     const contactData = valueObj?.contacts?.find((c: any) =>
@@ -83,7 +86,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
             data: { reaction: emoji },
           });
         } catch (dbErr) {
-          console.error('[META WEBHOOK REACTION DB ERROR]', dbErr);
+          log.error({ err: dbErr }, '[META WEBHOOK REACTION DB ERROR]');
         }
 
         realtimeHub.broadcast('message:reaction', {
@@ -195,7 +198,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         update: {},
         create: createData
       });
-      console.log(`[DB SAVE SUCCESS] Saved INCOMING message ${savedDbMsg.id} to PostgreSQL Database!`);
+      log.debug({ messageId: savedDbMsg.id, wabaId: businessPhoneNumberId }, 'Message saved');
 
       if (isCrmCustomer) {
         await prisma.customer.update({
@@ -204,10 +207,10 @@ export async function processWebhookPayload(body: any): Promise<number> {
         }).catch(() => {});
       }
     } catch (dbErr: any) {
-      console.error('[DB SAVE ERROR] Failed to save incoming message to DB:', dbErr.message || dbErr);
+      log.error({ err: dbErr }, '[DB SAVE ERROR] Failed to save incoming message to DB:');
     }
 
-    console.log(`[INCOMING REAL WHATSAPP WEBHOOK] Added message from ${customerName} (${fromPhone}): "${textBody}"`);
+    log.info({ messageId: msgData.id, customerId, wabaId: businessPhoneNumberId, messageType: msgData.type }, 'Message received');
 
     // Broadcast instant real-time event to all connected clients
     realtimeHub.broadcast('message:new', newIncoming);

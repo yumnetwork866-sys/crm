@@ -2,6 +2,9 @@ import { isSupportedMetaImage, type MetaTemplateDispatchResult } from './types';
 import { uploadMediaToMeta } from './metaMedia.service';
 import { getMetaRecipientAddress } from '../../utils/metaRecipient';
 import { resolveUploadsFile, mimeFromExtension } from '../fileStorage.service';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('metaMessaging.service');
 
 function setMetaRecipient(payload: Record<string, any>, recipient: string): void {
   delete payload.to;
@@ -146,7 +149,7 @@ export async function dispatchMetaMessage(options: {
           }
         };
       } catch (err) {
-        console.warn('[META DISPATCH] Lỗi phân tích [product:...]:', err);
+        log.warn({ err: err }, '[META DISPATCH] Lỗi phân tích [product:...]:');
         payload = {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -182,7 +185,7 @@ export async function dispatchMetaMessage(options: {
           }
         };
       } catch (err) {
-        console.warn('[META DISPATCH] Lỗi phân tích [product_list:...]:', err);
+        log.warn({ err: err }, '[META DISPATCH] Lỗi phân tích [product_list:...]:');
         payload = {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
@@ -239,7 +242,7 @@ export async function dispatchMetaMessage(options: {
           };
         }
       } catch (err) {
-        console.warn('Error processing document for Meta dispatch:', err);
+        log.warn({ err: err }, 'Error processing document for Meta dispatch:');
       }
     }
   } else if (content.startsWith('/uploads/')) {
@@ -252,7 +255,7 @@ export async function dispatchMetaMessage(options: {
       try {
         uploadedMediaId = await uploadMediaToMeta(phoneId, token, imageFile.buffer, imageFile.mimeType, imageFile.filename);
       } catch (readErr) {
-        console.warn('Could not read file for Meta upload:', readErr);
+        log.warn({ err: readErr }, 'Could not read file for Meta upload:');
       }
     }
 
@@ -320,9 +323,9 @@ export async function dispatchMetaMessage(options: {
 
   const isRealSent = Boolean(apiRes.ok && metaResult?.messages?.[0]?.id);
   if (isRealSent) {
-    console.log(`[REAL WHATSAPP SENT] Message ID ${metaResult.messages[0].id} to ${cleanPhone}`);
+    log.info({ messageId: metaResult.messages[0].id, wabaId: phoneId }, 'Message sent');
   } else {
-    console.warn('[REAL WHATSAPP API WARN]', metaResult);
+    log.warn({ err: metaResult }, '[REAL WHATSAPP API WARN]');
   }
 
   return { isRealSent, metaResult };

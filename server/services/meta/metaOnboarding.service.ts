@@ -1,3 +1,7 @@
+
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('metaOnboarding.service');
 /**
  * Automatically subscribe Meta App to WABA for incoming Webhooks
  */
@@ -12,14 +16,14 @@ export async function ensureWabaSubscribed(wabaId: string, token: string): Promi
       }
     });
     if (res.ok) {
-      console.log(`[META WABA SUBSCRIPTION] App successfully subscribed to WABA ${wabaId} for incoming Webhooks!`);
+      log.info(`[META WABA SUBSCRIPTION] App successfully subscribed to WABA ${wabaId} for incoming Webhooks!`);
       return true;
     } else {
       const txt = await res.text();
-      console.warn(`[META WABA SUBSCRIPTION WARN]`, txt);
+      log.warn({ err: txt }, `[META WABA SUBSCRIPTION WARN]`);
     }
   } catch (e: any) {
-    console.error(`[META WABA SUBSCRIPTION ERROR]`, e.message || e);
+    log.error({ err: e }, `[META WABA SUBSCRIPTION ERROR]`);
   }
   return false;
 }
@@ -122,7 +126,7 @@ export async function fetchWabaDetails(wabaId: string, token: string): Promise<a
       return await response.json();
     }
   } catch (e) {
-    console.warn(`[WABA Details] Không thể lấy thông tin chi tiết WABA ${wabaId}:`, e);
+    log.warn({ err: e }, `[WABA Details] Không thể lấy thông tin chi tiết WABA ${wabaId}:`);
   }
   return null;
 }

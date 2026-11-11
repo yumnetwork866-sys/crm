@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/prisma';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('fileStorage.service');
 
 const KNOWN_FOLDERS = ['chat', 'products', 'ai'];
 
@@ -96,7 +99,7 @@ export async function saveUploadedFile(
       update: { mimeType, size: buffer.length, data: buffer },
     });
   } catch (err) {
-    console.error(`[FILE STORAGE] Không thể lưu file vào database (${folder}/${filename}):`, err);
+    log.error({ err: err }, `[FILE STORAGE] Không thể lưu file vào database (${folder}/${filename}):`);
     throw err;
   }
 }
@@ -113,7 +116,7 @@ export async function getUploadedFile(
     if (!record) return null;
     return { buffer: Buffer.from(record.data), mimeType: record.mimeType, size: record.size, createdAt: record.createdAt };
   } catch (err) {
-    console.error(`[FILE STORAGE] Lỗi đọc file từ database (${folder}/${filename}):`, err);
+    log.error({ err: err }, `[FILE STORAGE] Lỗi đọc file từ database (${folder}/${filename}):`);
     return null;
   }
 }

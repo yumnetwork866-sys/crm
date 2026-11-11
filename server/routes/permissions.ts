@@ -12,6 +12,9 @@ import {
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
 import { FALLBACK_ROLE_COLOR, resolveRoleColor } from '../auth/roleColors';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('permissions');
 
 const router = Router();
 const roleColorSchema = z.string()
@@ -52,7 +55,7 @@ router.get('/roles', async (_req: AuthenticatedRequest, res: Response) => {
       })),
     });
   } catch (error) {
-    console.error('[Permissions] Không thể tải role policies:', error);
+    log.error({ err: error }, '[Permissions] Không thể tải role policies:');
     return res.status(500).json({ error: 'Không thể tải chính sách phân quyền.' });
   }
 });
@@ -174,7 +177,7 @@ router.delete('/roles/:role', async (req: AuthenticatedRequest, res: Response) =
     invalidateAuthCache();
     return res.json({ message: 'Đã xóa vai trò.' });
   } catch (error) {
-    console.error('[Permissions] Không thể xóa vai trò:', error);
+    log.error({ err: error }, '[Permissions] Không thể xóa vai trò:');
     return res.status(500).json({ error: 'Không thể xóa vai trò.' });
   }
 });

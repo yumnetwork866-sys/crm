@@ -1,12 +1,26 @@
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
+import { randomUUID } from 'node:crypto';
+import { getLogContext, withLogContext, type LogContext } from '../lib/logContext';
+import { createLogger } from '../lib/logger';
 
-export interface WebhookIngestJobData {
+const log = createLogger('queue');
+
+interface QueueLogData {
+  logContext?: LogContext;
+}
+
+const captureJobContext = (): LogContext => ({
+  requestId: getLogContext().requestId,
+  jobId: randomUUID(),
+});
+
+export interface WebhookIngestJobData extends QueueLogData {
   payload: unknown;
   receivedAt: string;
 }
 
-export interface DifyReplyJobData {
+export interface DifyReplyJobData extends QueueLogData {
   fromPhone: string;
   customerName: string;
   customerId: string;
@@ -17,12 +31,12 @@ export interface DifyReplyJobData {
   businessPhoneNumberId?: string;
 }
 
-export interface MediaPrefetchJobData {
+export interface MediaPrefetchJobData extends QueueLogData {
   mediaId: string;
   businessPhoneNumberId?: string;
 }
 
-export interface CampaignRecipientJobData {
+export interface CampaignRecipientJobData extends QueueLogData {
   recipientId: string;
   campaignId: string;
 }
@@ -42,6 +56,23 @@ export interface QueueHealthStatus {
 
 type JobProcessor<T> = (data: T) => Promise<void>;
 
+function withJobLogging<T extends QueueLogData>(queue: string, processJob: JobProcessor<T>): JobProcessor<T> {
+  return (data) => withLogContext({
+    requestId: data.logContext?.requestId,
+    jobId: data.logContext?.jobId,
+    queue,
+  }, async () => {
+    const started = performance.now();
+    try {
+      await processJob(data);
+      log.debug({ durationMs: Math.round(performance.now() - started) }, 'Job completed');
+    } catch (err) {
+      log.warn({ err, durationMs: Math.round(performance.now() - started) }, 'Job attempt failed');
+      throw err;
+    }
+  });
+}
+
 interface InMemoryJob<T> {
   data: T;
   attemptsLeft: number;
@@ -52,7 +83,7 @@ interface InMemoryJob<T> {
  * Lightweight in-process async queue with concurrency and rate-limit support
  * used automatically when Redis is unavailable in local development.
  */
-class InMemoryAsyncQueue<T> {
+class InMemoryAsyncQueue<T extends QueueLogData> {
   private readonly queue: InMemoryJob<T>[] = [];
   private activeCount = 0;
   private processor: JobProcessor<T> | null = null;
@@ -145,7 +176,7 @@ class InMemoryAsyncQueue<T> {
           this.scheduleDrain();
         }, delay);
       } else {
-        console.error(`[IN-MEMORY QUEUE ERROR] (${this.name}):`, error?.message || error);
+        log.error({ ...job.data.logContext, err: error, queue: this.name }, 'Job failed');
       }
     } finally {
       this.activeCount -= 1;
@@ -215,7 +246,7 @@ async function probeRedisConnection(url: string): Promise<IORedis | null> {
 
   client.on('error', (err) => {
     if (isRedisReady) {
-      console.warn('[REDIS QUEUE WARNING] Mất kết nối Redis tạm thời:', err.message);
+      log.warn({ err }, 'Redis connection interrupted');
     }
   });
 
@@ -236,10 +267,14 @@ async function probeRedisConnection(url: string): Promise<IORedis | null> {
  * bind the in-memory fallback processors otherwise.
  */
 export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueHealthStatus> {
-  inMemoryWebhookQueue.setProcessor(handlers.onWebhookPayload);
-  inMemoryDifyQueue.setProcessor(handlers.onDifyAutoReply);
-  inMemoryMediaQueue.setProcessor(handlers.onMediaPrefetch);
-  inMemoryCampaignQueue.setProcessor(handlers.onCampaignRecipient);
+  const processCampaignRecipient = withJobLogging('campaign-broadcast', handlers.onCampaignRecipient);
+  const processMediaPrefetch = withJobLogging('media-prefetch', handlers.onMediaPrefetch);
+  const processDifyAutoReply = withJobLogging('dify-auto-reply', handlers.onDifyAutoReply);
+  const processWebhookPayload = withJobLogging('webhook-ingest', handlers.onWebhookPayload);
+  inMemoryWebhookQueue.setProcessor(processWebhookPayload);
+  inMemoryDifyQueue.setProcessor(processDifyAutoReply);
+  inMemoryMediaQueue.setProcessor(processMediaPrefetch);
+  inMemoryCampaignQueue.setProcessor(processCampaignRecipient);
 
   const candidateUrl = getConfiguredRedisUrl();
   const connectedClient = await probeRedisConnection(candidateUrl);
@@ -247,9 +282,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   if (!connectedClient) {
     isRedisReady = false;
     resolvedRedisUrl = null;
-    console.log(
-      '[QUEUE SERVICE] Redis chưa chạy — sử dụng In-Memory Async Queue + DB Worker fallback (đặt REDIS_URL để bật BullMQ).',
-    );
+    log.info({ mode: 'memory-fallback' }, 'Queues ready');
     return getQueueHealth();
   }
 
@@ -307,7 +340,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   const webhookWorker = new Worker<WebhookIngestJobData>(
     'crm-webhook-ingest',
     async (job) => {
-      await handlers.onWebhookPayload(job.data);
+      await processWebhookPayload(job.data);
     },
     { connection: connectionOptions, concurrency: WEBHOOK_CONCURRENCY },
   );
@@ -315,7 +348,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   const difyWorker = new Worker<DifyReplyJobData>(
     'crm-dify-auto-reply',
     async (job) => {
-      await handlers.onDifyAutoReply(job.data);
+      await processDifyAutoReply(job.data);
     },
     { connection: connectionOptions, concurrency: DIFY_CONCURRENCY },
   );
@@ -323,7 +356,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   const mediaWorker = new Worker<MediaPrefetchJobData>(
     'crm-media-prefetch',
     async (job) => {
-      await handlers.onMediaPrefetch(job.data);
+      await processMediaPrefetch(job.data);
     },
     { connection: connectionOptions, concurrency: MEDIA_CONCURRENCY },
   );
@@ -331,7 +364,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   const campaignWorker = new Worker<CampaignRecipientJobData>(
     'crm-campaign-broadcast',
     async (job) => {
-      await handlers.onCampaignRecipient(job.data);
+      await processCampaignRecipient(job.data);
     },
     {
       connection: connectionOptions,
@@ -344,9 +377,7 @@ export async function initMessageQueues(handlers: QueueHandlers): Promise<QueueH
   );
 
   bullWorkers.push(webhookWorker, difyWorker, mediaWorker, campaignWorker);
-  console.log(
-    `[QUEUE SERVICE] Đã kích hoạt BullMQ + Redis (${resolvedRedisUrl}) | Rate Limit Broadcast: ${CAMPAIGN_RATE_LIMIT_PER_SEC} msg/s`,
-  );
+  log.info({ mode: 'bullmq-redis', rateLimitPerSecond: CAMPAIGN_RATE_LIMIT_PER_SEC }, 'Queues ready');
 
   return getQueueHealth();
 }
@@ -377,6 +408,7 @@ export async function enqueueWebhookPayload(payload: unknown): Promise<void> {
   const jobData: WebhookIngestJobData = {
     payload,
     receivedAt: new Date().toISOString(),
+    logContext: captureJobContext(),
   };
 
   if (isRedisReady && bullWebhookQueue) {
@@ -384,7 +416,7 @@ export async function enqueueWebhookPayload(payload: unknown): Promise<void> {
       await bullWebhookQueue.add('webhook-event', jobData);
       return;
     } catch (error) {
-      console.warn('[BULLMQ WEBHOOK FALLBACK] Không thể đẩy vào Redis, xử lý qua In-Memory Queue:', error);
+      log.warn({ err: error }, '[BULLMQ WEBHOOK FALLBACK] Không thể đẩy vào Redis, xử lý qua In-Memory Queue:');
     }
   }
 
@@ -395,6 +427,7 @@ export async function enqueueWebhookPayload(payload: unknown): Promise<void> {
  * Push Dify AI auto-reply task to background worker queue.
  */
 export async function enqueueDifyAutoReply(data: DifyReplyJobData): Promise<void> {
+  data = { ...data, logContext: captureJobContext() };
   if (isRedisReady && bullDifyQueue) {
     try {
       await bullDifyQueue.add('dify-reply', data, {
@@ -402,7 +435,7 @@ export async function enqueueDifyAutoReply(data: DifyReplyJobData): Promise<void
       });
       return;
     } catch (error) {
-      console.warn('[BULLMQ DIFY FALLBACK] Chuyển sang In-Memory Queue:', error);
+      log.warn({ err: error }, '[BULLMQ DIFY FALLBACK] Chuyển sang In-Memory Queue:');
     }
   }
 
@@ -413,6 +446,7 @@ export async function enqueueDifyAutoReply(data: DifyReplyJobData): Promise<void
  * Push Meta Media pre-caching task to background worker queue.
  */
 export async function enqueueMediaPrefetch(data: MediaPrefetchJobData): Promise<void> {
+  data = { ...data, logContext: captureJobContext() };
   if (isRedisReady && bullMediaQueue) {
     try {
       await bullMediaQueue.add('media-prefetch', data, {
@@ -420,7 +454,7 @@ export async function enqueueMediaPrefetch(data: MediaPrefetchJobData): Promise<
       });
       return;
     } catch (error) {
-      console.warn('[BULLMQ MEDIA FALLBACK] Chuyển sang In-Memory Queue:', error);
+      log.warn({ err: error }, '[BULLMQ MEDIA FALLBACK] Chuyển sang In-Memory Queue:');
     }
   }
 
@@ -434,13 +468,14 @@ export async function enqueueCampaignRecipients(
   jobs: Array<CampaignRecipientJobData & { delayMs?: number }>,
 ): Promise<void> {
   if (jobs.length === 0) return;
+  jobs = jobs.map((item) => ({ ...item, logContext: captureJobContext() }));
 
   if (isRedisReady && bullCampaignQueue) {
     try {
       await bullCampaignQueue.addBulk(
         jobs.map((item) => ({
           name: 'send-campaign-recipient',
-          data: { recipientId: item.recipientId, campaignId: item.campaignId },
+          data: { recipientId: item.recipientId, campaignId: item.campaignId, logContext: item.logContext },
           opts: {
             jobId: item.delayMs
               ? `recipient_${item.recipientId}_retry_${Date.now()}`
@@ -451,13 +486,13 @@ export async function enqueueCampaignRecipients(
       );
       return;
     } catch (error) {
-      console.warn('[BULLMQ CAMPAIGN FALLBACK] Chuyển sang In-Memory Queue:', error);
+      log.warn({ err: error }, '[BULLMQ CAMPAIGN FALLBACK] Chuyển sang In-Memory Queue:');
     }
   }
 
   for (const item of jobs) {
     inMemoryCampaignQueue.enqueue(
-      { recipientId: item.recipientId, campaignId: item.campaignId },
+      { recipientId: item.recipientId, campaignId: item.campaignId, logContext: item.logContext },
       { attempts: 1, delayMs: item.delayMs },
     );
   }

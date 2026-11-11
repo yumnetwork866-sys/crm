@@ -1,5 +1,8 @@
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('metaWebhookSignature');
 
 const META_SIGNATURE_PREFIX = 'sha256=';
 const SHA256_SIGNATURE_PATTERN = /^[a-fA-F0-9]{64}$/;
@@ -34,7 +37,7 @@ export function verifyMetaWebhookSignature(
 ) {
   const appSecret = process.env.META_APP_SECRET?.trim() || process.env.WHATSAPP_APP_SECRET?.trim();
   if (!appSecret) {
-    console.error('Meta webhook rejected: META_APP_SECRET is not configured.');
+    log.error('Meta webhook rejected: META_APP_SECRET is not configured.');
     return res.status(503).json({ error: 'Webhook signature verification is not configured.' });
   }
 

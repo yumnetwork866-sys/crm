@@ -19,6 +19,9 @@ import {
   getWhatsAppErrorDetails,
   WHATSAPP_UNREACHABLE_ERROR_CODE,
 } from '../../utils/whatsappDeliveryError';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('chat');
 
 /**
  * Send real WhatsApp Cloud API message and save to CRM
@@ -151,7 +154,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         isRealSent = dispatchRes.isRealSent;
         metaResult = dispatchRes.metaResult;
       } catch (graphErr) {
-        console.error('Error dispatching WhatsApp Graph API:', graphErr);
+        log.error({ err: graphErr }, 'Error dispatching WhatsApp Graph API:');
       }
     }
 
@@ -239,7 +242,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       const savedOutDb = await prisma.whatsAppMessage.create({
         data: createData
       });
-      console.log(`[DB SAVE SUCCESS] Saved OUTGOING message ${savedOutDb.id} to PostgreSQL Database!`);
+      log.debug({ messageId: savedOutDb.id, wabaId: phoneId }, 'Message saved');
 
       // Tự động đánh dấu tất cả các tin nhắn trước đó của khách trong thread này là đã phản hồi / đã đọc
       try {
@@ -270,7 +273,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
           });
         }
       } catch (markReadErr) {
-        console.warn('Failed to mark previous customer messages as read on agent send:', markReadErr);
+        log.warn({ err: markReadErr }, 'Failed to mark previous customer messages as read on agent send:');
       }
 
       if (matchedCustomerId && !matchedCustomerId.startsWith('cust_')) {
@@ -291,7 +294,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
         realtimeHub.broadcast('customers:sync', { source: 'chat-outgoing-activity', customerId: matchedCustomerId });
       }
     } catch (dbErr: any) {
-      console.error('[DB SAVE ERROR] Failed to save outgoing message to DB:', dbErr.message || dbErr);
+      log.error({ err: dbErr }, '[DB SAVE ERROR] Failed to save outgoing message to DB:');
     }
 
     // Broadcast instant real-time event
@@ -321,7 +324,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
       message: newMsg
     });
   } catch (error: any) {
-    console.error('Error sending WhatsApp message:', error);
+    log.error({ err: error }, 'Error sending WhatsApp message:');
     return res.status(500).json({ error: error.message || 'Lỗi khi gửi tin nhắn WhatsApp.' });
   }
 }
@@ -373,7 +376,7 @@ export async function sendReaction(req: AuthenticatedRequest, res: Response) {
         isRealSent = dispatchRes.isRealSent;
         metaResult = dispatchRes.metaResult;
       } catch (metaErr) {
-        console.error('[META REACTION DISPATCH ERROR]', metaErr);
+        log.error({ err: metaErr }, '[META REACTION DISPATCH ERROR]');
       }
     }
 
@@ -414,6 +417,8 @@ export async function sendReaction(req: AuthenticatedRequest, res: Response) {
       isRealSent
     });
 
+    log.info({ messageId, wabaId: phoneId, isRealSent, badgeCleared: Boolean(repliedAt) }, 'Reaction processed');
+
     return res.json({
       success: true,
       messageId,
@@ -423,7 +428,7 @@ export async function sendReaction(req: AuthenticatedRequest, res: Response) {
       metaResult
     });
   } catch (err: any) {
-    console.error('[REACTION ENDPOINT ERROR]', err);
+    log.error({ err: err }, '[REACTION ENDPOINT ERROR]');
     return res.status(500).json({ error: err.message || 'Lỗi gửi reaction' });
   }
 }
@@ -464,9 +469,9 @@ export async function deleteThread(req: Request, res: Response) {
         ...(businessPhoneNumberId ? { businessPhoneNumberId } : {}),
       }
     });
-    console.log(`[DB DELETE THREAD SUCCESS] Deleted ${result.count} messages for customer ${customerId}`);
+    log.info(`[DB DELETE THREAD SUCCESS] Deleted ${result.count} messages for customer ${customerId}`);
   } catch (e) {
-    console.error('Error deleting thread from DB:', e);
+    log.error({ err: e }, 'Error deleting thread from DB:');
   }
 
   realtimeHub.broadcast('message:thread_deleted', { customerId, customerPhone: cleanPhone });
@@ -485,7 +490,7 @@ export async function deleteMessage(req: Request, res: Response) {
       where: { id: messageId }
     });
   } catch (e) {
-    console.error('Error deleting message from DB:', e);
+    log.error({ err: e }, 'Error deleting message from DB:');
   }
 
   realtimeHub.broadcast('message:deleted', { messageId });

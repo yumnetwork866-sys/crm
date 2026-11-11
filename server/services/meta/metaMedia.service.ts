@@ -9,6 +9,9 @@ import {
   getUploadedFile,
   extensionFromMime,
 } from '../fileStorage.service';
+import { createLogger } from '../../lib/logger';
+
+const log = createLogger('metaMedia.service');
 
 /**
  * Upload media directly to Meta Graph API for real WhatsApp image dispatch
@@ -37,14 +40,14 @@ export async function uploadMediaToMeta(
 
     const data: any = await res.json().catch(() => ({}));
     if (res.ok && data?.id) {
-      console.log(`[META DIRECT MEDIA UPLOAD] Uploaded image to Meta Cloud CDN, Media ID: ${data.id}`);
+      log.info(`[META DIRECT MEDIA UPLOAD] Uploaded image to Meta Cloud CDN, Media ID: ${data.id}`);
       return data.id;
     } else {
-      console.warn('[META DIRECT MEDIA UPLOAD FAILED]', data);
+      log.warn({ err: data }, '[META DIRECT MEDIA UPLOAD FAILED]');
       return null;
     }
   } catch (err) {
-    console.error('[META DIRECT MEDIA UPLOAD ERROR]', err);
+    log.error({ err: err }, '[META DIRECT MEDIA UPLOAD ERROR]');
     return null;
   }
 }
@@ -109,7 +112,7 @@ async function fetchMetaMediaBinary(mediaId: string, token: string): Promise<{ b
 
   if (!metaMediaRes.ok) {
     const errText = await metaMediaRes.text().catch(() => '');
-    console.warn(`[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`, errText);
+    log.warn({ err: errText }, `[META MEDIA PROXY METADATA FAILED] Media ID: ${mediaId}, status: ${metaMediaRes.status}`);
     return null;
   }
 
@@ -133,7 +136,7 @@ async function saveMediaToDatabase(mediaId: string, contentType: string, buffer:
   try {
     await saveUploadedFile('chat', filename, contentType, buffer);
   } catch (err) {
-    console.warn('Could not save media cache to database:', err);
+    log.warn({ err: err }, 'Could not save media cache to database:');
   }
 }
 

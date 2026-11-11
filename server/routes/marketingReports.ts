@@ -4,6 +4,9 @@ import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('marketingReports');
 
 const router = Router();
 router.use(authenticateToken);
@@ -44,7 +47,7 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
 
     return res.json(reports);
   } catch (error) {
-    console.error('[Marketing Reports] Lỗi khi lấy danh sách báo cáo:', error);
+    log.error({ err: error }, '[Marketing Reports] Lỗi khi lấy danh sách báo cáo:');
     return res.status(500).json({ error: 'Không thể lấy dữ liệu báo cáo marketing.' });
   }
 });
@@ -75,7 +78,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     return res.status(201).json(created);
   } catch (error) {
-    console.error('[Marketing Reports] Lỗi khi tạo báo cáo:', error);
+    log.error({ err: error }, '[Marketing Reports] Lỗi khi tạo báo cáo:');
     return res.status(500).json({ error: 'Không thể lưu báo cáo marketing.' });
   }
 });
@@ -112,7 +115,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     return res.json(updated);
   } catch (error) {
-    console.error('[Marketing Reports] Lỗi khi cập nhật báo cáo:', error);
+    log.error({ err: error }, '[Marketing Reports] Lỗi khi cập nhật báo cáo:');
     return res.status(500).json({ error: 'Không thể cập nhật báo cáo marketing.' });
   }
 });
@@ -124,7 +127,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
     await prisma.marketingReport.delete({ where: { id: String(id) } });
     return res.json({ message: 'Xóa báo cáo thành công.' });
   } catch (error) {
-    console.error('[Marketing Reports] Lỗi khi xóa báo cáo:', error);
+    log.error({ err: error }, '[Marketing Reports] Lỗi khi xóa báo cáo:');
     return res.status(500).json({ error: 'Không thể xóa báo cáo marketing.' });
   }
 });

@@ -1,4 +1,7 @@
 import type { Response } from 'express';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('realtime');
 
 interface RealtimeClient {
   id: string;
@@ -33,7 +36,7 @@ class RealtimeHub {
     res.write(`event: connected\ndata: ${JSON.stringify({ clientId: id, timestamp: new Date().toISOString() })}\n\n`);
 
     this.clients.set(id, { id, res, connectedAt: new Date() });
-    console.log(`[REALTIME SSE] Client connected: ${id}. Active clients: ${this.clients.size}`);
+    log.debug(`[REALTIME SSE] Client connected: ${id}. Active clients: ${this.clients.size}`);
   }
 
   /**
@@ -42,7 +45,7 @@ class RealtimeHub {
   public removeClient(id: string): void {
     if (this.clients.has(id)) {
       this.clients.delete(id);
-      console.log(`[REALTIME SSE] Client disconnected: ${id}. Active clients: ${this.clients.size}`);
+      log.debug(`[REALTIME SSE] Client disconnected: ${id}. Active clients: ${this.clients.size}`);
     }
   }
 
@@ -60,12 +63,12 @@ class RealtimeHub {
         client.res.write(payload);
         successCount++;
       } catch (err) {
-        console.warn(`[REALTIME SSE] Failed to write to client ${id}, removing:`, err);
+        log.warn({ err: err }, `[REALTIME SSE] Failed to write to client ${id}, removing:`);
         this.clients.delete(id);
       }
     }
 
-    console.log(`[REALTIME SSE BROADCAST] Event "${event}" sent to ${successCount}/${this.clients.size} client(s).`);
+    log.debug(`[REALTIME SSE BROADCAST] Event "${event}" sent to ${successCount}/${this.clients.size} client(s).`);
   }
 
   /**

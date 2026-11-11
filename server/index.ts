@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { requestLogger } from './middleware/requestLogger';
 
 import authRoutes, { ensureAdminUser } from './routes/auth';
 import customerRoutes from './routes/customers';
@@ -28,10 +29,14 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { prisma } from './lib/prisma';
+import { createLogger } from './lib/logger';
+
+const log = createLogger('server');
 
 dotenv.config({ quiet: true });
 
 const app = express();
+app.use(requestLogger);
 const PORT = process.env.PORT || 5002;
 
 // Serve uploads: DB-backed route first, disk fallback for legacy files not yet imported
@@ -44,14 +49,6 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Trust all Reverse Proxies (Nginx / Cloudflare / PM2)
 app.set('trust proxy', true);
-
-// Request Logger for debugging Webhook and API hits
-app.use((req, res, next) => {
-  if (req.url.includes('webhook') || req.url.includes('meta')) {
-    console.log(`[HTTP ${req.method}] ${req.url} - IP: ${req.ip}`);
-  }
-  next();
-});
 
 // 1. Body Parser & Security Middleware (Supports JSON, text/plain, and raw Meta payloads)
 app.use(express.json({
@@ -85,40 +82,6 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 }));
-
-// Log every failed API response in the server terminal without exposing headers,
-// request bodies, query parameters, access tokens, or other sensitive values.
-app.use('/api', (req, res, next) => {
-  const startedAt = Date.now();
-  const originalJson = res.json.bind(res);
-  let responseError = '';
-
-  res.json = ((body: unknown) => {
-    if (res.statusCode >= 400 && body && typeof body === 'object') {
-      const payload = body as Record<string, unknown>;
-      const error = payload.error;
-      responseError = typeof error === 'string'
-        ? error
-        : error && typeof error === 'object' && 'message' in error
-          ? String((error as { message?: unknown }).message || '')
-          : typeof payload.message === 'string'
-            ? payload.message
-            : '';
-    }
-    return originalJson(body);
-  }) as express.Response['json'];
-
-  res.on('finish', () => {
-    if (res.statusCode < 400) return;
-    const endpoint = req.originalUrl.split('?')[0];
-    const duration = Date.now() - startedAt;
-    console.error(
-      `[API ERROR] ${req.method} ${endpoint} -> ${res.statusCode} (${duration}ms)${responseError ? `: ${responseError}` : ''}`,
-    );
-  });
-
-  next();
-});
 
 // 3. META WEBHOOK & META API ROUTES (Bypasses rate limiters for 100% reliable Facebook Meta delivery)
 app.use('/webhook', metaRoutes);
@@ -173,7 +136,7 @@ app.get('/api/health', async (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
-    console.error('[HEALTHCHECK ERROR] Database disconnected:', err);
+    log.error({ err: err }, '[HEALTHCHECK ERROR] Database disconnected:');
     res.status(503).json({
       status: 'error',
       system: 'YumNetwork CRM Backend API',
@@ -271,7 +234,7 @@ app.use((req, res) => {
 });
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled Express Error:', err);
+  log.error({ err: err }, 'Unhandled Express Error:');
   res.status(500).json({
     error: 'Lỗi máy chủ nội bộ',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -280,8 +243,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // 8. Start Server with HMR support
 httpServer.listen(PORT, async () => {
-  console.log(`YumNetwork CRM Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`Vite HMR Hot Reload & API đã sẵn sàng.`);
+  log.info({ port: PORT, mode: process.env.NODE_ENV || 'development' }, 'Server ready');
   await initMessageQueues({
     onWebhookPayload: async ({ payload }) => {
       await processWebhookPayload(payload);

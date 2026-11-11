@@ -5,6 +5,9 @@ import { authenticateToken, requirePermission } from '../middleware/authMiddlewa
 import { Permission } from '../auth/permissions';
 import { prisma } from '../lib/prisma';
 import { getRouteParam } from '../utils/requestParams';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('products');
 
 const router = Router();
 
@@ -54,7 +57,7 @@ router.post('/', requirePermission(Permission.PRODUCTS_CREATE), async (req: Auth
 
     return res.status(201).json(newProduct);
   } catch (error) {
-    console.error('Lỗi khi tạo sản phẩm:', error);
+    log.error({ err: error }, 'Lỗi khi tạo sản phẩm:');
     return res.status(500).json({ error: 'Lỗi khi tạo sản phẩm mới' });
   }
 });
@@ -88,7 +91,7 @@ router.put('/:id', requirePermission(Permission.PRODUCTS_UPDATE), async (req: Au
     // Auto-sync update to Meta Commerce Catalog if catalog is linked
     import('../services/metaCatalogService').then((m) => {
       m.syncProductsToMetaCatalog([updated.id]).catch((err) => {
-        console.warn('[AUTO SYNC META] Lỗi tự đồng bộ sản phẩm vừa sửa lên Meta:', err?.message || err);
+        log.warn({ err: err }, '[AUTO SYNC META] Lỗi tự đồng bộ sản phẩm vừa sửa lên Meta:');
       });
     }).catch(() => {});
 
@@ -202,7 +205,7 @@ router.post('/bulk', requirePermission(Permission.PRODUCTS_CREATE), async (req: 
       products: createdOrUpdated,
     });
   } catch (error) {
-    console.error('Lỗi khi nhập danh sách sản phẩm:', error);
+    log.error({ err: error }, 'Lỗi khi nhập danh sách sản phẩm:');
     return res.status(500).json({ error: 'Lỗi máy chủ khi lưu sản phẩm' });
   }
 });

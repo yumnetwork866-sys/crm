@@ -9,6 +9,9 @@ import { z } from 'zod';
 import { realtimeHub } from '../services/realtimeHub';
 import { getPhoneLookupVariants, normalizePhoneE164 } from '../utils/phone';
 import { parseWhatsAppOrder } from '../utils/whatsappOrder';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('orders');
 
 const router = Router();
 
@@ -86,7 +89,7 @@ router.get('/', requirePermission(Permission.ORDERS_VIEW), async (req: Authentic
 
     return res.json(orders);
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách đơn hàng:', error);
+    log.error({ err: error }, 'Lỗi khi lấy danh sách đơn hàng:');
     return res.status(500).json({ error: 'Lỗi khi lấy danh sách đơn hàng' });
   }
 });
@@ -213,7 +216,7 @@ router.post('/whatsapp/:messageId', requirePermission(Permission.ORDERS_MANAGE),
       });
       if (existing) return res.json(existing);
     }
-    console.error('[WHATSAPP ORDER CREATE ERROR]', error);
+    log.error({ err: error }, '[WHATSAPP ORDER CREATE ERROR]');
     return res.status(500).json({ error: 'Không thể tạo đơn từ giỏ hàng WhatsApp.' });
   }
 });
@@ -294,7 +297,7 @@ router.post('/', requirePermission(Permission.ORDERS_MANAGE), async (req: Authen
 
     return res.status(201).json(newOrder);
   } catch (error) {
-    console.error('Lỗi tạo đơn hàng:', error);
+    log.error({ err: error }, 'Lỗi tạo đơn hàng:');
     return res.status(500).json({ error: 'Lỗi khi tạo đơn hàng' });
   }
 });
@@ -331,7 +334,7 @@ router.delete('/:id', requirePermission(Permission.ORDERS_MANAGE), async (req: A
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Lỗi xóa đơn hàng:', error);
+    log.error({ err: error }, 'Lỗi xóa đơn hàng:');
     return res.status(500).json({ error: 'Lỗi khi xóa đơn hàng' });
   }
 });
@@ -469,7 +472,7 @@ router.post('/bulk', requirePermission(Permission.ORDERS_MANAGE), async (req: Au
     if (error?.code === 'P2002') {
       return res.status(409).json({ error: 'Mã đơn hàng bị trùng. Vui lòng kiểm tra lại cột "Mã Đơn" trong file CSV.' });
     }
-    console.error('Lỗi nhập hàng loạt đơn hàng:', error);
+    log.error({ err: error }, 'Lỗi nhập hàng loạt đơn hàng:');
     return res.status(500).json({ error: error?.message || 'Lỗi khi nhập hàng loạt đơn hàng' });
   }
 });

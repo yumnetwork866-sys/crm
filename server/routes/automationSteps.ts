@@ -6,6 +6,9 @@ import { prisma } from '../lib/prisma';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('automationSteps');
 
 const router = Router();
 
@@ -92,7 +95,7 @@ router.get('/', requirePermission(Permission.AUTOMATION_VIEW), async (_req: Auth
     });
     return res.json(steps);
   } catch (error) {
-    console.error('Lỗi khi tải các bước automation:', error);
+    log.error({ err: error }, 'Lỗi khi tải các bước automation:');
     return res.status(500).json({ error: 'Không thể tải cấu hình quy trình automation.' });
   }
 });
@@ -144,7 +147,7 @@ router.put('/', requirePermission(Permission.AUTOMATION_MANAGE), async (req: Aut
 
     return res.json(savedSteps);
   } catch (error) {
-    console.error('Lỗi khi lưu các bước automation:', error);
+    log.error({ err: error }, 'Lỗi khi lưu các bước automation:');
     return res.status(500).json({ error: 'Không thể lưu cấu hình quy trình automation.' });
   }
 });
