@@ -352,6 +352,7 @@ model WhatsAppMessage {
   deliveredAt   DateTime?
   isRealSent    Boolean   @default(true)
   reaction      String?
+  agentReactedAt DateTime? // Latest successful staff reaction; counts as a reply
   translatedContent  String?
   translatedLanguage String?
   translationModel   String?

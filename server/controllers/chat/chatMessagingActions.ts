@@ -329,7 +329,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 /**
  * Send real WhatsApp Reaction
  */
-export async function sendReaction(req: Request, res: Response) {
+export async function sendReaction(req: AuthenticatedRequest, res: Response) {
   try {
     const { messageId, emoji, customerPhone, customerId, phoneNumberId: overridePhoneId, senderPhoneId } = req.body;
 
@@ -351,6 +351,13 @@ export async function sendReaction(req: Request, res: Response) {
       : (await resolvePhoneNumberId(setting));
     const token = phoneId ? await getMetaAccessTokenForPhone(phoneId, setting) : '';
 
+    const target = await prisma.whatsAppMessage.findFirst({
+      where: { id: messageId, businessPhoneNumberId: phoneId },
+    });
+    if (!target || !phoneId) {
+      return res.status(404).json({ error: 'Không tìm thấy tin nhắn trong WABA đã chọn.' });
+    }
+
     let isRealSent = false;
     let metaResult: any = null;
 
@@ -370,20 +377,40 @@ export async function sendReaction(req: Request, res: Response) {
       }
     }
 
-    try {
-      await prisma.whatsAppMessage.updateMany({
-        where: { id: messageId },
-        data: { reaction: emoji || null },
+    // Keep the acknowledgement even if the emoji is later removed or replaced.
+    // A failed dispatch or a customer reaction must never advance this watermark.
+    const repliedAt = isRealSent && emoji ? new Date() : null;
+    await prisma.$transaction(async (tx) => {
+      await tx.whatsAppMessage.updateMany({
+        where: { id: messageId, businessPhoneNumberId: phoneId },
+        data: {
+          reaction: emoji || null,
+          ...(repliedAt ? { agentReactedAt: repliedAt } : {}),
+        },
       });
-    } catch (dbErr) {
-      console.error('[DB REACTION UPDATE ERROR]', dbErr);
-    }
+      if (repliedAt) {
+        await tx.whatsAppMessage.updateMany({
+          where: {
+            businessPhoneNumberId: phoneId,
+            ...(target.customerId
+              ? { customerId: target.customerId }
+              : { customerPhone: target.customerPhone }),
+            sender: 'customer',
+            isRead: false,
+            timestamp: { lte: repliedAt },
+          },
+          data: { isRead: true, readAt: repliedAt, readBy: req.user?.name || 'Nhân viên' },
+        });
+      }
+    });
 
     realtimeHub.broadcast('message:reaction', {
       messageId,
       emoji: emoji || '',
-      customerId,
-      customerPhone: recipient,
+      customerId: target.customerId,
+      customerPhone: target.customerPhone,
+      businessPhoneNumberId: phoneId,
+      repliedAt: repliedAt?.toISOString() || null,
       isRealSent
     });
 
@@ -392,6 +419,7 @@ export async function sendReaction(req: Request, res: Response) {
       messageId,
       emoji: emoji || '',
       isRealSent,
+      repliedAt: repliedAt?.toISOString() || null,
       metaResult
     });
   } catch (err: any) {

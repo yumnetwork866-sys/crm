@@ -196,6 +196,17 @@ export async function getMediaProxy(req: Request, res: Response) {
   }
 }
 
+// Match the sidebar: a linked CRM customer takes precedence over WhatsApp aliases.
+// Use the same key for latest messages, replies, and WABA totals.
+const threadKeySql = Prisma.sql`COALESCE(
+  NULLIF(CASE WHEN "customerId" IS NOT NULL AND "customerId" NOT LIKE 'cust_%' AND "customerId" NOT LIKE 'phone_%' AND "customerId" NOT LIKE 'meta_%' THEN "customerId" END, ''),
+  NULLIF(CASE WHEN "customerPhone" NOT ILIKE 'MY.%' AND "customerPhone" NOT LIKE '@%' AND LENGTH(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g')) >= 7 THEN RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9) END, ''),
+  NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
+  NULLIF(LOWER(CASE WHEN "customerPhone" ILIKE 'MY.%' OR "customerPhone" LIKE '@%' THEN "customerPhone" END), ''),
+  NULLIF("customerId", ''),
+  "id"
+)`;
+
 /**
  * GET /api/meta/conversations
  * Aggregated conversation threads with unread count and latest message
@@ -274,19 +285,9 @@ export async function getConversations(req: Request, res: Response) {
           "errorCode",
           "errorMessage",
           "errorDetails",
-          COALESCE(
-            NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-            NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-            NULLIF("customerId", ''),
-            "id"
-          ) as thread_key,
+          ${threadKeySql} as thread_key,
           ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(
-              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-              NULLIF("customerId", ''),
-              "id"
-            )
+            PARTITION BY ${threadKeySql}
             ORDER BY "timestamp" DESC, "id" DESC
           ) as rn
         FROM "WhatsAppMessage"
@@ -294,24 +295,15 @@ export async function getConversations(req: Request, res: Response) {
       ),
       ReplyStats AS (
         SELECT 
-          COALESCE(
-            NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-            NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-            NULLIF("customerId", ''),
-            "id"
-          ) as thread_key,
+          ${threadKeySql} as thread_key,
           "customerId",
           "sender",
           "timestamp",
-          MAX("timestamp") FILTER (
-            WHERE "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed'
-          ) OVER (
-            PARTITION BY COALESCE(
-              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-              NULLIF("customerId", ''),
-              "id"
-            )
+          MAX(GREATEST(
+            CASE WHEN "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed' THEN "timestamp" END,
+            "agentReactedAt"
+          )) OVER (
+            PARTITION BY ${threadKeySql}
           ) as last_agent_reply_at
         FROM "WhatsAppMessage"
         ${unreadFilterSql}
@@ -338,7 +330,7 @@ export async function getConversations(req: Request, res: Response) {
         CASE
           WHEN rm."sender" = 'agent' THEN 0
           WHEN rm."timestamp" < NOW() - INTERVAL '24 hours' THEN 0
-          ELSE GREATEST(1, COALESCE(us.unread_count, 1))
+          ELSE COALESCE(us.unread_count, 0)
         END as "unreadCount",
         us.last_customer_msg_at as "lastCustomerMessageAt",
         rm."id" as "lastMsgId",
@@ -433,29 +425,15 @@ export async function getUnreadMessageSummary(_req: Request, res: Response) {
             "businessPhoneNumberId",
             "sender",
             "timestamp",
-            COALESCE(
-              NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-              NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-              NULLIF("customerId", ''),
-              "id"
-            ) as thread_key,
-            MAX("timestamp") FILTER (
-              WHERE "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed'
-            ) OVER (
-              PARTITION BY "businessPhoneNumberId", COALESCE(
-                NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-                NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-                NULLIF("customerId", ''),
-                "id"
-              )
+            ${threadKeySql} as thread_key,
+            MAX(GREATEST(
+              CASE WHEN "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed' THEN "timestamp" END,
+              "agentReactedAt"
+            )) OVER (
+              PARTITION BY "businessPhoneNumberId", ${threadKeySql}
             ) as last_agent_reply_at,
             ROW_NUMBER() OVER (
-              PARTITION BY "businessPhoneNumberId", COALESCE(
-                NULLIF(LOWER(CASE WHEN "recipientId" ILIKE 'MY.%' OR "recipientId" LIKE '@%' THEN "recipientId" END), ''),
-                NULLIF(RIGHT(REGEXP_REPLACE(COALESCE("customerPhone", ''), '\D', '', 'g'), 9), ''),
-                NULLIF("customerId", ''),
-                "id"
-              )
+              PARTITION BY "businessPhoneNumberId", ${threadKeySql}
               ORDER BY "timestamp" DESC, "id" DESC
             ) as rn
           FROM "WhatsAppMessage"

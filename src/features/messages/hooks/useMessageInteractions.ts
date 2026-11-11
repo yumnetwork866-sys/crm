@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../lib/queryClient';
 import type { CentralMessage } from '../../../types';
 import { api } from '../../../utils/apiClient';
 import { realtimeClient } from '../../../services/realtimeClient';
@@ -15,6 +17,7 @@ export function useMessageInteractions({
   selectedPhoneId,
   onReplyMessage,
 }: UseMessageInteractionsOptions) {
+  const queryClient = useQueryClient();
   const [messageReactions, setMessageReactions] = useState<Record<string, string>>({});
   const [activeReactionPickerMsgId, setActiveReactionPickerMsgId] = useState<string | null>(null);
   const [showExpandedReactionPickerMsgId, setShowExpandedReactionPickerMsgId] = useState<string | null>(null);
@@ -75,13 +78,18 @@ export function useMessageInteractions({
     setShowExpandedReactionPickerMsgId(null);
 
     try {
-      await api.post('/meta/messages/react', {
+      const result = await api.post<{ repliedAt?: string | null }>('/meta/messages/react', {
         messageId: message.id,
         emoji: nextEmoji,
         customerPhone: activeThread?.customerPhone || activeThread?.customer?.phone || message.customerPhone,
         customerId: message.customerId,
         senderPhoneId: selectedPhoneId,
       });
+      if (result.repliedAt) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messageConversations(selectedPhoneId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadTotals });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.customers });
+      }
     } catch (error) {
       console.warn('Real reaction dispatch offline fallback:', error);
     }

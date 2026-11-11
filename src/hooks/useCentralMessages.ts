@@ -563,7 +563,9 @@ export function useCentralMessages({
       },
       'message:reaction': (event) => {
         try {
-          const { messageId, emoji, customerId, customerPhone } = JSON.parse(event.data);
+          const { messageId, emoji, customerId, customerPhone, businessPhoneNumberId, repliedAt } = JSON.parse(event.data);
+          if (repliedAt) invalidateUnreadCounts();
+          if (businessPhoneNumberId && businessPhoneNumberId !== phoneNumberId) return;
           if (!messageId) return;
           setMessages((previous) =>
             previous.map((message) => {
