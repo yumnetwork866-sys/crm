@@ -166,6 +166,7 @@ const httpServer = http.createServer(app);
 
 // 7. Serve Frontend (Vite Middleware in Development, Static Dist in Production)
 async function setupFrontend() {
+  if (process.env.SERVE_FRONTEND === 'false') return;
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const hmrClientPort = process.env.HMR_CLIENT_PORT
@@ -243,7 +244,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // 8. Start Server with HMR support
 httpServer.listen(PORT, async () => {
-  log.info({ port: PORT, mode: process.env.NODE_ENV || 'development' }, 'Server ready');
+  log.info({ port: PORT, mode: process.env.NODE_ENV || 'development', frontend: process.env.SERVE_FRONTEND === 'false' ? 'disabled' : 'enabled' }, 'Server ready');
   await initMessageQueues({
     onWebhookPayload: async ({ payload }) => {
       await processWebhookPayload(payload);

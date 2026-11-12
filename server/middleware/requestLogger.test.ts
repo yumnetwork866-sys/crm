@@ -7,9 +7,9 @@ const output = vi.hoisted(() => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(),
 vi.mock('../lib/logger', () => ({ createLogger: () => output }));
 import { requestLogger } from './requestLogger';
 
-const request = (method: string, status: number, requestId?: string) => {
+const request = (method: string, status: number, requestId?: string, url = '/api/meta/messages?access_token=secret') => {
   const req = {
-    method, originalUrl: '/api/meta/messages?access_token=secret',
+    method, originalUrl: url,
     get: () => requestId, body: { content: 'Private message' },
   } as unknown as Request;
   const res = Object.assign(new EventEmitter(), {
@@ -44,10 +44,38 @@ describe('HTTP request logging', () => {
   });
 
   it.each([
-    ['GET', 200, 'debug'], ['POST', 201, 'info'], ['POST', 400, 'warn'], ['GET', 500, 'error'],
+    ['GET', 200, 'info'], ['POST', 201, 'info'], ['POST', 400, 'warn'], ['GET', 500, 'error'],
   ])('logs %s status %s at %s', (method, status, level) => {
     request(method, status).res.emit('finish');
     expect(output[level as keyof typeof output]).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['GET', '/api/health?probe=1'],
+    ['GET', '/api/health/'],
+    ['GET', '/assets/app.js'],
+    ['GET', '/uploads/avatar.jpg'],
+    ['HEAD', '/api/customers'],
+    ['OPTIONS', '/api/customers'],
+  ])('keeps successful %s %s quiet', (method, url) => {
+    request(method, 200, undefined, url).res.emit('finish');
+    expect(output.debug).toHaveBeenCalledTimes(1);
+    expect(output.info).not.toHaveBeenCalled();
+  });
+
+  it.each([['GET', 503, 'error', '/api/health'], ['GET', 404, 'warn', '/assets/missing.js']])(
+    'still reports errors for quiet paths: %s %s', (method, status, level, url) => {
+      request(method, Number(status), undefined, String(url)).res.emit('finish');
+      expect(output[level as keyof typeof output]).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('keeps a completed SSE response at debug level', () => {
+    const { res } = request('GET', 200);
+    res.getHeader.mockReturnValue('text/event-stream');
+    res.emit('finish');
+    expect(output.debug).toHaveBeenCalledTimes(1);
+    expect(output.info).not.toHaveBeenCalled();
   });
 
   it('keeps ordinary SSE disconnects at debug level', () => {

@@ -5,19 +5,62 @@
 2. Run the app:
    `npm run dev`
 
-## Production with PM2
+## Development (manual only, on the existing domain)
 
-Build the frontend, then start or update only the CRM process:
+PM2 manages production only. To use frontend dev on `crm.yumnetwork.vn`, manually
+release frontend port `5080`, then run Vite from a terminal:
 
 ```bash
-npm run build
-pm2 startOrRestart ecosystem.config.cjs --only crm --update-env
+pm2 stop crm-frontend
+npm run dev
+```
+
+`npm run dev` uses the same loopback port `5080` already targeted by the domain,
+with hot reload over WSS on port 443. No tunnel config changes or PM2 dev process
+are needed. This command never starts/stops PM2 itself. If production is still
+using `5080`, Vite exits with a port-in-use error instead of choosing another port.
+The backend `crm-backend` remains production at `5002`; API, upload, webhooks and
+realtime requests are proxied to it. All users on the domain see the dev frontend
+and actions still use live data. Refresh once after switching modes.
+
+After finishing, press Ctrl+C to stop Vite and manually restore production:
+
+```bash
+pm2 start crm-frontend
+```
+
+Do not save the temporary stopped frontend state with `pm2 save`. For local-only
+frontend work without replacing the public frontend, use `npm run frontend:dev`
+(or `npm run dev:vite`) on `127.0.0.1:5174`; access it through an SSH tunnel if needed.
+
+## Production with PM2
+
+PM2 manages exactly two CRM processes, defined together in `ecosystem.config.cjs`:
+
+- `crm-frontend`: standalone Nginx on `127.0.0.1:5080`, serving `frontend-dist`.
+- `crm-backend`: Express on port `5002`, with `NODE_ENV=production` and `SERVE_FRONTEND=false`.
+
+The Cloudflare Tunnel route for `crm.yumnetwork.vn` points to
+`http://127.0.0.1:5080`. Nginx forwards API, uploads, webhooks and realtime requests
+to Express; ordinary pages and assets are served directly by Nginx.
+
+```bash
+npm run frontend:build
+npm run frontend:check
+pm2 startOrRestart ecosystem.config.cjs --update-env
 pm2 save
 ```
 
-The configuration runs `npm run server` with `NODE_ENV=production` and disables
-watching. The server serves the built frontend from `dist`. Rebuild the frontend
-and restart the CRM process when deploying changes.
+For a frontend-only deployment, run `npm run frontend:build`; no process restart
+is required. The build runs in a fresh `.runtime/frontend-releases/<release>`
+directory and is published by swapping the `frontend-dist` symlink. A failed build
+leaves the active release intact. `frontend-previous` points to the preceding
+release, and old releases remain on disk for rollback. Nginx can also serve bundles
+from the old combined `dist` for tabs opened before the split.
+
+For backend-only changes, run `pm2 startOrRestart ecosystem.config.cjs --only crm-backend --update-env`.
+Use `npm run frontend:check && npm run frontend:reload` after Nginx configuration
+changes. `npm run dev` starts frontend development manually; PM2 stays in production.
 
 ## Meta WhatsApp Embedded Signup
 
@@ -129,8 +172,9 @@ The ID follows asynchronous work, including Redis jobs, in-memory jobs and retri
 Queue records also carry a `jobId` and `queue`. For older Redis jobs created before
 this change, the originating request ID is unavailable.
 
-Successful GET/HEAD/OPTIONS requests, SSE broadcasts, DB saves and job completions
-are debug logs. Mutating requests and message send/receive events are info logs;
+Successful GET API requests and mutating requests are info logs. Healthchecks,
+static-file GETs, HEAD/OPTIONS, SSE connections/broadcasts, DB saves and job
+completions remain debug logs; message send/receive events are info logs;
 HTTP 4xx responses are warnings and 5xx responses are errors. Requests log their
 path, status and duration without query strings, headers or bodies. Aborted
 requests log status 499. Webhook payloads and chat contents are not logged by default.
@@ -155,3 +199,33 @@ It hides metadata and stacks in the terminal; the stored production JSON is unch
 Use `npm run logs:details` for complete fields and error stacks, or append
 `-- --colorize` to force terminal colors. Both commands show the last 30 lines
 and then follow new events. Older non-JSON log lines pass through unchanged.
+
+## Frontend service and local access
+
+The frontend remains bound to loopback and is exposed publicly through the
+existing Cloudflare Tunnel. It requires `/usr/sbin/nginx` and
+`/etc/nginx/mime.types`; no system Nginx configuration is modified. Runtime files
+are in `.runtime/frontend-preview` (the original staging directory name).
+
+Nginx preserves the public Host, HTTPS scheme and Cloudflare client IP. API paths
+`/api`, `/uploads`, `/webhook` and `/webhooks` go to `127.0.0.1:5002`, without
+response buffering for SSE or request buffering for uploads/webhook signatures.
+The public origin and Secure session cookies stay the same after the cutover.
+
+For internal troubleshooting, create an SSH tunnel from your computer:
+
+```bash
+ssh -N -L 5080:127.0.0.1:5080 adminyum@<server-ssh-address>
+```
+
+Open **http://localhost:5080** and sign in separately from the public domain.
+This origin shares the live API/database; edits, uploads and message sends affect
+real data. Meta Embedded Signup should use the configured public origin.
+
+The original Cloudflare Tunnel configuration is backed up at
+`.runtime/frontend-cutover/cloudflared.before.yml`. To return to combined serving,
+first set `SERVE_FRONTEND` to `true` in `ecosystem.config.cjs` and apply it to `crm-backend`;
+then restore that tunnel config to `~/.cloudflared/config.yml` and restart
+`cloudflared`. Keep `dist` available for this fallback. The tunnel configuration
+is shared with other domains, so restore only a still-current backup or change
+only the CRM route if other routes have been updated in the meantime.

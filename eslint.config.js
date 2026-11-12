@@ -56,7 +56,7 @@ const auditRules = auditLint
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'public/uploads/**', 'coverage/**', 'server.js'],
+    ignores: ['dist/**', 'frontend-dist/**', 'frontend-previous/**', '.runtime/**', 'node_modules/**', 'public/uploads/**', 'coverage/**', 'server.js'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

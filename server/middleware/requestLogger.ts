@@ -10,6 +10,7 @@ export const requestLogger: RequestHandler = (req, res, next) => {
   const requestId = suppliedId && /^[a-zA-Z0-9._-]{1,100}$/.test(suppliedId)
     ? suppliedId : randomUUID();
   const started = performance.now();
+  const path = req.originalUrl.split('?')[0];
   res.setHeader('X-Request-Id', requestId);
   res.locals.requestId = requestId;
 
@@ -20,12 +21,16 @@ export const requestLogger: RequestHandler = (req, res, next) => {
       logged = true;
       const stream = String(res.getHeader('content-type') || '').startsWith('text/event-stream');
       const status = aborted && !stream ? 499 : res.statusCode;
-      const level = stream && aborted ? 'debug' : status >= 500 ? 'error' : status >= 400 ? 'warn' :
-        req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' ? 'debug' : 'info';
+      const visibleApiRead = req.method === 'GET'
+        && (path === '/api' || path.startsWith('/api/'))
+        && !/^\/api\/health\/?$/i.test(path);
+      const quiet = stream || req.method === 'HEAD' || req.method === 'OPTIONS'
+        || (req.method === 'GET' && !visibleApiRead);
+      const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : quiet ? 'debug' : 'info';
       log[level]({
         requestId,
         method: req.method,
-        path: req.originalUrl.split('?')[0],
+        path,
         status,
         durationMs: Math.round((performance.now() - started) * 10) / 10,
         ...(aborted ? { aborted: true } : {}),

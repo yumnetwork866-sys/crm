@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch --exclude \"src/**\" --exclude \"src/*\" --exclude \"dist/**\" --exclude \"public/**\" --exclude \"index.html\" server/index.ts",
-    "dev:vite": "vite",
+    "dev": "NODE_ENV=development FRONTEND_DEV_HOST=crm.yumnetwork.vn FRONTEND_DEV_PORT=5080 DISABLE_HMR=false vite --mode development",
+    "dev:vite": "npm run frontend:dev",
     "server": "NODE_ENV=production tsx server/index.ts",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
@@ -27,8 +27,13 @@
     "format:check": "prettier . --check",
     "test": "vitest run --passWithNoTests",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "logs": "pm2 logs crm --raw --lines 30 | node node_modules/pino-pretty/bin.js --config .pino-prettyrc.cjs",
-    "logs:details": "pm2 logs crm --raw --lines 30 | node node_modules/pino-pretty/bin.js --config .pino-prettyrc.cjs --hideObject=false --errorLikeObjectKeys=err,error"
+    "logs": "pm2 logs crm-backend --raw --lines 30 | node node_modules/pino-pretty/bin.js --config .pino-prettyrc.cjs",
+    "logs:details": "pm2 logs crm-backend --raw --lines 30 | node node_modules/pino-pretty/bin.js --config .pino-prettyrc.cjs --hideObject=false --errorLikeObjectKeys=err,error",
+    "frontend:build": "node scripts/build-frontend.mjs",
+    "frontend:serve": "node scripts/frontend-preview.mjs",
+    "frontend:check": "node scripts/frontend-preview.mjs --check",
+    "frontend:reload": "node scripts/frontend-preview.mjs --reload",
+    "frontend:dev": "NODE_ENV=development vite --mode development"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
