@@ -1,0 +1,8 @@
+# Merge these rules into the shared cloudflared ingress list in this order.
+# Keep the backend rule before the default frontend rule for the same hostname.
+- hostname: crm.yumnetwork.vn
+  path: ^/(api|uploads|webhooks?)(/.*)?$
+  service: http://127.0.0.1:5002
+
+- hostname: crm.yumnetwork.vn
+  service: http://127.0.0.1:5080
