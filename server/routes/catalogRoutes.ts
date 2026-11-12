@@ -7,6 +7,7 @@ import {
   saveMetaCatalogId,
   syncProductsToMetaCatalog,
   importProductsFromMetaCatalog,
+  CatalogAccessError,
 } from '../services/metaCatalogService';
 import { prisma } from '../lib/prisma';
 import { createLogger } from '../lib/logger';
@@ -63,6 +64,13 @@ router.get(
       const result = await fetchMetaCatalogProducts(catalogId, { limit, after }, phoneNumberId);
       return res.json({ success: true, ...result });
     } catch (error: any) {
+      if (error instanceof CatalogAccessError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          error: error.message,
+        });
+      }
       log.error({ err: error }, '[API CATALOG] Lỗi khi lấy sản phẩm catalog:');
       return res.status(502).json({
         success: false,

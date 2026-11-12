@@ -12,6 +12,16 @@ const log = createLogger('metaCatalogService');
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || 'v26.0';
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
+export class CatalogAccessError extends Error {
+  readonly statusCode = 403;
+  readonly code = 'CATALOG_PHONE_MISMATCH';
+
+  constructor() {
+    super('Catalog này không thuộc số WhatsApp Business đang chọn.');
+    this.name = 'CatalogAccessError';
+  }
+}
+
 export interface MetaCatalogInfo {
   id: string;
   name: string;
@@ -105,7 +115,7 @@ export async function fetchMetaCatalogProducts(
   if (normalizedPhoneId) {
     const { catalogs } = await fetchMetaCatalogs(normalizedPhoneId);
     if (!catalogs.some((catalog) => catalog.id === normalizedCatalogId)) {
-      throw new Error('Catalog này không thuộc số WhatsApp Business đang chọn.');
+      throw new CatalogAccessError();
     }
   }
   const limit = Math.min(Math.max(Math.trunc(options.limit || 50), 1), 100);

@@ -52,7 +52,15 @@ function formatProductPrice(price?: string | number, currency?: string): string 
   return `${new Intl.NumberFormat('vi-VN').format(amount)} ${currency || 'VND'}`;
 }
 
-export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
+// A phone switch must reset selection before queries run in the next render.
+export const ProductPickerModal: React.FC<ProductPickerModalProps> = (props) => (
+  <PhoneProductPicker
+    key={JSON.stringify([props.catalogScopeId, props.phoneNumberId])}
+    {...props}
+  />
+);
+
+const PhoneProductPicker: React.FC<ProductPickerModalProps> = ({
   isOpen,
   phoneNumberId,
   catalogScopeId,
@@ -92,7 +100,8 @@ export const ProductPickerModal: React.FC<ProductPickerModalProps> = ({
     ),
     // Once the catalog list resolves, preload its products in the background as
     // part of loading the WhatsApp page instead of waiting for the picker click.
-    enabled: Boolean(phoneNumberId && catalogScopeId && selectedCatalogId),
+    enabled: Boolean(phoneNumberId && catalogScopeId && selectedCatalogId
+      && catalogs.some((catalog) => catalog.id === selectedCatalogId)),
     staleTime: CATALOG_CACHE_TIME,
     gcTime: 30 * 60_000,
     refetchOnMount: true,
