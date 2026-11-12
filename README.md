@@ -148,3 +148,10 @@ log.error({ err, messageId }, 'Message send failed');
 
 JSON stdout can be collected later by a log aggregation service such as Loki.
 No external logging service is required or configured by this change.
+
+View CRM logs with `npm run logs`. This uses the compact Pino viewer: short time,
+component, event, HTTP status/duration and a short request ID for warnings/errors.
+It hides metadata and stacks in the terminal; the stored production JSON is unchanged.
+Use `npm run logs:details` for complete fields and error stacks, or append
+`-- --colorize` to force terminal colors. Both commands show the last 30 lines
+and then follow new events. Older non-JSON log lines pass through unchanged.

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { fileURLToPath } from 'node:url';
 import pino, { type DestinationStream, type LoggerOptions } from 'pino';
 import { getLogContext } from './logContext';
 
@@ -25,16 +26,10 @@ export function createAppLogger(
     // Tests and callers supplying a stream always receive structured JSON.
     ...(!destination && pretty ? {
       transport: {
-        target: 'pino-pretty',
+        target: fileURLToPath(new URL('./prettyTransport.cjs', import.meta.url)),
         options: {
           colorize: Boolean(process.stdout.isTTY) && !('NO_COLOR' in env),
-          singleLine: true,
-          translateTime: 'SYS:HH:MM:ss.l',
-          ignore: ['pid,hostname,service,environment,component',
-            ...(['debug', 'trace'].includes(env.LOG_LEVEL || '') ? [] : ['err.stack']),
-          ].join(','),
-          errorLikeObjectKeys: [],
-          messageFormat: '[{component}] {msg}',
+          details: ['debug', 'trace'].includes(env.LOG_LEVEL || ''),
         },
       },
     } : {}),
