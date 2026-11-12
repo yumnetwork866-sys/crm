@@ -115,7 +115,13 @@ export function useCentralMessages({
   );
 
   // 1. Load Conversation Threads list for ThreadSidebar (/api/meta/messages/conversations)
-  const conversationsQuery = useInfiniteQuery({
+  const conversationsQuery = useInfiniteQuery<
+    ConversationListResponse,
+    Error,
+    ConversationPages,
+    ReturnType<typeof queryKeys.messageConversations>,
+    string | null
+  >({
     queryKey: conversationsQueryKey,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: '30', phoneNumberId });
@@ -147,7 +153,7 @@ export function useCentralMessages({
         phoneNumberId,
       });
     },
-    [conversations, conversationsQueryKey, queryClient, allPhones, phoneNumberId]
+    [conversationsQueryKey, queryClient, allPhones, phoneNumberId]
   );
 
   const activeTarget = useMemo(() => {
