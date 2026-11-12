@@ -1,3 +1,4 @@
+import { scopeThreadId } from '../../../../shared/whatsappScope';
 import { useMemo } from 'react';
 import type { CentralMessage, Customer } from '../../../types';
 import { formatDate, isMetaUserIdentifier, isSamePhoneNumber, normalizePhone } from '../../../utils/crmUtils';
@@ -17,6 +18,7 @@ interface UseMessageThreadsOptions {
   searchQuery: string;
   selectedCustomerId?: string | null;
   chatSearchQuery: string;
+  scopeByBusinessPhone?: boolean;
 }
 
 const getPhoneLookupKeys = (phone?: string | null) => {
@@ -50,17 +52,19 @@ export function buildMessageThreads({
   customers,
   pinnedThreadIds,
   customerLookup = buildCustomerLookup(customers),
+  scopeByBusinessPhone = false,
 }: {
   messages: CentralMessage[];
   conversations?: ConversationSummary[];
   customers: Customer[];
   pinnedThreadIds: string[];
   customerLookup?: ReturnType<typeof buildCustomerLookup>;
+  scopeByBusinessPhone?: boolean;
 }): MessageThread[] {
   const map = new Map<string, MessageThread>();
   const threadsFromConversations = new Set<string>();
 
-  const resolveCustomerAndKey = (rawCustomerId?: string | null, rawCustomerPhone?: string | null) => {
+  const resolveCustomerAndKey = (rawCustomerId?: string | null, rawCustomerPhone?: string | null, businessPhoneId?: string) => {
     const rawPhone =
       rawCustomerPhone ||
       (rawCustomerId?.startsWith('cust_') ? rawCustomerId.replace('cust_', '') : '') ||
@@ -77,7 +81,8 @@ export function buildMessageThreads({
       (rawCustomerId ? customerLookup.byId.get(rawCustomerId) : undefined) ||
       customerByPhone ||
       null;
-    const threadKey = customer?.id || phoneKey;
+    const baseKey = customer?.id || phoneKey;
+    const threadKey = scopeByBusinessPhone ? scopeThreadId(businessPhoneId || '', baseKey) : baseKey;
     return { customer, cleanPhone, threadKey };
   };
 
@@ -86,7 +91,8 @@ export function buildMessageThreads({
     if (!conv.lastMessage) return;
     const { customer, cleanPhone, threadKey } = resolveCustomerAndKey(
       conv.customerId || conv.lastMessage.customerId,
-      conv.customerPhone || conv.lastMessage.customerPhone
+      conv.customerPhone || conv.lastMessage.customerPhone,
+      conv.lastMessage.businessPhoneNumberId
     );
     threadsFromConversations.add(threadKey);
     const existing = map.get(threadKey);
@@ -142,7 +148,8 @@ export function buildMessageThreads({
   messages.forEach((message) => {
     const { customer, cleanPhone, threadKey } = resolveCustomerAndKey(
       message.customerId,
-      message.customerPhone
+      message.customerPhone,
+      message.businessPhoneNumberId
     );
     const existing = map.get(threadKey);
 
@@ -237,6 +244,7 @@ export function useMessageThreads({
   searchQuery,
   selectedCustomerId,
   chatSearchQuery,
+  scopeByBusinessPhone = false,
 }: UseMessageThreadsOptions) {
   const customerLookup = useMemo(() => buildCustomerLookup(customers), [customers]);
 
@@ -248,8 +256,9 @@ export function useMessageThreads({
         customers,
         pinnedThreadIds,
         customerLookup,
+        scopeByBusinessPhone,
       }),
-    [conversations, customerLookup, customers, messages, pinnedThreadIds]
+    [conversations, customerLookup, customers, messages, pinnedThreadIds, scopeByBusinessPhone]
   );
 
   const filteredThreads = useMemo(() => threads.filter((thread) => {
@@ -269,13 +278,12 @@ export function useMessageThreads({
   const activeThread = useMemo(() => {
     if (!threads.length) return null;
     if (!selectedCustomerId) return filteredThreads[0] || threads[0];
-    return threads.find((thread) =>
-      thread.threadId === selectedCustomerId
-      || thread.customer?.id === selectedCustomerId
+    return threads.find((thread) => thread.threadId === selectedCustomerId) || threads.find((thread) =>
+      !scopeByBusinessPhone && ( thread.customer?.id === selectedCustomerId
       || thread.lastMessage.customerId === selectedCustomerId
-      || isSamePhoneNumber(thread.customerPhone, selectedCustomerId)
+      || isSamePhoneNumber(thread.customerPhone, selectedCustomerId))
     ) || filteredThreads[0] || threads[0] || null;
-  }, [filteredThreads, selectedCustomerId, threads]);
+  }, [filteredThreads, selectedCustomerId, threads, scopeByBusinessPhone]);
 
   const displayedActiveMessages = useMemo(() => {
     if (!activeThread) return [];

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CentralMessage, Customer } from '../../../types';
 import type { ConversationSummary } from '../types';
+import { scopeThreadId } from '../../../../shared/whatsappScope';
+import { resolveMessageThreadIdentity } from '../utils/messageThreadIdentity';
 import { buildMessageThreads } from './useMessageThreads';
 
 const createCustomer = (overrides: Partial<Customer> & { id: string; phone: string; name: string }): Customer => ({
@@ -115,6 +117,66 @@ describe('buildMessageThreads (Separated Conversations & Per-Thread Messages)', 
     expect(threads[2].customerName).toBe('Khách C');
     expect(threads[2].unreadCount).toBe(2);
     expect(threads[2].lastMessage.content).toBe('Shop giao hàng chưa ạ?');
+  });
+
+  it.each(['+60123456789', 'MY.941245582048923', '@customer'])(
+    'separates the same recipient %s across business phones and resolves the selected sender',
+    (customerPhone) => {
+      const customerId = `meta_${customerPhone}`;
+      const conversations: ConversationSummary[] = ['111', '222'].map((businessPhoneNumberId, index) => ({
+        customerId, customerName: 'Cùng một khách', customerPhone,
+        unreadCount: index === 0 ? 3 : 0,
+        lastMessage: createMessage({
+          id: `last-${index}`, customerId, customerPhone, businessPhoneNumberId,
+          sender: index === 0 ? 'customer' : 'agent', content: `Số ${businessPhoneNumberId}`,
+          timestamp: new Date().toISOString(),
+        }),
+      }));
+      const history = createMessage({
+        id: 'older-111', customerId, customerPhone, businessPhoneNumberId: '111',
+        content: 'Chỉ thuộc số 111', timestamp: '2026-10-01T00:00:00Z',
+      });
+      const threads = buildMessageThreads({
+        conversations, messages: [history], customers: [], pinnedThreadIds: [], scopeByBusinessPhone: true,
+      });
+      expect(threads).toHaveLength(2);
+      const first = threads.find((thread) => thread.lastMessage.businessPhoneNumberId === '111')!;
+      const second = threads.find((thread) => thread.lastMessage.businessPhoneNumberId === '222')!;
+      expect(first.messages.map((message) => message.id)).toContain('older-111');
+      expect(second.messages.map((message) => message.id)).not.toContain('older-111');
+      expect(first.unreadCount).toBe(3);
+      expect(second.unreadCount).toBe(0);
+      for (const thread of threads) {
+        // Selection and deletion can both resolve a scoped row without relying on the active chat.
+        const identity = resolveMessageThreadIdentity(thread.threadId, undefined, undefined, {
+          customers: [], conversations, allPhones: true, phoneNumberId: 'all',
+        });
+        expect(identity.threadKey).toBe(thread.threadId);
+        expect(identity.businessPhoneId).toBe(thread.lastMessage.businessPhoneNumberId);
+        expect(identity.customerId).toBe(customerId);
+        expect(identity.customerPhone).toBe(customerPhone.replace(/^\+/, ''));
+      }
+    },
+  );
+
+  it('keeps pins and customer history separate for a linked CRM customer across two numbers', () => {
+    const customer = createCustomer({ id: 'crm-1', name: 'Khách CRM', phone: '+60123456789' });
+    const messages = ['111', '222'].map((businessPhoneNumberId) => createMessage({
+      id: `message-${businessPhoneNumberId}`, customerId: customer.id, customerPhone: customer.phone,
+      businessPhoneNumberId, content: 'Xin chào', timestamp: new Date().toISOString(),
+    }));
+    const threads = buildMessageThreads({
+      messages, customers: [customer], pinnedThreadIds: [scopeThreadId('222', customer.id)], scopeByBusinessPhone: true,
+    });
+    expect(threads.map((thread) => thread.threadId)).toEqual(['waba:222:crm-1', 'waba:111:crm-1']);
+    expect(threads[0].isPinned).toBe(true);
+    expect(threads[1].isPinned).toBe(false);
+    const options = { customers: [customer], conversations: [], allPhones: true, phoneNumberId: 'all' };
+    const first = resolveMessageThreadIdentity(customer.id, customer.phone, '111', options);
+    const second = resolveMessageThreadIdentity(customer.id, customer.phone, '222', options);
+    expect(first.threadKey).not.toBe(second.threadKey);
+    expect(first.businessPhoneId).toBe('111');
+    expect(second.businessPhoneId).toBe('222');
   });
 
   it('links unified CustomerNote records on thread.customer for CustomerChatDrawer', () => {

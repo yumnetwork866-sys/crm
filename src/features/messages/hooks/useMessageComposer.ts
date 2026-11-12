@@ -251,7 +251,7 @@ export function useMessageComposer({
   const send = (event?: FormEvent) => {
     event?.preventDefault();
     if (!activeThread) return;
-    if (activeThread.customer?.whatsappReachability === 'unreachable') return;
+    if (!/^\d+$/.test(selectedPhoneId) || activeThread.customer?.whatsappReachability === 'unreachable') return;
     const text = inputText.trim();
     if (!text && !pendingImage && !pendingDocument) return;
 
@@ -302,7 +302,7 @@ export function useMessageComposer({
 
   const sendVoiceMessage = (dataUrl: string) => {
     if (!activeThread || !dataUrl) return;
-    if (activeThread.customer?.whatsappReachability === 'unreachable') return;
+    if (!/^\d+$/.test(selectedPhoneId) || activeThread.customer?.whatsappReachability === 'unreachable') return;
 
     const targetId = activeThread.customer?.id || activeThread.lastMessage.customerId || activeThread.threadId;
     const targetPhone = activeThread.customerPhone || activeThread.customer?.phone || activeThread.lastMessage.customerPhone;

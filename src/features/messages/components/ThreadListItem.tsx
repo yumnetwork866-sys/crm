@@ -1,3 +1,4 @@
+import { parseThreadId } from '../../../../shared/whatsappScope';
 import React from 'react';
 import { AlertTriangle, Pin, Trash2 } from 'lucide-react';
 import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageDeliveryStatusIcon';
@@ -184,7 +185,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               if (window.confirm(`[ADMIN] Xóa toàn bộ hội thoại với ${thread.customerName}?`)) {
-                onDeleteThread(thread.customer?.id || thread.threadId || thread.lastMessage.customerId);
+                onDeleteThread(parseThreadId(thread.threadId).phoneId ? thread.threadId : thread.customer?.id || thread.threadId);
               }
             }}
             className="w-7 h-7 rounded-full bg-white hover:bg-[#ffe4e6] border border-[#cbd5e1] hover:border-[#e11d48] shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110"

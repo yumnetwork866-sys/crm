@@ -1,3 +1,5 @@
+import { decodeConversationCursor, encodeConversationCursor } from '../../utils/conversationCursor';
+import { ALL_BUSINESS_PHONES } from '../../../shared/whatsappScope';
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
@@ -216,27 +218,38 @@ const threadKeySql = Prisma.sql`COALESCE(
  */
 export async function getConversations(req: Request, res: Response) {
   try {
-    const { search, phoneNumberId, limit: limitQuery, page: pageQuery } = req.query;
+    const { search, phoneNumberId, limit: limitQuery, page: pageQuery, cursor: cursorQuery } = req.query;
+    let cursor;
+    try {
+      cursor = decodeConversationCursor(cursorQuery);
+    } catch {
+      return res.status(400).json({ error: 'Vị trí tải hội thoại không hợp lệ.' });
+    }
     const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '50'), 10) || 50));
-    const skip = (page - 1) * limit;
+    const skip = cursor ? 0 : (page - 1) * limit;
+    const cursorFilterSql = cursor
+      ? Prisma.sql`AND (rm."timestamp" < ${new Date(cursor.timestamp)} OR (rm."timestamp" = ${new Date(cursor.timestamp)} AND rm."id" < ${cursor.id}))`
+      : Prisma.empty;
 
     const searchFilter = search && typeof search === 'string' && search.trim() ? search.trim() : null;
     const integrationSetting = await getIntegrationSetting();
     const requestedBusinessPhoneId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
       ? phoneNumberId
       : '';
-    const activeBusinessPhoneId = requestedBusinessPhoneId || await resolvePhoneNumberId(integrationSetting);
+    const activeBusinessPhoneId = phoneNumberId === ALL_BUSINESS_PHONES
+      ? '' : requestedBusinessPhoneId || await resolvePhoneNumberId(integrationSetting);
+    const conversationThreadKeySql = Prisma.sql`JSON_BUILD_ARRAY("businessPhoneNumberId", ${threadKeySql})::text`;
     const filterSql = activeBusinessPhoneId
       ? searchFilter
         ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId} AND ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "recipientId" ILIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
         : Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
       : searchFilter
-        ? Prisma.sql`WHERE ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "recipientId" ILIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
-        : Prisma.empty;
+        ? Prisma.sql`WHERE "businessPhoneNumberId" IS NOT NULL AND "businessPhoneNumberId" <> '' AND ("customerName" ILIKE ${'%' + searchFilter + '%'} OR "customerPhone" LIKE ${'%' + searchFilter + '%'} OR "recipientId" ILIKE ${'%' + searchFilter + '%'} OR "content" ILIKE ${'%' + searchFilter + '%'})`
+        : Prisma.sql`WHERE "businessPhoneNumberId" IS NOT NULL AND "businessPhoneNumberId" <> ''`;
     const unreadFilterSql = activeBusinessPhoneId
       ? Prisma.sql`WHERE "businessPhoneNumberId" = ${activeBusinessPhoneId}`
-      : Prisma.empty;
+      : Prisma.sql`WHERE "businessPhoneNumberId" IS NOT NULL AND "businessPhoneNumberId" <> ''`;
 
     const rawThreads: Array<{
       customerId: string | null;
@@ -288,9 +301,9 @@ export async function getConversations(req: Request, res: Response) {
           "errorCode",
           "errorMessage",
           "errorDetails",
-          ${threadKeySql} as thread_key,
+          ${conversationThreadKeySql} as thread_key,
           ROW_NUMBER() OVER (
-            PARTITION BY ${threadKeySql}
+            PARTITION BY ${conversationThreadKeySql}
             ORDER BY "timestamp" DESC, "id" DESC
           ) as rn
         FROM "WhatsAppMessage"
@@ -298,7 +311,7 @@ export async function getConversations(req: Request, res: Response) {
       ),
       ReplyStats AS (
         SELECT 
-          ${threadKeySql} as thread_key,
+          ${conversationThreadKeySql} as thread_key,
           "customerId",
           "sender",
           "timestamp",
@@ -306,7 +319,7 @@ export async function getConversations(req: Request, res: Response) {
             CASE WHEN "sender" = 'agent' AND COALESCE("status", 'sent') <> 'failed' THEN "timestamp" END,
             "agentReactedAt"
           )) OVER (
-            PARTITION BY ${threadKeySql}
+            PARTITION BY ${conversationThreadKeySql}
           ) as last_agent_reply_at
         FROM "WhatsAppMessage"
         ${unreadFilterSql}
@@ -356,11 +369,14 @@ export async function getConversations(req: Request, res: Response) {
       FROM RankedMessages rm
       LEFT JOIN UnreadStats us ON us.thread_key = rm.thread_key
       WHERE rm.rn = 1
-      ORDER BY rm."timestamp" DESC
-      LIMIT ${limit} OFFSET ${skip}
+      ${cursorFilterSql}
+      ORDER BY rm."timestamp" DESC, rm."id" DESC
+      LIMIT ${limit + 1} OFFSET ${skip}
     `;
 
-    const conversations = rawThreads.map((t) => {
+    const hasMore = rawThreads.length > limit;
+    const pageThreads = rawThreads.slice(0, limit);
+    const conversations = pageThreads.map((t) => {
       const metaUserIdentifier = isMetaUserIdentifier(t.customerPhone) ? t.customerPhone : '';
       const cleanP = !metaUserIdentifier && t.customerPhone ? t.customerPhone.replace(/\D/g, '') : '';
       const resolvedCustomerId = t.customerId || (metaUserIdentifier ? `meta_${metaUserIdentifier}` : (cleanP ? `cust_${cleanP}` : `phone_${t.customerPhone}`));
@@ -408,6 +424,10 @@ export async function getConversations(req: Request, res: Response) {
       page,
       limit,
       count: conversations.length,
+      hasMore,
+      nextCursor: hasMore && pageThreads.length
+        ? encodeConversationCursor(pageThreads[pageThreads.length - 1].lastMsgTimestamp, pageThreads[pageThreads.length - 1].lastMsgId)
+        : null,
     });
   } catch (error) {
     log.error({ err: error }, '[CHAT CONTROLLER] getConversations error:');

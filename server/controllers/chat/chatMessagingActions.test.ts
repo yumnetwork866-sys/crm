@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 
 vi.mock('../../lib/prisma', () => ({
   prisma: {
-    whatsAppMessage: { findFirst: vi.fn(), updateMany: vi.fn() },
+    whatsAppMessage: { findFirst: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     $transaction: vi.fn(),
   },
 }));
@@ -22,7 +22,7 @@ vi.mock('../../services/webhookService', () => ({ resolveWhatsAppBrandName: vi.f
 import { prisma } from '../../lib/prisma';
 import { dispatchMetaReaction } from '../../services/metaApiClient';
 import { realtimeHub } from '../../services/realtimeHub';
-import { sendReaction } from './chatMessagingActions';
+import { deleteThread, sendMessage, sendReaction } from './chatMessagingActions';
 
 const invoke = async (emoji = '👍') => {
   const req = {
@@ -83,5 +83,46 @@ describe('staff reactions as replies', () => {
     expect(res.status).toHaveBeenCalledWith(404);
     expect(dispatchMetaReaction).not.toHaveBeenCalled();
     expect(prisma.whatsAppMessage.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('all phones conversation actions', () => {
+  it('deletes only the clicked business phone conversation and broadcasts that scope', async () => {
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await deleteThread({ params: { customerId: 'crm-customer' }, query: {
+      customerPhone: '+60123456789', phoneNumberId: '222',
+    } } as unknown as Request, res as unknown as Response);
+    expect(prisma.whatsAppMessage.deleteMany).toHaveBeenCalledWith({ where: {
+      businessPhoneNumberId: '222', OR: [
+        { customerId: 'crm-customer' },
+        { customerPhone: { contains: '123456789' } },
+        { customerId: { contains: '123456789' } },
+      ],
+    } });
+    expect(realtimeHub.broadcast).toHaveBeenCalledWith('message:thread_deleted', expect.objectContaining({
+      businessPhoneNumberId: '222',
+    }));
+  });
+
+  it.each(['MY.941245582048923', '@customer'])('deletes identifier %s without treating it as a phone number', async (identifier) => {
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await deleteThread({ params: { customerId: `meta_${identifier}` }, query: {
+      customerPhone: identifier, phoneNumberId: '222',
+    } } as unknown as Request, res as unknown as Response);
+    expect(prisma.whatsAppMessage.deleteMany).toHaveBeenCalledWith({ where: {
+      businessPhoneNumberId: '222', OR: [{ customerId: `meta_${identifier}` }, { customerPhone: identifier }],
+    } });
+  });
+
+  it('rejects the all sentinel for deletion and sending', async () => {
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await deleteThread({ params: { customerId: 'crm-customer' }, query: {
+      phoneNumberId: 'all',
+    } } as unknown as Request, res as unknown as Response);
+    expect(res.status).toHaveBeenLastCalledWith(400);
+    expect(prisma.whatsAppMessage.deleteMany).not.toHaveBeenCalled();
+    await sendMessage({ body: { senderPhoneId: 'all', customerPhone: '+60123456789', content: 'Test' } } as AuthenticatedRequest, res as unknown as Response);
+    expect(res.status).toHaveBeenLastCalledWith(400);
   });
 });

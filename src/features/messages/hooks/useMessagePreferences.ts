@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES, parseThreadId, scopeThreadId } from '../../../../shared/whatsappScope';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConversationStatus, InternalNote } from '../types';
@@ -72,7 +73,7 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
       const endpoint = `/meta/messages/preferences?phoneNumberId=${encodeURIComponent(businessPhoneNumberId)}`;
       const databasePreferences = await api.get<MessagePreferences>(endpoint);
       const legacyPreferences = getLegacyPreferences();
-      if (!legacyPreferences) return databasePreferences;
+      if (!legacyPreferences || businessPhoneNumberId === ALL_BUSINESS_PHONES) return databasePreferences;
 
       try {
         await api.post('/meta/messages/preferences/import', {
@@ -101,11 +102,18 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
   );
 
   const threadMutation = useMutation({
-    mutationFn: (input: { threadId: string; status?: ConversationStatus; isPinned?: boolean; autoTranslate?: boolean }) =>
-      api.patch<ThreadStateEvent>('/meta/messages/preferences/thread', {
-        businessPhoneNumberId,
+    mutationFn: async (input: { threadId: string; status?: ConversationStatus; isPinned?: boolean; autoTranslate?: boolean }) => {
+      const parsed = parseThreadId(input.threadId);
+      const phoneId = businessPhoneNumberId === ALL_BUSINESS_PHONES ? parsed.phoneId : businessPhoneNumberId;
+      if (!phoneId) throw new Error('Thiếu số WhatsApp doanh nghiệp.');
+      const state = await api.patch<ThreadStateEvent>('/meta/messages/preferences/thread', {
         ...input,
-      }),
+        businessPhoneNumberId: phoneId,
+        threadId: parsed.threadId,
+      });
+      void queryClient.invalidateQueries({ queryKey: ['message-preferences'] });
+      return { ...state, threadId: input.threadId };
+    },
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey });
       const previous = queryClient.getQueryData<MessagePreferences>(queryKey);
@@ -153,7 +161,9 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
       'message:preferences:thread': (event) => {
         try {
           const state = JSON.parse(event.data) as ThreadStateEvent;
-          if (state.businessPhoneNumberId !== businessPhoneNumberId) return;
+          if (businessPhoneNumberId === ALL_BUSINESS_PHONES) {
+            state.threadId = scopeThreadId(state.businessPhoneNumberId, state.threadId);
+          } else if (state.businessPhoneNumberId !== businessPhoneNumberId) return;
           setPreferences((current) => ({
             ...current,
             threadStatuses: { ...current.threadStatuses, [state.threadId]: state.status },
@@ -171,7 +181,7 @@ export function useMessagePreferences(businessPhoneNumberId: string) {
       'message:preferences:sync': (event) => {
         try {
           const payload = JSON.parse(event.data) as { businessPhoneNumberId: string };
-          if (payload.businessPhoneNumberId === businessPhoneNumberId) {
+          if (businessPhoneNumberId === ALL_BUSINESS_PHONES || payload.businessPhoneNumberId === businessPhoneNumberId) {
             void queryClient.invalidateQueries({ queryKey });
           }
         } catch {

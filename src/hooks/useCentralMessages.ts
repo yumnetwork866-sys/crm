@@ -1,6 +1,9 @@
+import { flattenConversations, updateConversationPages, type ConversationPages } from '../features/messages/utils/conversationPages';
+import { resolveMessageThreadIdentity } from '../features/messages/utils/messageThreadIdentity';
+import { ALL_BUSINESS_PHONES } from '../../shared/whatsappScope';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { AppUser, CentralMessage, Customer, MessageChannel } from '../types';
 import type { ConversationListResponse, ConversationSummary } from '../features/messages/types';
@@ -73,6 +76,7 @@ export function useCentralMessages({
   loadMessages = true,
 }: UseCentralMessagesOptions) {
   const queryClient = useQueryClient();
+  const allPhones = phoneNumberId === ALL_BUSINESS_PHONES;
   const [toastNotification, setToastNotification] = useState<{
     message: CentralMessage;
     show: boolean;
@@ -111,80 +115,39 @@ export function useCentralMessages({
   );
 
   // 1. Load Conversation Threads list for ThreadSidebar (/api/meta/messages/conversations)
-  const conversationsQuery = useQuery({
+  const conversationsQuery = useInfiniteQuery({
     queryKey: conversationsQueryKey,
-    queryFn: () => api.get<ConversationListResponse>(
-      `/meta/messages/conversations?limit=100&phoneNumberId=${encodeURIComponent(phoneNumberId)}`
-    ),
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: '30', phoneNumberId });
+      if (pageParam) params.set('cursor', pageParam);
+      return api.get<ConversationListResponse>(`/meta/messages/conversations?${params}`);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: Boolean(currentUser) && Boolean(phoneNumberId),
     staleTime: 30_000,
   });
 
   const conversations = useMemo(
-    () => conversationsQuery.data?.data ?? [],
-    [conversationsQuery.data]
+    () => flattenConversations(conversationsQuery.data),
+    [conversationsQuery.data],
+  );
+  const loadMoreThreads = useCallback(
+    () => conversationsQuery.fetchNextPage({ cancelRefetch: false }),
+    [conversationsQuery.fetchNextPage],
   );
 
+
   const resolveThreadIdentity = useCallback(
-    (rawId?: string | null, rawPhoneInput?: string | null) => {
-      const candidateId = rawId?.trim() || '';
-      const candidatePhone = rawPhoneInput?.trim() || '';
-      if (!candidateId && !candidatePhone) {
-        return { threadKey: '', customerId: '', customerPhone: '' };
-      }
-
-      const matchedCustomer = customersRef.current.find(
-        (item) =>
-          (candidateId && item.id === candidateId) ||
-          (candidatePhone && item.whatsappRecipientId === candidatePhone) ||
-          (candidatePhone && isSamePhoneNumber(item.phone, candidatePhone)) ||
-          (candidateId && item.whatsappRecipientId === candidateId.replace(/^meta_/, '')) ||
-          (candidateId && isSamePhoneNumber(item.phone, candidateId))
-      );
-
-      const currentConvs =
-        queryClient.getQueryData<ConversationListResponse>(conversationsQueryKey)?.data ??
-        conversations;
-      const matchedConv = currentConvs.find(
-        (item) =>
-          (candidateId && item.customerId === candidateId) ||
-          (matchedCustomer && item.customerId === matchedCustomer.id) ||
-          (candidatePhone && isSamePhoneNumber(item.customerPhone, candidatePhone)) ||
-          (candidateId && isSamePhoneNumber(item.customerPhone, candidateId))
-      );
-
-      const resolvedPhone =
-        candidatePhone ||
-        matchedCustomer?.whatsappRecipientId ||
-        matchedCustomer?.phone ||
-        matchedConv?.customerPhone ||
-        (candidateId.startsWith('cust_')
-          ? candidateId.replace('cust_', '')
-          : candidateId.startsWith('phone_')
-            ? candidateId.replace('phone_', '')
-            : !candidateId.includes('-') && candidateId.replace(/\D/g, '').length >= 7
-              ? candidateId
-              : '');
-      const isUserIdentifier = isMetaUserIdentifier(resolvedPhone);
-      const cleanPhone = isUserIdentifier ? '' : resolvedPhone.replace(/\D/g, '');
-      const customerIdParam =
-        matchedCustomer?.id ||
-        matchedConv?.customerId ||
-        candidateId ||
-        (cleanPhone ? `cust_${cleanPhone}` : '');
-      const threadKey =
-        matchedCustomer?.id ||
-        (isUserIdentifier
-          ? `meta:${resolvedPhone.toLowerCase()}`
-          : cleanPhone.length >= 7 ? cleanPhone.slice(-9) : customerIdParam);
-
-      return {
-        threadKey,
-        customerId: customerIdParam,
-        customerPhone: isUserIdentifier ? resolvedPhone : (cleanPhone || resolvedPhone),
-      };
+    (rawId?: string | null, rawPhoneInput?: string | null, businessPhoneId?: string) => {
+      return resolveMessageThreadIdentity(rawId, rawPhoneInput, businessPhoneId, {
+        customers: customersRef.current,
+        conversations: flattenConversations(queryClient.getQueryData<ConversationPages>(conversationsQueryKey)),
+        allPhones,
+        phoneNumberId,
+      });
     },
-    [conversations, conversationsQueryKey, queryClient]
+    [conversations, conversationsQueryKey, queryClient, allPhones, phoneNumberId]
   );
 
   const activeTarget = useMemo(() => {
@@ -192,7 +155,7 @@ export function useCentralMessages({
     const rawId = selectedCustomerId || fallbackConv?.customerId || '';
     const rawPhone =
       selectedCustomerPhone || (!selectedCustomerId ? fallbackConv?.customerPhone || '' : '');
-    return resolveThreadIdentity(rawId, rawPhone);
+    return resolveThreadIdentity(rawId, rawPhone, !selectedCustomerId ? fallbackConv?.lastMessage.businessPhoneNumberId : undefined);
   }, [conversations, resolveThreadIdentity, selectedCustomerId, selectedCustomerPhone]);
 
   const activeTargetRef = useRef(activeTarget);
@@ -228,7 +191,7 @@ export function useCentralMessages({
       const params = new URLSearchParams({
         paginate: 'true',
         limit: '30',
-        phoneNumberId,
+        phoneNumberId: activeTarget.businessPhoneId,
       });
       if (activeTarget.customerId) {
         params.set('customerId', activeTarget.customerId);
@@ -245,7 +208,7 @@ export function useCentralMessages({
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     enabled:
       Boolean(currentUser) &&
-      Boolean(phoneNumberId) &&
+      Boolean(activeTarget.businessPhoneId) &&
       loadMessages &&
       Boolean(activeTarget.customerId || activeTarget.customerPhone),
   });
@@ -282,15 +245,9 @@ export function useCentralMessages({
 
   const updateConversationsCache = useCallback(
     (updater: (convs: ConversationSummary[]) => ConversationSummary[]) => {
-      queryClient.setQueryData<ConversationListResponse>(conversationsQueryKey, (existing) => {
-        const current = existing?.data ?? [];
-        const next = updater(current);
-        return {
-          ...(existing ?? { page: 1, limit: 100 }),
-          data: next,
-          count: next.length,
-        };
-      });
+      queryClient.setQueryData<ConversationPages>(conversationsQueryKey, (existing) =>
+        existing ? updateConversationPages(existing, updater) : existing,
+      );
     },
     [conversationsQueryKey, queryClient]
   );
@@ -327,7 +284,7 @@ export function useCentralMessages({
   );
 
   const invalidateUnreadCounts = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
+    void queryClient.invalidateQueries({ queryKey: ['message-conversations'] });
     void queryClient.invalidateQueries({ queryKey: unreadSummaryQueryKey });
     void queryClient.invalidateQueries({ queryKey: queryKeys.messageUnreadTotals });
     void queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -359,10 +316,10 @@ export function useCentralMessages({
       'message:new': (event) => {
         try {
           const newMessage: CentralMessage = JSON.parse(event.data);
-          if (!newMessage?.id) return;
+          if (!newMessage?.id || (allPhones && !newMessage.businessPhoneNumberId)) return;
           invalidateUnreadCounts();
           if (
-            newMessage.businessPhoneNumberId &&
+            !allPhones && newMessage.businessPhoneNumberId &&
             newMessage.businessPhoneNumberId !== phoneNumberId
           )
             return;
@@ -372,15 +329,10 @@ export function useCentralMessages({
           const activeIdentity = activeTargetRef.current;
           const msgIdentity = resolveThreadIdentityRef.current(
             newMessage.customerId,
-            newMessage.customerPhone
+            newMessage.customerPhone,
+            newMessage.businessPhoneNumberId
           );
-          const isSelected = Boolean(
-            activeIdentity.threadKey &&
-              (msgIdentity.threadKey === activeIdentity.threadKey ||
-                newMessage.customerId === activeIdentity.customerId ||
-                (activeIdentity.customerPhone &&
-                  isSamePhoneNumber(newMessage.customerPhone, activeIdentity.customerPhone)))
-          );
+          const isSelected = Boolean(activeIdentity.threadKey && msgIdentity.threadKey === activeIdentity.threadKey);
 
           const enrichedMessage: CentralMessage = {
             ...newMessage,
@@ -388,13 +340,8 @@ export function useCentralMessages({
           };
 
           updateConversationsCache((convs) => {
-            const matchIdx = convs.findIndex(
-              (conv) =>
-                conv.customerId === enrichedMessage.customerId ||
-                (enrichedMessage.customerPhone &&
-                  isSamePhoneNumber(conv.customerPhone, enrichedMessage.customerPhone)) ||
-                resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone).threadKey ===
-                  msgIdentity.threadKey
+            const matchIdx = convs.findIndex((conv) =>
+              resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone, conv.lastMessage.businessPhoneNumberId).threadKey === msgIdentity.threadKey
             );
 
             if (matchIdx >= 0) {
@@ -472,7 +419,7 @@ export function useCentralMessages({
       },
       'message:read': (event) => {
         try {
-          const { messageIds, customerId, customerPhone, readBy, readAt } = JSON.parse(event.data);
+          const { messageIds, customerId, customerPhone, businessPhoneNumberId, readBy, readAt } = JSON.parse(event.data);
           const resolvedReadAt = readAt || new Date().toISOString();
           const resolvedReadBy = readBy || 'Nhân viên';
 
@@ -480,8 +427,9 @@ export function useCentralMessages({
             convs.map((conv) => {
               const matches =
                 (Array.isArray(messageIds) && messageIds.includes(conv.lastMessage.id)) ||
-                (customerId && conv.customerId === customerId) ||
-                (customerPhone && isSamePhoneNumber(conv.customerPhone, customerPhone));
+                ((businessPhoneNumberId ? conv.lastMessage.businessPhoneNumberId === businessPhoneNumberId : !allPhones) && (
+                  (customerId && conv.customerId === customerId) ||
+                  (customerPhone && isSamePhoneNumber(conv.customerPhone, customerPhone))));
               if (!matches) return conv;
               return {
                 ...conv,
@@ -500,8 +448,9 @@ export function useCentralMessages({
             previous.map((message) => {
               const matches =
                 (Array.isArray(messageIds) && messageIds.includes(message.id)) ||
-                (customerId && message.customerId === customerId) ||
-                (customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone));
+                ((businessPhoneNumberId ? message.businessPhoneNumberId === businessPhoneNumberId : !allPhones) && (
+                  (customerId && message.customerId === customerId) ||
+                  (customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone))));
               return matches
                 ? {
                     ...message,
@@ -565,7 +514,7 @@ export function useCentralMessages({
         try {
           const { messageId, emoji, customerId, customerPhone, businessPhoneNumberId, repliedAt } = JSON.parse(event.data);
           if (repliedAt) invalidateUnreadCounts();
-          if (businessPhoneNumberId && businessPhoneNumberId !== phoneNumberId) return;
+          if (!allPhones && businessPhoneNumberId && businessPhoneNumberId !== phoneNumberId) return;
           if (!messageId) return;
           setMessages((previous) =>
             previous.map((message) => {
@@ -576,7 +525,7 @@ export function useCentralMessages({
               };
             })
           );
-          const msgIdentity = resolveThreadIdentityRef.current(customerId, customerPhone);
+          const msgIdentity = resolveThreadIdentityRef.current(customerId, customerPhone, businessPhoneNumberId);
           if (msgIdentity.threadKey) {
             const targetThreadKey = queryKeys.centralMessages(phoneNumberId, msgIdentity.threadKey);
             queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
@@ -621,19 +570,19 @@ export function useCentralMessages({
       },
       'message:thread_deleted': (event) => {
         try {
-          const { customerId, customerPhone } = JSON.parse(event.data);
+          const { customerId, customerPhone, businessPhoneNumberId } = JSON.parse(event.data);
           updateConversationsCache((convs) =>
             convs.filter(
               (conv) =>
-                conv.customerId !== customerId &&
-                !(customerPhone && isSamePhoneNumber(conv.customerPhone, customerPhone))
+                (businessPhoneNumberId && conv.lastMessage.businessPhoneNumberId !== businessPhoneNumberId) ||
+                (conv.customerId !== customerId && !(customerPhone && isSamePhoneNumber(conv.customerPhone, customerPhone)))
             )
           );
           setMessages((previous) =>
             previous.filter(
               (message) =>
-                message.customerId !== customerId &&
-                !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone))
+                (businessPhoneNumberId && message.businessPhoneNumberId !== businessPhoneNumberId) ||
+                (message.customerId !== customerId && !(customerPhone && isSamePhoneNumber(message.customerPhone, customerPhone)))
             )
           );
           invalidateUnreadCounts();
@@ -673,6 +622,7 @@ export function useCentralMessages({
     });
   }, [
     invalidateUnreadCounts,
+    allPhones,
     phoneNumberId,
     queryClient,
     setCustomers,
@@ -694,11 +644,10 @@ export function useCentralMessages({
     }) => api.post<any>('/meta/messages/send', variables),
   });
   const threadDeleteMutation = useMutation({
-    mutationFn: ({ customerId, phone }: { customerId: string; phone: string }) => {
-      const cleanPhone = phone.replace(/\D/g, '');
+    mutationFn: ({ customerId, phone, businessPhoneId }: { customerId: string; phone: string; businessPhoneId: string }) => {
       const query = new URLSearchParams();
-      if (cleanPhone) query.set('customerPhone', cleanPhone);
-      if (phoneNumberId) query.set('phoneNumberId', phoneNumberId);
+      if (phone) query.set('customerPhone', phone);
+      if (businessPhoneId) query.set('phoneNumberId', businessPhoneId);
       const queryString = query.toString();
       return api.delete(
         `/meta/messages/thread/${encodeURIComponent(customerId)}${queryString ? `?${queryString}` : ''}`
@@ -726,6 +675,8 @@ export function useCentralMessages({
           item.whatsappRecipientId === explicitPhone ||
           isSamePhoneNumber(item.phone, explicitPhone || customerId)
       );
+      const senderId = senderPhoneNumberId || activeTargetRef.current.businessPhoneId;
+      if (!senderId || !/^\d+$/.test(senderId)) throw new Error('Chọn hội thoại có số WhatsApp doanh nghiệp để gửi tin.');
       const agentName = currentUserRef.current?.name || 'Nguyễn Văn Ánh';
       const phone = resolveSendableMessageRecipient(
         explicitPhone,
@@ -751,23 +702,19 @@ export function useCentralMessages({
         timestamp: new Date().toISOString(),
         isRead: true,
         status: 'sending',
-        businessPhoneNumberId: senderPhoneNumberId || phoneNumberId,
+        businessPhoneNumberId: senderId,
         replyTo,
       };
 
       const targetIdentity = resolveThreadIdentityRef.current(
         temporaryMessage.customerId,
-        temporaryMessage.customerPhone
+        temporaryMessage.customerPhone,
+        temporaryMessage.businessPhoneNumberId
       );
 
       updateConversationsCache((convs) => {
-        const matchIdx = convs.findIndex(
-          (conv) =>
-            conv.customerId === temporaryMessage.customerId ||
-            (temporaryMessage.customerPhone &&
-              isSamePhoneNumber(conv.customerPhone, temporaryMessage.customerPhone)) ||
-            resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone).threadKey ===
-              targetIdentity.threadKey
+        const matchIdx = convs.findIndex((conv) =>
+          resolveThreadIdentityRef.current(conv.customerId, conv.customerPhone, conv.lastMessage.businessPhoneNumberId).threadKey === targetIdentity.threadKey
         );
         if (matchIdx >= 0) {
           const existing = convs[matchIdx];
@@ -803,7 +750,7 @@ export function useCentralMessages({
           recipientId: phone,
           content,
           agentName,
-          senderPhoneId: senderPhoneNumberId,
+          senderPhoneId: senderId,
           contextMessageId: replyTo?.id,
           replyTo,
         });
@@ -886,22 +833,27 @@ export function useCentralMessages({
         );
       }
     },
-    [phoneNumberId, sendMutation, setCustomers, setMessages, updateConversationsCache]
+    [sendMutation, setCustomers, setMessages, updateConversationsCache]
   );
 
   const deleteThread = useCallback(
-    async (customerId: string) => {
+    async (targetId: string) => {
+      const identity = resolveThreadIdentityRef.current(targetId);
+      const customerId = identity.customerId;
+      const businessPhoneId = identity.businessPhoneId;
+      if (!businessPhoneId) return;
+      const sameBusinessPhone = (message: CentralMessage) => message.businessPhoneNumberId === businessPhoneId;
       if (currentUserRef.current?.role !== 'Admin') {
         alert('Chỉ tài khoản Admin mới có quyền xóa hội thoại!');
         return;
       }
       const matchingConv = conversations.find(
-        (conv) => conv.customerId === customerId || isSamePhoneNumber(conv.customerPhone, customerId)
+        (conv) => sameBusinessPhone(conv.lastMessage) && (conv.customerId === customerId || isSamePhoneNumber(conv.customerPhone, customerId))
       );
       const threadMsgs = threadMessages.filter(
         (message) =>
-          message.customerId === customerId ||
-          isSamePhoneNumber(message.customerPhone, customerId)
+          sameBusinessPhone(message) && (message.customerId === customerId ||
+          isSamePhoneNumber(message.customerPhone, customerId))
       );
       const phone =
         matchingConv?.customerPhone ||
@@ -910,7 +862,7 @@ export function useCentralMessages({
         customerId;
 
       const previousConversations =
-        queryClient.getQueryData<ConversationListResponse>(conversationsQueryKey);
+        queryClient.getQueryData<ConversationPages>(conversationsQueryKey);
       const previousMessages = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
         centralMessagesQueryKey
       );
@@ -918,25 +870,24 @@ export function useCentralMessages({
       updateConversationsCache((convs) =>
         convs.filter(
           (conv) =>
-            conv.customerId !== customerId && !isSamePhoneNumber(conv.customerPhone, phone)
+            !sameBusinessPhone(conv.lastMessage) || (conv.customerId !== customerId && !isSamePhoneNumber(conv.customerPhone, phone))
         )
       );
       setMessages((previous) =>
         previous.filter(
           (message) =>
-            message.customerId !== customerId && !isSamePhoneNumber(message.customerPhone, phone)
+            !sameBusinessPhone(message) || (message.customerId !== customerId && !isSamePhoneNumber(message.customerPhone, phone))
         )
       );
       if (
-        selectedCustomerId === customerId ||
-        (phone && isSamePhoneNumber(selectedCustomerPhone || selectedCustomerId || '', phone))
+        selectedCustomerId === targetId || activeTargetRef.current.threadKey === identity.threadKey
       ) {
         setSelectedCustomerId(null);
         setSelectedCustomerPhone('');
       }
 
       try {
-        await threadDeleteMutation.mutateAsync({ customerId, phone });
+        await threadDeleteMutation.mutateAsync({ customerId, phone, businessPhoneId });
         invalidateUnreadCounts();
       } catch (error) {
         if (previousConversations) {
@@ -955,7 +906,6 @@ export function useCentralMessages({
       invalidateUnreadCounts,
       queryClient,
       selectedCustomerId,
-      selectedCustomerPhone,
       setMessages,
       threadDeleteMutation,
       threadMessages,
@@ -1066,6 +1016,11 @@ export function useCentralMessages({
     isLoadingOlderMessages: messagesQuery.isFetchingNextPage,
     loadOlderMessages: messagesQuery.fetchNextPage,
     isLoadingThreads: conversationsQuery.isLoading,
+    hasMoreThreads: Boolean(conversationsQuery.hasNextPage),
+    isLoadingMoreThreads: conversationsQuery.isFetchingNextPage,
+    isThreadsError: conversationsQuery.isError,
+    loadMoreThreads,
+    retryThreads: conversationsQuery.refetch,
     isLoading: messagesQuery.isLoading || conversationsQuery.isLoading,
     isFetching: messagesQuery.isFetching || conversationsQuery.isFetching,
     isError:

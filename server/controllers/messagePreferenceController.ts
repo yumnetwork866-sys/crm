@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES, scopeThreadId } from '../../shared/whatsappScope';
 import type { Response } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
@@ -82,8 +83,8 @@ export async function getMessagePreferences(req: AuthenticatedRequest, res: Resp
   try {
     const businessPhoneNumberId = parsedPhoneNumberId.data;
     const states = await prisma.messageThreadState.findMany({
-      where: { businessPhoneNumberId },
-      select: { threadId: true, status: true, isPinned: true, autoTranslate: true },
+      where: businessPhoneNumberId === ALL_BUSINESS_PHONES ? {} : { businessPhoneNumberId },
+      select: { businessPhoneNumberId: true, threadId: true, status: true, isPinned: true, autoTranslate: true },
     });
 
     const threadStatuses: Record<string, string> = {};
@@ -91,9 +92,11 @@ export async function getMessagePreferences(req: AuthenticatedRequest, res: Resp
     const autoTranslateThreadIds: string[] = [];
 
     states.forEach((state) => {
-      threadStatuses[state.threadId] = state.status;
-      if (state.isPinned) pinnedThreadIds.push(state.threadId);
-      if (state.autoTranslate) autoTranslateThreadIds.push(state.threadId);
+      const key = businessPhoneNumberId === ALL_BUSINESS_PHONES
+        ? scopeThreadId(state.businessPhoneNumberId, state.threadId) : state.threadId;
+      threadStatuses[key] = state.status;
+      if (state.isPinned) pinnedThreadIds.push(key);
+      if (state.autoTranslate) autoTranslateThreadIds.push(key);
     });
 
     return res.json({ threadStatuses, pinnedThreadIds, autoTranslateThreadIds, internalNotes: {} });

@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES } from '../../../../shared/whatsappScope';
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Globe2 } from 'lucide-react';
 import auFlagUrl from 'flag-icons/flags/4x3/au.svg';
@@ -9,6 +10,7 @@ import sgFlagUrl from 'flag-icons/flags/4x3/sg.svg';
 import thFlagUrl from 'flag-icons/flags/4x3/th.svg';
 import usFlagUrl from 'flag-icons/flags/4x3/us.svg';
 import vnFlagUrl from 'flag-icons/flags/4x3/vn.svg';
+import whatsappLogoUrl from '../../../assets/whatsapp.svg';
 import type { BusinessPhoneNumber } from '../types';
 
 interface BusinessPhoneSelectorProps {
@@ -59,7 +61,15 @@ function PhoneCountryFlag({ displayPhoneNumber }: { displayPhoneNumber: string }
 export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: BusinessPhoneSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
-  const selectedPhone = phones.find((phone) => phone.id === selectedPhoneId) || phones[0];
+  const allPhones: BusinessPhoneNumber = {
+    id: ALL_BUSINESS_PHONES,
+    verifiedName: 'Tất cả số',
+    profilePictureUrl: whatsappLogoUrl,
+    displayPhoneNumber: `${phones.length} waba`,
+    unreadCount: phones.reduce((total, phone) => total + (phone.unreadCount || 0), 0),
+  };
+  const options = [allPhones, ...phones];
+  const selectedPhone = options.find((phone) => phone.id === selectedPhoneId) || phones[0];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -87,7 +97,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
             ? 'border-[#1fa855] ring-2 ring-[#1fa855]/15'
             : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
         }`}
-        title="Chọn số doanh nghiệp gửi tin (WABA)"
+        title="Lọc theo số WhatsApp doanh nghiệp"
       >
         <img
           src={getPhoneAvatarUrl(selectedPhone)}
@@ -120,7 +130,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
           aria-label="Chọn số WhatsApp doanh nghiệp"
           className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
         >
-          {phones.map((phone) => {
+          {options.map((phone) => {
             const isSelected = phone.id === selectedPhoneId;
             return (
               <button

@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES } from '../../../../shared/whatsappScope';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { BusinessPhoneNumber } from '../types';
@@ -50,7 +51,7 @@ export function useBusinessPhones(enabled = true) {
         const selected = phones.find((phone) => phone.id === saved)
           || phones.find((phone) => phone.id === payload.selectedPhoneNumberId)
           || phones[0];
-        const nextPhoneId = selected?.id || '';
+        const nextPhoneId = saved === ALL_BUSINESS_PHONES ? ALL_BUSINESS_PHONES : selected?.id || '';
         setSelectedPhoneId(nextPhoneId);
         if (nextPhoneId) {
           try {

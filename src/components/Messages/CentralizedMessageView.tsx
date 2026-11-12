@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES, parseThreadId } from '../../../shared/whatsappScope';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import type { Customer, CentralMessage, MessageChannel, AppUser } from '../../types';
@@ -60,6 +61,11 @@ interface CentralizedMessageViewProps {
   hasOlderMessages?: boolean;
   isLoadingOlderMessages?: boolean;
   isLoadingThreads?: boolean;
+  hasMoreThreads?: boolean;
+  isLoadingMoreThreads?: boolean;
+  isThreadsError?: boolean;
+  onLoadMoreThreads?: () => Promise<unknown>;
+  onRetryThreads?: () => Promise<unknown>;
   onLoadOlderMessages?: () => Promise<unknown>;
 }
 
@@ -83,6 +89,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
   hasOlderMessages = false,
   isLoadingOlderMessages = false,
   isLoadingThreads = false,
+  hasMoreThreads = false,
+  isLoadingMoreThreads = false,
+  isThreadsError = false,
+  onLoadMoreThreads,
+  onRetryThreads,
   onLoadOlderMessages,
 }) => {
   const { currentUser: authCurrentUser, users, hasPermission } = useAuth();
@@ -126,13 +137,18 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     searchQuery,
     selectedCustomerId,
     chatSearchQuery,
+    scopeByBusinessPhone: selectedPhoneId === ALL_BUSINESS_PHONES,
   });
 
+  const activePhoneId = selectedPhoneId === ALL_BUSINESS_PHONES
+    ? activeThread?.lastMessage.businessPhoneNumberId || ''
+    : selectedPhoneId;
+  const activePhone = businessPhones.find((phone) => phone.id === activePhoneId);
   const activeCustomer = activeThread?.customer || null;
   const { typingUsers, notifyTyping, stopTyping } = useThreadTyping({
-    threadId: activeThread?.threadId,
+    threadId: activeThread ? parseThreadId(activeThread.threadId).threadId : undefined,
     customerPhone: activeThread?.customerPhone,
-    businessPhoneNumberId: selectedPhoneId,
+    businessPhoneNumberId: activePhoneId,
     currentUserId: effectiveCurrentUser?.id,
     currentUserEmail: effectiveCurrentUser?.email,
   });
@@ -189,9 +205,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
 
   const composer = useMessageComposer({
     activeThread,
-    selectedPhoneId,
+    selectedPhoneId: activePhoneId,
     soundEnabled,
-    brandName: businessPhones.find((phone) => phone.id === selectedPhoneId)?.verifiedName || 'YumNetwork',
+    brandName: activePhone?.verifiedName || 'YumNetwork',
     onSendMessage,
   });
 
@@ -207,7 +223,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
     handleReplyMessage,
   } = useMessageInteractions({
     activeThread,
-    selectedPhoneId,
+    selectedPhoneId: activePhoneId,
     onReplyMessage: composer.handleReplyMessage,
   });
 
@@ -238,6 +254,11 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
           isAdmin={isAdmin}
           effectiveCurrentUser={effectiveCurrentUser}
           isLoadingThreads={isLoadingThreads}
+          hasMoreThreads={hasMoreThreads}
+          isLoadingMoreThreads={isLoadingMoreThreads}
+          isThreadsError={isThreadsError}
+          onLoadMoreThreads={onLoadMoreThreads}
+          onRetryThreads={onRetryThreads}
         />
 
         {/* COLUMN 2: AUTHENTIC WHATSAPP CHAT CANVAS */}
@@ -302,7 +323,9 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 onOpenProductPicker={() => setIsProductPickerOpen(true)}
                 onOpenQuickTemplatesModal={() => setIsQuickTemplatesModalOpen(true)}
                 activeThread={activeThread}
-                brandName={businessPhones.find((phone) => phone.id === selectedPhoneId)?.verifiedName || 'YumNetwork'}
+                senderPhone={activePhone}
+                senderPhoneId={activePhoneId}
+                brandName={activePhone?.verifiedName || 'YumNetwork'}
               />
             </>
           ) : (
@@ -340,8 +363,8 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
       {/* Meta Catalog Product Picker Modal */}
       <ProductPickerModal
         isOpen={isProductPickerOpen}
-        phoneNumberId={selectedPhoneId}
-        catalogScopeId={businessPhones.find((phone) => phone.id === selectedPhoneId)?.wabaId || selectedPhoneId}
+        phoneNumberId={activePhoneId}
+        catalogScopeId={activePhone?.wabaId || activePhoneId}
         onClose={() => setIsProductPickerOpen(false)}
         onSendProduct={(product, catalogId, customText) => {
           if (!activeThread) return;
@@ -363,7 +386,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
             'WhatsApp',
             targetPhone,
             targetName,
-            selectedPhoneId
+            activePhoneId
           );
         }}
       />

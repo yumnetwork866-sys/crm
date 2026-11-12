@@ -36,6 +36,8 @@ export interface ConversationListResponse {
   page?: number;
   limit?: number;
   count?: number;
+  hasMore?: boolean;
+  nextCursor?: string | null;
 }
 
 export interface MessageThread {

@@ -1,16 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 import type { AppUser, CentralMessage } from '../../../types';
 import type {
   ActiveMessageFilter,
   BusinessPhoneNumber,
-  ConversationListResponse,
   ConversationStatus,
   MessageThread,
 } from '../types';
-import { queryKeys } from '../../../lib/queryClient';
 import { api } from '../../../utils/apiClient';
 import { BusinessPhoneSelector } from './BusinessPhoneSelector';
 import { ThreadListItem, type SlaWarning } from './ThreadListItem';
@@ -42,6 +39,11 @@ export interface ThreadSidebarProps {
   isAdmin: boolean;
   effectiveCurrentUser?: AppUser | null;
   isLoadingThreads?: boolean;
+  hasMoreThreads?: boolean;
+  isLoadingMoreThreads?: boolean;
+  isThreadsError?: boolean;
+  onLoadMoreThreads?: () => Promise<unknown>;
+  onRetryThreads?: () => Promise<unknown>;
 }
 
 export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
@@ -65,6 +67,11 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   isAdmin,
   effectiveCurrentUser,
   isLoadingThreads = false,
+  hasMoreThreads = false,
+  isLoadingMoreThreads = false,
+  isThreadsError = false,
+  onLoadMoreThreads,
+  onRetryThreads,
 }) => {
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [activeSavedListId, setActiveSavedListId] = useState<string | null>(null);
@@ -73,16 +80,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   const threadListRef = useRef<HTMLDivElement>(null);
   const [slaCurrentTime, setSlaCurrentTime] = useState(() => Date.now());
 
-  const conversationsQuery = useQuery({
-    queryKey: queryKeys.messageConversations(selectedPhoneId),
-    queryFn: () =>
-      api.get<ConversationListResponse>(
-        `/meta/messages/conversations?limit=100&phoneNumberId=${encodeURIComponent(selectedPhoneId)}`
-      ),
-    enabled: Boolean(effectiveCurrentUser) && Boolean(selectedPhoneId),
-    staleTime: 30_000,
-  });
-  const effectiveIsLoadingThreads = isLoadingThreads || conversationsQuery.isLoading;
+
 
   useEffect(() => {
     const timer = window.setInterval(() => setSlaCurrentTime(Date.now()), 60_000);
@@ -134,7 +132,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   }, [isFilterMenuOpen]);
 
   const filterOptions = [
-    { id: 'all', label: `Tất cả (${threads.length})` },
+    { id: 'all', label: 'Tất cả' },
     { id: 'unread', label: `Chưa đọc (${threads.filter((thread) => thread.unreadCount > 0).length})` },
     { id: 'vip', label: 'Khách VIP' },
     { id: 'repeat', label: 'Đã mua 1 lần' },
@@ -156,6 +154,32 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
     getItemKey: (index) => filteredThreads[index]?.threadId || index,
     overscan: 8,
   });
+
+  const loadMoreIfNearEnd = useCallback(() => {
+    const element = threadListRef.current;
+    if (!element || element.clientHeight === 0 || !hasMoreThreads || isLoadingThreads || isLoadingMoreThreads || isThreadsError) return;
+    if (element.scrollHeight - element.scrollTop - element.clientHeight < 320) {
+      void onLoadMoreThreads?.();
+    }
+  }, [hasMoreThreads, isLoadingThreads, isLoadingMoreThreads, isThreadsError, onLoadMoreThreads]);
+
+  useEffect(() => {
+    threadListRef.current?.scrollTo({ top: 0 });
+  }, [selectedPhoneId, activeFilter, searchQuery]);
+
+  useEffect(() => {
+    // Fill the viewport after loading/filtering, including when no loaded rows match yet.
+    const frame = requestAnimationFrame(loadMoreIfNearEnd);
+    return () => cancelAnimationFrame(frame);
+  }, [loadMoreIfNearEnd, filteredThreads.length]);
+
+  useEffect(() => {
+    const element = threadListRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(loadMoreIfNearEnd);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [loadMoreIfNearEnd]);
 
   const selectBuiltInFilter = (filter: ActiveMessageFilter) => {
     onSelectActiveFilter(filter);
@@ -337,14 +361,16 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Thread List */}
-      <div ref={threadListRef} className="flex-1 overflow-y-auto bg-white whatsapp-scrollbar">
-        {effectiveIsLoadingThreads && filteredThreads.length === 0 ? (
+      <div ref={threadListRef} onScroll={loadMoreIfNearEnd} className="flex-1 overflow-y-auto bg-white whatsapp-scrollbar">
+        {isLoadingThreads && filteredThreads.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             Đang tải danh sách hội thoại...
           </div>
         ) : filteredThreads.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
-            Không tìm thấy đoạn chat nào phù hợp.
+            {isThreadsError ? 'Không thể tải danh sách hội thoại.'
+              : hasMoreThreads ? 'Đang tìm hội thoại phù hợp...'
+              : 'Không tìm thấy đoạn chat nào phù hợp.'}
           </div>
         ) : (
           <div
@@ -375,6 +401,27 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+        {(hasMoreThreads || isThreadsError) && (
+          <div className="px-3 py-3 text-center text-xs text-slate-500" aria-live="polite">
+            {isLoadingMoreThreads ? 'Đang tải thêm hội thoại...' : isThreadsError ? (
+              <button
+                type="button"
+                onClick={() => { void (hasMoreThreads ? onLoadMoreThreads?.() : onRetryThreads?.()); }}
+                className="cursor-pointer font-semibold text-emerald-700 hover:underline"
+              >
+                Không tải được hội thoại. Thử lại
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { void onLoadMoreThreads?.(); }}
+                className="cursor-pointer font-semibold text-emerald-700 hover:underline"
+              >
+                Tải thêm hội thoại
+              </button>
+            )}
           </div>
         )}
       </div>

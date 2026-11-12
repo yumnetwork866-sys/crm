@@ -5,5 +5,5 @@
     "noEmit": true,
     "tsBuildInfoFile": "./node_modules/.cache/typescript/app.tsbuildinfo"
   },
-  "include": ["src"]
+  "include": ["src", "shared"]
 }

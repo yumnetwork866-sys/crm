@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES } from '../../../shared/whatsappScope';
 import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/authMiddleware';
 import { prisma } from '../../lib/prisma';
@@ -30,6 +31,9 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
   try {
     const { recipientId: requestedRecipientId, customerPhone, content, agentName, customerId, customerName, phoneNumberId: overridePhoneId, senderPhoneId, contextMessageId, replyTo } = req.body;
 
+    if (senderPhoneId === ALL_BUSINESS_PHONES || overridePhoneId === ALL_BUSINESS_PHONES) {
+      return res.status(400).json({ error: 'Chọn số WhatsApp doanh nghiệp cụ thể để gửi tin.' });
+    }
     if (!content || (!requestedRecipientId && !customerPhone && !customerId)) {
       return res.status(400).json({ error: 'Vui lòng cung cấp số điện thoại người nhận và nội dung tin nhắn.' });
     }
@@ -300,6 +304,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     // Broadcast instant real-time event
     realtimeHub.broadcast('message:new', newMsg);
     realtimeHub.broadcast('message:read', {
+      businessPhoneNumberId: phoneId,
       customerId: matchedCustomerId || resolvedCustomerId,
       customerPhone: resolvedCustomerPhone,
       readBy: authenticatedAgentName || agentName || 'Nhân viên',
@@ -335,6 +340,9 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
 export async function sendReaction(req: AuthenticatedRequest, res: Response) {
   try {
     const { messageId, emoji, customerPhone, customerId, phoneNumberId: overridePhoneId, senderPhoneId } = req.body;
+    if (senderPhoneId === ALL_BUSINESS_PHONES || overridePhoneId === ALL_BUSINESS_PHONES) {
+      return res.status(400).json({ error: 'Chọn số WhatsApp doanh nghiệp cụ thể để gửi cảm xúc.' });
+    }
 
     if (!messageId || (!customerPhone && !customerId)) {
       return res.status(400).json({ error: 'Thiếu messageId hoặc số điện thoại người nhận' });
@@ -450,15 +458,20 @@ export async function clearAllMessages(_req: Request, res: Response) {
 export async function deleteThread(req: Request, res: Response) {
   const customerId = getRouteParam(req.params.customerId);
   const { customerPhone, phoneNumberId } = req.query;
+  if (phoneNumberId === ALL_BUSINESS_PHONES) {
+    return res.status(400).json({ error: 'Chọn số WhatsApp doanh nghiệp cụ thể để xóa hội thoại.' });
+  }
   const businessPhoneNumberId = typeof phoneNumberId === 'string' && /^\d+$/.test(phoneNumberId)
     ? phoneNumberId
     : '';
   const rawPhone = typeof customerPhone === 'string' ? customerPhone : customerId;
-  const cleanPhone = rawPhone.replace(/\D/g, '');
+  const metaUserIdentifier = isMetaUserIdentifier(rawPhone) ? rawPhone : '';
+  const cleanPhone = metaUserIdentifier ? '' : rawPhone.replace(/\D/g, '');
   const lastDigits = cleanPhone.length >= 7 ? cleanPhone.slice(-9) : cleanPhone;
 
   try {
     const deleteConditions: any[] = [{ customerId }];
+    if (metaUserIdentifier) deleteConditions.push({ customerPhone: metaUserIdentifier });
     if (lastDigits) {
       deleteConditions.push({ customerPhone: { contains: lastDigits } });
       deleteConditions.push({ customerId: { contains: lastDigits } });
@@ -474,7 +487,7 @@ export async function deleteThread(req: Request, res: Response) {
     log.error({ err: e }, 'Error deleting thread from DB:');
   }
 
-  realtimeHub.broadcast('message:thread_deleted', { customerId, customerPhone: cleanPhone });
+  realtimeHub.broadcast('message:thread_deleted', { customerId, customerPhone: metaUserIdentifier || cleanPhone, businessPhoneNumberId });
 
   return res.json({ success: true, message: `Đã xóa hội thoại của khách hàng ${customerId}` });
 }

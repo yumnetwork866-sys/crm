@@ -1,3 +1,4 @@
+import { ALL_BUSINESS_PHONES, scopeThreadId } from '../shared/whatsappScope';
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { ActiveTab, AppUser, Customer } from './types';
@@ -197,6 +198,11 @@ export default function App() {
     hasOlderMessages,
     isLoadingOlderMessages,
     isLoadingThreads,
+    hasMoreThreads,
+    isLoadingMoreThreads,
+    isThreadsError,
+    loadMoreThreads,
+    retryThreads,
     loadOlderMessages,
     isError: isMessagesError,
   } = useCentralMessages({
@@ -422,7 +428,11 @@ export default function App() {
                     onClose={() => setToastNotification(null)}
                     onOpenMessage={(msg) => {
                       void navigate('/messages');
-                      handleSelectCustomerThread(msg.customerId, msg.customerPhone);
+                      handleSelectCustomerThread(
+                        selectedPhoneId === ALL_BUSINESS_PHONES && msg.businessPhoneNumberId
+                          ? scopeThreadId(msg.businessPhoneNumberId, msg.customerId) : msg.customerId,
+                        msg.customerPhone,
+                      );
                     }}
                   />
                 )}
@@ -626,6 +636,11 @@ export default function App() {
                   hasOlderMessages={hasOlderMessages}
                   isLoadingOlderMessages={isLoadingOlderMessages}
                   isLoadingThreads={isLoadingThreads}
+                  hasMoreThreads={hasMoreThreads}
+                  isLoadingMoreThreads={isLoadingMoreThreads}
+                  isThreadsError={isThreadsError}
+                  onLoadMoreThreads={loadMoreThreads}
+                  onRetryThreads={retryThreads}
                   onLoadOlderMessages={loadOlderMessages}
                 />
               }

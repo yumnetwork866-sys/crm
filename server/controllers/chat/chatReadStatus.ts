@@ -70,6 +70,7 @@ export async function markMessagesAsRead(req: Request, res: Response) {
     }
 
     realtimeHub.broadcast('message:read', {
+      businessPhoneNumberId,
       customerId,
       customerPhone,
       messageIds,
