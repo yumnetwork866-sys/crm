@@ -897,6 +897,20 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   stroke: #ffffff !important;
 }
 
+/* Keep the chat composer lighter than the global form-control styles. */
+.whatsapp-page textarea.whatsapp-composer-input {
+  background-color: transparent !important;
+  color: #111b21 !important;
+  -webkit-text-fill-color: #111b21 !important;
+}
+
+.whatsapp-page textarea.whatsapp-composer-input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  font-weight: 400 !important;
+  opacity: 1 !important;
+}
+
 /* WhatsApp page uses the brighter green from the current WhatsApp UI. */
 .whatsapp-page {
   --whatsapp-green: #1fa855;

@@ -660,166 +660,174 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           />
         </div>
       ) : (
-        <div className="px-2 py-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 z-10">
+        <div className="group/composer shrink-0 z-10">
           {senderPhoneId && (
             <div
-              className="mb-1 flex min-w-0 items-center gap-1 text-[11px] text-slate-500"
+              className="relative z-10 -mb-px flex h-6 w-fit max-w-[90%] items-center gap-1.5 rounded-t-xl border border-b-0 border-slate-200 bg-[#f0f2f5] px-2.5 text-[11px] text-slate-500"
               title={`Trả lời từ ${senderPhone?.verifiedName || 'WhatsApp'}`}
             >
               <img
                 src={senderPhone?.profilePictureUrl || whatsappLogoUrl}
                 alt={`Ảnh đại diện ${senderPhone?.verifiedName || 'WhatsApp'}`}
-                className="h-5 w-5 shrink-0 rounded-full bg-emerald-50 object-cover"
+                className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-50 object-cover ring-1 ring-slate-200/70"
                 onError={(event) => { event.currentTarget.src = whatsappLogoUrl; }}
               />
               <span className="truncate">
-                Trả lời từ <span className="font-semibold text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span>
+                Trả lời từ <span className="ml-0.5 font-bold text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span>
               </span>
             </div>
           )}
-          <div className="flex min-w-0 items-end gap-1.5">
-            {/* Emoji Trigger */}
-            <div className="relative">
-              <button
-                ref={emojiButtonRef}
-                type="button"
-                onClick={() => {
-                  setShowEmojiPicker(!showEmojiPicker);
-                  setShowAttachMenu(false);
-                  setShowTemplatePicker(false);
-                }}
-                className={`p-2 rounded-full transition cursor-pointer ${
-                  showEmojiPicker
-                    ? 'bg-slate-200 text-[#1fa855]'
-                    : 'text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60'
-                }`}
-                title="Biểu tượng cảm xúc"
-                aria-label="Biểu tượng cảm xúc"
-                aria-expanded={showEmojiPicker}
-              >
-                <Smile className="w-5 h-5" />
-              </button>
-
-              {showEmojiPicker && (
-                <div ref={emojiPickerRef} className="absolute bottom-full mb-3 left-0 z-50 animate-fadeIn">
-                  <EmojiPicker
-                    onSelect={handleAddEmoji}
-                    onClose={() => setShowEmojiPicker(false)}
-                    theme="whatsapp"
+          <div className={`rounded-xl border border-slate-200 bg-[#f0f2f5] px-2 py-1.5 ${senderPhoneId ? 'rounded-tl-none' : ''}`}>
+            <div className="flex min-h-14 min-w-0 items-center gap-1.5 rounded-3xl border border-slate-200 bg-white px-1.5 py-1.5 shadow-2xs transition focus-within:border-[#1fa855]/60 focus-within:ring-2 focus-within:ring-[#1fa855]/10">
+              <div className="flex shrink-0 items-center gap-0.5">
+                {/* Emoji Trigger */}
+                <div className="relative">
+                  <button
+                    ref={emojiButtonRef}
+                    type="button"
+                    onClick={() => {
+                      setShowEmojiPicker(!showEmojiPicker);
+                      setShowAttachMenu(false);
+                      setShowTemplatePicker(false);
+                    }}
+                    className={`flex h-7 w-7 items-center justify-center rounded-lg transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
+                      showEmojiPicker
+                        ? 'bg-emerald-50 text-[#1fa855]'
+                        : 'text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50'
+                    }`}
                     title="Biểu tượng cảm xúc"
-                    className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
-                  />
+                    aria-label="Biểu tượng cảm xúc"
+                    aria-expanded={showEmojiPicker}
+                  >
+                    <Smile className="h-[18px] w-[18px]" />
+                  </button>
+
+                  {showEmojiPicker && (
+                    <div ref={emojiPickerRef} className="absolute bottom-full mb-3 left-0 z-50 animate-fadeIn">
+                      <EmojiPicker
+                        onSelect={handleAddEmoji}
+                        onClose={() => setShowEmojiPicker(false)}
+                        theme="whatsapp"
+                        title="Biểu tượng cảm xúc"
+                        className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+                      />
+                    </div>
+                  )}
                 </div>
+
+                {/* Attachment Button: Directly opens native file chooser for any file */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fileInputRef.current) fileInputRef.current.click();
+                    setShowEmojiPicker(false);
+                    setShowTemplatePicker(false);
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
+                  aria-label="Đính kèm tệp"
+                >
+                  <Paperclip className="h-[18px] w-[18px]" />
+                </button>
+
+                {/* Catalog Product Picker Trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenProductPicker();
+                    setShowEmojiPicker(false);
+                    setShowTemplatePicker(false);
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  title="Gửi sản phẩm từ Meta Catalog"
+                  aria-label="Gửi sản phẩm Meta Catalog"
+                >
+                  <Package className="h-[18px] w-[18px]" />
+                </button>
+
+                {/* Quick Canned Template Trigger */}
+                <button
+                  ref={templateButtonRef}
+                  type="button"
+                  onClick={() => {
+                    const willOpen = !isTemplatePickerActive;
+                    setShowTemplatePicker(willOpen);
+                    setShowEmojiPicker(false);
+                    setShowAttachMenu(false);
+                    if (isSlashActive) setInputText('');
+                    if (willOpen) {
+                      setActiveSlashIndex(0);
+                      setTimeout(() => textareaRef.current?.focus(), 0);
+                    }
+                  }}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
+                    isTemplatePickerActive
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'text-slate-500 hover:text-amber-600 hover:bg-amber-50'
+                  }`}
+                  title="Mẫu tin nhắn nhanh (/)"
+                  aria-label="Mẫu tin nhắn nhanh"
+                  aria-expanded={isTemplatePickerActive}
+                >
+                  <Zap className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+
+              {/* Textarea Input with Clipboard Paste support */}
+              <div className="flex min-h-10 min-w-0 flex-1 items-center px-2 py-1.5">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputText}
+                  onChange={(e) => {
+                    setInputText(e.target.value);
+                    notifyTyping(e.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) stopTyping();
+                    handleKeyDown(event);
+                  }}
+                  onPaste={handlePaste}
+                  placeholder={
+                    pendingImage
+                      ? "Chú thích ảnh…"
+                      : pendingDocument
+                      ? "Ghi chú tài liệu…"
+                      : "Nhập tin nhắn…"
+                  }
+                  aria-label="Nội dung tin nhắn"
+                  title="Gõ / để chọn mẫu tin nhắn nhanh"
+                  className="whatsapp-composer-input block w-full min-h-[20px] max-h-[120px] resize-none overflow-y-hidden bg-transparent text-[14px] leading-5 text-[#111b21] placeholder-[#8696a0] focus:outline-none"
+                />
+              </div>
+
+              {/* Mic vs Send Button */}
+              {inputText.trim() || pendingImage || pendingDocument ? (
+                <button
+                  type="button"
+                  disabled={isSendDisabled}
+                  onClick={() => {
+                    stopTyping();
+                    handleSend();
+                  }}
+                  className="w-9 h-9 rounded-lg bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-sm shadow-emerald-700/15 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                  aria-label="Gửi tin nhắn"
+                  title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
+                >
+                  <Send className="w-4 h-4 ml-0.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartVoiceRecord}
+                  className="w-9 h-9 rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 flex items-center justify-center transition cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  title="Ghi âm tin nhắn"
+                  aria-label="Ghi âm tin nhắn"
+                >
+                  <Mic className="h-[18px] w-[18px]" />
+                </button>
               )}
             </div>
-
-            {/* Attachment Button: Directly opens native file chooser for any file */}
-            <button
-              type="button"
-              onClick={() => {
-                if (fileInputRef.current) fileInputRef.current.click();
-                setShowEmojiPicker(false);
-                setShowTemplatePicker(false);
-              }}
-              className="p-2 text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 rounded-full transition cursor-pointer"
-              title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
-              aria-label="Đính kèm tệp"
-            >
-              <Paperclip className="w-5 h-5" />
-            </button>
-
-            {/* Catalog Product Picker Trigger */}
-            <button
-              type="button"
-              onClick={() => {
-                onOpenProductPicker();
-                setShowEmojiPicker(false);
-                setShowTemplatePicker(false);
-              }}
-              className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/70 rounded-full transition cursor-pointer"
-              title="Gửi sản phẩm từ Meta Catalog"
-              aria-label="Gửi sản phẩm Meta Catalog"
-            >
-              <Package className="w-5 h-5" />
-            </button>
-
-            {/* Quick Canned Template Trigger */}
-            <button
-              ref={templateButtonRef}
-              type="button"
-              onClick={() => {
-                const willOpen = !isTemplatePickerActive;
-                setShowTemplatePicker(willOpen);
-                setShowEmojiPicker(false);
-                setShowAttachMenu(false);
-                if (isSlashActive) setInputText('');
-                if (willOpen) {
-                  setActiveSlashIndex(0);
-                  setTimeout(() => textareaRef.current?.focus(), 0);
-                }
-              }}
-              className={`p-2 rounded-full transition cursor-pointer ${
-                isTemplatePickerActive
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'text-amber-600 hover:text-amber-700 hover:bg-amber-100/60'
-              }`}
-              title="Mẫu tin nhắn nhanh (/)"
-              aria-label="Mẫu tin nhắn nhanh"
-              aria-expanded={isTemplatePickerActive}
-            >
-              <Zap className="w-5 h-5 fill-amber-500 text-amber-500" />
-            </button>
-
-            {/* Textarea Input with Clipboard Paste support */}
-            <div className="min-w-0 flex-1 bg-white rounded-lg px-2.5 py-1.5 transition shadow-2xs">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={inputText}
-                onChange={(e) => {
-                  setInputText(e.target.value);
-                  notifyTyping(e.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) stopTyping();
-                  handleKeyDown(event);
-                }}
-                onPaste={handlePaste}
-                placeholder={
-                  pendingImage
-                    ? "Nhập chú thích cho ảnh (Tùy chọn)..."
-                    : pendingDocument
-                    ? "Nhập ghi chú cho tài liệu (Tùy chọn)..."
-                    : "Nhập tin nhắn (Gõ / để chọn câu trả lời nhanh)..."
-                }
-                className="block w-full min-h-[40px] max-h-[120px] resize-none overflow-y-hidden bg-transparent text-[14px] leading-5 text-[#111b21] placeholder-[#8696a0] focus:outline-none"
-              />
-            </div>
-
-            {/* Mic vs Send Button */}
-            {inputText.trim() || pendingImage || pendingDocument ? (
-              <button
-                type="button"
-                disabled={isSendDisabled}
-                onClick={() => {
-                  stopTyping();
-                  handleSend();
-                }}
-                className="w-10 h-10 rounded-full bg-[#1fa855] hover:bg-[#1fa855] text-white flex items-center justify-center transition shadow-md cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-                title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
-              >
-                <Send className="w-4 h-4 ml-0.5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleStartVoiceRecord}
-                className="w-10 h-10 rounded-full text-[#54656f] hover:text-[#111b21] hover:bg-slate-200/60 flex items-center justify-center transition cursor-pointer shrink-0"
-                title="Ghi âm thoại thật (Microphone)"
-              >
-                <Mic className="w-5 h-5" />
-              </button>
-            )}
           </div>
         </div>
       )}
