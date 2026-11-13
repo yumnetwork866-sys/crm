@@ -20,44 +20,43 @@ export function useSuggestedReplies({
   brandName,
   enabled = true,
 }: UseSuggestedRepliesOptions): UseSuggestedRepliesReturn {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dismissedMessageIds, setDismissedMessageIds] = useState<Record<string, boolean>>({});
+  const [result, setResult] = useState<{ key: string; suggestions: string[]; isLoading: boolean }>({
+    key: '', suggestions: [], isLoading: false,
+  });
+  const [dismissedKeys, setDismissedKeys] = useState<Record<string, boolean>>({});
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const cacheRef = useRef(new Map<string, string[]>());
+  const threadRef = useRef(activeThread);
 
-  // In-memory cache by lastMessageId to avoid duplicate network calls
-  const cacheRef = useRef<Record<string, string[]>>({});
-  const activeAbortRef = useRef<AbortController | null>(null);
+  // Keep the payload fresh without making object replacement restart the request.
+  useEffect(() => {
+    threadRef.current = activeThread;
+  }, [activeThread]);
 
-  const activeThreadId = activeThread?.threadId || '';
   const lastMessage = activeThread?.lastMessage;
-  const lastMessageId = lastMessage?.id || '';
   const isCustomerLast = lastMessage?.sender === 'customer';
-  const isDismissed = Boolean(lastMessageId && dismissedMessageIds[lastMessageId]);
+  const requestKey = activeThread?.threadId && lastMessage?.id
+    ? JSON.stringify([activeThread.threadId, lastMessage.id, brandName || ''])
+    : '';
+  const isDismissed = Boolean(dismissedKeys[requestKey]);
 
-  const fetchSuggestions = useCallback(
-    async (force = false) => {
-      if (!enabled || !activeThread || !lastMessageId || !isCustomerLast) {
-        setSuggestions([]);
-        setIsLoading(false);
-        return;
-      }
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (!enabled || !requestKey || !isCustomerLast || isDismissed || !thread) {
+      setResult({ key: requestKey, suggestions: [], isLoading: false });
+      return;
+    }
 
-      // Check cache first
-      if (!force && cacheRef.current[lastMessageId]) {
-        setSuggestions(cacheRef.current[lastMessageId]);
-        setIsLoading(false);
-        return;
-      }
+    const cached = cacheRef.current.get(requestKey);
+    if (cached) {
+      setResult({ key: requestKey, suggestions: cached, isLoading: false });
+      return;
+    }
 
-      // Abort previous in-flight request
-      if (activeAbortRef.current) {
-        activeAbortRef.current.abort();
-      }
+    const controller = new AbortController();
+    setResult({ key: requestKey, suggestions: [], isLoading: true });
 
-      const controller = new AbortController();
-      activeAbortRef.current = controller;
-      setIsLoading(true);
-
+    const fetchSuggestions = async () => {
       try {
         const token = localStorage.getItem('token') || '';
         const res = await fetch('/api/meta/messages/suggest-replies', {
@@ -67,13 +66,13 @@ export function useSuggestedReplies({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            phone: activeThread.customerPhone,
-            customerName: activeThread.customerName,
+            phone: thread.customerPhone,
+            customerName: thread.customerName,
             brandName,
-            messages: (activeThread.messages || []).slice(-10).map((m) => ({
-              sender: m.sender,
-              content: m.content,
-              timestamp: m.timestamp,
+            messages: (thread.messages || []).slice(-10).map((message) => ({
+              sender: message.sender,
+              content: message.content,
+              timestamp: message.timestamp,
             })),
           }),
           signal: controller.signal,
@@ -81,78 +80,51 @@ export function useSuggestedReplies({
 
         if (res.ok) {
           const data = await res.json();
+          // An old response must never replace the current conversation's replies,
+          // even if the transport completed after cancellation.
+          if (controller.signal.aborted) return;
           const items: string[] = Array.isArray(data.suggestions) ? data.suggestions : [];
-          cacheRef.current[lastMessageId] = items;
-          setSuggestions(items);
+          cacheRef.current.set(requestKey, items);
+          setResult({ key: requestKey, suggestions: items, isLoading: false });
         }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
+      } catch (err) {
+        if (!controller.signal.aborted) {
           console.warn('[AI Suggest Replies] Lỗi khi tạo gợi ý tin nhắn:', err);
         }
       } finally {
-        if (activeAbortRef.current === controller) {
-          setIsLoading(false);
-          activeAbortRef.current = null;
+        if (!controller.signal.aborted) {
+          setResult((previous) => ({ ...previous, isLoading: false }));
         }
       }
-    },
-    [
-      enabled,
-      activeThread,
-      lastMessageId,
-      isCustomerLast,
-      brandName,
-    ]
-  );
-
-  // Auto trigger when last customer message arrives or changes
-  useEffect(() => {
-    if (!enabled || !isCustomerLast || isDismissed) {
-      if (!isCustomerLast) {
-        setSuggestions([]);
-      }
-      return;
-    }
-
-    fetchSuggestions(false);
-
-    return () => {
-      if (activeAbortRef.current) {
-        activeAbortRef.current.abort();
-        activeAbortRef.current = null;
-      }
     };
-  }, [enabled, activeThreadId, lastMessageId, isCustomerLast, isDismissed, fetchSuggestions]);
+    void fetchSuggestions();
+
+    return () => controller.abort();
+  }, [enabled, requestKey, isCustomerLast, isDismissed, brandName, refreshVersion]);
 
   const dismissSuggestions = useCallback(() => {
-    if (lastMessageId) {
-      setDismissedMessageIds((prev) => ({ ...prev, [lastMessageId]: true }));
+    if (requestKey) {
+      setDismissedKeys((previous) => ({ ...previous, [requestKey]: true }));
     }
-  }, [lastMessageId]);
+  }, [requestKey]);
 
   const refreshSuggestions = useCallback(() => {
-    if (lastMessageId) {
-      setDismissedMessageIds((prev) => {
-        const next = { ...prev };
-        delete next[lastMessageId];
-        return next;
-      });
-      delete cacheRef.current[lastMessageId];
-    }
-    fetchSuggestions(true);
-  }, [lastMessageId, fetchSuggestions]);
+    if (!requestKey || !enabled || !isCustomerLast) return;
+    cacheRef.current.delete(requestKey);
+    setDismissedKeys((previous) => {
+      const next = { ...previous };
+      delete next[requestKey];
+      return next;
+    });
+    // Let the effect own every request, including refresh after dismissal.
+    setRefreshVersion((previous) => previous + 1);
+  }, [requestKey, enabled, isCustomerLast]);
 
-  const isVisible =
-    enabled &&
-    isCustomerLast &&
-    !isDismissed &&
+  const suggestions = result.key === requestKey ? result.suggestions : [];
+  const isLoading = enabled && isCustomerLast && !isDismissed &&
+    result.key === requestKey && result.isLoading;
+  const isVisible = enabled && isCustomerLast && !isDismissed &&
     (isLoading || suggestions.length > 0);
 
-  return {
-    suggestions,
-    isLoading,
-    isVisible,
-    dismissSuggestions,
-    refreshSuggestions,
-  };
+  return { suggestions, isLoading, isVisible, dismissSuggestions, refreshSuggestions };
 }
