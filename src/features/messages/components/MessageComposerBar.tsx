@@ -377,8 +377,8 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
 
       {/* WhatsApp Authentic Reply Preview Banner */}
       {replyingToMessage && (
-        <div className="px-3.5 pt-2.5 pb-1 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
-          <div className="flex-1 min-w-0 bg-white/90 rounded-lg p-2 border-l-4 border-[#1fa855] shadow-2xs">
+        <div className="mx-3 mb-1.5 p-2 bg-white/95 backdrop-blur-xs rounded-xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+          <div className="flex-1 min-w-0 bg-slate-50/90 rounded-lg p-2 border-l-4 border-[#1fa855]">
             <div className="flex items-center gap-1.5 text-xs font-bold text-[#1fa855]">
               <Reply className="w-3.5 h-3.5 shrink-0" />
               <span>Đang trả lời {replyingToMessage.sender === 'agent' ? 'Chính mình' : (replyingToMessage.customerName || 'Khách hàng')}</span>
@@ -400,7 +400,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
 
       {/* Attached Pending Image Thumbnail Strip (Inline inside input bar) */}
       {pendingImage && (
-        <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+        <div className="mx-3 mb-1.5 px-3 py-2 bg-white/95 backdrop-blur-xs rounded-xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
           <div className="relative group rounded-xl overflow-hidden border border-slate-300 bg-white shadow-xs w-14 h-14 shrink-0">
             <img src={pendingImage} alt="attached thumbnail" className="w-full h-full object-cover" />
             <button
@@ -425,7 +425,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
 
       {/* Attached Pending Document Preview Strip */}
       {pendingDocument && (
-        <div className="px-3.5 pt-2 pb-1.5 bg-[#f0f2f5] border-t border-[#d1d7db] flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
+        <div className="mx-3 mb-1.5 px-3 py-2 bg-white/95 backdrop-blur-xs rounded-xl border border-slate-200/90 shadow-xs flex items-center justify-between gap-3 shrink-0 animate-fadeIn">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 border border-rose-200 flex flex-col items-center justify-center shrink-0 shadow-2xs">
               <FileText className="w-5 h-5" />
@@ -455,56 +455,73 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
         </div>
       )}
 
-      {/* AI Smart Suggested Replies Bar (Auto generated when customer sends message) */}
-      {suggestedReplies.isVisible && (
-        <div className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-50/90 via-teal-50/70 to-slate-50 border-t border-emerald-100 flex flex-col gap-1.5 shrink-0 animate-fadeIn">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-              <span>Gợi ý trả lời</span>
+      {/* Sender identity and suggested replies share one compact row. */}
+      {(senderPhoneId || suggestedReplies.isVisible) && (
+        <div className="mx-3 mb-1 flex min-w-0 shrink-0 items-center gap-2">
+          {senderPhoneId && (
+            <div
+              className={`flex h-6 w-fit shrink-0 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/95 px-2.5 text-[11px] text-slate-500 shadow-2xs backdrop-blur-xs ${suggestedReplies.isVisible ? 'max-w-[45%]' : 'max-w-[90%]'}`}
+              title={`Trả lời từ ${senderPhone?.verifiedName || 'WhatsApp'}`}
+            >
+              <img
+                src={senderPhone?.profilePictureUrl || whatsappLogoUrl}
+                alt={`Ảnh đại diện ${senderPhone?.verifiedName || 'WhatsApp'}`}
+                className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-50 object-cover ring-1 ring-slate-200/70"
+                onError={(event) => { event.currentTarget.src = whatsappLogoUrl; }}
+              />
+              <span className="truncate">
+                Trả lời từ <span className="ml-0.5 font-bold text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span>
+              </span>
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={suggestedReplies.refreshSuggestions}
-                disabled={suggestedReplies.isLoading}
-                className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/60 rounded-md transition cursor-pointer disabled:opacity-50"
-                title="Tạo lại gợi ý khác"
-              >
-                <RotateCw className={`w-3 h-3 ${suggestedReplies.isLoading ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                type="button"
-                onClick={suggestedReplies.dismissSuggestions}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-md transition cursor-pointer"
-                title="Ẩn gợi ý này"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-
-          {suggestedReplies.isLoading && suggestedReplies.suggestions.length === 0 ? (
-            <div className="flex items-center gap-2 py-1 text-xs text-emerald-700/80">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-              <span>Đang phân tích tin nhắn và tạo gợi ý phản hồi...</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              {suggestedReplies.suggestions.map((text, idx) => (
+          )}
+          {suggestedReplies.isVisible && (
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 animate-fadeIn">
+              <span className="flex shrink-0 items-center text-emerald-700" title="Gợi ý trả lời">
+                <Sparkles data-colored="true" className="h-3.5 w-3.5" />
+                <span className="sr-only">Gợi ý trả lời</span>
+              </span>
+              {suggestedReplies.isLoading && suggestedReplies.suggestions.length === 0 ? (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-emerald-700" role="status">
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span className="truncate">Đang tạo gợi ý...</span>
+                </div>
+              ) : (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {suggestedReplies.suggestions.map((text, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleApplySuggestion(text)}
+                      title={text}
+                      className="whatsapp-suggested-reply group flex h-6 max-w-full shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2 text-left text-slate-700 shadow-2xs transition hover:border-[#1fa855] hover:bg-[#1fa855] hover:text-white cursor-pointer"
+                    >
+                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-semibold text-[#1fa855] transition-colors group-hover:bg-white/20 group-hover:text-white">{idx + 1}</span>
+                      <span className="min-w-0 truncate text-[11px] font-medium text-slate-700 transition-colors group-hover:text-white">{text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex shrink-0 items-center gap-0.5">
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => handleApplySuggestion(text)}
-                  title={text}
-                  className="whatsapp-suggested-reply group shrink-0 max-w-[280px] sm:max-w-[360px] flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-[#1fa855] text-slate-700 hover:text-white rounded-lg border border-emerald-200 hover:border-[#1fa855] shadow-2xs transition text-left cursor-pointer"
+                  onClick={suggestedReplies.refreshSuggestions}
+                  disabled={suggestedReplies.isLoading}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/90 hover:text-emerald-700 cursor-pointer disabled:opacity-50"
+                  title="Tạo lại gợi ý khác"
+                  aria-label="Tạo lại gợi ý trả lời"
                 >
-                  <span className="text-[10px] font-bold text-[#1fa855] group-hover:text-white bg-emerald-100 group-hover:bg-white/20 w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors">
-                    {idx + 1}
-                  </span>
-                  <span className="text-xs truncate font-medium text-slate-700 group-hover:text-white transition-colors">{text}</span>
+                  <RotateCw className={`h-3 w-3 ${suggestedReplies.isLoading ? 'animate-spin' : ''}`} />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={suggestedReplies.dismissSuggestions}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/90 hover:text-slate-600 cursor-pointer"
+                  title="Ẩn gợi ý này"
+                  aria-label="Ẩn gợi ý trả lời"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -512,19 +529,19 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
 
       {/* WhatsApp Authentic Input Bar or Voice Recording Bar */}
       {isRecording ? (
-        <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-2 z-10">
+        <div className="px-3 pb-3 pt-1 shrink-0 flex items-center space-x-2 z-10">
           {/* Cancel Recording (Trash) */}
           <button
             type="button"
             onClick={handleCancelVoiceRecord}
-            className="w-10 h-10 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-100 flex items-center justify-center transition cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-full bg-white/90 text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200/80 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0"
             title="Hủy ghi âm"
           >
             <Trash2 className="w-5 h-5" />
           </button>
 
           {/* Recording Status: pulsing red dot, timer, and animated waveform */}
-          <div className="flex-1 flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-rose-200 shadow-2xs">
+          <div className="flex-1 flex items-center gap-3 bg-white px-4 py-2 rounded-full border border-rose-200 shadow-xs">
             <div className="relative flex items-center justify-center shrink-0">
               <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute opacity-75" />
               <span className="w-3 h-3 rounded-full bg-rose-600 relative" />
@@ -575,19 +592,19 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           </button>
         </div>
       ) : isRecorded ? (
-        <div className="p-2.5 bg-[#f0f2f5] border-t border-[#d1d7db] shrink-0 flex items-center space-x-2 z-10">
+        <div className="px-3 pb-3 pt-1 shrink-0 flex items-center space-x-2 z-10">
           {/* Cancel / Discard Recording to re-record */}
           <button
             type="button"
             onClick={handleCancelVoiceRecord}
-            className="w-10 h-10 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-100 flex items-center justify-center transition cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-full bg-white/90 text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-slate-200/80 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0"
             title="Xóa bản ghi âm để thu lại"
           >
             <Trash2 className="w-5 h-5" />
           </button>
 
           {/* Audio Preview Player */}
-          <div className="flex-1 flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-lg border border-emerald-200 shadow-2xs min-w-0">
+          <div className="flex-1 flex items-center gap-3 bg-white px-4 py-2 rounded-full border border-emerald-200 shadow-xs min-w-0">
             {/* Play / Pause button */}
             <button
               type="button"
@@ -660,171 +677,153 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
           />
         </div>
       ) : (
-        <div className="group/composer shrink-0 z-10">
-          {senderPhoneId && (
-            <div
-              className="relative z-10 -mb-px flex h-6 w-fit max-w-[90%] items-center gap-1.5 rounded-t-xl border border-b-0 border-slate-200 bg-[#f0f2f5] px-2.5 text-[11px] text-slate-500"
-              title={`Trả lời từ ${senderPhone?.verifiedName || 'WhatsApp'}`}
-            >
-              <img
-                src={senderPhone?.profilePictureUrl || whatsappLogoUrl}
-                alt={`Ảnh đại diện ${senderPhone?.verifiedName || 'WhatsApp'}`}
-                className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-50 object-cover ring-1 ring-slate-200/70"
-                onError={(event) => { event.currentTarget.src = whatsappLogoUrl; }}
-              />
-              <span className="truncate">
-                Trả lời từ <span className="ml-0.5 font-bold text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span>
-              </span>
-            </div>
-          )}
-          <div className={`rounded-xl border border-slate-200 bg-[#f0f2f5] px-2 py-1.5 ${senderPhoneId ? 'rounded-tl-none' : ''}`}>
-            <div className="flex min-h-14 min-w-0 items-center gap-1.5 rounded-3xl border border-slate-200 bg-white px-1.5 py-1.5 shadow-2xs transition focus-within:border-[#1fa855]/60 focus-within:ring-2 focus-within:ring-[#1fa855]/10">
-              <div className="flex shrink-0 items-center gap-0.5">
-                {/* Emoji Trigger */}
-                <div className="relative">
-                  <button
-                    ref={emojiButtonRef}
-                    type="button"
-                    onClick={() => {
-                      setShowEmojiPicker(!showEmojiPicker);
-                      setShowAttachMenu(false);
-                      setShowTemplatePicker(false);
-                    }}
-                    className="whatsapp-composer-action"
-                    data-tone="emerald"
-                    title="Biểu tượng cảm xúc"
-                    aria-label="Biểu tượng cảm xúc"
-                    aria-expanded={showEmojiPicker}
-                  >
-                    <Smile data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
-                  </button>
+        <div className="group/composer shrink-0 z-10 px-3 pb-3 pt-1">
+          <div className="flex min-h-12 min-w-0 items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2 py-1.5 shadow-xs transition focus-within:border-[#1fa855]/70 focus-within:ring-2 focus-within:ring-[#1fa855]/15">
+            <div className="flex shrink-0 items-center gap-0.5">
+              {/* Attachment Button: Directly opens native file chooser for any file */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (fileInputRef.current) fileInputRef.current.click();
+                  setShowEmojiPicker(false);
+                  setShowTemplatePicker(false);
+                }}
+                className="whatsapp-composer-action"
+                data-tone="blue"
+                title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
+                aria-label="Đính kèm tệp"
+              >
+                <Paperclip data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+              </button>
 
-                  {showEmojiPicker && (
-                    <div ref={emojiPickerRef} className="absolute bottom-full mb-3 left-0 z-50 animate-fadeIn">
-                      <EmojiPicker
-                        onSelect={handleAddEmoji}
-                        onClose={() => setShowEmojiPicker(false)}
-                        theme="whatsapp"
-                        title="Biểu tượng cảm xúc"
-                        className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Attachment Button: Directly opens native file chooser for any file */}
+              {/* Emoji Trigger */}
+              <div className="relative">
                 <button
+                  ref={emojiButtonRef}
                   type="button"
                   onClick={() => {
-                    if (fileInputRef.current) fileInputRef.current.click();
-                    setShowEmojiPicker(false);
-                    setShowTemplatePicker(false);
-                  }}
-                  className="whatsapp-composer-action"
-                  data-tone="blue"
-                  title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
-                  aria-label="Đính kèm tệp"
-                >
-                  <Paperclip data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
-                </button>
-
-                {/* Catalog Product Picker Trigger */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenProductPicker();
-                    setShowEmojiPicker(false);
-                    setShowTemplatePicker(false);
-                  }}
-                  className="whatsapp-composer-action"
-                  data-tone="violet"
-                  title="Gửi sản phẩm từ Meta Catalog"
-                  aria-label="Gửi sản phẩm Meta Catalog"
-                >
-                  <Package data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
-                </button>
-
-                {/* Quick Canned Template Trigger */}
-                <button
-                  ref={templateButtonRef}
-                  type="button"
-                  onClick={() => {
-                    const willOpen = !isTemplatePickerActive;
-                    setShowTemplatePicker(willOpen);
-                    setShowEmojiPicker(false);
+                    setShowEmojiPicker(!showEmojiPicker);
                     setShowAttachMenu(false);
-                    if (isSlashActive) setInputText('');
-                    if (willOpen) {
-                      setActiveSlashIndex(0);
-                      setTimeout(() => textareaRef.current?.focus(), 0);
-                    }
+                    setShowTemplatePicker(false);
                   }}
                   className="whatsapp-composer-action"
-                  data-tone="amber"
-                  title="Mẫu tin nhắn nhanh (/)"
-                  aria-label="Mẫu tin nhắn nhanh"
-                  aria-expanded={isTemplatePickerActive}
-                >
-                  <Zap data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
-                </button>
-              </div>
-
-              {/* Textarea Input with Clipboard Paste support */}
-              <div className="flex min-h-10 min-w-0 flex-1 items-center px-2 py-1.5">
-                <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  value={inputText}
-                  onChange={(e) => {
-                    setInputText(e.target.value);
-                    notifyTyping(e.target.value);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) stopTyping();
-                    handleKeyDown(event);
-                  }}
-                  onPaste={handlePaste}
-                  placeholder={
-                    pendingImage
-                      ? "Chú thích ảnh…"
-                      : pendingDocument
-                      ? "Ghi chú tài liệu…"
-                      : "Nhập tin nhắn…"
-                  }
-                  aria-label="Nội dung tin nhắn"
-                  title="Gõ / để chọn mẫu tin nhắn nhanh"
-                  className="whatsapp-composer-input block w-full min-h-[20px] max-h-[120px] resize-none overflow-y-hidden bg-transparent text-[14px] leading-5 text-[#111b21] placeholder-[#8696a0] focus:outline-none"
-                />
-              </div>
-
-              {/* Mic vs Send Button */}
-              {inputText.trim() || pendingImage || pendingDocument ? (
-                <button
-                  type="button"
-                  disabled={isSendDisabled}
-                  onClick={() => {
-                    stopTyping();
-                    handleSend();
-                  }}
-                  className="whatsapp-composer-send w-9 h-9 rounded-full bg-[#1fa855] text-white flex items-center justify-center cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-                  aria-label="Gửi tin nhắn"
-                  title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
-                >
-                  <Send data-colored="true" strokeWidth={1.9} className="w-[17px] h-[17px] ml-0.5" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleStartVoiceRecord}
-                  className="whatsapp-composer-action whatsapp-composer-mic"
                   data-tone="emerald"
-                  title="Ghi âm tin nhắn"
-                  aria-label="Ghi âm tin nhắn"
+                  title="Biểu tượng cảm xúc"
+                  aria-label="Biểu tượng cảm xúc"
+                  aria-expanded={showEmojiPicker}
                 >
-                  <Mic data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+                  <Smile data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                 </button>
-              )}
+
+                {showEmojiPicker && (
+                  <div ref={emojiPickerRef} className="absolute bottom-full mb-3 left-0 z-50 animate-fadeIn">
+                    <EmojiPicker
+                      onSelect={handleAddEmoji}
+                      onClose={() => setShowEmojiPicker(false)}
+                      theme="whatsapp"
+                      title="Biểu tượng cảm xúc"
+                      className="flex w-80 sm:w-84 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Catalog Product Picker Trigger */}
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenProductPicker();
+                  setShowEmojiPicker(false);
+                  setShowTemplatePicker(false);
+                }}
+                className="whatsapp-composer-action"
+                data-tone="violet"
+                title="Gửi sản phẩm từ Meta Catalog"
+                aria-label="Gửi sản phẩm Meta Catalog"
+              >
+                <Package data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+              </button>
+
+              {/* Quick Canned Template Trigger */}
+              <button
+                ref={templateButtonRef}
+                type="button"
+                onClick={() => {
+                  const willOpen = !isTemplatePickerActive;
+                  setShowTemplatePicker(willOpen);
+                  setShowEmojiPicker(false);
+                  setShowAttachMenu(false);
+                  if (isSlashActive) setInputText('');
+                  if (willOpen) {
+                    setActiveSlashIndex(0);
+                    setTimeout(() => textareaRef.current?.focus(), 0);
+                  }
+                }}
+                className="whatsapp-composer-action"
+                data-tone="amber"
+                title="Mẫu tin nhắn nhanh (/)"
+                aria-label="Mẫu tin nhắn nhanh"
+                aria-expanded={isTemplatePickerActive}
+              >
+                <Zap data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+              </button>
             </div>
+
+            {/* Textarea Input with Clipboard Paste support */}
+            <div className="flex min-h-9 min-w-0 flex-1 items-center px-1.5 py-1">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={inputText}
+                onChange={(e) => {
+                  setInputText(e.target.value);
+                  notifyTyping(e.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) stopTyping();
+                  handleKeyDown(event);
+                }}
+                onPaste={handlePaste}
+                placeholder={
+                  pendingImage
+                    ? "Chú thích ảnh…"
+                    : pendingDocument
+                    ? "Ghi chú tài liệu…"
+                    : "Nhập tin nhắn…"
+                }
+                aria-label="Nội dung tin nhắn"
+                title="Gõ / để chọn mẫu tin nhắn nhanh"
+                className="whatsapp-composer-input block w-full min-h-[20px] max-h-[120px] resize-none overflow-y-hidden bg-transparent text-[14px] leading-5 text-[#111b21] placeholder-[#8696a0] focus:outline-none"
+              />
+            </div>
+
+            {/* Mic vs Send Button */}
+            {inputText.trim() || pendingImage || pendingDocument ? (
+              <button
+                type="button"
+                disabled={isSendDisabled}
+                onClick={() => {
+                  stopTyping();
+                  handleSend();
+                }}
+                className="whatsapp-composer-send w-9 h-9 rounded-full bg-[#1fa855] text-white flex items-center justify-center cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                aria-label="Gửi tin nhắn"
+                title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
+              >
+                <Send data-colored="true" strokeWidth={1.9} className="w-[17px] h-[17px] ml-0.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartVoiceRecord}
+                className="whatsapp-composer-action whatsapp-composer-mic"
+                data-tone="emerald"
+                title="Ghi âm tin nhắn"
+                aria-label="Ghi âm tin nhắn"
+              >
+                <Mic data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+              </button>
+            )}
           </div>
         </div>
       )}

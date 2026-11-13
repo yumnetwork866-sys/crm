@@ -7,6 +7,7 @@ import { api } from '../../../utils/apiClient';
 import {
   ArrowUpRight,
   Clock,
+  ChevronDown,
   Check,
   Edit3,
   Plus,
@@ -31,6 +32,7 @@ import {
 } from '../../../utils/crmUtils';
 import { findUserByName, getUserRoleTextStyle } from '../../../utils/roleColors';
 import type { MessageThread } from '../types';
+import { getLastCustomerMessageTime } from '../utils/whatsappSession';
 
 interface CustomerChatDrawerProps {
   isOpen: boolean;
@@ -120,6 +122,21 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
 
   const groupKey = activeCustomer ? getCustomerGroup(activeCustomer) : 'group_1';
   const groupInfo = CUSTOMER_GROUPS[groupKey];
+  const owner = activeCustomer?.owner || '';
+  const hasOwner = Boolean(owner && !['chưa phân công', 'chua phan cong', 'unassigned'].includes(owner.trim().toLowerCase()));
+  const ownerUser = hasOwner ? findUserByName(users, owner) : undefined;
+  const orders = [...(activeCustomer?.orders || [])].sort((first, second) =>
+    (Date.parse(second.date) || 0) - (Date.parse(first.date) || 0),
+  );
+  const recentOrders = orders.slice(0, 3);
+  const lastCustomerMessageAt = getLastCustomerMessageTime(activeThread);
+  const timeline = [
+    ...(activeCustomer?.firstContact ? [{ label: 'Tiếp nhận khách hàng', date: new Date(activeCustomer.firstContact), showTime: false }] : []),
+    ...(lastCustomerMessageAt !== null ? [{ label: 'Khách nhắn tin gần nhất', date: new Date(lastCustomerMessageAt), showTime: true }] : []),
+    ...(orders[0] ? [{ label: `Đơn hàng ${orders[0].orderCode}`, date: new Date(orders[0].date), showTime: false }] : []),
+    ...(lastCustomerMessageAt === null ? [{ label: 'Tin nhắn gần nhất', date: new Date(activeThread.lastMessage.timestamp), showTime: true }] : []),
+  ].filter((event) => Number.isFinite(event.date.getTime())).sort((first, second) => second.date.getTime() - first.date.getTime());
+  const care = activeCustomer?.automationSequence;
 
   return (
     <div className="absolute inset-y-0 right-0 z-30 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-xl select-none animate-in slide-in-from-right duration-200 sm:w-80 xl:static xl:z-20 xl:w-88 xl:shrink-0 xl:shadow-lg">
@@ -151,21 +168,13 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
         </button>
       </div>
 
-      {/* Drawer Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs whatsapp-scrollbar">
-        {/* Profile Card */}
-        <div className="text-center pb-3 border-b border-slate-200">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center font-extrabold text-xl shadow-md mx-auto mb-2 overflow-hidden">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 pb-6 pt-1 text-xs whatsapp-scrollbar">
+        <section className="space-y-3 text-center" aria-label="Thông tin liên hệ">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-emerald-50 ring-1 ring-black/5">
             <img
-              src={getCustomerAvatar(
-                activeCustomer?.avatar,
-                activeCustomer?.phone ||
-                  activeThread.customerPhone ||
-                  activeThread.customerName ||
-                  activeThread.threadId
-              )}
-              alt="avatar"
-              className="w-full h-full object-cover"
+              src={getCustomerAvatar(activeCustomer?.avatar, activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}
+              alt={`Ảnh đại diện ${activeThread.customerName}`}
+              className="h-full w-full object-cover"
             />
           </div>
           {isEditingName ? (
@@ -206,239 +215,205 @@ export const CustomerChatDrawer: React.FC<CustomerChatDrawerProps> = ({
               {nameEditor.error && <p role="alert" className="text-left text-xs text-rose-600">{nameEditor.error}</p>}
             </form>
           ) : (
-            <h4 className="text-sm font-extrabold text-slate-900">{activeThread.customerName}</h4>
+            <h4 className="select-text break-words text-[18px] font-semibold leading-6 text-slate-900">{activeThread.customerName}</h4>
           )}
-          <p className="text-xs text-slate-500 font-mono mt-0.5">
-            {formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) ||
-              activeThread.customerPhone}
+          <p className="select-text break-words text-[13px] font-normal text-slate-500">
+            {formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}
           </p>
-
-          {/* Group Badge */}
-          <div className="mt-2 inline-block">
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${groupInfo.badgeColor}`}>
-              {groupInfo.name}
-            </span>
-          </div>
-        </div>
-
-        {/* Action Buttons: Chốt Đơn & Xem Profile */}
-        <div className="space-y-2">
           {activeCustomer ? (
-            <>
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
+                type="button"
                 onClick={() => onOpenAddOrder(activeCustomer)}
-                className="w-full py-2.5 px-3 bg-[#1fa855] hover:bg-[#006a57] text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm hover:shadow"
+                className="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#1fa855] px-3 text-xs font-semibold text-white transition hover:bg-[#188c47] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 focus-visible:ring-offset-2"
               >
-                <ShoppingBag className="chat-primary-action-icon w-4 h-4" />
-                <span>+ Lên Đơn Hàng Mới</span>
+                <ShoppingBag className="chat-primary-action-icon h-4 w-4" />
+                Tạo đơn
               </button>
-
               <button
+                type="button"
                 onClick={() => onSelectCustomerDetail(activeCustomer)}
-                className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer border border-indigo-200 hover:border-indigo-300 shadow-2xs"
+                className="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
               >
-                <span>Xem Hồ Sơ Chi Tiết</span>
-                <ArrowUpRight className="w-4 h-4" />
+                Hồ sơ
+                <ArrowUpRight className="h-4 w-4" />
               </button>
-            </>
+            </div>
           ) : (
-            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] flex items-center justify-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>Đang đồng bộ thông tin khách hàng vào CRM...</span>
-            </div>
+            <p className="flex items-center justify-center gap-1.5 py-1 text-[11px] text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Đang đồng bộ hồ sơ khách hàng...
+            </p>
           )}
-        </div>
+        </section>
 
-        {/* Financial Summary */}
         {activeCustomer && (
-          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
-            <div className="flex items-center justify-between text-slate-600">
-              <span>Tổng số đơn:</span>
-              <strong className="text-slate-900 font-extrabold">{activeCustomer.totalOrders} đơn</strong>
-            </div>
-            <div className="flex items-center justify-between text-slate-600">
-              <span>Tổng chi tiêu:</span>
-              <strong className="text-emerald-700 font-extrabold">{formatVND(activeCustomer.totalSpent)}</strong>
-            </div>
-            <div className="flex items-center justify-between text-slate-600">
-              <span>Thị trường:</span>
-              <span className="font-semibold text-slate-800">Malaysia (MY)</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-600">
-              <span>Phụ trách:</span>
-              <div className="flex items-center gap-1.5">
-                {activeCustomer.owner &&
-                !['chưa phân công', 'unassigned', ''].includes(activeCustomer.owner.trim().toLowerCase()) ? (
-                  <>
-                    <img
-                      src={getOwnerAvatar(activeCustomer.owner)}
-                      alt={activeCustomer.owner}
-                      className="w-4 h-4 rounded-full object-cover shrink-0 bg-slate-100"
-                      onError={(e) => {
-                        e.currentTarget.src = getDiceBearAvatar(activeCustomer.owner, STAFF_DICEBEAR_STYLE);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const ownerUser = findUserByName(users, activeCustomer.owner);
-                        if (ownerUser) onSelectUserForInfo(ownerUser);
-                      }}
-                      disabled={!findUserByName(users, activeCustomer.owner)}
-                      className="font-semibold hover:underline disabled:cursor-default disabled:no-underline"
-                      style={getUserRoleTextStyle(findUserByName(users, activeCustomer.owner))}
-                    >
-                      {activeCustomer.owner}
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-slate-400">Chưa phân công</span>
-                )}
+          <section className="space-y-3" aria-label="Thông tin CRM">
+            <h3 className="text-[13px] font-semibold text-slate-900">Thông tin khách hàng</h3>
+            <dl className="space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="shrink-0 leading-5 text-slate-500">Nhóm khách</dt>
+                <dd className="min-w-0 text-right">
+                  <span className={`inline-block max-w-full rounded-full px-2 py-0.5 text-[11px] font-medium ${groupInfo.badgeColor}`}>{groupInfo.name}</span>
+                </dd>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Customer Journey Timeline */}
-        <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
-          <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-[#1fa855]" />
-            <span>Timeline</span>
-          </span>
-
-          <div className="space-y-2 pl-2 border-l-2 border-slate-300 ml-1.5 pt-1">
-            <div className="relative pl-3 text-[11px]">
-              <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
-              <p className="font-bold text-slate-900">Đang trò chuyện trực tiếp</p>
-              <p className="text-[10px] text-slate-500">Phiên chat WhatsApp Webhook</p>
-            </div>
-
-            {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
-              <div className="relative pl-3 text-[11px]">
-                <span className="absolute -left-4.25 top-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white"></span>
-                <p className="font-bold text-slate-900">Đã mua {activeCustomer.orders.length} đơn hàng</p>
-                <p className="text-[10px] text-slate-500">Đơn gần nhất: {activeCustomer.orders[0].orderCode}</p>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="shrink-0 text-slate-500">Phụ trách</dt>
+                <dd className="flex min-w-0 items-center gap-1.5">
+                  {hasOwner ? (
+                    <>
+                      <img
+                        src={getOwnerAvatar(owner)}
+                        alt=""
+                        className="h-5 w-5 shrink-0 rounded-full bg-slate-100 object-cover"
+                        onError={(event) => { event.currentTarget.src = getDiceBearAvatar(owner, STAFF_DICEBEAR_STYLE); }}
+                      />
+                      <button
+                        type="button"
+                        title={owner}
+                        disabled={!ownerUser}
+                        onClick={() => { if (ownerUser) onSelectUserForInfo(ownerUser); }}
+                        className="min-w-0 cursor-pointer truncate text-xs font-medium hover:underline disabled:cursor-default disabled:no-underline"
+                        style={getUserRoleTextStyle(ownerUser)}
+                      >
+                        {owner}
+                      </button>
+                    </>
+                  ) : <span className="text-slate-400">Chưa phân công</span>}
+                </dd>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Automation Sequence Progress */}
-        {activeCustomer?.automationSequence && (
-          <div className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Tiến Trình Chăm Sóc
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700">
-                Bước {activeCustomer.automationSequence.currentStep}/4
-              </span>
-            </div>
-
-            <div className="grid grid-cols-4 gap-1 pt-1">
-              {['+3', '+5', '+7', '+15'].map((step, idx) => {
-                const isDone = (activeCustomer.automationSequence?.currentStep || 0) > idx;
-                const isCurrent = (activeCustomer.automationSequence?.currentStep || 0) === idx + 1;
-
-                return (
-                  <div
-                    key={step}
-                    className={`p-1.5 rounded-lg text-center font-bold text-[10px] border ${
-                      isDone
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : isCurrent
-                        ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                        : 'bg-white text-slate-400 border-slate-200'
-                    }`}
-                  >
-                    Ngày {step}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="shrink-0 text-slate-500">Thị trường</dt>
+                <dd className="select-text text-right font-medium text-slate-700">{activeCustomer.country || 'Malaysia (MY)'}</dd>
+              </div>
+            </dl>
+          </section>
         )}
 
-        {/* Recent Orders List */}
-        {activeCustomer && activeCustomer.orders && activeCustomer.orders.length > 0 && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between font-bold text-slate-800 text-[11px]">
-              <span>Đơn hàng ({activeCustomer.orders.length})</span>
-            </div>
-
-            <div className="space-y-1.5">
-              {activeCustomer.orders.slice(0, 3).map((ord) => (
-                <div key={ord.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5">
-                  <div className="flex items-center justify-between font-bold text-slate-900">
-                    <span>{ord.orderCode}</span>
-                    <span className="text-emerald-700">{formatVND(ord.totalAmount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{formatDate(ord.date)}</span>
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                      {ord.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* Internal Notes */}
         <section className="space-y-3" aria-label="Ghi chú nội bộ">
-          <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-            <Edit3 className="h-3.5 w-3.5 text-amber-600" />
-            Ghi chú ({currentNotes.length})
-          </h3>
-          {/* Add Note Form */}
-          <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[13px] font-semibold text-slate-900">Ghi chú</h3>
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">{currentNotes.length}</span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-2.5 transition focus-within:border-[#1fa855]/50 focus-within:ring-2 focus-within:ring-[#1fa855]/10">
             <textarea
               rows={2}
               value={newNoteText}
-              onChange={(e) => setNewNoteText(e.target.value)}
-              placeholder="Thêm ghi chú cho khách hàng này"
-              className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs focus:outline-none focus:border-[#1fa855]"
+              onChange={(event) => setNewNoteText(event.target.value)}
+              placeholder="Thêm ghi chú cho khách hàng..."
+              aria-label="Ghi chú cho khách hàng"
+              className="block w-full resize-y border-0 bg-transparent p-0 text-xs leading-5 text-slate-800 focus:outline-none"
             />
-            <div className="flex justify-end">
+            <div className="mt-2 flex justify-end">
               <button
+                type="button"
                 onClick={handleSaveNote}
                 disabled={!newNoteText.trim()}
-                className="px-3 py-1.5 bg-[#1fa855] hover:bg-[#006a57] disabled:opacity-50 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                className="flex h-7 cursor-pointer items-center gap-1 rounded-full bg-[#1fa855] px-2.5 text-[11px] font-medium text-white transition hover:bg-[#188c47] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Lưu Ghi Chú</span>
+                <Plus className="chat-primary-action-icon h-3.5 w-3.5" />
+                Thêm ghi chú
               </button>
             </div>
           </div>
-
-          {/* Notes List */}
-          <div className="space-y-2">
-            {currentNotes.length === 0 ? null : (
-              currentNotes.map((note) => (
-                <div key={note.id} className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative group">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pr-5 text-[10px] text-slate-500">
-                    <span className="truncate font-bold text-slate-800">{note.author}</span>
-                    <span className="whitespace-nowrap">
-                      {formatDateTime(note.createdAt)}
-                    </span>
+          {currentNotes.length > 0 && (
+            <div className="space-y-2">
+              {currentNotes.map((note) => (
+                <article key={note.id} className="group/note space-y-1.5 rounded-xl bg-slate-50/80 px-3 py-2.5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5 text-[10px] text-slate-500">
+                    <span title={note.author} className="truncate font-medium text-slate-700">{note.author}</span>
+                    <time className="whitespace-nowrap">{formatDateTime(note.createdAt)}</time>
+                    {onDeleteNote && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteNote(activeThreadId, note.id)}
+                        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 sm:opacity-0 sm:group-hover/note:opacity-100 sm:group-focus-within/note:opacity-100"
+                        title="Xóa ghi chú"
+                        aria-label="Xóa ghi chú"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-700 whitespace-pre-wrap">{note.content}</p>
-
-                  {onDeleteNote && (
-                    <button
-                      onClick={() => onDeleteNote(activeThreadId, note.id)}
-                      className="absolute top-2 right-2 hidden group-hover:block text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                      title="Xóa ghi chú"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+                  <p className="select-text whitespace-pre-wrap break-words text-xs leading-5 text-slate-700">{note.content}</p>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
+
+        {activeCustomer && (
+          <section className="space-y-3" aria-label="Đơn hàng">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[13px] font-semibold text-slate-900">Đơn hàng</h3>
+              {orders.length > 3 && (
+                <button type="button" onClick={() => onSelectCustomerDetail(activeCustomer)} className="cursor-pointer text-[11px] font-medium text-[#1fa855] hover:underline">Xem tất cả</button>
+              )}
+            </div>
+            <dl className="grid grid-cols-2 gap-4 rounded-2xl bg-slate-50 px-3 py-3">
+              <div className="min-w-0 space-y-1">
+                <dt className="text-[11px] text-slate-500">Tổng đơn hàng</dt>
+                <dd className="text-[18px] font-semibold leading-6 text-slate-900">{activeCustomer.totalOrders}</dd>
+              </div>
+              <div className="min-w-0 space-y-1">
+                <dt className="text-[11px] text-slate-500">Tổng chi tiêu</dt>
+                <dd className="select-text break-words text-[14px] font-semibold leading-6 text-emerald-700">{formatVND(activeCustomer.totalSpent)}</dd>
+              </div>
+            </dl>
+            {recentOrders.length > 0 && (
+              <div className="space-y-3 pt-0.5">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0 truncate font-medium text-slate-800">{order.orderCode}</span>
+                      <span className="shrink-0 font-medium text-slate-700">{formatVND(order.totalAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                      <time>{formatDate(order.date)}</time>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5">{order.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        <div className="space-y-1">
+          <details key={`timeline-${activeThread.threadId}`} className="group/timeline">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-[13px] font-medium text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2"><Clock className="h-4 w-4 text-slate-400" />Lịch sử khách hàng</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open/timeline:rotate-180" />
+            </summary>
+            <ol className="mb-2 ml-2 mt-2 space-y-4 border-l border-slate-200 pl-4">
+              {timeline.map((event) => (
+                <li key={event.label} className="relative space-y-1">
+                  <span aria-hidden="true" className="absolute -left-[20.5px] top-1 h-2 w-2 rounded-full bg-slate-300 ring-4 ring-white" />
+                  <p className="text-xs font-medium text-slate-700">{event.label}</p>
+                  <p className="text-[10px] text-slate-500">{event.showTime ? formatDateTime(event.date) : formatDate(event.date)}</p>
+                </li>
+              ))}
+            </ol>
+          </details>
+          {care && (
+            <details key={`care-${activeThread.threadId}`} className="group/care">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg text-[13px] font-medium text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-slate-400" />Chăm sóc tự động</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open/care:rotate-180" />
+              </summary>
+              <div className="space-y-2 pb-2 pt-1">
+                <p className="text-[11px] text-slate-500">{care.currentStep > 0 ? `Bước ${Math.min(care.currentStep, 4)}/4` : care.active ? 'Chưa bắt đầu' : 'Chưa kích hoạt'}</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {['+3', '+5', '+7', '+15'].map((step, index) => (
+                    <div key={step} className={`rounded-lg px-1.5 py-2 text-center text-[10px] font-medium ${care.currentStep > index ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      Ngày {step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
+          )}
+        </div>
       </div>
     </div>
   );
