@@ -228,9 +228,9 @@ export async function getConversations(req: Request, res: Response) {
     const page = Math.max(1, parseInt(String(pageQuery || '1'), 10) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(String(limitQuery || '50'), 10) || 50));
     const skip = cursor ? 0 : (page - 1) * limit;
-    const cursorFilterSql = cursor
-      ? Prisma.sql`AND (rm."timestamp" < ${new Date(cursor.timestamp)} OR (rm."timestamp" = ${new Date(cursor.timestamp)} AND rm."id" < ${cursor.id}))`
-      : Prisma.empty;
+    const cursorFilterSql = !cursor ? Prisma.empty : cursor.timestamp === null
+      ? Prisma.sql`AND us.last_customer_msg_at IS NULL AND rm.thread_key < ${cursor.id}`
+      : Prisma.sql`AND (us.last_customer_msg_at < ${new Date(cursor.timestamp)} OR (us.last_customer_msg_at = ${new Date(cursor.timestamp)} AND rm.thread_key < ${cursor.id}) OR us.last_customer_msg_at IS NULL)`;
 
     const searchFilter = search && typeof search === 'string' && search.trim() ? search.trim() : null;
     const integrationSetting = await getIntegrationSetting();
@@ -252,6 +252,7 @@ export async function getConversations(req: Request, res: Response) {
       : Prisma.sql`WHERE "businessPhoneNumberId" IS NOT NULL AND "businessPhoneNumberId" <> ''`;
 
     const rawThreads: Array<{
+      threadKey: string;
       customerId: string | null;
       customerName: string;
       customerPhone: string;
@@ -337,7 +338,8 @@ export async function getConversations(req: Request, res: Response) {
         FROM ReplyStats
         GROUP BY thread_key
       )
-      SELECT 
+      SELECT
+        rm.thread_key as "threadKey",
         COALESCE(rm."customerId", us.customer_id) as "customerId",
         rm."customerName",
         rm."customerPhone",
@@ -370,7 +372,7 @@ export async function getConversations(req: Request, res: Response) {
       LEFT JOIN UnreadStats us ON us.thread_key = rm.thread_key
       WHERE rm.rn = 1
       ${cursorFilterSql}
-      ORDER BY rm."timestamp" DESC, rm."id" DESC
+      ORDER BY us.last_customer_msg_at DESC NULLS LAST, rm.thread_key DESC
       LIMIT ${limit + 1} OFFSET ${skip}
     `;
 
@@ -426,7 +428,7 @@ export async function getConversations(req: Request, res: Response) {
       count: conversations.length,
       hasMore,
       nextCursor: hasMore && pageThreads.length
-        ? encodeConversationCursor(pageThreads[pageThreads.length - 1].lastMsgTimestamp, pageThreads[pageThreads.length - 1].lastMsgId)
+        ? encodeConversationCursor(pageThreads[pageThreads.length - 1].lastCustomerMessageAt, pageThreads[pageThreads.length - 1].threadKey)
         : null,
     });
   } catch (error) {

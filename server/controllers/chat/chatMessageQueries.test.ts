@@ -57,6 +57,7 @@ describe('WhatsApp business phone scope', () => {
 
 
 const rawThread = (id: string) => ({
+  threadKey: JSON.stringify(['222', `crm-${id}`]), lastCustomerMessageAt: new Date('2026-11-12T08:00:00.000Z'),
   customerId: `crm-${id}`, customerName: 'Customer', customerPhone: '+60123456789',
   businessPhoneNumberId: '222', unreadCount: 1n, lastMsgId: id,
   lastMsgTimestamp: new Date('2026-11-12T08:00:00.000Z'), lastMsgContent: 'Hello', lastMsgSender: 'customer',
@@ -70,21 +71,41 @@ describe('conversation cursor pagination', () => {
     const payload = res.json.mock.calls[0][0];
     expect(payload.data.map((row: any) => row.lastMessage.id)).toEqual(['c', 'b']);
     expect(payload.hasMore).toBe(true);
-    expect(decodeConversationCursor(payload.nextCursor)).toEqual({ timestamp: '2026-11-12T08:00:00.000Z', id: 'b' });
+    expect(decodeConversationCursor(payload.nextCursor)).toEqual({ timestamp: '2026-11-12T08:00:00.000Z', id: rawThread('b').threadKey });
   });
 
-  it('does not require the boundary message to still exist, and breaks timestamp ties by ID', async () => {
+  it('does not require the boundary message to still exist, and breaks inbound timestamp ties by stable thread key', async () => {
     const cursor = encodeConversationCursor('2026-11-12T08:00:00.000Z', 'deleted-boundary');
     vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([rawThread('a')] as never);
     const res = response();
     await getConversations({ query: { phoneNumberId: '222', limit: '2', cursor } } as unknown as Request, res as unknown as Response);
     const [strings, ...values] = vi.mocked(prisma.$queryRaw).mock.calls[0];
     const boundary = values.find((value: any) => value?.values?.includes('deleted-boundary')) as any;
-    expect(boundary.sql).toContain('rm."timestamp" <');
-    expect(boundary.sql).toContain('rm."id" <');
+    expect(boundary.sql).toContain('us.last_customer_msg_at <');
+    expect(boundary.sql).toContain('rm.thread_key <');
+    expect(boundary.sql).toContain('OR us.last_customer_msg_at IS NULL');
     expect(boundary.values).toEqual([new Date('2026-11-12T08:00:00.000Z'), new Date('2026-11-12T08:00:00.000Z'), 'deleted-boundary']);
-    expect(Array.from(strings as TemplateStringsArray).join('?')).toContain('ORDER BY rm."timestamp" DESC, rm."id" DESC');
+    expect(Array.from(strings as TemplateStringsArray).join('?')).toContain('ORDER BY us.last_customer_msg_at DESC NULLS LAST, rm.thread_key DESC');
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: false, nextCursor: null, count: 1 }));
+  });
+
+  it('paginates the no-inbound tail without using outgoing message times', async () => {
+    const outgoing = { ...rawThread('outgoing'), lastCustomerMessageAt: null, lastMsgSender: 'agent' };
+    vi.mocked(prisma.$queryRaw).mockResolvedValueOnce([outgoing, { ...outgoing, threadKey: 'older-thread' }] as never);
+    const res = response();
+    await getConversations({ query: { phoneNumberId: 'all', limit: '1' } } as unknown as Request, res as unknown as Response);
+    const payload = res.json.mock.calls[0][0];
+    expect(decodeConversationCursor(payload.nextCursor)).toEqual({ timestamp: null, id: outgoing.threadKey });
+    vi.mocked(prisma.$queryRaw).mockClear().mockResolvedValueOnce([] as never);
+    await getConversations({ query: { phoneNumberId: 'all', limit: '1', cursor: payload.nextCursor } } as unknown as Request, res as unknown as Response);
+    const boundary = vi.mocked(prisma.$queryRaw).mock.calls[0].slice(1).find((value: any) => value?.values?.includes(outgoing.threadKey)) as any;
+    expect(boundary.sql).toContain('us.last_customer_msg_at IS NULL AND rm.thread_key <');
+    expect(boundary.values).toEqual([outgoing.threadKey]);
+  });
+
+  it('rejects old cursors made with the outgoing-message sort', () => {
+    const oldCursor = Buffer.from(JSON.stringify({ timestamp: '2026-11-12T08:00:00Z', id: 'message-id' })).toString('base64url');
+    expect(() => decodeConversationCursor(oldCursor)).toThrow();
   });
 
   it.each(['invalid!', 'e30', ['unexpected']])('rejects invalid cursor %s before querying', async (cursor) => {

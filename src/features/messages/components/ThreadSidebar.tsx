@@ -1,3 +1,4 @@
+import { getWhatsAppSessionExpiresAt } from '../utils/whatsappSession';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
@@ -379,6 +380,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
           >
             {threadVirtualizer.getVirtualItems().map((virtualRow) => {
               const thread = filteredThreads[virtualRow.index];
+              const sessionExpiresAt = getWhatsAppSessionExpiresAt(thread);
               return (
                 <div
                   key={thread.threadId}
@@ -390,6 +392,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
                   <ThreadListItem
                     thread={thread}
                     isSelected={activeThread?.threadId === thread.threadId}
+                    isSessionExpired={sessionExpiresAt !== null && slaCurrentTime >= sessionExpiresAt}
                     status={threadStatuses[thread.threadId]}
                     draftText={draftsByThreadId?.[thread.threadId]}
                     onSelectThread={onSelectThread}

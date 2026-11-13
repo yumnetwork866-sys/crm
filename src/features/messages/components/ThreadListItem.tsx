@@ -1,3 +1,4 @@
+import { getLastCustomerMessageTime } from '../utils/whatsappSession';
 import { parseThreadId } from '../../../../shared/whatsappScope';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,6 +18,7 @@ export interface SlaWarning {
 interface ThreadListItemProps {
   thread: MessageThread;
   isSelected: boolean;
+  isSessionExpired?: boolean;
   status?: ConversationStatus;
   draftText?: string;
   onSelectThread: (threadId: string, phone: string, messageIds: string[]) => void;
@@ -29,6 +31,7 @@ interface ThreadListItemProps {
 const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   thread,
   isSelected,
+  isSessionExpired = false,
   status,
   draftText,
   onSelectThread,
@@ -84,13 +87,14 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   const trimmedDraft = draftText?.trim() || '';
   const hasDraft = Boolean(trimmedDraft);
   const isAgentLast = thread.lastMessage.sender === 'agent';
-  const threadTime = new Date(thread.lastMessage.timestamp);
+  const lastCustomerMessageTime = getLastCustomerMessageTime(thread);
+  const threadTime = new Date(lastCustomerMessageTime ?? 0);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   const isToday = threadTime.toDateString() === today.toDateString();
   const isYesterday = threadTime.toDateString() === yesterday.toDateString();
-  const timeString = isToday
+  const timeString = lastCustomerMessageTime === null ? '—' : isToday
     ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     : isYesterday ? 'Hôm qua' : formatDate(threadTime);
 
@@ -121,15 +125,27 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
       {/* Thread Info */}
       <div className="flex-1 min-w-0">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <span
-            title={`${displayName} · ${currentStatus.label}${slaWarning ? ` · Khách chờ phản hồi ${slaWarning.minutes} phút` : ''}`}
-            className={`min-w-0 truncate text-[15px] leading-5 ${hasUnread ? 'font-semibold text-slate-950' : 'font-normal text-slate-900'}`}
-          >
-            {displayName}
-          </span>
-          <span className={`shrink-0 text-[11px] leading-5 ${hasUnread ? 'font-semibold text-[#1fa855]' : 'text-[#667781]'}`}>
-            {timeString}
-          </span>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span
+              title={`${displayName} · ${currentStatus.label}${slaWarning ? ` · Khách chờ phản hồi ${slaWarning.minutes} phút` : ''}`}
+              className={`min-w-0 truncate text-[15px] leading-5 ${hasUnread ? 'font-semibold text-slate-950' : 'font-normal text-slate-900'}`}
+            >
+              {displayName}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {isSessionExpired && (
+              <span
+                title="Đã hết phiên 24 giờ kể từ tin nhắn cuối của khách."
+                className="whatsapp-session-expired-badge inline-flex h-4 shrink-0 items-center rounded-full bg-red-500 px-1.5 text-[9px] font-semibold text-white"
+              >
+                24h
+              </span>
+            )}
+            <span title={lastCustomerMessageTime === null ? 'Chưa có tin nhắn từ khách' : 'Thời gian tin nhắn cuối của khách'} className={`shrink-0 text-[11px] leading-5 ${hasUnread ? 'font-semibold text-[#1fa855]' : 'text-[#667781]'}`}>
+              {timeString}
+            </span>
+          </div>
         </div>
 
         {/* Last Message Snippet or Unsent Draft */}
@@ -261,6 +277,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
 export const ThreadListItem = React.memo(ThreadListItemComponent, (previous, next) =>
   previous.thread === next.thread
   && previous.isSelected === next.isSelected
+  && previous.isSessionExpired === next.isSessionExpired
   && previous.status === next.status
   && previous.draftText === next.draftText
   && previous.onSelectThread === next.onSelectThread

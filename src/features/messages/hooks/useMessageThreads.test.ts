@@ -232,6 +232,28 @@ describe('buildMessageThreads (Separated Conversations & Per-Thread Messages)', 
     ]);
   });
 
+  it('sorts by the latest inbound message, preserving pins and placing outbound-only threads last', () => {
+    const customers = ['pinned', 'recent', 'older', 'outbound'].map((id, index) =>
+      createCustomer({ id: `crm-${id}`, name: id, phone: `+6012345678${index}` }));
+    const inboundTimes = ['2026-11-01T08:00:00Z', '2026-11-13T08:00:00Z', '2026-11-12T08:00:00Z', null];
+    const conversations = customers.map((customer, index) => ({
+      customerId: customer.id, customerName: customer.name, customerPhone: customer.phone,
+      unreadCount: 0, lastCustomerMessageAt: inboundTimes[index],
+      lastMessage: createMessage({
+        id: `msg-${index}`, customerId: customer.id, customerPhone: customer.phone,
+        sender: 'agent', timestamp: index === 2 ? '2026-11-13T11:00:00Z' : '2026-11-13T10:00:00Z', content: 'Agent reply',
+      }),
+    }));
+    const build = () => buildMessageThreads({ conversations, messages: [], customers, pinnedThreadIds: ['crm-pinned'] });
+    expect(build().map((thread) => thread.threadId)).toEqual(['crm-pinned', 'crm-recent', 'crm-older', 'crm-outbound']);
+    // Sending a newer reply leaves the conversation in its inbound-based position.
+    conversations[2].lastMessage.timestamp = '2026-11-14T11:00:00Z';
+    expect(build().map((thread) => thread.threadId)).toEqual(['crm-pinned', 'crm-recent', 'crm-older', 'crm-outbound']);
+    // A new inbound message advances it immediately.
+    conversations[2].lastCustomerMessageAt = '2026-11-14T12:00:00Z';
+    expect(build().map((thread) => thread.threadId)).toEqual(['crm-pinned', 'crm-older', 'crm-recent', 'crm-outbound']);
+  });
+
   it('keeps BSUID and username threads distinct without stripping their identifiers', () => {
     const identifiers = ['MY.941245582048923', '@ghahrzl'];
     const conversations: ConversationSummary[] = identifiers.map((identifier, index) => ({

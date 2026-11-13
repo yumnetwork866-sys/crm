@@ -1,3 +1,4 @@
+import { compareLastCustomerMessage } from './whatsappSession';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { ConversationListResponse, ConversationSummary } from '../types';
 import { isMetaUserIdentifier } from '../../../utils/crmUtils';
@@ -29,8 +30,7 @@ export function flattenConversations(data?: ConversationPages): ConversationSumm
     }
   }));
   return Array.from(byKey.values()).sort((a, b) =>
-    new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
-      || b.lastMessage.id.localeCompare(a.lastMessage.id),
+    compareLastCustomerMessage(a, b) || conversationKey(b).localeCompare(conversationKey(a)),
   );
 }
 

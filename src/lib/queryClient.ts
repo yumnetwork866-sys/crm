@@ -11,8 +11,8 @@ export const queryKeys = {
     ['central-messages', phoneNumberId, customerId] as const,
   messageConversations: (phoneNumberId: string, search = '') =>
     search
-      ? (['message-conversations', phoneNumberId, search] as const)
-      : (['message-conversations', phoneNumberId] as const),
+      ? (['message-conversations', phoneNumberId, 'last-customer', search] as const)
+      : (['message-conversations', phoneNumberId, 'last-customer'] as const),
   messageUnreadSummary: (phoneNumberId: string) => ['message-unread-summary', phoneNumberId] as const,
   messageUnreadTotals: ['message-unread-totals'] as const,
   messagePreferences: (phoneNumberId: string) => ['message-preferences', phoneNumberId] as const,

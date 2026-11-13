@@ -997,6 +997,12 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
 }
 
 /* WhatsApp page uses the brighter green from the current WhatsApp UI. */
+.whatsapp-page span.whatsapp-session-expired-badge,
+.light-mode .whatsapp-page span.whatsapp-session-expired-badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 .whatsapp-page {
   --whatsapp-green: #1fa855;
   --whatsapp-green-soft: rgb(31 168 85 / 0.1);

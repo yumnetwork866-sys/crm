@@ -1,3 +1,4 @@
+import { getWhatsAppSessionExpiresAt } from '../utils/whatsappSession';
 import { useEffect, useMemo, useState } from 'react';
 import type { MessageThread } from '../types';
 
@@ -9,15 +10,7 @@ export function useWhatsAppSessionWindow(activeThread: MessageThread | null) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const expiresAtMs = useMemo(() => {
-    if (!activeThread?.messages.length && !activeThread?.lastCustomerMessageAt) return null;
-    const customerMessages = activeThread.messages.filter((message) => message.sender === 'customer');
-    const referenceTimestamp =
-      customerMessages.at(-1)?.timestamp ||
-      activeThread.lastCustomerMessageAt ||
-      activeThread.lastMessage.timestamp;
-    return new Date(referenceTimestamp).getTime() + 24 * 60 * 60 * 1000;
-  }, [activeThread]);
+  const expiresAtMs = useMemo(() => getWhatsAppSessionExpiresAt(activeThread), [activeThread]);
 
   const session24hInfo = useMemo(() => {
     if (expiresAtMs === null) return null;

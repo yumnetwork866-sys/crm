@@ -28,6 +28,17 @@ describe('infinite conversation cache', () => {
     expect(result.map((row) => row.lastMessage.businessPhoneNumberId).sort()).toEqual(['111', '222']);
   });
 
+  it('orders cached pages by customer activity even when the latest message is an agent reply', () => {
+    const older = conversation('crm-older', '111', '2026-11-13T11:00:00Z');
+    older.lastMessage.sender = 'agent';
+    older.lastCustomerMessageAt = '2026-11-12T08:00:00Z';
+    const recent = conversation('crm-recent', '111', '2026-11-13T08:00:00Z');
+    const outbound = conversation('crm-outbound', '111', '2026-11-14T11:00:00Z');
+    outbound.lastMessage.sender = 'agent';
+    expect(flattenConversations(pages([outbound, older], [recent])).map((row) => row.customerId))
+      .toEqual(['crm-recent', 'crm-older', 'crm-outbound']);
+  });
+
   it('handles aliases for the same phone without duplicate rows', () => {
     const first = conversation('cust_60123456789', '111');
     const alias = { ...first, customerId: 'phone_123456789', customerPhone: '0123456789' };

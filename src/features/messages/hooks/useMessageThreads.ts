@@ -1,3 +1,4 @@
+import { compareLastCustomerMessage } from '../utils/whatsappSession';
 import { scopeThreadId } from '../../../../shared/whatsappScope';
 import { useMemo } from 'react';
 import type { CentralMessage, Customer } from '../../../types';
@@ -228,10 +229,7 @@ export function buildMessageThreads({
 
   return Array.from(map.values()).sort((first, second) => {
     if (first.isPinned !== second.isPinned) return first.isPinned ? -1 : 1;
-    return (
-      new Date(second.lastMessage.timestamp).getTime() -
-      new Date(first.lastMessage.timestamp).getTime()
-    );
+    return compareLastCustomerMessage(first, second) || second.threadId.localeCompare(first.threadId);
   });
 }
 
