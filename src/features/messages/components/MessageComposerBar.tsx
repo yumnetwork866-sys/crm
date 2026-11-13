@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import {
   FileText,
   Loader2,
@@ -36,6 +36,7 @@ export interface MessageComposerBarProps {
   brandName?: string;
   senderPhone?: BusinessPhoneNumber;
   senderPhoneId?: string;
+  showSenderIdentity?: boolean;
 }
 
 export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
@@ -48,6 +49,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   brandName,
   senderPhone,
   senderPhoneId,
+  showSenderIdentity = false,
 }) => {
   const {
     inputText,
@@ -89,7 +91,41 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
     brandName,
   });
 
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const suggestionsButtonRef = useRef<HTMLButtonElement>(null);
+  const suggestionsPanelRef = useRef<HTMLDivElement>(null);
+  const suggestionsPanelId = useId();
+
+  useEffect(() => { setIsSuggestionsOpen(false); }, [activeThread?.threadId, activeThread?.lastMessage.id]);
+  useEffect(() => { if (!suggestedReplies.isVisible) setIsSuggestionsOpen(false); }, [suggestedReplies.isVisible]);
+
+  useEffect(() => {
+    if (!isSuggestionsOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!suggestionsPanelRef.current?.contains(target) && !suggestionsButtonRef.current?.contains(target)) setIsSuggestionsOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsSuggestionsOpen(false);
+      suggestionsButtonRef.current?.focus();
+    };
+    const frame = requestAnimationFrame(() => {
+      const panel = suggestionsPanelRef.current;
+      (panel?.querySelector<HTMLButtonElement>('[data-suggestion]') || panel)?.focus();
+    });
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSuggestionsOpen, suggestedReplies.suggestions.length, suggestedReplies.isLoading]);
+
   const handleApplySuggestion = (text: string) => {
+    setIsSuggestionsOpen(false);
     setInputText(text);
     setTimeout(() => {
       textareaRef.current?.focus();
@@ -123,6 +159,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   const [previewCurrentTime, setPreviewCurrentTime] = useState(0);
 
   const handleStartVoiceRecord = async () => {
+    setIsSuggestionsOpen(false);
     setIsPreviewPlaying(false);
     setPreviewCurrentTime(0);
     await startRecording();
@@ -204,7 +241,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   const templateButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!showEmojiPicker && !isTemplatePickerActive) return;
+    if (isSuggestionsOpen || (!showEmojiPicker && !isTemplatePickerActive)) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -260,6 +297,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
   }, [
+    isSuggestionsOpen,
     showEmojiPicker,
     setShowEmojiPicker,
     isTemplatePickerActive,
@@ -273,10 +311,25 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
     textareaRef,
   ]);
 
+  const senderIdentity = showSenderIdentity && senderPhoneId ? (
+    <span
+      className="inline-flex h-6 max-w-full items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/95 px-2.5 text-[11px] text-[#667781] shadow-2xs"
+      title={`Trả lời từ ${senderPhone?.verifiedName || 'WhatsApp'}`}
+    >
+      <img
+        src={senderPhone?.profilePictureUrl || whatsappLogoUrl}
+        alt={`Ảnh đại diện ${senderPhone?.verifiedName || 'WhatsApp'}`}
+        className="h-3.5 w-3.5 shrink-0 rounded-full object-cover"
+        onError={(event) => { event.currentTarget.src = whatsappLogoUrl; }}
+      />
+      <span className="truncate">Trả lời từ <span className="font-medium text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span></span>
+    </span>
+  ) : null;
+
   return (
     <>
       {/* Unified Quick Templates Popup (Triggered by ⚡ button OR typing /) */}
-      {isTemplatePickerActive && (
+      {isTemplatePickerActive && !isSuggestionsOpen && (
         <div
           ref={templatePickerRef}
           className="absolute bottom-16 left-3 sm:left-6 bg-white border border-slate-300 rounded-2xl p-3 shadow-2xl z-50 w-88 max-w-[calc(100vw-2rem)] max-h-80 overflow-hidden flex flex-col animate-fadeIn divide-y divide-slate-100"
@@ -455,73 +508,105 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
         </div>
       )}
 
-      {/* Sender identity and suggested replies share one compact row. */}
-      {(senderPhoneId || suggestedReplies.isVisible) && (
-        <div className="mx-3 mb-1 flex min-w-0 shrink-0 items-center gap-2">
-          {senderPhoneId && (
-            <div
-              className={`flex h-6 w-fit shrink-0 items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/95 px-2.5 text-[11px] text-slate-500 shadow-2xs backdrop-blur-xs ${suggestedReplies.isVisible ? 'max-w-[45%]' : 'max-w-[90%]'}`}
-              title={`Trả lời từ ${senderPhone?.verifiedName || 'WhatsApp'}`}
-            >
-              <img
-                src={senderPhone?.profilePictureUrl || whatsappLogoUrl}
-                alt={`Ảnh đại diện ${senderPhone?.verifiedName || 'WhatsApp'}`}
-                className="h-3.5 w-3.5 shrink-0 rounded-full bg-emerald-50 object-cover ring-1 ring-slate-200/70"
-                onError={(event) => { event.currentTarget.src = whatsappLogoUrl; }}
-              />
-              <span className="truncate">
-                Trả lời từ <span className="ml-0.5 font-bold text-emerald-700">{senderPhone?.verifiedName || 'WhatsApp'}</span>
-              </span>
-            </div>
-          )}
+      {/* Keep suggestions collapsed until requested, next to the sender identity. */}
+      {(senderIdentity || suggestedReplies.isVisible) && (
+        <div className="relative mx-3 mb-1 flex min-w-0 shrink-0 items-center gap-2">
+          {senderIdentity && <div className="min-w-0 flex-1">{senderIdentity}</div>}
           {suggestedReplies.isVisible && (
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 animate-fadeIn">
-              <span className="flex shrink-0 items-center text-emerald-700" title="Gợi ý trả lời">
-                <Sparkles data-colored="true" className="h-3.5 w-3.5" />
-                <span className="sr-only">Gợi ý trả lời</span>
-              </span>
-              {suggestedReplies.isLoading && suggestedReplies.suggestions.length === 0 ? (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-emerald-700" role="status">
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                  <span className="truncate">Đang tạo gợi ý...</span>
+            <button
+              ref={suggestionsButtonRef}
+              type="button"
+              onClick={() => {
+                if (!isSuggestionsOpen) {
+                  setShowEmojiPicker(false);
+                  setShowTemplatePicker(false);
+                  setShowAttachMenu(false);
+                }
+                setIsSuggestionsOpen((open) => !open);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+              }}
+              aria-label="Gợi ý trả lời"
+              aria-haspopup="dialog"
+              aria-controls={suggestionsPanelId}
+              aria-expanded={isSuggestionsOpen}
+              className={`ml-auto inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium text-[#1fa855] shadow-2xs transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${isSuggestionsOpen ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200/80 bg-white/95 hover:border-emerald-300 hover:bg-emerald-50'}`}
+            >
+              {suggestedReplies.isLoading
+                ? <Loader2 data-colored="true" className="h-3.5 w-3.5 animate-spin" />
+                : <Sparkles data-colored="true" className="h-3.5 w-3.5" />}
+              Gợi ý
+            </button>
+          )}
+          {suggestedReplies.isVisible && isSuggestionsOpen && (
+            <div
+              ref={suggestionsPanelRef}
+              id={suggestionsPanelId}
+              role="dialog"
+              aria-label="Gợi ý trả lời"
+              tabIndex={-1}
+              className="absolute bottom-full right-0 z-50 mb-2 flex max-h-[min(20rem,50dvh)] w-80 max-w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl focus:outline-none"
+              onBlur={(event) => {
+                const next = event.relatedTarget as Node | null;
+                if (next && !event.currentTarget.contains(next) && !suggestionsButtonRef.current?.contains(next)) setIsSuggestionsOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-suggestion]'));
+                if (!items.length) return;
+                event.preventDefault();
+                const current = items.indexOf(document.activeElement as HTMLButtonElement);
+                const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+                  : current < 0 ? (event.key === 'ArrowUp' ? items.length - 1 : 0)
+                  : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+                items[index]?.focus();
+              }}
+            >
+              <div className="flex shrink-0 items-center justify-between gap-2 px-1 pb-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800"><Sparkles data-colored="true" className="h-3.5 w-3.5 text-[#1fa855]" />Gợi ý trả lời</span>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={suggestedReplies.refreshSuggestions}
+                    disabled={suggestedReplies.isLoading}
+                    aria-label="Tạo lại gợi ý trả lời"
+                    title="Tạo lại gợi ý"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition cursor-pointer disabled:opacity-40"
+                  >
+                    <RotateCw className={`h-3.5 w-3.5 ${suggestedReplies.isLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsSuggestionsOpen(false); suggestionsButtonRef.current?.focus(); }}
+                    aria-label="Đóng gợi ý trả lời"
+                    title="Đóng"
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              {suggestedReplies.isLoading ? (
+                <div role="status" className="flex items-center gap-2 px-2 py-4 text-xs text-slate-500">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />Đang tạo gợi ý...
                 </div>
               ) : (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                  {suggestedReplies.suggestions.map((text, idx) => (
+                <div className="min-h-0 space-y-1 overflow-y-auto whatsapp-scrollbar">
+                  {suggestedReplies.suggestions.map((text, index) => (
                     <button
-                      key={idx}
+                      key={index}
                       type="button"
+                      data-suggestion
                       onClick={() => handleApplySuggestion(text)}
-                      title={text}
-                      className="whatsapp-suggested-reply group flex h-6 max-w-full shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2 text-left text-slate-700 shadow-2xs transition hover:border-[#1fa855] hover:bg-[#1fa855] hover:text-white cursor-pointer"
+                      className="group/suggestion flex w-full cursor-pointer items-start gap-2 rounded-xl px-2 py-2.5 text-left transition hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none"
                     >
-                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[9px] font-semibold text-[#1fa855] transition-colors group-hover:bg-white/20 group-hover:text-white">{idx + 1}</span>
-                      <span className="min-w-0 truncate text-[11px] font-medium text-slate-700 transition-colors group-hover:text-white">{text}</span>
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-medium text-slate-500 group-hover/suggestion:bg-emerald-100">{index + 1}</span>
+                      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-700">{text}</span>
                     </button>
                   ))}
                 </div>
               )}
-              <div className="flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={suggestedReplies.refreshSuggestions}
-                  disabled={suggestedReplies.isLoading}
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/90 hover:text-emerald-700 cursor-pointer disabled:opacity-50"
-                  title="Tạo lại gợi ý khác"
-                  aria-label="Tạo lại gợi ý trả lời"
-                >
-                  <RotateCw className={`h-3 w-3 ${suggestedReplies.isLoading ? 'animate-spin' : ''}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={suggestedReplies.dismissSuggestions}
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/90 hover:text-slate-600 cursor-pointer"
-                  title="Ẩn gợi ý này"
-                  aria-label="Ẩn gợi ý trả lời"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
             </div>
           )}
         </div>
@@ -684,6 +769,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setIsSuggestionsOpen(false);
                   if (fileInputRef.current) fileInputRef.current.click();
                   setShowEmojiPicker(false);
                   setShowTemplatePicker(false);
@@ -702,6 +788,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                   ref={emojiButtonRef}
                   type="button"
                   onClick={() => {
+                    setIsSuggestionsOpen(false);
                     setShowEmojiPicker(!showEmojiPicker);
                     setShowAttachMenu(false);
                     setShowTemplatePicker(false);
@@ -732,6 +819,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setIsSuggestionsOpen(false);
                   onOpenProductPicker();
                   setShowEmojiPicker(false);
                   setShowTemplatePicker(false);
@@ -749,6 +837,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                 ref={templateButtonRef}
                 type="button"
                 onClick={() => {
+                  setIsSuggestionsOpen(false);
                   const willOpen = !isTemplatePickerActive;
                   setShowTemplatePicker(willOpen);
                   setShowEmojiPicker(false);

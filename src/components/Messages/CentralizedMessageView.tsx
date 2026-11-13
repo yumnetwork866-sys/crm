@@ -326,6 +326,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 activeThread={activeThread}
                 senderPhone={activePhone}
                 senderPhoneId={activePhoneId}
+                showSenderIdentity={selectedPhoneId === ALL_BUSINESS_PHONES}
                 brandName={activePhone?.verifiedName || 'YumNetwork'}
               />
             </>
