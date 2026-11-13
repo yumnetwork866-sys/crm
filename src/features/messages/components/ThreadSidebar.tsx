@@ -150,7 +150,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   const threadVirtualizer = useVirtualizer({
     count: filteredThreads.length,
     getScrollElement: () => threadListRef.current,
-    estimateSize: () => 92,
+    estimateSize: () => 76,
     getItemKey: (index) => filteredThreads[index]?.threadId || index,
     overscan: 8,
   });
@@ -384,7 +384,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
                   key={thread.threadId}
                   data-index={virtualRow.index}
                   ref={threadVirtualizer.measureElement}
-                  className="absolute left-0 top-0 w-full border-b border-slate-100"
+                  className="absolute left-0 top-0 w-full"
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
                   <ThreadListItem

@@ -22,8 +22,10 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 child.on('error', (err) => {
   process.stderr.write(`Frontend preview failed: ${err.message}\n`);
-  process.exitCode = 1;
+  process.exit(1);
 });
-child.on('exit', (code, signal) => {
-  process.exitCode = code ?? (signal === 'SIGQUIT' ? 0 : 1);
+child.on('close', (code, signal) => {
+  // PM2's IPC/monitoring handles keep Node alive after nginx exits.
+  // Exit explicitly so PM2 can restart a failed frontend.
+  process.exit(code ?? (signal === 'SIGQUIT' ? 0 : 1));
 });

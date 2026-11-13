@@ -1,6 +1,7 @@
 import { parseThreadId } from '../../../../shared/whatsappScope';
-import React from 'react';
-import { AlertTriangle, Pin, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
 import { MessageDeliveryStatusIcon } from '../../../components/Messages/MessageDeliveryStatusIcon';
 import { formatDate, formatPhoneWithCountryCode, getCustomerAvatar } from '../../../utils/crmUtils';
 import { STATUS_CONFIG } from '../constants';
@@ -36,107 +37,121 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
   isAdmin,
   slaWarning,
 }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const openMenu = () => {
+    const rect = menuButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const height = isAdmin && onDeleteThread ? 88 : 52;
+    setMenuPosition({
+      top: rect.bottom + height + 6 <= window.innerHeight - 8
+        ? rect.bottom + 6 : Math.max(8, rect.top - height - 6),
+      left: Math.max(8, Math.min(rect.right - 184, window.innerWidth - 192)),
+    });
+    setIsMenuOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const close = () => setIsMenuOpen(false);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node) && !menuButtonRef.current?.contains(event.target as Node)) close();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close();
+      menuButtonRef.current?.focus();
+    };
+    const frame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus());
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [isMenuOpen]);
+
   const hasUnread = thread.unreadCount > 0;
   const trimmedDraft = draftText?.trim() || '';
   const hasDraft = Boolean(trimmedDraft);
   const isAgentLast = thread.lastMessage.sender === 'agent';
   const threadTime = new Date(thread.lastMessage.timestamp);
-  const isToday = threadTime.toDateString() === new Date().toDateString();
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const isToday = threadTime.toDateString() === today.toDateString();
+  const isYesterday = threadTime.toDateString() === yesterday.toDateString();
   const timeString = isToday
     ? threadTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    : formatDate(threadTime);
+    : isYesterday ? 'Hôm qua' : formatDate(threadTime);
 
+  const displayName = thread.customerName || formatPhoneWithCountryCode(thread.customerPhone, thread.customer?.country) || 'Khách WhatsApp';
   const currentStatusKey = status || 'consulting';
   const currentStatus = STATUS_CONFIG[currentStatusKey];
 
   return (
     <div
       onClick={() => onSelectThread(thread.threadId, thread.customerPhone, thread.messages.map((m) => m.id))}
-      className={`group px-3 py-3 flex items-start space-x-3 cursor-pointer transition relative ${
-        isSelected ? 'bg-[#f0f2f5] border-l-4 border-[#1fa855]' : 'hover:bg-[#f5f6f6]'
+      aria-current={isSelected ? 'true' : undefined}
+      className={`group mx-1.5 my-0.5 flex min-h-[72px] items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer transition-colors relative ${
+        isSelected ? 'bg-[#eaf7ef]' : isMenuOpen ? 'bg-[#f4f4f5]' : 'bg-white hover:bg-[#f4f4f5]'
       }`}
     >
-      {/* Avatar with Dicebear Cutouts / custom photo & online dot */}
-      <div className="relative shrink-0 mt-0.5">
-        <div className="w-11 h-11 rounded-full bg-emerald-50 flex items-center justify-center shadow-sm overflow-hidden">
-          <img
-            src={getCustomerAvatar(
-              thread.customer?.avatar,
-              thread.customer?.phone || thread.customerPhone || thread.customerName || thread.threadId
-            )}
-            alt="avatar"
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        </div>
-        <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-50 ring-1 ring-black/5">
+        <img
+          src={getCustomerAvatar(
+            thread.customer?.avatar,
+            thread.customer?.phone || thread.customerPhone || displayName || thread.threadId,
+          )}
+          alt={`Ảnh đại diện ${displayName}`}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
       </div>
 
       {/* Thread Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className={`text-xs truncate ${hasUnread ? 'font-black text-slate-950' : 'font-bold text-slate-800'}`}>
-            {thread.customerName}
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span
+            title={`${displayName} · ${currentStatus.label}${slaWarning ? ` · Khách chờ phản hồi ${slaWarning.minutes} phút` : ''}`}
+            className={`min-w-0 truncate text-[15px] leading-5 ${hasUnread ? 'font-semibold text-slate-950' : 'font-normal text-slate-900'}`}
+          >
+            {displayName}
           </span>
-          <span className={`text-[10px] shrink-0 ml-1 ${hasUnread ? 'text-[#1fa855] font-bold' : 'text-slate-400'}`}>
+          <span className={`shrink-0 text-[11px] leading-5 ${hasUnread ? 'font-semibold text-[#1fa855]' : 'text-[#667781]'}`}>
             {timeString}
           </span>
         </div>
 
-        {/* Phone & Status / Group Tags */}
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          <span className="text-[10px] text-slate-500 truncate font-mono">
-            {formatPhoneWithCountryCode(thread.customerPhone, thread.customer?.country) ||
-              thread.customerPhone ||
-              'WhatsApp'}
-          </span>
-
-          {/* Pipeline Status Tag */}
-          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}>
-            {currentStatus.label}
-          </span>
-
-          {/* CRM Group Tag */}
-          {thread.customer && (
-            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
-              {thread.customer.totalOrders >= 2 ? 'VIP' : thread.customer.totalOrders === 1 ? '1 Đơn' : 'Mới'}
-            </span>
-          )}
-
-          {/* SLA Waiting Warning */}
-          {slaWarning && (
-            <span
-              className={`text-[9px] px-1.5 py-0.2 rounded font-bold border flex items-center gap-0.5 ${
-                slaWarning.isSevere
-                  ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
-                  : 'bg-amber-100 text-amber-800 border-amber-300'
-              }`}
-              title={`Khách đang chờ phản hồi (${slaWarning.minutes} phút)`}
-            >
-              <AlertTriangle className="w-2.5 h-2.5" />
-              <span>{slaWarning.label}</span>
-            </span>
-          )}
-        </div>
-
         {/* Last Message Snippet or Unsent Draft */}
-        <div className="flex items-center justify-between mt-1">
-          <p className={`text-xs truncate pr-1 flex items-center gap-1 ${hasUnread ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
+        <div className="mt-0.5 flex min-w-0 items-center justify-between gap-1">
+          <p className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[13px] leading-5 ${hasUnread ? 'font-medium text-slate-700' : 'font-normal text-[#667781]'}`}>
             {hasDraft ? (
               <>
-                <span className="font-bold text-rose-600 shrink-0">[Nháp]</span>
-                <span className="truncate text-slate-600 font-normal">
+                <span className="shrink-0 font-medium text-rose-600">Nháp:</span>
+                <span className="truncate font-normal text-[#667781]">
                   {trimmedDraft}
                 </span>
               </>
             ) : (
               <>
                 {isAgentLast && (
-                  <MessageDeliveryStatusIcon
-                    status={thread.lastMessage.status}
-                    isRealSent={thread.lastMessage.isRealSent}
-                    errorMessage={thread.lastMessage.errorMessage}
-                  />
+                  <span className="shrink-0">
+                    <MessageDeliveryStatusIcon
+                      status={thread.lastMessage.status}
+                      isRealSent={thread.lastMessage.isRealSent}
+                      errorMessage={thread.lastMessage.errorMessage}
+                    />
+                  </span>
                 )}
                 <span className="truncate">
                   {formatMessagePreview(thread.lastMessage.content)}
@@ -145,7 +160,7 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
             )}
           </p>
 
-          <div className="flex items-center space-x-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             {thread.isPinned && (
               <Pin className="w-3.5 h-3.5 rotate-45 shrink-0" stroke="#1fa855" fill="#1fa855" strokeWidth={2.2} />
             )}
@@ -154,47 +169,91 @@ const ThreadListItemComponent: React.FC<ThreadListItemProps> = ({
                 {thread.unreadCount}
               </span>
             )}
+            <button
+              ref={menuButtonRef}
+              type="button"
+              aria-label={`Thao tác hội thoại với ${thread.customerName}`}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              title="Thao tác hội thoại"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isMenuOpen) setIsMenuOpen(false);
+                else openMenu();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowDown') return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (!isMenuOpen) openMenu();
+                else menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+              }}
+              className={`flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
+                isMenuOpen ? 'bg-emerald-100 text-[#1fa855]' : `text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 ${isSelected ? '' : 'sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'}`
+              }`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Pin & Admin Quick Action buttons on hover */}
-      <div className="absolute right-2.5 top-2.5 hidden group-hover:flex items-center space-x-1.5 z-10 animate-in fade-in duration-100">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            togglePinThread(thread.threadId);
+      {isMenuOpen && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={`Thao tác hội thoại với ${thread.customerName}`}
+          className="fixed z-[100] w-[184px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+          style={menuPosition}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Tab') {
+              setIsMenuOpen(false);
+              menuButtonRef.current?.focus();
+              return;
+            }
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
+            const current = items.indexOf(document.activeElement as HTMLButtonElement);
+            const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+              : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+            items[index]?.focus();
           }}
-          className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110 ${
-            thread.isPinned ? 'bg-[#e6f7f2] border-[#1fa855] hover:bg-[#d1f2e8]' : 'bg-white hover:bg-[#f1f5f9] border-[#cbd5e1]'
-          }`}
-          title={thread.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại lên đầu'}
         >
-          <Pin
-            className="w-3.5 h-3.5 rotate-45"
-            stroke={thread.isPinned ? '#1fa855' : '#334155'}
-            fill={thread.isPinned ? '#1fa855' : 'none'}
-            strokeWidth={2.2}
-          />
-        </button>
-
-        {isAdmin && onDeleteThread && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm(`[ADMIN] Xóa toàn bộ hội thoại với ${thread.customerName}?`)) {
-                onDeleteThread(parseThreadId(thread.threadId).phoneId ? thread.threadId : thread.customer?.id || thread.threadId);
-              }
+            role="menuitem"
+            onClick={() => {
+              setIsMenuOpen(false);
+              menuButtonRef.current?.focus();
+              togglePinThread(thread.threadId);
             }}
-            className="w-7 h-7 rounded-full bg-white hover:bg-[#ffe4e6] border border-[#cbd5e1] hover:border-[#e11d48] shadow-sm flex items-center justify-center transition-all cursor-pointer hover:scale-110"
-            title="Xóa hội thoại"
+            className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-xs font-medium text-slate-700 hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none"
           >
-            <Trash2 className="w-3.5 h-3.5" stroke="#64748b" strokeWidth={2} />
+            {thread.isPinned ? <PinOff className="h-4 w-4 text-[#1fa855]" /> : <Pin className="h-4 w-4 text-[#1fa855]" />}
+            {thread.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'}
           </button>
-        )}
-      </div>
+          {isAdmin && onDeleteThread && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setIsMenuOpen(false);
+                menuButtonRef.current?.focus();
+                if (window.confirm(`[ADMIN] Xóa toàn bộ hội thoại với ${thread.customerName}?`)) {
+                  onDeleteThread(parseThreadId(thread.threadId).phoneId ? thread.threadId : thread.customer?.id || thread.threadId);
+                }
+              }}
+              className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-xs font-medium text-rose-600 hover:bg-rose-50 focus:bg-rose-50 focus:outline-none"
+            >
+              <Trash2 className="h-4 w-4" />
+              Xóa hội thoại
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
     </div>
   );
 };
