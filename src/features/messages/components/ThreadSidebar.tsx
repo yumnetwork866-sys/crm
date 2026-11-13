@@ -216,7 +216,7 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
     <div className={`${isCompactChatOpen ? 'hidden sm:flex' : 'flex'} ${isDrawerOpen ? 'w-full sm:w-2/5 lg:w-[320px] xl:w-90' : 'w-full sm:w-2/5 lg:w-95 xl:w-105'} bg-white border-r border-slate-300 flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
 
       {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
-      <div className="p-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+      <div className="p-2.5 bg-white flex items-center justify-between gap-2 shrink-0">
         <BusinessPhoneSelector
           phones={businessPhones}
           selectedPhoneId={selectedPhoneId}

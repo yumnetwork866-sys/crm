@@ -92,7 +92,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex w-full min-w-0 items-center gap-2 rounded-xl border bg-white px-2 py-1.5 text-left shadow-xs transition cursor-pointer ${
+        className={`flex w-full min-w-0 items-center gap-2 rounded-3xl border bg-white px-2 py-1.5 text-left shadow-xs transition cursor-pointer ${
           isOpen
             ? 'border-[#1fa855] ring-2 ring-[#1fa855]/15'
             : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
@@ -128,7 +128,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
         <div
           role="listbox"
           aria-label="Chọn số WhatsApp doanh nghiệp"
-          className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl"
+          className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-72 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-1.5 shadow-xl"
         >
           {options.map((phone) => {
             const isSelected = phone.id === selectedPhoneId;
@@ -142,7 +142,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                   onSelect(phone.id);
                   setIsOpen(false);
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition cursor-pointer ${
+                className={`flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-2 text-left transition cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-50'
                     : 'hover:bg-slate-100'
