@@ -213,10 +213,10 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
   };
 
   return (
-    <div className={`${isCompactChatOpen ? 'hidden sm:flex' : 'flex'} ${isDrawerOpen ? 'w-full sm:w-2/5 lg:w-[320px] xl:w-90' : 'w-full sm:w-2/5 lg:w-95 xl:w-105'} bg-[#f0f2f5] border-r border-slate-300 flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
+    <div className={`${isCompactChatOpen ? 'hidden sm:flex' : 'flex'} ${isDrawerOpen ? 'w-full sm:w-2/5 lg:w-[320px] xl:w-90' : 'w-full sm:w-2/5 lg:w-95 xl:w-105'} bg-white border-r border-slate-300 flex-col h-full overflow-hidden select-none shrink-0 transition-all duration-200`}>
 
       {/* WhatsApp Left Header with Integrated WABA Phone Selector */}
-      <div className="p-2.5 bg-[#f0f2f5] border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+      <div className="p-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
         <BusinessPhoneSelector
           phones={businessPhones}
           selectedPhoneId={selectedPhoneId}
@@ -225,15 +225,15 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Search Box */}
-      <div className="px-3 py-2 bg-[#f0f2f5] border-b border-slate-200">
-        <div className="relative flex items-center bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 focus-within:border-[#1fa855] focus-within:ring-1 focus-within:ring-[#1fa855] shadow-2xs transition">
+      <div className="px-4 pt-2 pb-1 bg-white">
+        <div className="whatsapp-sidebar-search relative flex h-10 items-center rounded-full bg-[#f5f5f5] px-4 transition focus-within:ring-1 focus-within:ring-[#1fa855]/30">
           <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
             placeholder="Tìm tên, số ĐT, nội dung chat..."
-            className="w-full bg-transparent text-xs text-slate-900 focus:outline-none placeholder:text-slate-400"
+            className="w-full min-w-0 bg-transparent text-[13px] font-normal text-slate-900 focus:outline-none placeholder:text-slate-500"
           />
           {searchQuery && (
             <button onClick={() => onSearchQueryChange('')} className="p-0.5 text-slate-400 hover:text-slate-600">
@@ -244,9 +244,9 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
       </div>
 
       {/* WhatsApp Filter Pills */}
-      <div className="whatsapp-filter-shell relative px-3 py-2 bg-[#f0f2f5] border-b border-slate-200 shrink-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      <div className="whatsapp-filter-shell relative px-4 pt-1.5 pb-3 bg-white shrink-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             {visibleFilterOptions.map((filterOption) => (
               <button
                 key={filterOption.id}
@@ -254,10 +254,10 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
                 data-primary={filterOption.id === 'all'}
                 aria-pressed={activeFilter === filterOption.id}
                 onClick={() => selectBuiltInFilter(filterOption.id)}
-                className={`whatsapp-filter-chip shrink-0 px-3 py-1 rounded-full text-[11px] transition whitespace-nowrap cursor-pointer ${
+                className={`whatsapp-filter-chip inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                   activeFilter === filterOption.id
-                    ? 'bg-[#1fa855] text-white border border-[#1fa855] font-bold shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold shadow-2xs'
+                    ? 'bg-[#d9fdd3] text-[#0a5c36] border-[#b6d7a8]'
+                    : 'bg-white text-[#667781] border-[#d1d5db] hover:bg-[#f5f5f5]'
                 }`}
               >
                 {filterOption.label}
@@ -272,10 +272,10 @@ export const ThreadSidebar: React.FC<ThreadSidebarProps> = ({
               aria-haspopup="menu"
               aria-expanded={isFilterMenuOpen}
               onClick={() => setIsFilterMenuOpen((isOpen) => !isOpen)}
-              className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-2xs transition cursor-pointer ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors cursor-pointer ${
                 isFilterMenuOpen
-                  ? 'bg-[#1fa855] text-white border-[#1fa855]'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  ? 'bg-[#d9fdd3] text-[#0a5c36] border-[#b6d7a8]'
+                  : 'bg-white text-[#667781] border-[#d1d5db] hover:bg-[#f5f5f5]'
               }`}
               title="Thêm hoặc chọn bộ lọc"
             >

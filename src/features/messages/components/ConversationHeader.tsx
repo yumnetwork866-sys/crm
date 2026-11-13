@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronLeft, Menu, Search, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, MoreVertical, PanelRight, Search, X } from 'lucide-react';
 import type { AppUser, Customer } from '../../../types';
 import {
   formatPhoneWithCountryCode,
@@ -28,6 +28,7 @@ export interface ConversationHeaderProps {
   onCloseChatSearch: () => void;
   isDrawerOpen: boolean;
   onToggleDrawer: () => void;
+  onOpenDrawer: () => void;
   isAutoTranslateEnabled?: boolean;
   onToggleAutoTranslate?: () => void;
 }
@@ -47,11 +48,44 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onCloseChatSearch,
   isDrawerOpen,
   onToggleDrawer,
+  onOpenDrawer,
   isAutoTranslateEnabled,
   onToggleAutoTranslate,
 }) => {
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setIsActionsMenuOpen(false);
+    setIsStatusMenuOpen(false);
+  }, [activeThread.threadId]);
+
+  useEffect(() => {
+    if (!isActionsMenuOpen) return;
+    const close = () => setIsActionsMenuOpen(false);
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!actionsMenuRef.current?.contains(event.target as Node)) close();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close();
+      actionsButtonRef.current?.focus();
+    };
+    const frame = requestAnimationFrame(() => actionsMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')?.focus());
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', close);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', close);
+    };
+  }, [isActionsMenuOpen]);
 
   useEffect(() => {
     if (!isStatusMenuOpen) return;
@@ -72,7 +106,14 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   return (
     <>
       {/* WhatsApp Active Chat Header */}
-      <div className="p-2 sm:p-3 bg-[#f0f2f5] border-b border-slate-300 flex items-center justify-between shrink-0 shadow-sm z-10">
+      <div
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (!target.closest('button, [role="menu"], [role="listbox"]')) onOpenDrawer();
+        }}
+        title="Mở hồ sơ khách hàng"
+        className="p-2 sm:p-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm z-10 cursor-pointer"
+      >
         <div className="flex items-center space-x-3 min-w-0">
           <button
             type="button"
@@ -83,16 +124,23 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <div className="relative shrink-0">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            aria-label={`Mở hồ sơ khách hàng ${activeThread.customerName}`}
+            aria-expanded={isDrawerOpen}
+            title="Mở hồ sơ khách hàng"
+            className="relative shrink-0 cursor-pointer rounded-full transition hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 focus-visible:ring-offset-2"
+          >
+            <span className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden">
               <img
                 src={getCustomerAvatar(activeCustomer?.avatar, activeCustomer?.phone || activeThread.customerPhone || activeThread.customerName || activeThread.threadId)}
                 alt="avatar"
                 className="w-full h-full object-cover"
               />
-            </div>
+            </span>
             <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
-          </div>
+          </button>
 
           <div className="min-w-0">
             <div className="flex items-center space-x-2 flex-wrap">
@@ -158,7 +206,16 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
             </div>
 
             <p className="text-xs text-slate-500 flex items-center space-x-2 truncate flex-wrap">
-              <span className="font-mono">{formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}</span>
+              <button
+                type="button"
+                onClick={onOpenDrawer}
+                aria-label="Mở hồ sơ khách hàng từ số điện thoại"
+                aria-expanded={isDrawerOpen}
+                title="Mở hồ sơ khách hàng"
+                className="cursor-pointer rounded font-mono text-xs transition hover:text-[#1fa855] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+              >
+                {formatPhoneWithCountryCode(activeThread.customerPhone, activeCustomer?.country) || activeThread.customerPhone}
+              </button>
               {activeCustomer?.owner && !['chưa phân công', 'unassigned'].includes(activeCustomer.owner.trim().toLowerCase()) && (
                 <span className="text-[11px] text-slate-500 flex items-center gap-1.5">
                   <span>• Phụ trách:</span>
@@ -188,37 +245,80 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right Action Icons in Header */}
-        <div className="flex items-center space-x-2 text-slate-600 shrink-0">
+        {/* Minimal chat actions: search and overflow menu. */}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <button
-            onClick={onToggleChatSearch}
-            aria-pressed={isChatSearchOpen}
-            className={`p-2 rounded-lg border transition cursor-pointer ${
-              isChatSearchOpen
-                ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
+            type="button"
+            onClick={() => {
+              setIsActionsMenuOpen(false);
+              onToggleChatSearch();
+            }}
+            aria-label="Tìm kiếm trong đoạn chat"
+            aria-expanded={isChatSearchOpen}
+            className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
+              isChatSearchOpen ? 'bg-emerald-50 text-[#1fa855]' : 'text-[#111b21] hover:bg-black/5'
             }`}
             title="Tìm kiếm trong đoạn chat"
           >
-            <Search
-              className="chat-header-action-icon w-4 h-4"
-            />
+            <Search data-colored="true" strokeWidth={2} className="h-5 w-5" />
           </button>
 
-          <button
-            onClick={onToggleDrawer}
-            aria-pressed={isDrawerOpen}
-            className={`p-2 rounded-lg border transition cursor-pointer ${
-              isDrawerOpen
-                ? 'bg-[#1fa855] text-white border-[#1fa855] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-2xs'
-            }`}
-            title="Bật/Tắt Hồ sơ CRM"
-          >
-            <Menu
-              className="chat-header-action-icon w-4 h-4"
-            />
-          </button>
+          <div ref={actionsMenuRef} className="relative">
+            <button
+              ref={actionsButtonRef}
+              type="button"
+              onClick={() => {
+                setIsStatusMenuOpen(false);
+                setIsActionsMenuOpen((open) => !open);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setIsActionsMenuOpen(true);
+                }
+              }}
+              aria-label="Tùy chọn cuộc trò chuyện"
+              aria-haspopup="menu"
+              aria-expanded={isActionsMenuOpen}
+              className={`flex h-9 w-9 items-center justify-center rounded-full text-[#111b21] transition-colors cursor-pointer hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${isActionsMenuOpen ? 'bg-black/5' : ''}`}
+              title="Tùy chọn cuộc trò chuyện"
+            >
+              <MoreVertical data-colored="true" strokeWidth={2} className="h-5 w-5" />
+            </button>
+
+            {isActionsMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Tùy chọn cuộc trò chuyện"
+                className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+                onKeyDown={(event) => {
+                  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+                    event.preventDefault();
+                    event.currentTarget.querySelector<HTMLButtonElement>('[role="menuitemcheckbox"]')?.focus();
+                  } else if (event.key === 'Tab') {
+                    setIsActionsMenuOpen(false);
+                    actionsButtonRef.current?.focus();
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isDrawerOpen}
+                  onClick={() => {
+                    setIsActionsMenuOpen(false);
+                    actionsButtonRef.current?.focus();
+                    onToggleDrawer();
+                  }}
+                  className="flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-xs text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                >
+                  <PanelRight className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">Hồ sơ khách hàng</span>
+                  {isDrawerOpen && <Check data-colored="true" className="h-4 w-4 text-[#1fa855]" />}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

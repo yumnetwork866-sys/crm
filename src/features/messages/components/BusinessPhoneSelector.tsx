@@ -111,8 +111,8 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
           <span className="block truncate text-xs font-bold text-slate-900">
             {selectedPhone.verifiedName}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-semibold text-slate-500">
-            <PhoneCountryFlag displayPhoneNumber={selectedPhone.displayPhoneNumber} />
+          <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-normal text-slate-500">
+            {selectedPhone.id !== ALL_BUSINESS_PHONES && <PhoneCountryFlag displayPhoneNumber={selectedPhone.displayPhoneNumber} />}
             {selectedPhone.displayPhoneNumber}
           </span>
         </span>
@@ -163,8 +163,8 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                   <span className="block truncate text-xs font-bold text-slate-900">
                     {phone.verifiedName}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-semibold text-slate-500">
-                    <PhoneCountryFlag displayPhoneNumber={phone.displayPhoneNumber} />
+                  <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-normal text-slate-500">
+                    {phone.id !== ALL_BUSINESS_PHONES && <PhoneCountryFlag displayPhoneNumber={phone.displayPhoneNumber} />}
                     {phone.displayPhoneNumber}
                   </span>
                 </span>

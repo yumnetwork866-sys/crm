@@ -1,3 +1,4 @@
+import { renameCustomer } from '../controllers/customerNameController';
 import type { Response } from 'express';
 import { Router } from 'express';
 import type { AuthenticatedRequest } from '../middleware/authMiddleware';
@@ -549,6 +550,9 @@ router.post('/bulk', requirePermission(Permission.CUSTOMERS_MANAGE), async (req:
     return res.status(500).json({ error: 'Lỗi khi nhập hàng loạt khách hàng' });
   }
 });
+
+// Rename a contact without applying defaults from the full customer form.
+router.patch('/:id/name', requirePermission(Permission.CUSTOMERS_MANAGE), renameCustomer);
 
 // PUT /api/customers/:id - Update Customer
 router.put('/:id', requirePermission(Permission.CUSTOMERS_MANAGE), async (req: AuthenticatedRequest, res: Response) => {

@@ -1009,6 +1009,35 @@ body.light-mode .bg-white .lucide.text-emerald-600 {
   --whatsapp-green-border: rgb(31 168 85 / 0.3);
 }
 
+.whatsapp-page .whatsapp-sidebar-search input {
+  background-color: transparent !important;
+  color: #111b21 !important;
+  -webkit-text-fill-color: #111b21 !important;
+}
+
+.whatsapp-page .whatsapp-sidebar-search input::placeholder {
+  color: #667781 !important;
+  -webkit-text-fill-color: #667781 !important;
+  font-weight: 400 !important;
+  opacity: 1 !important;
+}
+
+.whatsapp-page .whatsapp-sidebar-search > svg {
+  color: #667781 !important;
+  stroke: #667781 !important;
+}
+
+.whatsapp-page .whatsapp-filter-shell button.whatsapp-filter-chip[aria-pressed="true"],
+.whatsapp-page .whatsapp-filter-shell button.whatsapp-filter-chip[aria-pressed="true"] * {
+  color: #0a5c36 !important;
+  -webkit-text-fill-color: #0a5c36 !important;
+}
+
+.whatsapp-page .whatsapp-filter-chip:focus-visible {
+  outline: 2px solid #1fa855;
+  outline-offset: 2px;
+}
+
 .whatsapp-filter-shell {
   container-name: whatsapp-filters;
   container-type: inline-size;

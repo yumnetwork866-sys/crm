@@ -286,6 +286,7 @@ export const CentralizedMessageView: React.FC<CentralizedMessageViewProps> = ({
                 }}
                 isDrawerOpen={isDrawerOpen}
                 onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
+                onOpenDrawer={() => setIsDrawerOpen(true)}
               />
 
               <MessageVirtualList
