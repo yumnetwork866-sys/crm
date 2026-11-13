@@ -1,6 +1,6 @@
 import { ALL_BUSINESS_PHONES } from '../../../../shared/whatsappScope';
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Globe2 } from 'lucide-react';
+import { ChevronDown, Globe2 } from 'lucide-react';
 import auFlagUrl from 'flag-icons/flags/4x3/au.svg';
 import gbFlagUrl from 'flag-icons/flags/4x3/gb.svg';
 import idFlagUrl from 'flag-icons/flags/4x3/id.svg';
@@ -173,7 +173,6 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                     {phone.unreadCount}
                   </span>
                 ) : null}
-                {isSelected ? <Check className="h-4 w-4 shrink-0 text-[#1fa855]" /> : null}
               </button>
             );
           })}
