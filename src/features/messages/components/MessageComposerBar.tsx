@@ -690,16 +690,13 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                       setShowAttachMenu(false);
                       setShowTemplatePicker(false);
                     }}
-                    className={`flex h-7 w-7 items-center justify-center rounded-lg transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
-                      showEmojiPicker
-                        ? 'bg-emerald-50 text-[#1fa855]'
-                        : 'text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50'
-                    }`}
+                    className="whatsapp-composer-action"
+                    data-tone="emerald"
                     title="Biểu tượng cảm xúc"
                     aria-label="Biểu tượng cảm xúc"
                     aria-expanded={showEmojiPicker}
                   >
-                    <Smile className="h-[18px] w-[18px]" />
+                    <Smile data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                   </button>
 
                   {showEmojiPicker && (
@@ -723,11 +720,12 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                     setShowEmojiPicker(false);
                     setShowTemplatePicker(false);
                   }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  className="whatsapp-composer-action"
+                  data-tone="blue"
                   title="Đính kèm tệp (Hình ảnh, PDF, Báo giá, Hóa đơn, Excel, Word...)"
                   aria-label="Đính kèm tệp"
                 >
-                  <Paperclip className="h-[18px] w-[18px]" />
+                  <Paperclip data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                 </button>
 
                 {/* Catalog Product Picker Trigger */}
@@ -738,11 +736,12 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                     setShowEmojiPicker(false);
                     setShowTemplatePicker(false);
                   }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  className="whatsapp-composer-action"
+                  data-tone="violet"
                   title="Gửi sản phẩm từ Meta Catalog"
                   aria-label="Gửi sản phẩm Meta Catalog"
                 >
-                  <Package className="h-[18px] w-[18px]" />
+                  <Package data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                 </button>
 
                 {/* Quick Canned Template Trigger */}
@@ -760,16 +759,13 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                       setTimeout(() => textareaRef.current?.focus(), 0);
                     }
                   }}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 ${
-                    isTemplatePickerActive
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'text-slate-500 hover:text-amber-600 hover:bg-amber-50'
-                  }`}
+                  className="whatsapp-composer-action"
+                  data-tone="amber"
                   title="Mẫu tin nhắn nhanh (/)"
                   aria-label="Mẫu tin nhắn nhanh"
                   aria-expanded={isTemplatePickerActive}
                 >
-                  <Zap className="h-[18px] w-[18px]" />
+                  <Zap data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                 </button>
               </div>
 
@@ -810,21 +806,22 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                     stopTyping();
                     handleSend();
                   }}
-                  className="w-9 h-9 rounded-lg bg-[#1fa855] hover:bg-[#1a924a] text-white flex items-center justify-center transition shadow-sm shadow-emerald-700/15 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                  className="whatsapp-composer-send w-9 h-9 rounded-full bg-[#1fa855] text-white flex items-center justify-center cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                   aria-label="Gửi tin nhắn"
                   title={isSendDisabled ? 'Chờ khách nhắn tin mới để mở lại khả năng gửi' : 'Gửi tin nhắn (Enter)'}
                 >
-                  <Send className="w-4 h-4 ml-0.5" />
+                  <Send data-colored="true" strokeWidth={1.9} className="w-[17px] h-[17px] ml-0.5" />
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={handleStartVoiceRecord}
-                  className="w-9 h-9 rounded-lg text-slate-500 hover:text-[#1fa855] hover:bg-emerald-50 flex items-center justify-center transition cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1fa855]/40"
+                  className="whatsapp-composer-action whatsapp-composer-mic"
+                  data-tone="emerald"
                   title="Ghi âm tin nhắn"
                   aria-label="Ghi âm tin nhắn"
                 >
-                  <Mic className="h-[18px] w-[18px]" />
+                  <Mic data-colored="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
                 </button>
               )}
             </div>
