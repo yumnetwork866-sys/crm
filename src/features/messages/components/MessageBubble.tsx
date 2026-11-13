@@ -495,17 +495,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   {renderQuoteHeader()}
                   <div
                     onClick={() => onPreviewImage(imageUrl)}
-                    className="relative rounded-lg overflow-hidden cursor-pointer group border border-slate-200 shadow-2xs max-w-sm max-h-72 bg-slate-900/5 min-h-30 flex items-center justify-center"
+                    className="relative rounded-lg overflow-hidden cursor-pointer group/image max-w-sm max-h-72 min-h-30 flex items-center justify-center"
                   >
                     <img
                       src={imgInfo.imgUrl}
                       alt="Hình ảnh"
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                      className="w-full h-full object-cover group-hover/image:scale-105 transition duration-200"
                       loading="eager"
                       onLoad={onImageLoad}
                     />
-                    <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
-                      <Eye className="w-6 h-6 drop-shadow" />
+                    <div className="absolute inset-0 bg-black/25 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center text-white">
+                      <Eye data-colored="true" className="w-6 h-6 text-white drop-shadow" />
                     </div>
                   </div>
                   {imgInfo.caption && (
