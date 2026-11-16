@@ -155,6 +155,24 @@ router.post('/knowledge', requirePermission(Permission.AI_MANAGE), async (req, r
     return failure(res, error);
   }
 });
+router.patch(
+  '/knowledge/:id/enabled',
+  requirePermission(Permission.AI_MANAGE),
+  async (req, res) => {
+    if (typeof req.body?.enabled !== 'boolean')
+      return res.status(400).json({ error: 'Trạng thái tài liệu không hợp lệ.' });
+    try {
+      const result = await prisma.aiKnowledgeDocument.update({
+        where: { id: String(req.params.id) },
+        data: { enabled: req.body.enabled },
+      });
+      clearAiCache();
+      return res.json(result);
+    } catch (error) {
+      return failure(res, error);
+    }
+  },
+);
 router.put('/knowledge/:id', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = knowledgeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Nội dung tài liệu không hợp lệ.' });

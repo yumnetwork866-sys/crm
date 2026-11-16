@@ -29,10 +29,7 @@ export const chunkSettingsSchema = z
     delimiter: z.string().max(100).default(defaultChunkSettings.delimiter),
     maxLength: z.number().int().min(64).max(10000).default(defaultChunkSettings.maxLength),
     overlap: z.number().int().min(0).default(defaultChunkSettings.overlap),
-    normalizeWhitespace: z
-      .boolean()
-      .default(true)
-      .transform((): boolean => true),
+    normalizeWhitespace: z.boolean().default(defaultChunkSettings.normalizeWhitespace),
     removeUrlsAndEmails: z.boolean().default(defaultChunkSettings.removeUrlsAndEmails),
   })
   .refine((settings) => !chunkSettingsError(settings), {

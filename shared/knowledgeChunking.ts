@@ -8,8 +8,8 @@ export interface ChunkSettings {
 
 export const defaultChunkSettings: ChunkSettings = {
   delimiter: '\\n',
-  maxLength: 1000,
-  overlap: 120,
+  maxLength: 1024,
+  overlap: 50,
   normalizeWhitespace: true,
   removeUrlsAndEmails: false,
 };
@@ -44,10 +44,12 @@ export function splitKnowledge(
       .replace(/\b(?:https?:\/\/|www\.)[^\s<>]+/gi, '')
       .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '');
   }
-  text = text
-    .replace(/[\t ]+/g, ' ')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n');
+  if (settings.normalizeWhitespace) {
+    text = text
+      .replace(/[\t ]+/g, ' ')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n{3,}/g, '\n\n');
+  }
   text = text.trim();
   const delimiter = settings.delimiter.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
   const chunks: { ordinal: number; content: string; searchText: string }[] = [];

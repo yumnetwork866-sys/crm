@@ -11,13 +11,10 @@ import {
   FileText,
   FlaskConical,
   Loader2,
-  Pencil,
   RefreshCw,
   Save,
   Settings2,
   Sparkles,
-  Trash2,
-  Upload,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -30,10 +27,11 @@ import { useAiProfile, type AiProfile } from '../../features/messages/hooks/useA
 import { queryKeys } from '../../lib/queryClient';
 import { inspectSuggestionResponse } from './suggestionDiagnostics';
 import { knowledgeFileAccept, readKnowledgeFile } from './knowledgeFile';
+import { KnowledgeLibrary, type KnowledgeDocument } from './KnowledgeLibrary';
 import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
 import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import { KnowledgeDocumentEditor, type KnowledgeDraft } from './KnowledgeDocumentEditor';
-import { defaultChunkSettings, type ChunkSettings } from '../../../shared/knowledgeChunking';
+import { defaultChunkSettings } from '../../../shared/knowledgeChunking';
 import {
   assistantConfigurationFields,
   ragConfigurationFields,
@@ -54,19 +52,6 @@ interface Configuration {
   timeoutMs: number;
   instructions: string;
   updatedAt: string;
-}
-interface KnowledgeDocument {
-  id: string;
-  title: string;
-  brand: string;
-  content: string;
-  chunkSettings?: Partial<ChunkSettings>;
-  enabled: boolean;
-  updatedAt: string;
-  _count: { chunks: number };
-  embeddingStatus?: string;
-  embeddingError?: string | null;
-  embeddingModel?: string | null;
 }
 interface KnowledgeSource {
   id: string;
@@ -353,6 +338,7 @@ export const AiManagementView: React.FC = () => {
     }
   };
   const openDocument = (doc?: KnowledgeDocument) => {
+    setDeleteId(null);
     setDocumentId(doc?.id || null);
     setDocumentDraft(
       doc
@@ -363,7 +349,6 @@ export const AiManagementView: React.FC = () => {
             chunkSettings: {
               ...defaultChunkSettings,
               ...doc.chunkSettings,
-              normalizeWhitespace: true,
             },
           }
         : { ...blankDocument },
@@ -435,6 +420,21 @@ export const AiManagementView: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
     } catch (indexError) {
       setError(messageOf(indexError));
+    } finally {
+      setDocumentBusy(false);
+    }
+  };
+  const toggleDocument = async (doc: KnowledgeDocument) => {
+    if (!canManage || documentBusy) return;
+    setDocumentBusy(true);
+    setError('');
+    try {
+      await api.patch(`/ai/knowledge/${encodeURIComponent(doc.id)}/enabled`, {
+        enabled: !doc.enabled,
+      });
+      await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
+    } catch (toggleError) {
+      setError(messageOf(toggleError));
     } finally {
       setDocumentBusy(false);
     }
@@ -1058,24 +1058,7 @@ export const AiManagementView: React.FC = () => {
       )}
 
       {tab === 'knowledge' && (
-        <section className={cardStyle}>
-          <div className="flex flex-wrap items-start justify-end gap-3">
-            {canManage && (
-              <button
-                type="button"
-                className={primaryButton}
-                disabled={documentBusy}
-                onClick={() => fileRef.current?.click()}
-              >
-                {documentBusy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                Tải tài liệu lên
-              </button>
-            )}
-          </div>
+        <div>
           <input
             ref={fileRef}
             type="file"
@@ -1089,7 +1072,7 @@ export const AiManagementView: React.FC = () => {
               if (file) void importDocumentFile(file);
             }}
           />
-          {isDocumentOpen && (
+          {isDocumentOpen ? (
             <KnowledgeDocumentEditor
               key={documentId || 'new'}
               draft={documentDraft}
@@ -1100,137 +1083,25 @@ export const AiManagementView: React.FC = () => {
               error={documentError}
               editing={!!documentId}
             />
-          )}
-          {knowledge.isPending ? (
-            <p className="py-12 text-center text-sm text-slate-500">Đang tải tài liệu…</p>
-          ) : knowledge.isError ? (
-            <p role="alert" className="py-8 text-sm text-rose-700">
-              {messageOf(knowledge.error)}
-              <button
-                type="button"
-                onClick={() => void knowledge.refetch()}
-                className="ml-2 underline"
-              >
-                Thử lại
-              </button>
-            </p>
-          ) : !knowledge.data?.length ? (
-            !isDocumentOpen && (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <BookOpen className="h-10 w-10 text-slate-300" />
-                <p className="text-sm font-semibold text-slate-800">Chưa có tài liệu</p>
-              </div>
-            )
           ) : (
-            <div className="mt-5 divide-y divide-slate-100">
-              {knowledge.data.map((doc) => (
-                <div key={doc.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <FileText className="h-4 w-4 shrink-0 text-emerald-600" />
-                      <h3 className="break-words text-sm font-semibold text-slate-900">
-                        {doc.title}
-                      </h3>
-                      <span
-                        className={`rounded-lg px-2 py-0.5 text-[11px] ${doc.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
-                      >
-                        {doc.enabled ? 'Đang dùng' : 'Đã tắt'}
-                      </span>
-                      <span
-                        title={doc.embeddingError || doc.embeddingModel || ''}
-                        className={`rounded-lg px-2 py-0.5 text-[11px] ${doc.embeddingStatus === 'error' ? 'bg-rose-50 text-rose-700' : doc.embeddingStatus === 'ready' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                      >
-                        {doc.embeddingStatus === 'ready'
-                          ? 'Vector sẵn sàng'
-                          : doc.embeddingStatus === 'error'
-                            ? 'Lỗi embedding'
-                            : 'Đang lập chỉ mục'}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                      {doc._count.chunks} đoạn · {dateLabel(doc.updatedAt)}
-                    </p>
-                    {doc.embeddingError && (
-                      <p role="alert" className="mt-1 text-xs text-rose-600">
-                        {doc.embeddingError}
-                      </p>
-                    )}
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                      {doc.content}
-                    </p>
-                  </div>
-                  {canManage && (
-                    <div className="flex shrink-0 gap-1">
-                      {deleteId === doc.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className={`${secondaryButton} text-rose-700`}
-                            disabled={documentBusy}
-                            onClick={() => void deleteDocument(doc.id)}
-                          >
-                            Xác nhận xóa
-                          </button>
-                          <button
-                            type="button"
-                            className={secondaryButton}
-                            disabled={documentBusy}
-                            onClick={() => setDeleteId(null)}
-                          >
-                            Hủy
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            aria-label={`Lập lại chỉ mục ${doc.title}`}
-                            title="Lập lại chỉ mục"
-                            className={secondaryButton}
-                            disabled={
-                              documentBusy ||
-                              ['pending', 'indexing'].includes(doc.embeddingStatus || '')
-                            }
-                            onClick={() => void reindexDocument(doc.id)}
-                          >
-                            <RefreshCw
-                              className={`h-4 w-4 ${doc.embeddingStatus === 'indexing' ? 'animate-spin' : ''}`}
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Sửa ${doc.title}`}
-                            title="Sửa tài liệu"
-                            className={secondaryButton}
-                            disabled={documentBusy}
-                            onClick={() => openDocument(doc)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Xóa ${doc.title}`}
-                            title="Xóa tài liệu"
-                            className={`${secondaryButton} hover:text-rose-600`}
-                            disabled={documentBusy}
-                            onClick={() => setDeleteId(doc.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <KnowledgeLibrary
+              documents={knowledge.data || []}
+              loading={knowledge.isPending}
+              error={knowledge.isError ? messageOf(knowledge.error) : undefined}
+              onRetry={() => void knowledge.refetch()}
+              busy={documentBusy}
+              canManage={canManage}
+              deleteId={deleteId}
+              onUpload={() => fileRef.current?.click()}
+              onEdit={openDocument}
+              onReindex={(id) => void reindexDocument(id)}
+              onToggle={(doc) => void toggleDocument(doc)}
+              onRequestDelete={setDeleteId}
+              onCancelDelete={() => setDeleteId(null)}
+              onDelete={(id) => void deleteDocument(id)}
+            />
           )}
-          {(knowledge.data?.length || 0) >= 200 && (
-            <p className="mt-3 text-xs text-slate-500">
-              Đang hiển thị 200 tài liệu cập nhật gần nhất.
-            </p>
-          )}
-        </section>
+        </div>
       )}
 
       {tab === 'runs' && canManage && (

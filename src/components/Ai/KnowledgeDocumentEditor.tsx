@@ -69,7 +69,7 @@ export function KnowledgeDocumentEditor({
 
   return (
     <form
-      className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
       onSubmit={onSave}
     >
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
@@ -129,7 +129,20 @@ export function KnowledgeDocumentEditor({
             <div className="space-y-4 p-4">
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="text-xs font-medium text-slate-600" htmlFor="chunk-delimiter">
-                  Dấu phân cách
+                  <span className="inline-flex items-center gap-1">
+                    Dấu phân cách
+                    <span
+                      tabIndex={0}
+                      role="img"
+                      aria-label="Hướng dẫn dấu phân cách"
+                      title={
+                        'Dấu phân cách là ký tự dùng để chia văn bản. \\n\\n và \\n thường được dùng để phân tách đoạn văn và dòng. Khi kết hợp bằng dấu phẩy (\\n\\n,\\n), đoạn văn sẽ được chia theo dòng nếu vượt quá độ dài tối đa của chunk. Bạn cũng có thể tự đặt dấu phân cách đặc biệt, ví dụ: ***.'
+                      }
+                      className="cursor-help rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
                   <input
                     id="chunk-delimiter"
                     maxLength={100}
@@ -154,7 +167,18 @@ export function KnowledgeDocumentEditor({
                   />
                 </label>
                 <label className="text-xs font-medium text-slate-600" htmlFor="chunk-overlap">
-                  Độ chồng lấn
+                  <span className="inline-flex items-center gap-1">
+                    Độ chồng lấn
+                    <span
+                      tabIndex={0}
+                      role="img"
+                      aria-label="Hướng dẫn độ chồng lấn"
+                      title="Độ chồng lấn giúp duy trì sự liên kết về ngữ nghĩa giữa các chunk, cải thiện hiệu quả truy xuất. Khuyến nghị đặt bằng 10%–25% độ dài tối đa của chunk."
+                      className="cursor-help rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
                   <input
                     id="chunk-overlap"
                     type="number"
@@ -171,7 +195,14 @@ export function KnowledgeDocumentEditor({
               <div className="space-y-2.5 border-t border-slate-100 pt-4">
                 <p className="text-xs font-semibold text-slate-700">Xử lý văn bản</p>
                 <label className="flex items-center gap-2 text-xs text-slate-600">
-                  <input type="checkbox" checked disabled className="accent-emerald-600" />
+                  <input
+                    type="checkbox"
+                    checked={settings.normalizeWhitespace}
+                    onChange={(event) =>
+                      updateSettings({ normalizeWhitespace: event.target.checked })
+                    }
+                    className="accent-emerald-600"
+                  />
                   Chuẩn hóa khoảng trắng, tab và dòng trống liên tiếp
                 </label>
                 <label className="flex items-center gap-2 text-xs text-slate-600">

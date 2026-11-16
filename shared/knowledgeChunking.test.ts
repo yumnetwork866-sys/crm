@@ -47,13 +47,17 @@ describe('shared document chunking for preview and indexing', () => {
   });
 
   it.each([true, false])(
-    'always normalizes whitespace, including legacy settings (%s)',
+    'respects the whitespace normalization setting (%s)',
     (normalizeWhitespace) => {
       const chunks = splitKnowledge('First\t  paragraph.\r\n\r\n\r\n Second  paragraph.', 'Title', {
         ...defaultChunkSettings,
         normalizeWhitespace,
       });
-      expect(chunks[0].content).toBe('First paragraph.\n\nSecond paragraph.');
+      expect(chunks[0].content).toBe(
+        normalizeWhitespace
+          ? 'First paragraph.\n\nSecond paragraph.'
+          : 'First\t  paragraph.\n\n\n Second  paragraph.',
+      );
     },
   );
 
@@ -77,7 +81,7 @@ describe('shared document chunking for preview and indexing', () => {
     ).toEqual([]);
   });
 
-  it.each([{ maxLength: 0 }, { maxLength: NaN }, { overlap: -1 }, { overlap: 1000 }])(
+  it.each([{ maxLength: 0 }, { maxLength: NaN }, { overlap: -1 }, { overlap: 1024 }])(
     'rejects invalid settings: %j',
     (updates) => {
       const settings = { ...defaultChunkSettings, ...updates };

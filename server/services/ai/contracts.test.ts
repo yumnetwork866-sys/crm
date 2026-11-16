@@ -64,6 +64,12 @@ describe('native AI contracts and knowledge indexing', () => {
       enabled: true,
       chunkSettings: defaultChunkSettings,
     });
+    expect(
+      knowledgeSchema.parse({
+        ...document,
+        chunkSettings: { normalizeWhitespace: false },
+      }).chunkSettings.normalizeWhitespace,
+    ).toBe(false);
   });
   it('builds a bounded full-text query without query operators from user input', () => {
     expect(knowledgeQuery("Shop ơi, mình hỏi chính sách đổi trả? ' | ! & :* ")).toBe(
@@ -79,7 +85,7 @@ describe('native AI contracts and knowledge indexing', () => {
     const chunks = splitKnowledge(text, 'Đổi trả');
     expect(chunks.length).toBeGreaterThan(3);
     expect(chunks[0].searchText).toContain('doi tra');
-    expect(chunks.every((chunk) => chunk.content.length <= 1000)).toBe(true);
+    expect(chunks.every((chunk) => chunk.content.length <= defaultChunkSettings.maxLength)).toBe(true);
     expect(chunks.map((chunk) => chunk.ordinal)).toEqual(chunks.map((_, index) => index));
     expect(chunks[0].content.slice(-100)).toContain('policy');
     expect(chunks.at(-1)?.content.endsWith(text.trim().slice(-20))).toBe(true);
