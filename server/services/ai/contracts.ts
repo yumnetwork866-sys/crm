@@ -62,6 +62,20 @@ export const aiConfigSchema = z.object({
     })
     .optional(),
 });
+export const assistantConfigSchema = aiConfigSchema.pick({
+  model: true,
+  suggestionsEnabled: true,
+  autoReplyEnabled: true,
+  timeoutMs: true,
+  instructions: true,
+  aiProfile: true,
+});
+export const ragConfigSchema = aiConfigSchema.pick({
+  embeddingModel: true,
+  ragEnabled: true,
+  retrievalSettings: true,
+});
+
 export const knowledgeSchema = z.object({
   title: z.string().trim().min(1).max(160),
   content: z.string().trim().min(10),

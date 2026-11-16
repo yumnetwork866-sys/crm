@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
@@ -13,6 +13,8 @@ import {
 import {
   AiFailure,
   aiConfigSchema,
+  assistantConfigSchema,
+  ragConfigSchema,
   generationInputSchema,
   knowledgeSchema,
   retrievalSettingsSchema,
@@ -50,29 +52,46 @@ router.get('/configuration', async (_req, res) => {
     return failure(res, error);
   }
 });
-router.put('/configuration', requirePermission(Permission.AI_MANAGE), async (req, res) => {
-  const parsed = aiConfigSchema.safeParse(req.body);
-  if (!parsed.success)
-    return res
-      .status(400)
-      .json({ error: 'Cấu hình AI không hợp lệ.', details: parsed.error.flatten() });
-  if (parsed.data.autoReplyEnabled && !parsed.data.ragEnabled)
-    return res.status(400).json({ error: 'Bật kho kiến thức trước khi bật tự động trả lời.' });
-  try {
-    const { config: result, reindexing, aiProfile } = await saveAiConfiguration(parsed.data);
-    if (reindexing) scheduleKnowledgeIndex();
-    clearAiCache();
-    if (aiProfile) realtimeHub.broadcast('ai:profile', aiProfile);
-    realtimeHub.broadcast('ai:status', {
-      scope: 'global',
-      isAiEnabled: result.autoReplyEnabled,
-      suggestionsEnabled: result.suggestionsEnabled,
-    });
-    return res.json({ ...result, reindexing, ...(aiProfile ? { aiProfile } : {}) });
-  } catch (error) {
-    return failure(res, error);
-  }
-});
+function updateConfiguration(
+  schema: typeof aiConfigSchema | typeof assistantConfigSchema | typeof ragConfigSchema,
+) {
+  return async (req: Request, res: Response) => {
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success)
+      return res
+        .status(400)
+        .json({ error: 'Cấu hình AI không hợp lệ.', details: parsed.error.flatten() });
+    try {
+      const { config: result, reindexing, aiProfile } = await saveAiConfiguration(parsed.data);
+      if (reindexing) scheduleKnowledgeIndex();
+      clearAiCache();
+      if (aiProfile) realtimeHub.broadcast('ai:profile', aiProfile);
+      realtimeHub.broadcast('ai:status', {
+        scope: 'global',
+        isAiEnabled: result.autoReplyEnabled,
+        suggestionsEnabled: result.suggestionsEnabled,
+      });
+      return res.json({ ...result, reindexing, ...(aiProfile ? { aiProfile } : {}) });
+    } catch (error) {
+      return failure(res, error);
+    }
+  };
+}
+router.put(
+  '/configuration',
+  requirePermission(Permission.AI_MANAGE),
+  updateConfiguration(aiConfigSchema),
+);
+router.put(
+  '/configuration/assistant',
+  requirePermission(Permission.AI_MANAGE),
+  updateConfiguration(assistantConfigSchema),
+);
+router.put(
+  '/configuration/rag',
+  requirePermission(Permission.AI_MANAGE),
+  updateConfiguration(ragConfigSchema),
+);
 router.put('/retrieval-settings', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = retrievalSettingsSchema.safeParse(req.body);
   if (!parsed.success)

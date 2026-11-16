@@ -6,10 +6,32 @@ import {
   knowledgeSchema,
   splitKnowledge,
   retrievalSettingsSchema,
+  assistantConfigSchema,
+  ragConfigSchema,
 } from './contracts';
 import { defaultChunkSettings } from '../../../shared/knowledgeChunking';
 
 describe('native AI contracts and knowledge indexing', () => {
+  it('scopes configuration writes so one tab cannot overwrite the other tab', () => {
+    const assistant = {
+      model: 'chat',
+      suggestionsEnabled: true,
+      autoReplyEnabled: false,
+      timeoutMs: 45000,
+      instructions: '',
+    };
+    expect(
+      assistantConfigSchema.parse({ ...assistant, ragEnabled: false, embeddingModel: 'other' }),
+    ).toEqual(assistant);
+    expect(
+      ragConfigSchema.parse({
+        ragEnabled: true,
+        model: 'other',
+        instructions: 'other',
+        aiProfile: { name: 'other', avatarUrl: null },
+      }),
+    ).toEqual({ ragEnabled: true });
+  });
   it('validates retrieval modes, Top K and cosine thresholds', () => {
     const settings = { mode: 'hybrid', topK: 5, scoreThresholdEnabled: true, scoreThreshold: 0.55 };
     expect(retrievalSettingsSchema.safeParse(settings).success).toBe(true);

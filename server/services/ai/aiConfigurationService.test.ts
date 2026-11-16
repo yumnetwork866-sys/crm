@@ -46,6 +46,33 @@ beforeEach(() => {
   vi.mocked(probeEmbeddingDimensions).mockResolvedValue(384);
 });
 describe('embedding model configuration', () => {
+  it('saves only RAG fields and disables auto reply atomically when RAG is turned off', async () => {
+    await saveAiConfiguration({ ragEnabled: false });
+    expect(prisma.aiConfiguration.update).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      data: { ragEnabled: false, autoReplyEnabled: false },
+    });
+    expect(prisma.integrationSetting.upsert).not.toHaveBeenCalled();
+    expect(probeEmbeddingDimensions).not.toHaveBeenCalled();
+  });
+  it('rejects enabling auto reply when the persisted RAG setting is off', async () => {
+    vi.mocked(prisma.aiConfiguration.findUniqueOrThrow).mockResolvedValue({
+      ...config,
+      ragEnabled: false,
+    });
+    await expect(saveAiConfiguration({ autoReplyEnabled: true })).rejects.toMatchObject({
+      code: 'RAG_REQUIRED',
+    });
+    expect(prisma.aiConfiguration.update).not.toHaveBeenCalled();
+  });
+  it('does not overwrite RAG fields when saving only assistant settings', async () => {
+    await saveAiConfiguration({ model: 'new-chat', instructions: 'Updated guidance' });
+    expect(prisma.aiConfiguration.update).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      data: { model: 'new-chat', instructions: 'Updated guidance' },
+    });
+    expect(prisma.aiKnowledgeDocument.updateMany).not.toHaveBeenCalled();
+  });
   it('saves retrieval settings and the assistant profile with the configuration in one transaction', async () => {
     const retrievalSettings = {
       mode: 'hybrid' as const,

@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
-import { aiConfigSchema } from './contracts';
+import { aiConfigSchema, AiFailure } from './contracts';
 import { getAiConfig } from './aiSettings';
 import { probeEmbeddingDimensions } from './embeddingService';
 import { requireInstalledEmbeddingModel } from './ollamaModels';
 import { resolveRetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 
-export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>) {
+export async function saveAiConfiguration(input: Partial<z.infer<typeof aiConfigSchema>>) {
   const { aiProfile, retrievalSettings, ...settings } = input;
   const current = await getAiConfig();
   let dimensions = current.embeddingDimensions;
@@ -16,10 +16,19 @@ export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>)
   }
   return prisma.$transaction(async (tx) => {
     const previous = await tx.aiConfiguration.findUniqueOrThrow({ where: { id: 'default' } });
+    if (input.autoReplyEnabled === true && !(input.ragEnabled ?? previous.ragEnabled)) {
+      throw new AiFailure(
+        'RAG_REQUIRED',
+        'configuration',
+        'Bật và lưu RAG trước khi bật tự động trả lời.',
+        400,
+      );
+    }
     const config = await tx.aiConfiguration.update({
       where: { id: 'default' },
       data: {
         ...settings,
+        ...(input.ragEnabled === false ? { autoReplyEnabled: false } : {}),
         ...(retrievalSettings
           ? {
               retrievalSettings: {

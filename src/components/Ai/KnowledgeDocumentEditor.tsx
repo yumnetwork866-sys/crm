@@ -257,7 +257,7 @@ export function KnowledgeDocumentEditor({
                   </span>
                 ) : null}
               </p>
-              <p className="mt-2 text-xs text-slate-400">Thay đổi model trong tab Cấu hình.</p>
+              <p className="mt-2 text-xs text-slate-400">Thay đổi model trong tab RAG.</p>
             </div>
           </section>
 
