@@ -14,6 +14,14 @@ export const retrievalSettingsSchema = z.object({
   scoreThreshold: z.number().min(0).max(1),
   hybridStrategy: z.enum(hybridStrategies).optional(),
   semanticWeight: z.number().min(0).max(1).optional(),
+  rerankEnabled: z.boolean().optional(),
+  rerankModel: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[\w.:/-]+$/)
+    .optional(),
 });
 
 export const chunkSettingsSchema = z

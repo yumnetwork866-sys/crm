@@ -17,6 +17,22 @@ function renderSettings(props: Parameters<typeof KnowledgeRetrievalSettings>[0] 
 }
 
 describe('retrieval settings availability', () => {
+  it.each(['keyword', 'vector', 'hybrid'] as const)(
+    'shows the configured rerank model for %s search',
+    (mode) => {
+      const { html } = renderSettings({
+        settings: {
+          ...defaultRetrievalSettings,
+          mode,
+          rerankEnabled: true,
+          hybridStrategy: 'rerank',
+        },
+      });
+      expect(html).toContain('qwen3:4b');
+      expect(html).toContain('Ngưỡng điểm rerank');
+      expect(html).not.toContain('Chưa kết nối model rerank');
+    },
+  );
   it.each([
     ['vector', 'Vector Search', 2],
     ['keyword', 'Full-Text Search', 1],

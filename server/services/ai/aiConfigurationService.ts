@@ -5,10 +5,15 @@ import { getAiConfig } from './aiSettings';
 import { probeEmbeddingDimensions } from './embeddingService';
 import { requireInstalledEmbeddingModel } from './ollamaModels';
 import { resolveRetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
+import { validateRerankSettings } from './rerankService';
 
 export async function saveAiConfiguration(input: Partial<z.infer<typeof aiConfigSchema>>) {
   const { aiProfile, retrievalSettings, ...settings } = input;
   const current = await getAiConfig();
+  if (retrievalSettings)
+    await validateRerankSettings(
+      resolveRetrievalSettings(retrievalSettings, current.retrievalSettings),
+    );
   let dimensions = current.embeddingDimensions;
   if (input.embeddingModel && input.embeddingModel !== current.embeddingModel) {
     await requireInstalledEmbeddingModel(input.embeddingModel);

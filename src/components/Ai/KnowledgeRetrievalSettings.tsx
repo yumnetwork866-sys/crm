@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   CircleHelp,
@@ -14,6 +14,7 @@ import './knowledgeRetrievalSettings.css';
 import { api } from '../../utils/apiClient';
 import {
   resolveRetrievalSettings,
+  usesRerank,
   type RetrievalSettings,
 } from '../../../shared/knowledgeRetrievalSettings';
 
@@ -48,6 +49,7 @@ export function KnowledgeRetrievalSettings({
   wide = false,
   onChange,
   formId,
+  showModelSelector = true,
 }: {
   settings?: RetrievalSettings;
   disabled?: boolean;
@@ -58,6 +60,7 @@ export function KnowledgeRetrievalSettings({
   wide?: boolean;
   onChange?: (settings: RetrievalSettings) => void;
   formId?: string;
+  showModelSelector?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<RetrievalSettings | null>(null);
@@ -79,6 +82,14 @@ export function KnowledgeRetrievalSettings({
     value.semanticWeight < 0 ||
     value.semanticWeight > 1;
   const weighted = value.mode === 'hybrid' && value.hybridStrategy === 'weighted';
+  const reranking = usesRerank(value);
+  const rerankModels = useQuery({
+    queryKey: ['ai', 'models'],
+    queryFn: () => api.get<{ connected: boolean; models: string[]; error?: string }>('/ai/models'),
+    enabled: reranking && showModelSelector,
+    staleTime: 60000,
+  });
+  const modelOptions = [...new Set([value.rerankModel, ...(rerankModels.data?.models || [])])];
   const dirty =
     !!draft && JSON.stringify(draft) !== JSON.stringify(resolveRetrievalSettings(settings));
   const update = (updates: Partial<RetrievalSettings>) => {
@@ -115,8 +126,9 @@ export function KnowledgeRetrievalSettings({
     }
   };
 
-  const scoreHelp =
-    value.mode === 'keyword'
+  const scoreHelp = reranking
+    ? 'Lọc theo điểm liên quan do model rerank đánh giá, từ 0 đến 1. Đây không phải xác suất câu trả lời đúng.'
+    : value.mode === 'keyword'
       ? 'Tìm theo từ khóa, không dùng ngưỡng tương đồng vector.'
       : weighted
         ? 'Lọc theo điểm tổng hợp sau khi kết hợp vector và từ khóa.'
@@ -127,7 +139,7 @@ export function KnowledgeRetrievalSettings({
     background: `linear-gradient(to right, #5145ff ${progress}%, #e9eaf0 ${progress}%)`,
   });
   const controls = (
-    <div className={`grid gap-5 ${value.mode !== 'keyword' ? 'sm:grid-cols-2' : ''}`}>
+    <div className={`grid gap-5 ${value.mode !== 'keyword' || reranking ? 'sm:grid-cols-2' : ''}`}>
       <div>
         <div className="flex items-center gap-1.5">
           <label htmlFor={`${idPrefix}-top-k`} className="text-xs font-semibold text-slate-700">
@@ -168,7 +180,7 @@ export function KnowledgeRetrievalSettings({
           />
         </div>
       </div>
-      {value.mode !== 'keyword' && (
+      {(value.mode !== 'keyword' || reranking) && (
         <div>
           <div className="flex items-center gap-2">
             <button
@@ -197,7 +209,13 @@ export function KnowledgeRetrievalSettings({
           <div className="mt-2 flex items-center gap-3">
             <input
               form={formId}
-              aria-label={weighted ? 'Ngưỡng điểm tổng hợp' : 'Ngưỡng tương đồng vector'}
+              aria-label={
+                reranking
+                  ? 'Ngưỡng điểm rerank'
+                  : weighted
+                    ? 'Ngưỡng điểm tổng hợp'
+                    : 'Ngưỡng tương đồng vector'
+              }
               type="number"
               min={0}
               max={1}
@@ -301,25 +319,27 @@ export function KnowledgeRetrievalSettings({
                         <button
                           type="button"
                           role="switch"
-                          aria-checked={false}
+                          aria-checked={value.rerankEnabled}
                           aria-label="Rerank Model"
                           aria-describedby={`${idPrefix}-rerank-help`}
-                          disabled
-                          className="relative h-4 w-7 shrink-0 cursor-not-allowed rounded bg-slate-200"
+                          onClick={() => update({ rerankEnabled: !value.rerankEnabled })}
+                          className={`relative h-4 w-7 shrink-0 rounded transition focus-visible:ring-2 focus-visible:ring-indigo-400 ${value.rerankEnabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
                         >
-                          <span className="absolute left-0.5 top-0.5 h-3 w-3 rounded-sm bg-white shadow-sm" />
+                          <span
+                            className={`absolute top-0.5 h-3 w-3 rounded-sm bg-white shadow-sm transition-all ${value.rerankEnabled ? 'left-3.5' : 'left-0.5'}`}
+                          />
                         </button>
                         <span className="text-xs font-semibold text-slate-700">Rerank Model</span>
                         <button
                           type="button"
                           aria-label="Giải thích Rerank Model"
-                          title="Model rerank xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi. Hiện chưa kết nối model rerank."
+                          title="Model rerank trên Ollama xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi trước khi lấy Top K."
                           className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
                           <CircleHelp className="h-3 w-3" />
                         </button>
                         <span id={`${idPrefix}-rerank-help`} className="sr-only">
-                          Chưa kết nối model rerank.
+                          Xếp hạng lại bằng model chat trên Ollama.
                         </span>
                       </div>
                     )}
@@ -349,7 +369,9 @@ export function KnowledgeRetrievalSettings({
                               className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600"
                             />
                           </label>
-                          <label className="flex cursor-not-allowed items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/40 p-3 opacity-60">
+                          <label
+                            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 focus-within:ring-2 focus-within:ring-indigo-400 ${reranking ? 'border-indigo-200 bg-white' : 'border-slate-200 bg-slate-50/40'}`}
+                          >
                             <span className="rounded-lg bg-teal-50 p-2 text-teal-600">
                               <ListFilter className="h-4 w-4" />
                             </span>
@@ -358,17 +380,16 @@ export function KnowledgeRetrievalSettings({
                                 Rerank Model
                               </span>
                               <span className="mt-1 block text-xs leading-4 text-slate-500">
-                                Chưa kết nối model rerank.
+                                Dùng model trên Ollama để xếp hạng lại các đoạn phù hợp.
                               </span>
                             </span>
                             <input
                               form={formId}
                               type="radio"
                               name={`${idPrefix}-strategy`}
-                              disabled
-                              checked={false}
-                              readOnly
-                              className="mt-0.5 h-4 w-4 shrink-0"
+                              checked={reranking}
+                              onChange={() => update({ hybridStrategy: 'rerank' })}
+                              className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600"
                             />
                           </label>
                         </div>
@@ -401,6 +422,38 @@ export function KnowledgeRetrievalSettings({
                           </div>
                         )}
                       </>
+                    )}
+                    {reranking && showModelSelector && (
+                      <div>
+                        <label
+                          className="text-xs font-semibold text-slate-700"
+                          htmlFor={`${idPrefix}-rerank-model`}
+                        >
+                          Model rerank
+                        </label>
+                        <select
+                          form={formId}
+                          id={`${idPrefix}-rerank-model`}
+                          value={value.rerankModel}
+                          onChange={(event) => update({ rerankModel: event.target.value })}
+                          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400"
+                        >
+                          {modelOptions.map((model) => (
+                            <option key={model}>{model}</option>
+                          ))}
+                        </select>
+                        {(rerankModels.isError || rerankModels.data?.connected === false) && (
+                          <p role="alert" className="mt-2 text-xs text-rose-700">
+                            Không tải được danh sách model Ollama.
+                          </p>
+                        )}
+                        {rerankModels.data?.connected &&
+                          !rerankModels.data.models.includes(value.rerankModel) && (
+                            <p role="alert" className="mt-2 text-xs text-amber-700">
+                              Model chưa được cài trên Ollama.
+                            </p>
+                          )}
+                      </div>
                     )}
                     {controls}
                     {id === 'hybrid' && (

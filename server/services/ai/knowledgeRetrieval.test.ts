@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('./rerankService', () => ({ rerankKnowledge: vi.fn() }));
 vi.mock('./aiSettings', () => ({
   DEFAULT_EMBEDDING_DIMENSIONS: 768,
   getAiConfig: vi.fn(),
@@ -14,6 +15,7 @@ import { prisma } from '../../lib/prisma';
 import { getAiConfig } from './aiSettings';
 import { defaultRetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import { embedQuery } from './embeddingService';
+import { rerankKnowledge } from './rerankService';
 import {
   fuseKnowledgeResults,
   fuseWeightedKnowledgeResults,
@@ -33,12 +35,41 @@ beforeEach(() => {
   vi.mocked(getAiConfig).mockResolvedValue({
     embeddingModel: 'test-model',
     embeddingDimensions: 768,
-    retrievalSettings: { ...defaultRetrievalSettings },
+    retrievalSettings: { ...defaultRetrievalSettings, hybridStrategy: 'rrf' },
   } as any);
   vi.mocked(embedQuery).mockResolvedValue([1, 0]);
 });
 
 describe('hybrid knowledge retrieval', () => {
+  it.each(['keyword', 'vector', 'hybrid'] as const)(
+    'reranks %s candidates before applying Top K',
+    async (mode) => {
+      vi.mocked(getAiConfig).mockResolvedValue({
+        embeddingModel: 'test-model',
+        embeddingDimensions: 768,
+        timeoutMs: 45000,
+        retrievalSettings: {
+          ...defaultRetrievalSettings,
+          mode,
+          rerankEnabled: true,
+          hybridStrategy: 'rerank',
+          topK: 1,
+        },
+      } as any);
+      vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(1);
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([source('A', 0.9), source('B', 0.8)]);
+      vi.mocked(rerankKnowledge).mockResolvedValue([{ ...source('B', 0.95), ranking: 'rerank' }]);
+      const results = await retrieveKnowledge('Return policy');
+      expect(results.map((item) => item.id)).toEqual(['B']);
+      expect(rerankKnowledge).toHaveBeenCalledTimes(1);
+      const candidates = vi.mocked(rerankKnowledge).mock.calls[0][1];
+      expect(candidates).toHaveLength(2);
+      expect(new Set(candidates.map((item) => item.id)).size).toBe(2);
+      for (const [query] of vi.mocked(prisma.$queryRaw).mock.calls)
+        expect((query as any).strings.join('')).not.toContain('>=');
+      if (mode === 'keyword') expect(embedQuery).not.toHaveBeenCalled();
+    },
+  );
   it('changes the hybrid ordering when semantic and keyword weights change', () => {
     const keyword = [source('keyword', 9)];
     const semantic = [source('semantic', 0.8)];
@@ -233,7 +264,12 @@ describe('hybrid knowledge retrieval', () => {
     vi.mocked(getAiConfig).mockResolvedValue({
       embeddingModel: 'test-model',
       embeddingDimensions: 768,
-      retrievalSettings: { ...defaultRetrievalSettings, topK: 2, scoreThreshold: 0.95 },
+      retrievalSettings: {
+        ...defaultRetrievalSettings,
+        hybridStrategy: 'rrf',
+        topK: 2,
+        scoreThreshold: 0.95,
+      },
     } as any);
     vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(1);
     vi.mocked(prisma.$queryRaw)

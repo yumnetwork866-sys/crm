@@ -25,6 +25,7 @@ import { scheduleKnowledgeIndex } from '../services/ai/knowledgeIndexer';
 import { realtimeHub } from '../services/realtimeHub';
 import { createLogger } from '../lib/logger';
 import { resolveRetrievalSettings } from '../../shared/knowledgeRetrievalSettings';
+import { validateRerankSettings } from '../services/ai/rerankService';
 
 const router = Router();
 const log = createLogger('ai-management');
@@ -101,6 +102,7 @@ router.put('/retrieval-settings', requirePermission(Permission.AI_MANAGE), async
   try {
     const current = await getAiConfig();
     const retrievalSettings = resolveRetrievalSettings(parsed.data, current.retrievalSettings);
+    await validateRerankSettings(retrievalSettings);
     const config = await prisma.aiConfiguration.update({
       where: { id: 'default' },
       data: { retrievalSettings: { ...retrievalSettings } },

@@ -1,6 +1,6 @@
 export const retrievalModes = ['hybrid', 'vector', 'keyword'] as const;
 export type RetrievalMode = (typeof retrievalModes)[number];
-export const hybridStrategies = ['rrf', 'weighted'] as const;
+export const hybridStrategies = ['rrf', 'weighted', 'rerank'] as const;
 export type HybridStrategy = (typeof hybridStrategies)[number];
 
 export interface RetrievalSettings {
@@ -10,6 +10,8 @@ export interface RetrievalSettings {
   scoreThreshold: number;
   hybridStrategy: HybridStrategy;
   semanticWeight: number;
+  rerankEnabled: boolean;
+  rerankModel: string;
 }
 
 export const defaultRetrievalSettings: RetrievalSettings = {
@@ -17,8 +19,10 @@ export const defaultRetrievalSettings: RetrievalSettings = {
   topK: 5,
   scoreThresholdEnabled: true,
   scoreThreshold: 0.55,
-  hybridStrategy: 'rrf',
+  hybridStrategy: 'weighted',
   semanticWeight: 0.7,
+  rerankEnabled: false,
+  rerankModel: 'qwen3:4b',
 };
 
 export function resolveRetrievalSettings(
@@ -27,6 +31,12 @@ export function resolveRetrievalSettings(
 ): RetrievalSettings {
   const data = value && typeof value === 'object' ? (value as Partial<RetrievalSettings>) : {};
   return {
+    rerankEnabled:
+      typeof data.rerankEnabled === 'boolean' ? data.rerankEnabled : defaults.rerankEnabled,
+    rerankModel:
+      typeof data.rerankModel === 'string' && /^[\w.:/-]{1,100}$/.test(data.rerankModel)
+        ? data.rerankModel
+        : defaults.rerankModel,
     hybridStrategy: hybridStrategies.includes(data.hybridStrategy as HybridStrategy)
       ? data.hybridStrategy!
       : defaults.hybridStrategy,
@@ -55,3 +65,6 @@ export function resolveRetrievalSettings(
         : defaults.scoreThreshold,
   };
 }
+
+export const usesRerank = (settings: RetrievalSettings) =>
+  settings.mode === 'hybrid' ? settings.hybridStrategy === 'rerank' : settings.rerankEnabled;

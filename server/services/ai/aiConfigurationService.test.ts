@@ -8,11 +8,15 @@ vi.mock('../../lib/prisma', () => ({
   },
 }));
 vi.mock('./embeddingService', () => ({ probeEmbeddingDimensions: vi.fn() }));
-vi.mock('./ollamaModels', () => ({ requireInstalledEmbeddingModel: vi.fn() }));
+vi.mock('./ollamaModels', () => ({
+  requireInstalledEmbeddingModel: vi.fn(),
+  listAiModels: vi.fn(),
+}));
 import { prisma } from '../../lib/prisma';
 import { probeEmbeddingDimensions } from './embeddingService';
 import { requireInstalledEmbeddingModel } from './ollamaModels';
 import { saveAiConfiguration } from './aiConfigurationService';
+import { defaultRetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 const config = {
   id: 'default',
   model: 'chat',
@@ -75,6 +79,7 @@ describe('embedding model configuration', () => {
   });
   it('saves retrieval settings and the assistant profile with the configuration in one transaction', async () => {
     const retrievalSettings = {
+      ...defaultRetrievalSettings,
       mode: 'hybrid' as const,
       topK: 3,
       scoreThresholdEnabled: true,

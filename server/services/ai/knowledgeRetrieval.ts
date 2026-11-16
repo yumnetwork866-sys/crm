@@ -3,6 +3,8 @@ import { prisma } from '../../lib/prisma';
 import { knowledgeQuery } from './contracts';
 import { getAiConfig } from './aiSettings';
 import { embedQuery, getEmbeddingVersion } from './embeddingService';
+import { rerankKnowledge } from './rerankService';
+import { usesRerank } from '../../../shared/knowledgeRetrievalSettings';
 
 export interface KnowledgeSource {
   id: string;
@@ -13,7 +15,9 @@ export interface KnowledgeSource {
   score: number;
   semanticScore?: number | null;
   keywordScore?: number | null;
-  ranking?: 'rrf' | 'weighted';
+  ranking?: 'rrf' | 'weighted' | 'rerank';
+  rerankScore?: number;
+  rerankModel?: string;
   retrieval?: 'hybrid' | 'keyword' | 'vector';
 }
 
@@ -90,6 +94,7 @@ export async function retrieveKnowledge(
   const retrieval = config.retrievalSettings;
   const candidateLimit = Math.max(20, retrieval.topK * 4);
   const weighted = retrieval.mode === 'hybrid' && retrieval.hybridStrategy === 'weighted';
+  const reranking = usesRerank(retrieval);
   const query = knowledgeQuery(question);
   const keyword =
     retrieval.mode !== 'vector' && query
@@ -103,6 +108,13 @@ export async function retrieveKnowledge(
   `)
       : [];
   const finishHybrid = (semantic: KnowledgeSource[]) => {
+    if (reranking)
+      return rerankKnowledge(
+        question,
+        fuseKnowledgeResults(keyword, semantic, candidateLimit * 2),
+        retrieval,
+        config.timeoutMs,
+      );
     if (!weighted) return fuseKnowledgeResults(keyword, semantic, retrieval.topK);
     const results = fuseWeightedKnowledgeResults(
       keyword,
@@ -115,6 +127,7 @@ export async function retrieveKnowledge(
       : results;
   };
   if (retrieval.mode === 'keyword') {
+    if (reranking) return rerankKnowledge(question, keyword, retrieval, config.timeoutMs);
     return keyword.slice(0, retrieval.topK).map((source) => ({ ...source, retrieval: 'keyword' }));
   }
   const settings = { model: config.embeddingModel, dimensions: config.embeddingDimensions };
@@ -129,7 +142,7 @@ export async function retrieveKnowledge(
   if (!indexed) return retrieval.mode === 'vector' ? [] : finishHybrid([]);
   const vector = await embedQuery(question, settings);
   const scoreCondition =
-    retrieval.scoreThresholdEnabled && !weighted
+    retrieval.scoreThresholdEnabled && !weighted && !reranking
       ? Prisma.sql`AND crm_ai_cosine(c.embedding, ${vector}::real[]) >= ${retrieval.scoreThreshold}`
       : Prisma.empty;
   const semantic = await db.$queryRaw<KnowledgeSource[]>(Prisma.sql`
@@ -142,6 +155,13 @@ export async function retrieveKnowledge(
     ORDER BY score DESC, c.id ASC LIMIT ${candidateLimit}
   `);
   if (retrieval.mode === 'vector') {
+    if (reranking)
+      return rerankKnowledge(
+        question,
+        semantic.map((source) => ({ ...source, semanticScore: source.score, retrieval: 'vector' })),
+        retrieval,
+        config.timeoutMs,
+      );
     return semantic
       .slice(0, retrieval.topK)
       .map((source) => ({ ...source, semanticScore: source.score, retrieval: 'vector' }));

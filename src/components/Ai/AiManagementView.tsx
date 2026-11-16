@@ -766,7 +766,7 @@ export const AiManagementView: React.FC = () => {
                           id="rag-model-heading"
                           className="pt-1 text-xs font-semibold text-slate-700"
                         >
-                          Lập chỉ mục
+                          Model embedding
                         </h2>
                         <div className="min-w-0">
                           <div className="min-w-0">
@@ -815,6 +815,43 @@ export const AiManagementView: React.FC = () => {
                           )}
                         </div>
                       </section>
+                      <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
+                        <label
+                          htmlFor="ai-rerank-model"
+                          className="pt-1 text-xs font-semibold text-slate-700"
+                        >
+                          Model rerank
+                        </label>
+                        <div className="min-w-0">
+                          <select
+                            id="ai-rerank-model"
+                            form="ai-configuration-form"
+                            value={draft.retrievalSettings.rerankModel}
+                            disabled={!canManage || isSaving}
+                            onChange={(event) =>
+                              updateDraft({
+                                retrievalSettings: {
+                                  ...draft.retrievalSettings,
+                                  rerankModel: event.target.value,
+                                },
+                              })
+                            }
+                            className={inputStyle}
+                          >
+                            {[
+                              ...new Set([draft.retrievalSettings.rerankModel, ...installedModels]),
+                            ].map((model) => (
+                              <option key={model}>{model}</option>
+                            ))}
+                          </select>
+                          {models.data?.connected &&
+                            !installedModels.includes(draft.retrievalSettings.rerankModel) && (
+                              <p className="mt-1 text-xs text-amber-700">
+                                Model chưa được cài trên Ollama.
+                              </p>
+                            )}
+                        </div>
+                      </section>
                       <div className="px-5 py-6 sm:px-6">
                         <KnowledgeRetrievalSettings
                           settings={draft.retrievalSettings}
@@ -822,6 +859,7 @@ export const AiManagementView: React.FC = () => {
                           onChange={(retrievalSettings) => updateDraft({ retrievalSettings })}
                           formId="ai-configuration-form"
                           idPrefix="configuration-retrieval"
+                          showModelSelector={false}
                           wide
                         />
                       </div>

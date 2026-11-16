@@ -262,6 +262,8 @@ Additional business guidance: ${config.instructions || 'Be helpful, brief and po
               semanticScore,
               keywordScore,
               ranking,
+              rerankScore,
+              rerankModel,
               retrieval,
             }) => ({
               id,
@@ -272,6 +274,8 @@ Additional business guidance: ${config.instructions || 'Be helpful, brief and po
               semanticScore: semanticScore ?? null,
               keywordScore: keywordScore ?? null,
               ranking: ranking ?? null,
+              rerankScore: rerankScore ?? null,
+              rerankModel: rerankModel ?? null,
               retrieval: retrieval || 'keyword',
             }),
           ),
