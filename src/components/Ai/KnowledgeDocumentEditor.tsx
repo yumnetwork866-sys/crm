@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
-import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import {
   Check,
   CircleHelp,
   FileText,
-  Layers3,
   Loader2,
   RotateCcw,
   ScanText,
@@ -39,12 +36,6 @@ export function KnowledgeDocumentEditor({
   busy,
   error,
   editing,
-  embeddingModel,
-  embeddingDimensions,
-  retrievalSettings,
-  retrievalLoading,
-  retrievalError,
-  onRetryRetrieval,
 }: {
   draft: KnowledgeDraft;
   onChange: (draft: KnowledgeDraft) => void;
@@ -53,12 +44,6 @@ export function KnowledgeDocumentEditor({
   busy: boolean;
   error: string;
   editing: boolean;
-  embeddingModel?: string;
-  embeddingDimensions?: number;
-  retrievalSettings?: RetrievalSettings;
-  retrievalLoading?: boolean;
-  retrievalError?: string;
-  onRetryRetrieval?: () => void;
 }) {
   const [preview, setPreview] = useState<{
     draft: KnowledgeDraft;
@@ -109,7 +94,7 @@ export function KnowledgeDocumentEditor({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid items-start xl:grid-cols-2">
+      <div className="grid items-start lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <fieldset disabled={busy} className="min-w-0 space-y-5 p-4 sm:p-5">
           <label className="block text-xs font-semibold text-slate-700" htmlFor="knowledge-title">
             Tên tài liệu
@@ -186,14 +171,7 @@ export function KnowledgeDocumentEditor({
               <div className="space-y-2.5 border-t border-slate-100 pt-4">
                 <p className="text-xs font-semibold text-slate-700">Xử lý văn bản</p>
                 <label className="flex items-center gap-2 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={settings.normalizeWhitespace}
-                    onChange={(event) =>
-                      updateSettings({ normalizeWhitespace: event.target.checked })
-                    }
-                    className="accent-emerald-600"
-                  />
+                  <input type="checkbox" checked disabled className="accent-emerald-600" />
                   Chuẩn hóa khoảng trắng, tab và dòng trống liên tiếp
                 </label>
                 <label className="flex items-center gap-2 text-xs text-slate-600">
@@ -235,41 +213,6 @@ export function KnowledgeDocumentEditor({
             </div>
           </section>
 
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold text-slate-700">Phương thức lập chỉ mục</h3>
-            <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-              <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Embedding theo từng đoạn</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Tài liệu được xử lý ở nền sau khi lưu.
-                </p>
-              </div>
-              <Check className="ml-auto h-4 w-4 shrink-0 text-emerald-600" />
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">Model embedding hiện tại</p>
-              <p className="mt-1 break-all text-sm font-medium text-slate-800">
-                {embeddingModel || 'Chưa tải được cấu hình model'}
-                {embeddingDimensions ? (
-                  <span className="ml-2 text-xs font-normal text-slate-400">
-                    {embeddingDimensions} chiều
-                  </span>
-                ) : null}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">Thay đổi model trong tab RAG.</p>
-            </div>
-          </section>
-
-          <KnowledgeRetrievalSettings
-            settings={retrievalSettings}
-            disabled={busy}
-            idPrefix="document-retrieval"
-            loading={retrievalLoading}
-            loadError={retrievalError}
-            onRetry={onRetryRetrieval}
-          />
-
           {error && (
             <p role="alert" className="text-sm text-rose-700">
               {error}
@@ -292,7 +235,7 @@ export function KnowledgeDocumentEditor({
 
         <section
           aria-label="Xem trước các đoạn tài liệu"
-          className="min-w-0 border-t border-slate-200 bg-white xl:sticky xl:top-4 xl:border-l xl:border-t-0"
+          className="min-w-0 border-t border-slate-200 bg-white lg:sticky lg:top-4 lg:border-l lg:border-t-0"
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -309,7 +252,7 @@ export function KnowledgeDocumentEditor({
             </span>
           </div>
           {currentPreview ? (
-            <div className="max-h-[780px] space-y-3 overflow-y-auto p-4 sm:p-5">
+            <div className="max-h-[560px] space-y-3 overflow-y-auto p-4 sm:p-5">
               {currentPreview.chunks.length === 0 && (
                 <p className="py-12 text-center text-sm text-amber-700">
                   Không còn nội dung sau khi xử lý. Kiểm tra lại các tùy chọn.
@@ -342,7 +285,7 @@ export function KnowledgeDocumentEditor({
               )}
             </div>
           ) : (
-            <div className="flex min-h-96 flex-col items-center justify-center gap-3 px-8 py-16 text-center xl:min-h-[640px]">
+            <div className="flex min-h-80 flex-col items-center justify-center gap-3 px-8 py-16 text-center">
               <span className="rounded-2xl bg-slate-50 p-4">
                 <ScanText className="h-8 w-8 text-slate-300" />
               </span>

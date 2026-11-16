@@ -360,7 +360,11 @@ export const AiManagementView: React.FC = () => {
             title: doc.title,
             content: doc.content,
             enabled: doc.enabled,
-            chunkSettings: { ...defaultChunkSettings, ...doc.chunkSettings },
+            chunkSettings: {
+              ...defaultChunkSettings,
+              ...doc.chunkSettings,
+              normalizeWhitespace: true,
+            },
           }
         : { ...blankDocument },
     );
@@ -1095,12 +1099,6 @@ export const AiManagementView: React.FC = () => {
               busy={documentBusy}
               error={documentError}
               editing={!!documentId}
-              embeddingModel={configuration.data?.embeddingModel}
-              embeddingDimensions={configuration.data?.embeddingDimensions}
-              retrievalSettings={configuration.data?.retrievalSettings}
-              retrievalLoading={configuration.isPending}
-              retrievalError={configuration.isError ? messageOf(configuration.error) : undefined}
-              onRetryRetrieval={() => void configuration.refetch()}
             />
           )}
           {knowledge.isPending ? (

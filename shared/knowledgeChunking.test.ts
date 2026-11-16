@@ -46,13 +46,16 @@ describe('shared document chunking for preview and indexing', () => {
     expect(chunks.every((chunk) => chunk.content.length <= 64)).toBe(true);
   });
 
-  it('normalizes whitespace without losing paragraph separation', () => {
-    const chunks = splitKnowledge('First\t  paragraph.\r\n\r\n\r\n Second  paragraph.', 'Title', {
-      ...defaultChunkSettings,
-      normalizeWhitespace: true,
-    });
-    expect(chunks[0].content).toBe('First paragraph.\n\nSecond paragraph.');
-  });
+  it.each([true, false])(
+    'always normalizes whitespace, including legacy settings (%s)',
+    (normalizeWhitespace) => {
+      const chunks = splitKnowledge('First\t  paragraph.\r\n\r\n\r\n Second  paragraph.', 'Title', {
+        ...defaultChunkSettings,
+        normalizeWhitespace,
+      });
+      expect(chunks[0].content).toBe('First paragraph.\n\nSecond paragraph.');
+    },
+  );
 
   it('removes URLs and email addresses only when requested', () => {
     const content = 'Liên hệ support@example.com hoặc https://example.com/help và www.example.com.';
