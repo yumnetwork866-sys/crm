@@ -11,6 +11,7 @@ export interface UseSuggestedRepliesReturn {
   suggestions: string[];
   isLoading: boolean;
   isVisible: boolean;
+  error: string;
   dismissSuggestions: () => void;
   refreshSuggestions: () => void;
 }
@@ -20,13 +21,36 @@ export function useSuggestedReplies({
   brandName,
   enabled = true,
 }: UseSuggestedRepliesOptions): UseSuggestedRepliesReturn {
-  const [result, setResult] = useState<{ key: string; suggestions: string[]; isLoading: boolean }>({
-    key: '', suggestions: [], isLoading: false,
+  const [result, setResult] = useState<{
+    key: string;
+    suggestions: string[];
+    isLoading: boolean;
+    error?: string;
+  }>({
+    key: '',
+    suggestions: [],
+    isLoading: false,
   });
   const [dismissedKeys, setDismissedKeys] = useState<Record<string, boolean>>({});
   const [refreshVersion, setRefreshVersion] = useState(0);
   const cacheRef = useRef(new Map<string, string[]>());
+  const forceRefreshRef = useRef('');
   const threadRef = useRef(activeThread);
+  const [serverEnabled, setServerEnabled] = useState(true);
+  const available = enabled && serverEnabled;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleConfiguration = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.scope === 'global' && typeof detail.suggestionsEnabled === 'boolean') {
+        cacheRef.current.clear();
+        setServerEnabled(detail.suggestionsEnabled);
+      }
+    };
+    window.addEventListener('ai:status_change', handleConfiguration);
+    return () => window.removeEventListener('ai:status_change', handleConfiguration);
+  }, []);
 
   // Keep the payload fresh without making object replacement restart the request.
   useEffect(() => {
@@ -35,14 +59,15 @@ export function useSuggestedReplies({
 
   const lastMessage = activeThread?.lastMessage;
   const isCustomerLast = lastMessage?.sender === 'customer';
-  const requestKey = activeThread?.threadId && lastMessage?.id
-    ? JSON.stringify([activeThread.threadId, lastMessage.id, brandName || ''])
-    : '';
+  const requestKey =
+    activeThread?.threadId && lastMessage?.id
+      ? JSON.stringify([activeThread.threadId, lastMessage.id, brandName || ''])
+      : '';
   const isDismissed = Boolean(dismissedKeys[requestKey]);
 
   useEffect(() => {
     const thread = threadRef.current;
-    if (!enabled || !requestKey || !isCustomerLast || isDismissed || !thread) {
+    if (!available || !requestKey || !isCustomerLast || isDismissed || !thread) {
       setResult({ key: requestKey, suggestions: [], isLoading: false });
       return;
     }
@@ -54,6 +79,8 @@ export function useSuggestedReplies({
     }
 
     const controller = new AbortController();
+    const force = forceRefreshRef.current === requestKey;
+    forceRefreshRef.current = '';
     setResult({ key: requestKey, suggestions: [], isLoading: true });
 
     const fetchSuggestions = async () => {
@@ -66,7 +93,10 @@ export function useSuggestedReplies({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
+            force,
             phone: thread.customerPhone,
+            customerId: thread.lastMessage.customerId,
+            businessPhoneNumberId: thread.lastMessage.businessPhoneNumberId,
             customerName: thread.customerName,
             brandName,
             messages: (thread.messages || []).slice(-10).map((message) => ({
@@ -78,17 +108,28 @@ export function useSuggestedReplies({
           signal: controller.signal,
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          // An old response must never replace the current conversation's replies,
-          // even if the transport completed after cancellation.
-          if (controller.signal.aborted) return;
-          const items: string[] = Array.isArray(data.suggestions) ? data.suggestions : [];
-          cacheRef.current.set(requestKey, items);
-          setResult({ key: requestKey, suggestions: items, isLoading: false });
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          if (data.code === 'AI_DISABLED') return;
+          throw new Error(
+            `${data.error || 'Không tạo được gợi ý AI.'}${data.runId ? ` · Mã: ${data.runId}` : ''}`,
+          );
         }
+        const items: string[] = Array.isArray(data.suggestions)
+          ? data.suggestions.filter((item: unknown) => typeof item === 'string' && item.trim())
+          : [];
+        if (!items.length) throw new Error('AI trả kết quả không hợp lệ. Vui lòng thử lại.');
+        cacheRef.current.set(requestKey, items);
+        setResult({ key: requestKey, suggestions: items, isLoading: false });
       } catch (err) {
         if (!controller.signal.aborted) {
+          setResult({
+            key: requestKey,
+            suggestions: [],
+            isLoading: false,
+            error: err instanceof Error ? err.message : 'Không kết nối được AI.',
+          });
           console.warn('[AI Suggest Replies] Lỗi khi tạo gợi ý tin nhắn:', err);
         }
       } finally {
@@ -100,7 +141,7 @@ export function useSuggestedReplies({
     void fetchSuggestions();
 
     return () => controller.abort();
-  }, [enabled, requestKey, isCustomerLast, isDismissed, brandName, refreshVersion]);
+  }, [available, requestKey, isCustomerLast, isDismissed, brandName, refreshVersion]);
 
   const dismissSuggestions = useCallback(() => {
     if (requestKey) {
@@ -109,8 +150,9 @@ export function useSuggestedReplies({
   }, [requestKey]);
 
   const refreshSuggestions = useCallback(() => {
-    if (!requestKey || !enabled || !isCustomerLast) return;
+    if (!requestKey || !available || !isCustomerLast) return;
     cacheRef.current.delete(requestKey);
+    forceRefreshRef.current = requestKey;
     setDismissedKeys((previous) => {
       const next = { ...previous };
       delete next[requestKey];
@@ -118,13 +160,17 @@ export function useSuggestedReplies({
     });
     // Let the effect own every request, including refresh after dismissal.
     setRefreshVersion((previous) => previous + 1);
-  }, [requestKey, enabled, isCustomerLast]);
+  }, [requestKey, available, isCustomerLast]);
 
   const suggestions = result.key === requestKey ? result.suggestions : [];
-  const isLoading = enabled && isCustomerLast && !isDismissed &&
-    result.key === requestKey && result.isLoading;
-  const isVisible = enabled && isCustomerLast && !isDismissed &&
-    (isLoading || suggestions.length > 0);
+  const isLoading =
+    available && isCustomerLast && !isDismissed && result.key === requestKey && result.isLoading;
+  const error = result.key === requestKey ? result.error || '' : '';
+  const isVisible =
+    available &&
+    isCustomerLast &&
+    !isDismissed &&
+    (isLoading || suggestions.length > 0 || Boolean(error));
 
-  return { suggestions, isLoading, isVisible, dismissSuggestions, refreshSuggestions };
+  return { suggestions, isLoading, isVisible, error, dismissSuggestions, refreshSuggestions };
 }

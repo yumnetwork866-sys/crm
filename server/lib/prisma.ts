@@ -29,7 +29,7 @@ const createPrismaClient = () => {
 };
 
 export const prisma =
-  globalForPrisma.prisma && 'messageQuickTemplate' in globalForPrisma.prisma
+  globalForPrisma.prisma && 'messageQuickTemplate' in globalForPrisma.prisma && 'aiConfiguration' in globalForPrisma.prisma
     ? globalForPrisma.prisma
     : createPrismaClient();
 

@@ -17,10 +17,18 @@ interface BusinessPhoneSelectorProps {
   phones: BusinessPhoneNumber[];
   selectedPhoneId: string;
   onSelect: (phoneId: string) => void;
+  id?: string;
+  disabled?: boolean;
+  allPhonesLabel?: string;
+  allPhonesDescription?: string;
+  ariaLabel?: string;
 }
 
 function getFallbackPhoneAvatarUrl(phone: BusinessPhoneNumber): string {
-  const initial = (phone.verifiedName || phone.displayPhoneNumber || 'Y').trim().charAt(0).toUpperCase();
+  const initial = (phone.verifiedName || phone.displayPhoneNumber || 'Y')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40"><rect width="40" height="40" rx="20" fill="#1fa855"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="700" fill="#ffffff">${initial}</text></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
@@ -58,14 +66,23 @@ function PhoneCountryFlag({ displayPhoneNumber }: { displayPhoneNumber: string }
   );
 }
 
-export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: BusinessPhoneSelectorProps) {
+export function BusinessPhoneSelector({
+  phones,
+  selectedPhoneId,
+  onSelect,
+  id = 'waba-phone-select',
+  disabled = false,
+  allPhonesLabel = 'Tất cả số',
+  allPhonesDescription,
+  ariaLabel = 'Chọn số WhatsApp doanh nghiệp',
+}: BusinessPhoneSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
   const allPhones: BusinessPhoneNumber = {
     id: ALL_BUSINESS_PHONES,
-    verifiedName: 'Tất cả số',
+    verifiedName: allPhonesLabel,
     profilePictureUrl: whatsappLogoUrl,
-    displayPhoneNumber: `${phones.length} waba`,
+    displayPhoneNumber: allPhonesDescription ?? `${phones.length} waba`,
     unreadCount: phones.reduce((total, phone) => total + (phone.unreadCount || 0), 0),
   };
   const options = [allPhones, ...phones];
@@ -87,17 +104,19 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
   return (
     <div ref={selectorRef} className="relative min-w-0 flex-1">
       <button
-        id="waba-phone-select"
+        id={id}
         type="button"
+        disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex w-full min-w-0 items-center gap-2 rounded-3xl border bg-white px-2 py-1.5 text-left shadow-xs transition cursor-pointer ${
+        className={`flex w-full min-w-0 items-center gap-2 rounded-3xl border bg-white px-2 py-1.5 text-left shadow-xs transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
           isOpen
             ? 'border-[#1fa855] ring-2 ring-[#1fa855]/15'
             : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
         }`}
-        title="Lọc theo số WhatsApp doanh nghiệp"
+        title={ariaLabel}
       >
         <img
           src={getPhoneAvatarUrl(selectedPhone)}
@@ -112,7 +131,9 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
             {selectedPhone.verifiedName}
           </span>
           <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-normal text-slate-500">
-            {selectedPhone.id !== ALL_BUSINESS_PHONES && <PhoneCountryFlag displayPhoneNumber={selectedPhone.displayPhoneNumber} />}
+            {selectedPhone.id !== ALL_BUSINESS_PHONES && (
+              <PhoneCountryFlag displayPhoneNumber={selectedPhone.displayPhoneNumber} />
+            )}
             {selectedPhone.displayPhoneNumber}
           </span>
         </span>
@@ -121,13 +142,15 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
             {selectedPhone.unreadCount}
           </span>
         ) : null}
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div
           role="listbox"
-          aria-label="Chọn số WhatsApp doanh nghiệp"
+          aria-label={ariaLabel}
           className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-72 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-1.5 shadow-xl"
         >
           {options.map((phone) => {
@@ -143,9 +166,7 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                   setIsOpen(false);
                 }}
                 className={`flex w-full items-center gap-2.5 rounded-2xl px-2.5 py-2 text-left transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-50'
-                    : 'hover:bg-slate-100'
+                  isSelected ? 'bg-emerald-50' : 'hover:bg-slate-100'
                 }`}
               >
                 <div className="relative shrink-0">
@@ -164,7 +185,9 @@ export function BusinessPhoneSelector({ phones, selectedPhoneId, onSelect }: Bus
                     {phone.verifiedName}
                   </span>
                   <span className="mt-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-normal text-slate-500">
-                    {phone.id !== ALL_BUSINESS_PHONES && <PhoneCountryFlag displayPhoneNumber={phone.displayPhoneNumber} />}
+                    {phone.id !== ALL_BUSINESS_PHONES && (
+                      <PhoneCountryFlag displayPhoneNumber={phone.displayPhoneNumber} />
+                    )}
                     {phone.displayPhoneNumber}
                   </span>
                 </span>

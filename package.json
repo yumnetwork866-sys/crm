@@ -53,6 +53,7 @@
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.42.0",
+    "mammoth": "^1.13.0",
     "motion": "^13.2.0",
     "pg": "^8.23.0",
     "pino": "^10.4.0",

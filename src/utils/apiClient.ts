@@ -2,6 +2,13 @@
 
 const API_BASE_URL = '/api';
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public details: unknown, public requestId?: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export function clearLegacyStoredTokens() {
   localStorage.removeItem('yumnetwork_crm_jwt_token');
   localStorage.removeItem('vietcrm_jwt_token');
@@ -46,7 +53,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       statusText: response.statusText,
       message,
     });
-    throw new Error(message);
+    throw new ApiError(message, response.status, data, response.headers.get('X-Request-Id') || undefined);
   }
 
   return data as T;
@@ -81,7 +88,8 @@ async function download(endpoint: string, options: RequestInit = {}): Promise<{ 
 
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
-  post: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
+  post: <T>(endpoint: string, body?: any, options?: Pick<RequestInit, 'signal'>) =>
+    request<T>(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) }),
   put: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
   patch: <T>(endpoint: string, body?: any) => request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),

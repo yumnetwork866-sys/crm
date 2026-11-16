@@ -11,7 +11,7 @@ import {
   dispatchMetaMessage,
   dispatchMetaReaction,
 } from '../../services/metaApiClient';
-import { pauseAiForCustomer } from '../../services/difyService';
+import { pauseNativeAi } from '../../services/ai/nativeAutoReply';
 import { resolveWhatsAppBrandName } from '../../services/webhookService';
 import { getPhoneLookupVariants, normalizePhoneE164, toWhatsAppDigits } from '../../utils/phone';
 import { isMetaUserIdentifier, resolveMetaRecipient } from '../../utils/metaRecipient';
@@ -314,7 +314,7 @@ export async function sendMessage(req: AuthenticatedRequest, res: Response) {
     // Khi nhân viên gửi tin nhắn từ CRM: Tự động tạm dừng AI trong 30 phút để nhân viên chăm sóc
     // Sau 30 phút nếu nhân viên không gửi thêm tin nhắn nào, AI sẽ tự động hoạt động trở lại
     if (resolvedCustomerPhone) {
-      pauseAiForCustomer(resolvedCustomerPhone, 30);
+      await pauseNativeAi(resolvedCustomerPhone, 30, phoneId).catch((error) => log.error({ err: error }, 'Cannot persist AI pause'));
       realtimeHub.broadcast('ai:status', { phone: resolvedCustomerPhone, isAiActive: false });
     }
 

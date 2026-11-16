@@ -22,7 +22,9 @@ import catalogRoutes from './routes/catalogRoutes';
 import aiProfileRoutes from './routes/aiProfile';
 import { processRecipientById, startCampaignWorker } from './services/campaignWorker';
 import { processWebhookPayload, syncExistingWhatsAppCustomersToCrm } from './services/webhookService';
-import { autoReplyWithDify } from './services/difyService';
+import { autoReplyWithNativeAi } from './services/ai/nativeAutoReply';
+import nativeAiRoutes from './routes/nativeAi';
+import { startKnowledgeIndexer } from './services/ai/knowledgeIndexer';
 import { fetchAndCacheMetaMedia } from './services/metaApiClient';
 import { getQueueHealth, initMessageQueues } from './services/queueService';
 import http from 'http';
@@ -154,6 +156,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/ai-profile', aiProfileRoutes);
+app.use('/api/ai', nativeAiRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/campaigns', campaignRoutes);
@@ -245,12 +248,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 8. Start Server with HMR support
 httpServer.listen(PORT, async () => {
   log.info({ port: PORT, mode: process.env.NODE_ENV || 'development', frontend: process.env.SERVE_FRONTEND === 'false' ? 'disabled' : 'enabled' }, 'Server ready');
+  startKnowledgeIndexer();
   await initMessageQueues({
     onWebhookPayload: async ({ payload }) => {
       await processWebhookPayload(payload);
     },
     onDifyAutoReply: async (data) => {
-      await autoReplyWithDify(data);
+      await autoReplyWithNativeAi(data);
     },
     onMediaPrefetch: async ({ mediaId, businessPhoneNumberId }) => {
       await fetchAndCacheMetaMedia(mediaId, businessPhoneNumberId);

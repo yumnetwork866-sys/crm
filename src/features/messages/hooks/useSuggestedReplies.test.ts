@@ -11,19 +11,22 @@ const lifecycle = vi.hoisted(() => ({
 vi.mock('react', () => ({
   useRef: (value: unknown) => {
     const index = lifecycle.cursor++;
-    return lifecycle.slots[index] ??= { current: value };
+    return (lifecycle.slots[index] ??= { current: value });
   },
   useState: (initial: unknown) => {
     const index = lifecycle.cursor++;
     lifecycle.slots[index] ??= { value: initial };
-    return [lifecycle.slots[index].value, (next: any) => {
-      const slot = lifecycle.slots[index];
-      const value = typeof next === 'function' ? next(slot.value) : next;
-      if (!Object.is(value, slot.value)) {
-        slot.value = value;
-        lifecycle.dirty = true;
-      }
-    }];
+    return [
+      lifecycle.slots[index].value,
+      (next: any) => {
+        const slot = lifecycle.slots[index];
+        const value = typeof next === 'function' ? next(slot.value) : next;
+        if (!Object.is(value, slot.value)) {
+          slot.value = value;
+          lifecycle.dirty = true;
+        }
+      },
+    ];
   },
   useCallback: (callback: unknown) => callback,
   useEffect: (effect: () => (() => void) | undefined, deps: unknown[]) => {
@@ -42,13 +45,25 @@ import { useSuggestedReplies } from './useSuggestedReplies';
 
 function thread(threadId = 'a', messageId = 'm1'): MessageThread {
   const message = {
-    id: messageId, sender: 'customer' as const, content: 'Hello',
-    timestamp: '2026-11-13T08:00:00Z', customerId: threadId,
-    customerName: threadId, customerPhone: threadId, channel: 'WhatsApp' as const, isRead: false,
+    id: messageId,
+    sender: 'customer' as const,
+    content: 'Hello',
+    timestamp: '2026-11-13T08:00:00Z',
+    customerId: threadId,
+    customerName: threadId,
+    customerPhone: threadId,
+    channel: 'WhatsApp' as const,
+    isRead: false,
   };
   return {
-    threadId, customer: null, customerName: threadId, customerPhone: threadId,
-    lastMessage: message, messages: [message], unreadCount: 1, isPinned: false,
+    threadId,
+    customer: null,
+    customerName: threadId,
+    customerPhone: threadId,
+    lastMessage: message,
+    messages: [message],
+    unreadCount: 1,
+    isPinned: false,
   };
 }
 let options: Parameters<typeof useSuggestedReplies>[0];
@@ -79,14 +94,22 @@ beforeEach(() => {
   lifecycle.pending = [];
   requests.length = 0;
   options = { activeThread: thread(), brandName: 'Actiscar' };
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.stubGlobal('localStorage', { getItem: () => 'token' });
-  vi.stubGlobal('fetch', vi.fn((_url, init) => new Promise((resolve) => {
-    requests.push({ ...init, resolve });
-  })));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      (_url, init) =>
+        new Promise((resolve) => {
+          requests.push({ ...init, resolve });
+        }),
+    ),
+  );
 });
 afterEach(() => {
   unmount();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('suggested replies request lifecycle', () => {
@@ -129,6 +152,7 @@ describe('suggested replies request lifecycle', () => {
     expect(render().isLoading).toBe(true);
     expect(requests).toHaveLength(2);
     expect(JSON.parse(requests[1].body).customerName).toBe('Updated customer');
+    expect(JSON.parse(requests[1].body).force).toBe(true);
     expect((await complete(1, ['Fresh'])).suggestions).toEqual(['Fresh']);
   });
 
@@ -139,6 +163,22 @@ describe('suggested replies request lifecycle', () => {
     await complete(0, ['Stale']);
     expect(render({ enabled: true }).suggestions).toEqual([]);
     expect(requests).toHaveLength(2);
+  });
+
+  it('shows backend errors with the run ID and allows a deliberate retry', async () => {
+    render();
+    requests[0].resolve({
+      ok: false,
+      json: async () => ({ error: 'Model timeout', runId: 'run-123' }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const failed = render();
+    expect(failed.error).toContain('run-123');
+    expect(failed.isVisible).toBe(true);
+    expect(failed.isLoading).toBe(false);
+    failed.refreshSuggestions();
+    expect(render().isLoading).toBe(true);
+    expect(JSON.parse(requests[1].body).force).toBe(true);
   });
 
   it('cancels on outgoing messages and unmount', () => {

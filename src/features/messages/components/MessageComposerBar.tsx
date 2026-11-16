@@ -591,6 +591,8 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                 <div role="status" className="flex items-center gap-2 px-2 py-4 text-xs text-slate-500">
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin" />Đang tạo gợi ý...
                 </div>
+              ) : suggestedReplies.error ? (
+                <div role="alert" className="px-2 py-3 text-xs leading-5 text-rose-600">{suggestedReplies.error}</div>
               ) : (
                 <div className="min-h-0 space-y-1 overflow-y-auto whatsapp-scrollbar">
                   {suggestedReplies.suggestions.map((text, index) => (

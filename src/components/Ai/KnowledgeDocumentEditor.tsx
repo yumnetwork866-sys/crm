@@ -1,0 +1,352 @@
+import { useState } from 'react';
+import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
+import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
+import {
+  Check,
+  CircleHelp,
+  FileText,
+  Layers3,
+  Loader2,
+  RotateCcw,
+  ScanText,
+  Settings2,
+  X,
+} from 'lucide-react';
+import {
+  chunkSettingsError,
+  defaultChunkSettings,
+  splitKnowledge,
+  type ChunkSettings,
+} from '../../../shared/knowledgeChunking';
+
+export interface KnowledgeDraft {
+  title: string;
+  content: string;
+  enabled: boolean;
+  chunkSettings: ChunkSettings;
+}
+
+const field =
+  'mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:opacity-50';
+const secondary =
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
+
+export function KnowledgeDocumentEditor({
+  draft,
+  onChange,
+  onSave,
+  onClose,
+  busy,
+  error,
+  editing,
+  embeddingModel,
+  embeddingDimensions,
+  retrievalSettings,
+}: {
+  draft: KnowledgeDraft;
+  onChange: (draft: KnowledgeDraft) => void;
+  onSave: (event: React.FormEvent) => void;
+  onClose: () => void;
+  busy: boolean;
+  error: string;
+  editing: boolean;
+  embeddingModel?: string;
+  embeddingDimensions?: number;
+  retrievalSettings?: RetrievalSettings;
+}) {
+  const [preview, setPreview] = useState<{
+    draft: KnowledgeDraft;
+    chunks: ReturnType<typeof splitKnowledge>;
+  } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(30);
+  const settings = draft.chunkSettings;
+  const settingsError = chunkSettingsError(settings);
+  const currentPreview =
+    preview &&
+    preview.draft.content === draft.content &&
+    preview.draft.title === draft.title &&
+    preview.draft.chunkSettings === settings
+      ? preview
+      : null;
+  const updateSettings = (updates: Partial<ChunkSettings>) =>
+    onChange({ ...draft, chunkSettings: { ...settings, ...updates } });
+  const previewChunks = () => {
+    if (settingsError) return;
+    setPreview({ draft, chunks: splitKnowledge(draft.content, draft.title, settings) });
+    setVisibleCount(30);
+  };
+
+  return (
+    <form
+      className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
+      onSubmit={onSave}
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
+            <FileText className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            {editing && <p className="mb-1 text-xs text-slate-500">Chỉnh sửa tài liệu</p>}
+            <p className="truncate text-sm font-semibold text-slate-900">
+              {draft.title || 'Tài liệu mới'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          aria-label="Đóng trình soạn tài liệu"
+          disabled={busy}
+          onClick={onClose}
+          className={secondary}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid items-start xl:grid-cols-2">
+        <fieldset disabled={busy} className="min-w-0 space-y-5 p-4 sm:p-5">
+          <label className="block text-xs font-semibold text-slate-700" htmlFor="knowledge-title">
+            Tên tài liệu
+            <input
+              id="knowledge-title"
+              required
+              maxLength={160}
+              value={draft.title}
+              onChange={(event) => onChange({ ...draft, title: event.target.value })}
+              className={field}
+            />
+          </label>
+
+          <section
+            aria-labelledby="chunk-settings-title"
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+          >
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+              <Settings2 className="h-4 w-4 text-emerald-600" />
+              <h3 id="chunk-settings-title" className="text-sm font-semibold text-slate-900">
+                Thiết lập chia đoạn
+              </h3>
+              <button
+                type="button"
+                aria-label="Hướng dẫn chia đoạn"
+                title={'Độ dài và chồng lấn tính bằng ký tự. Dùng \\n để ưu tiên ngắt ở dòng mới.'}
+                className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+              >
+                <CircleHelp className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="text-xs font-medium text-slate-600" htmlFor="chunk-delimiter">
+                  Dấu phân cách
+                  <input
+                    id="chunk-delimiter"
+                    maxLength={100}
+                    value={settings.delimiter}
+                    onChange={(event) => updateSettings({ delimiter: event.target.value })}
+                    className={`${field} font-mono`}
+                    placeholder="\\n"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-600" htmlFor="chunk-length">
+                  Độ dài tối đa
+                  <input
+                    id="chunk-length"
+                    type="number"
+                    required
+                    min={64}
+                    max={10000}
+                    step={1}
+                    value={settings.maxLength}
+                    onChange={(event) => updateSettings({ maxLength: Number(event.target.value) })}
+                    className={field}
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-600" htmlFor="chunk-overlap">
+                  Độ chồng lấn
+                  <input
+                    id="chunk-overlap"
+                    type="number"
+                    required
+                    min={0}
+                    max={settings.maxLength - 1}
+                    step={1}
+                    value={settings.overlap}
+                    onChange={(event) => updateSettings({ overlap: Number(event.target.value) })}
+                    className={field}
+                  />
+                </label>
+              </div>
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold text-slate-700">Xử lý văn bản</p>
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={settings.normalizeWhitespace}
+                    onChange={(event) =>
+                      updateSettings({ normalizeWhitespace: event.target.checked })
+                    }
+                    className="accent-emerald-600"
+                  />
+                  Chuẩn hóa khoảng trắng, tab và dòng trống liên tiếp
+                </label>
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={settings.removeUrlsAndEmails}
+                    onChange={(event) =>
+                      updateSettings({ removeUrlsAndEmails: event.target.checked })
+                    }
+                    className="accent-emerald-600"
+                  />
+                  Loại bỏ đường dẫn và địa chỉ email
+                </label>
+              </div>
+              {settingsError && (
+                <p role="alert" className="text-xs text-rose-700">
+                  {settingsError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!!settingsError || !draft.content.trim()}
+                  onClick={previewChunks}
+                  className={secondary}
+                >
+                  <ScanText className="h-4 w-4" />
+                  Xem trước các đoạn
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateSettings(defaultChunkSettings)}
+                  className={secondary}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Đặt lại
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-slate-700">Phương thức lập chỉ mục</h3>
+            <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+              <Layers3 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Embedding theo từng đoạn</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Tài liệu được xử lý ở nền sau khi lưu.
+                </p>
+              </div>
+              <Check className="ml-auto h-4 w-4 shrink-0 text-emerald-600" />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <p className="text-xs text-slate-500">Model embedding hiện tại</p>
+              <p className="mt-1 break-all text-sm font-medium text-slate-800">
+                {embeddingModel || 'Chưa tải được cấu hình model'}
+                {embeddingDimensions ? (
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {embeddingDimensions} chiều
+                  </span>
+                ) : null}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">Thay đổi model trong tab Cấu hình.</p>
+            </div>
+          </section>
+
+          <KnowledgeRetrievalSettings
+            settings={retrievalSettings}
+            disabled={busy}
+            idPrefix="document-retrieval"
+          />
+
+          {error && (
+            <p role="alert" className="text-sm text-rose-700">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+            <button type="button" onClick={onClose} className={secondary}>
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !!settingsError}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Lưu & xử lý
+            </button>
+          </div>
+        </fieldset>
+
+        <section
+          aria-label="Xem trước các đoạn tài liệu"
+          className="min-w-0 border-t border-slate-200 bg-white xl:sticky xl:top-4 xl:border-l xl:border-t-0"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <ScanText className="h-4 w-4 text-emerald-600" />
+              Xem trước
+            </div>
+            <span
+              aria-live="polite"
+              className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-500"
+            >
+              {currentPreview
+                ? `${currentPreview.chunks.length.toLocaleString('vi-VN')} đoạn`
+                : 'Chưa xem trước'}
+            </span>
+          </div>
+          {currentPreview ? (
+            <div className="max-h-[780px] space-y-3 overflow-y-auto p-4 sm:p-5">
+              {currentPreview.chunks.length === 0 && (
+                <p className="py-12 text-center text-sm text-amber-700">
+                  Không còn nội dung sau khi xử lý. Kiểm tra lại các tùy chọn.
+                </p>
+              )}
+              {currentPreview.chunks.slice(0, visibleCount).map((chunk) => (
+                <article
+                  key={chunk.ordinal}
+                  className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-emerald-700">Đoạn {chunk.ordinal + 1}</span>
+                    <span className="text-slate-400">
+                      {chunk.content.length.toLocaleString('vi-VN')} ký tự
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-6 text-slate-700">
+                    {chunk.content}
+                  </p>
+                </article>
+              ))}
+              {visibleCount < currentPreview.chunks.length && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((count) => count + 30)}
+                  className={`${secondary} w-full`}
+                >
+                  Xem thêm đoạn
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-96 flex-col items-center justify-center gap-3 px-8 py-16 text-center xl:min-h-[640px]">
+              <span className="rounded-2xl bg-slate-50 p-4">
+                <ScanText className="h-8 w-8 text-slate-300" />
+              </span>
+              <p className="text-sm font-medium text-slate-600">
+                Kiểm tra cách tài liệu được chia đoạn
+              </p>
+              <p className="max-w-xs text-xs leading-6 text-slate-400">
+                Nhấn “Xem trước các đoạn” để xem nội dung trước khi lập chỉ mục.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+    </form>
+  );
+}

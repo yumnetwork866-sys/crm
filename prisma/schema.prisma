@@ -294,6 +294,82 @@ model IntegrationSetting {
   updatedAt             DateTime  @updatedAt
 }
 
+model AiConfiguration {
+  id                 String   @id @default("default")
+  model              String   @default("gemma4:latest")
+  embeddingModel     String   @default("embeddinggemma:300m")
+  embeddingDimensions Int     @default(768)
+  suggestionsEnabled Boolean  @default(true)
+  autoReplyEnabled   Boolean  @default(false)
+  ragEnabled         Boolean  @default(true)
+  timeoutMs          Int      @default(45000)
+  instructions       String   @default("")
+  retrievalSettings Json @default("{}")
+  updatedAt          DateTime @updatedAt
+}
+
+model AiKnowledgeDocument {
+  id        String   @id @default(uuid())
+  title     String
+  brand     String   @default("*")
+  brandKey  String   @default("*")
+  content   String
+  chunkSettings Json @default("{}")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chunks    AiKnowledgeChunk[]
+  embeddingStatus String @default("pending")
+  embeddingError String?
+  embeddingModel String?
+  indexingToken String?
+  indexingLeaseUntil DateTime?
+
+  @@index([brandKey, enabled])
+  @@index([embeddingStatus, indexingLeaseUntil])
+}
+
+model AiKnowledgeChunk {
+  id         String @id @default(uuid())
+  documentId String
+  ordinal    Int
+  content    String
+  searchText String
+  embedding Float[] @default([]) @db.Real
+  embeddingModel String?
+  document   AiKnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, ordinal])
+  @@index([embeddingModel])
+}
+
+model AiRun {
+  id           String   @id @default(uuid())
+  requestId    String?
+  operation    String
+  status       String
+  stage        String
+  model        String
+  brand        String
+  durationMs   Int
+  errorCode    String?
+  errorMessage String?
+  rawOutput    String?
+  output       Json?
+  sources      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+}
+
+model AiConversationState {
+  id                  String   @id
+  pausedUntil         DateTime?
+  lastAttemptMessageId String?
+  lastSentMessageId   String?
+  updatedAt           DateTime @updatedAt
+}
+
 model WhatsAppConnection {
   phoneNumberId           String    @id
   wabaId                  String
