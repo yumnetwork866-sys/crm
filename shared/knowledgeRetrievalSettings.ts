@@ -28,9 +28,15 @@ export function resolveRetrievalSettings(
   const data = value && typeof value === 'object' ? (value as Partial<RetrievalSettings>) : {};
   return {
     hybridStrategy: hybridStrategies.includes(data.hybridStrategy as HybridStrategy)
-      ? data.hybridStrategy! : defaults.hybridStrategy,
-    semanticWeight: typeof data.semanticWeight === 'number' && Number.isFinite(data.semanticWeight)
-      && data.semanticWeight >= 0 && data.semanticWeight <= 1 ? data.semanticWeight : defaults.semanticWeight,
+      ? data.hybridStrategy!
+      : defaults.hybridStrategy,
+    semanticWeight:
+      typeof data.semanticWeight === 'number' &&
+      Number.isFinite(data.semanticWeight) &&
+      data.semanticWeight >= 0 &&
+      data.semanticWeight <= 1
+        ? data.semanticWeight
+        : defaults.semanticWeight,
     mode: retrievalModes.includes(data.mode as RetrievalMode) ? data.mode! : defaults.mode,
     topK:
       Number.isInteger(data.topK) && data.topK! >= 1 && data.topK! <= 20

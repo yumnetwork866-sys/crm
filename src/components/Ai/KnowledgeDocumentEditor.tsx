@@ -42,6 +42,9 @@ export function KnowledgeDocumentEditor({
   embeddingModel,
   embeddingDimensions,
   retrievalSettings,
+  retrievalLoading,
+  retrievalError,
+  onRetryRetrieval,
 }: {
   draft: KnowledgeDraft;
   onChange: (draft: KnowledgeDraft) => void;
@@ -53,6 +56,9 @@ export function KnowledgeDocumentEditor({
   embeddingModel?: string;
   embeddingDimensions?: number;
   retrievalSettings?: RetrievalSettings;
+  retrievalLoading?: boolean;
+  retrievalError?: string;
+  onRetryRetrieval?: () => void;
 }) {
   const [preview, setPreview] = useState<{
     draft: KnowledgeDraft;
@@ -259,6 +265,9 @@ export function KnowledgeDocumentEditor({
             settings={retrievalSettings}
             disabled={busy}
             idPrefix="document-retrieval"
+            loading={retrievalLoading}
+            loadError={retrievalError}
+            onRetry={onRetryRetrieval}
           />
 
           {error && (

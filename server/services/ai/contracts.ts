@@ -47,6 +47,20 @@ export const aiConfigSchema = z.object({
   ragEnabled: z.boolean(),
   timeoutMs: z.number().int().min(5000).max(120000),
   instructions: z.string().trim().max(6000),
+  retrievalSettings: retrievalSettingsSchema.optional(),
+  aiProfile: z
+    .object({
+      name: z.string().trim().min(1).max(80),
+      avatarUrl: z
+        .string()
+        .trim()
+        .max(2000)
+        .nullable()
+        .refine((value) => !value || value.startsWith('/uploads/ai/'), {
+          message: 'Ảnh đại diện phải được tải lên hệ thống.',
+        }),
+    })
+    .optional(),
 });
 export const knowledgeSchema = z.object({
   title: z.string().trim().min(1).max(160),

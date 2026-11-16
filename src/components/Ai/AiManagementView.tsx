@@ -9,7 +9,6 @@ import {
   Clock3,
   FileText,
   FlaskConical,
-  Languages,
   Loader2,
   Pencil,
   RefreshCw,
@@ -26,6 +25,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Permission } from '../../lib/permissions';
 import { api, ApiError } from '../../utils/apiClient';
 import { useAutoTranslateSetting } from '../../features/messages/hooks/useAutoTranslateSetting';
+import { useAiProfile, type AiProfile } from '../../features/messages/hooks/useAiProfile';
+import { queryKeys } from '../../lib/queryClient';
 import { inspectSuggestionResponse } from './suggestionDiagnostics';
 import { knowledgeFileAccept, readKnowledgeFile } from './knowledgeFile';
 import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
@@ -188,7 +189,12 @@ export const AiManagementView: React.FC = () => {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const canManage = hasPermission(Permission.AI_MANAGE);
-  const { isAutoTranslateEnabled, toggleAutoTranslate } = useAutoTranslateSetting();
+  const { isAutoTranslateEnabled, setAutoTranslate } = useAutoTranslateSetting();
+  const profileQuery = useAiProfile();
+  const [profileDraft, setProfileDraft] = useState<AiProfile | null>(null);
+  const [avatarData, setAvatarData] = useState<string | null | undefined>(undefined);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [autoTranslateDraft, setAutoTranslateDraft] = useState<boolean | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: Tab =
     tabs.find((item) => item.id === searchParams.get('tab') && (item.id !== 'runs' || canManage))
@@ -276,14 +282,39 @@ export const AiManagementView: React.FC = () => {
   };
   const saveConfiguration = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft || !canManage || isSaving) return;
+    if (!draft || !canManage || isSaving || profileBusy) return;
     setIsSaving(true);
     setError('');
     setNotice('');
     try {
-      const saved = await api.put<Configuration>('/ai/configuration', draft);
-      queryClient.setQueryData(CONFIG_KEY, saved);
-      setDraft(saved);
+      const saveProfile = profileDraft !== null || avatarData !== undefined;
+      let aiProfile = saveProfile ? profileDraft || profileQuery.data : undefined;
+      if (saveProfile && !aiProfile)
+        throw new Error('Chưa tải được hồ sơ trợ lý. Vui lòng thử lại.');
+      if (aiProfile && avatarData !== undefined) {
+        let avatarUrl: string | null = null;
+        if (avatarData) {
+          const upload = await api.post<{ url: string }>('/upload', {
+            imageBase64: avatarData,
+            folder: 'ai',
+            customFilename: `ai-avatar-${Date.now()}`,
+          });
+          avatarUrl = upload.url;
+        }
+        aiProfile = { ...aiProfile, avatarUrl };
+      }
+      const saved = await api.put<Configuration & { aiProfile?: AiProfile }>('/ai/configuration', {
+        ...draft,
+        aiProfile,
+      });
+      const { aiProfile: savedProfile, ...savedConfiguration } = saved;
+      queryClient.setQueryData(CONFIG_KEY, savedConfiguration);
+      if (savedProfile) queryClient.setQueryData(queryKeys.aiProfile, savedProfile);
+      if (autoTranslateDraft !== null) setAutoTranslate(autoTranslateDraft);
+      setProfileDraft(null);
+      setAvatarData(undefined);
+      setAutoTranslateDraft(null);
+      setDraft(savedConfiguration);
       setDirty(false);
       setNotice(saved.reindexing ? 'Đã lưu. Đang lập lại chỉ mục.' : 'Đã lưu.');
       if (saved.reindexing) await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
@@ -483,211 +514,301 @@ export const AiManagementView: React.FC = () => {
       )}
 
       {tab === 'configuration' && (
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-          <section className={cardStyle}>
-            <div className="mb-4 flex items-center justify-end gap-3">
+        <div className="w-full rounded-2xl border border-slate-200 bg-white">
+          {configuration.isPending ? (
+            <p role="status" className="flex items-center gap-2 px-6 py-12 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Đang tải cấu hình…
+            </p>
+          ) : configuration.isError ? (
+            <div role="alert" className="m-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
+              {messageOf(configuration.error)}
               <button
                 type="button"
-                title="Kiểm tra kết nối và danh sách model"
-                aria-label="Kiểm tra kết nối và danh sách model"
-                className={`${secondaryButton} shrink-0`}
-                disabled={models.isFetching}
-                onClick={() => void models.refetch()}
+                className="ml-2 underline"
+                onClick={() => void configuration.refetch()}
               >
-                <RefreshCw className={`h-4 w-4 ${models.isFetching ? 'animate-spin' : ''}`} />
+                Thử lại
               </button>
             </div>
-            {configuration.isPending ? (
-              <p className="flex items-center gap-2 py-12 text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Đang tải cấu hình…
-              </p>
-            ) : configuration.isError ? (
-              <div role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
-                {messageOf(configuration.error)}
-                <button
-                  type="button"
-                  className="ml-2 underline"
-                  onClick={() => void configuration.refetch()}
-                >
-                  Thử lại
-                </button>
-              </div>
-            ) : (
-              draft && (
-                <form onSubmit={(event) => void saveConfiguration(event)}>
-                  <div className="grid gap-4 sm:grid-cols-2">
+          ) : (
+            draft && (
+              <>
+                <form
+                  id="ai-configuration-form"
+                  onSubmit={(event) => void saveConfiguration(event)}
+                />
+                <div className="divide-y divide-slate-100">
+                  <div className="px-5 py-6 sm:px-6">
+                    <AiManagementPanel
+                      embedded
+                      profile={profileDraft || profileQuery.data}
+                      avatarPreview={avatarData}
+                      disabled={!canManage || isSaving}
+                      loading={profileQuery.isPending}
+                      error={profileQuery.isError ? messageOf(profileQuery.error) : undefined}
+                      onRetry={() => void profileQuery.refetch()}
+                      onChange={(profile) => {
+                        setProfileDraft(profile);
+                        setDirty(true);
+                        setNotice('');
+                      }}
+                      onAvatarChange={(image) => {
+                        setAvatarData(image);
+                        setDirty(true);
+                        setNotice('');
+                      }}
+                      onBusyChange={setProfileBusy}
+                    />
+                  </div>
+                  <section
+                    aria-labelledby="ai-models-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-models-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Model AI
+                    </h2>
                     <div className="min-w-0">
-                      <label
-                        className="block text-xs font-semibold text-slate-600"
-                        htmlFor="ai-model"
-                      >
-                        Model trả lời
-                      </label>
-                      <div className="mt-2 flex gap-2">
-                        <select
-                          id="ai-model"
-                          className={`${inputStyle} min-w-0`}
-                          value={draft.model}
-                          disabled={!canManage || isSaving}
-                          onChange={(event) => updateDraft({ model: event.target.value })}
-                        >
-                          {modelOptions.map((model) => (
-                            <option key={model}>{model}</option>
-                          ))}
-                        </select>
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <div className="min-w-0">
+                          <label
+                            className="block text-xs font-semibold text-slate-600"
+                            htmlFor="ai-model"
+                          >
+                            Model trả lời
+                          </label>
+                          <select
+                            id="ai-model"
+                            form="ai-configuration-form"
+                            className={`${inputStyle} mt-2`}
+                            value={draft.model}
+                            disabled={!canManage || isSaving}
+                            onChange={(event) => updateDraft({ model: event.target.value })}
+                          >
+                            {modelOptions.map((model) => (
+                              <option key={model}>{model}</option>
+                            ))}
+                          </select>
+                          {models.data?.connected && !installedModels.includes(draft.model) && (
+                            <p className="mt-1 text-xs text-amber-700">Model chưa được cài đặt.</p>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <label
+                            className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600"
+                            htmlFor="ai-embedding-model"
+                          >
+                            Model embedding
+                            {draft.embeddingModel === configuration.data?.embeddingModel && (
+                              <span className="font-normal text-slate-400">
+                                {draft.embeddingDimensions} chiều
+                              </span>
+                            )}
+                          </label>
+                          <select
+                            id="ai-embedding-model"
+                            form="ai-configuration-form"
+                            className={`${inputStyle} mt-2`}
+                            value={draft.embeddingModel}
+                            disabled={!canManage || isSaving}
+                            onChange={(event) =>
+                              updateDraft({ embeddingModel: event.target.value })
+                            }
+                          >
+                            {embeddingModelOptions.map((model) => (
+                              <option key={model}>{model}</option>
+                            ))}
+                          </select>
+                          {draft.embeddingModel !== configuration.data?.embeddingModel ? (
+                            <p className="mt-1 text-xs text-amber-700">
+                              Đổi model sẽ lập lại chỉ mục.
+                            </p>
+                          ) : (
+                            models.data?.connected &&
+                            !embeddingModels.includes(draft.embeddingModel) && (
+                              <p className="mt-1 text-xs text-amber-700">
+                                Model embedding chưa được cài đặt.
+                              </p>
+                            )
+                          )}
+                        </div>
                       </div>
-                      <p
-                        role="status"
-                        className={`mt-2 text-xs ${models.data?.connected ? 'text-emerald-700' : 'text-amber-700'}`}
-                      >
-                        {models.isFetching
-                          ? 'Đang kết nối…'
-                          : models.data?.connected
-                            ? installedModels.includes(draft.model)
+                      {!models.isFetching && !models.data?.connected && (
+                        <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                          {models.data?.error || 'Chưa kiểm tra được kết nối.'}
+                        </p>
+                      )}
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <span
+                          role="status"
+                          className={`rounded-full px-2 py-1 text-[11px] font-medium ${models.data?.connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                        >
+                          {models.isFetching
+                            ? 'Đang kiểm tra…'
+                            : models.data?.connected
                               ? 'Đã kết nối'
-                              : 'Model chưa được cài đặt'
-                            : models.data?.error || 'Chưa kiểm tra được kết nối.'}
+                              : 'Chưa kết nối'}
+                        </span>{' '}
+                        <button
+                          type="button"
+                          className={secondaryButton}
+                          disabled={models.isFetching}
+                          onClick={() => void models.refetch()}
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${models.isFetching ? 'animate-spin' : ''}`}
+                          />
+                          Kiểm tra kết nối
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                  <section
+                    aria-labelledby="ai-automation-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-automation-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Tự động hóa
+                    </h2>
+                    <div className="min-w-0 -my-3">
+                      <div className="divide-y divide-slate-100">
+                        <SettingSwitch
+                          title="Gợi ý tin nhắn"
+                          checked={draft.suggestionsEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() =>
+                            updateDraft({ suggestionsEnabled: !draft.suggestionsEnabled })
+                          }
+                        />
+                        <SettingSwitch
+                          title="Tra cứu kho kiến thức"
+                          checked={draft.ragEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() =>
+                            updateDraft({
+                              ragEnabled: !draft.ragEnabled,
+                              ...(!draft.ragEnabled ? {} : { autoReplyEnabled: false }),
+                            })
+                          }
+                        />
+                        <SettingSwitch
+                          title="Tự động trả lời"
+                          checked={draft.autoReplyEnabled}
+                          disabled={!canManage || isSaving || !draft.ragEnabled}
+                          onChange={() =>
+                            updateDraft({ autoReplyEnabled: !draft.autoReplyEnabled })
+                          }
+                        />
+                        <SettingSwitch
+                          title="Dịch sang tiếng Việt"
+                          checked={autoTranslateDraft ?? isAutoTranslateEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() => {
+                            setAutoTranslateDraft(!(autoTranslateDraft ?? isAutoTranslateEnabled));
+                            setDirty(true);
+                            setNotice('');
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </section>
+                  <section
+                    aria-labelledby="ai-guidance-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-guidance-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Hướng dẫn tư vấn
+                    </h2>
+                    <div className="min-w-0">
+                      <textarea
+                        id="ai-instructions"
+                        aria-label="Hướng dẫn tư vấn"
+                        form="ai-configuration-form"
+                        rows={5}
+                        maxLength={6000}
+                        value={draft.instructions}
+                        disabled={!canManage || isSaving}
+                        onChange={(event) => updateDraft({ instructions: event.target.value })}
+                        className={`${inputStyle} resize-y leading-6`}
+                        placeholder="Ví dụ: Xưng em, gọi khách là anh/chị. Trả lời ngắn gọn và hỏi lại khi thiếu thông tin…"
+                      />
+                      <p className="mt-1 text-right text-[11px] text-slate-400">
+                        {draft.instructions.length.toLocaleString('vi-VN')} / 6.000 ký tự
                       </p>
                     </div>
-                    <div className="min-w-0">
-                      <label
-                        className="flex items-center justify-between text-xs font-semibold text-slate-600"
-                        htmlFor="ai-embedding-model"
-                      >
-                        Model embedding
-                        {draft.embeddingModel === configuration.data?.embeddingModel && (
-                          <span className="font-normal text-slate-400">
-                            {draft.embeddingDimensions} chiều
-                          </span>
-                        )}
-                      </label>
-                      <select
-                        id="ai-embedding-model"
-                        className={`${inputStyle} mt-2`}
-                        value={draft.embeddingModel}
-                        disabled={!canManage || isSaving}
-                        onChange={(event) => updateDraft({ embeddingModel: event.target.value })}
-                      >
-                        {embeddingModelOptions.map((model) => (
-                          <option key={model}>{model}</option>
-                        ))}
-                      </select>
-                      {draft.embeddingModel !== configuration.data?.embeddingModel ? (
-                        <p className="mt-2 text-xs text-amber-700">Đổi model sẽ lập lại chỉ mục.</p>
-                      ) : (
-                        models.data?.connected &&
-                        !embeddingModels.includes(draft.embeddingModel) && (
-                          <p className="mt-2 text-xs text-amber-700">
-                            Model embedding chưa được cài đặt.
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-4 divide-y divide-slate-100">
-                    <SettingSwitch
-                      title="Gợi ý tin nhắn"
-                      checked={draft.suggestionsEnabled}
-                      disabled={!canManage || isSaving}
-                      onChange={() =>
-                        updateDraft({ suggestionsEnabled: !draft.suggestionsEnabled })
-                      }
-                    />
-                    <SettingSwitch
-                      title="Kho kiến thức"
-                      checked={draft.ragEnabled}
-                      disabled={!canManage || isSaving}
-                      onChange={() =>
-                        updateDraft({
-                          ragEnabled: !draft.ragEnabled,
-                          ...(!draft.ragEnabled ? {} : { autoReplyEnabled: false }),
-                        })
-                      }
-                    />
-                    <SettingSwitch
-                      title="Tự động trả lời"
-                      description={!draft.ragEnabled ? 'Bật kho kiến thức để sử dụng.' : undefined}
-                      checked={draft.autoReplyEnabled}
-                      disabled={!canManage || isSaving || !draft.ragEnabled}
-                      onChange={() => updateDraft({ autoReplyEnabled: !draft.autoReplyEnabled })}
-                    />
-                  </div>
-                  <label
-                    htmlFor="ai-instructions"
-                    className="mt-4 block text-xs font-semibold text-slate-600"
-                  >
-                    Hướng dẫn tư vấn
-                  </label>
-                  <textarea
-                    id="ai-instructions"
-                    rows={3}
-                    maxLength={6000}
-                    value={draft.instructions}
-                    disabled={!canManage || isSaving}
-                    onChange={(event) => updateDraft({ instructions: event.target.value })}
-                    className={`${inputStyle} mt-2 resize-y`}
-                    placeholder="Giọng điệu, cách xưng hô, quy trình…"
-                  />
-                  <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+                  </section>
+                  <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
                     <label
-                      className="block text-xs font-semibold text-slate-600"
+                      className="pt-1 text-xs font-semibold text-slate-700"
                       htmlFor="ai-timeout"
                     >
-                      Chờ tối đa (giây)
-                      <input
-                        id="ai-timeout"
-                        type="number"
-                        min={5}
-                        max={120}
-                        required
-                        value={draft.timeoutMs / 1000}
-                        disabled={!canManage || isSaving}
-                        onChange={(event) =>
-                          updateDraft({ timeoutMs: Number(event.target.value) * 1000 })
-                        }
-                        className={`${inputStyle} mt-2 max-w-40`}
-                      />
+                      Thời gian chờ phản hồi
                     </label>
-                    {canManage && (
-                      <button className={primaryButton} disabled={!dirty || isSaving} type="submit">
-                        {isSaving ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4" />
-                        )}
-                        Lưu thay đổi
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 shrink-0">
+                        <input
+                          id="ai-timeout"
+                          form="ai-configuration-form"
+                          type="number"
+                          min={5}
+                          max={120}
+                          required
+                          value={draft.timeoutMs / 1000}
+                          disabled={!canManage || isSaving}
+                          onChange={(event) =>
+                            updateDraft({ timeoutMs: Number(event.target.value) * 1000 })
+                          }
+                          className={inputStyle}
+                        />
+                      </div>
+                      <span className="text-xs text-slate-400">giây</span>
+                    </div>
+                  </section>
+                  <div className="px-5 py-6 sm:px-6">
+                    <KnowledgeRetrievalSettings
+                      settings={draft.retrievalSettings}
+                      disabled={!canManage || isSaving}
+                      onChange={(retrievalSettings) => updateDraft({ retrievalSettings })}
+                      formId="ai-configuration-form"
+                      idPrefix="configuration-retrieval"
+                      wide
+                    />
                   </div>
-                  {dirty && <p className="mt-3 text-xs text-amber-700">Chưa lưu thay đổi.</p>}
-                </form>
-              )
-            )}
-          </section>
-          <div className="space-y-4">
-            <AiManagementPanel canEdit={canManage} />
-            <div className={cardStyle}>
-              <KnowledgeRetrievalSettings
-                settings={configuration.data?.retrievalSettings}
-                disabled={!canManage}
-                idPrefix="configuration-retrieval"
-              />
+                </div>
+              </>
+            )
+          )}
+          {canManage && draft && !configuration.isError && (
+            <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm">
+              {dirty && (
+                <p role="status" className="mr-auto text-xs text-amber-700">
+                  Có thay đổi chưa lưu.
+                </p>
+              )}
+              <button
+                form="ai-configuration-form"
+                type="submit"
+                className={primaryButton}
+                disabled={!dirty || isSaving || profileBusy}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Lưu thay đổi
+              </button>
             </div>
-            <section className={cardStyle}>
-              <div className="flex items-center gap-2">
-                <Languages className="h-5 w-5 text-slate-500" />
-                <h2 className="font-bold text-slate-900">Dịch tin nhắn</h2>
-              </div>
-              <SettingSwitch
-                title="Dịch sang tiếng Việt"
-                description="Trên trình duyệt này"
-                checked={isAutoTranslateEnabled}
-                disabled={false}
-                onChange={toggleAutoTranslate}
-              />
-            </section>
-          </div>
+          )}
         </div>
       )}
 
@@ -895,6 +1016,9 @@ export const AiManagementView: React.FC = () => {
               embeddingModel={configuration.data?.embeddingModel}
               embeddingDimensions={configuration.data?.embeddingDimensions}
               retrievalSettings={configuration.data?.retrievalSettings}
+              retrievalLoading={configuration.isPending}
+              retrievalError={configuration.isError ? messageOf(configuration.error) : undefined}
+              onRetryRetrieval={() => void configuration.refetch()}
             />
           )}
           {knowledge.isPending ? (

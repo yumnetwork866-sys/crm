@@ -15,6 +15,9 @@ describe('native AI contracts and knowledge indexing', () => {
     expect(retrievalSettingsSchema.safeParse(settings).success).toBe(true);
     for (const invalid of [
       { mode: 'rerank' },
+      { hybridStrategy: 'rerank' },
+      { semanticWeight: -0.1 },
+      { semanticWeight: 1.1 },
       { topK: 0 },
       { topK: 21 },
       { topK: 1.5 },

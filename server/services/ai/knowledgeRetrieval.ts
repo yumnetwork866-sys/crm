@@ -29,22 +29,30 @@ export function fuseWeightedKnowledgeResults(
     const rank = Math.max(0, source.score);
     const keywordScore = rank / (1 + rank);
     results.set(source.id, {
-      ...source, keywordScore, semanticScore: null,
+      ...source,
+      keywordScore,
+      semanticScore: null,
       score: (1 - semanticWeight) * keywordScore,
-      retrieval: 'keyword', ranking: 'weighted',
+      retrieval: 'keyword',
+      ranking: 'weighted',
     });
   }
   for (const source of semantic) {
     const previous = results.get(source.id);
     const semanticScore = Math.min(1, Math.max(0, source.score));
     results.set(source.id, {
-      ...source, keywordScore: previous?.keywordScore ?? null, semanticScore,
+      ...source,
+      keywordScore: previous?.keywordScore ?? null,
+      semanticScore,
       score: (previous?.score || 0) + semanticWeight * semanticScore,
-      retrieval: previous ? 'hybrid' : 'vector', ranking: 'weighted',
+      retrieval: previous ? 'hybrid' : 'vector',
+      ranking: 'weighted',
     });
   }
-  return [...results.values()].filter((source) => source.score > 0)
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id)).slice(0, limit);
+  return [...results.values()]
+    .filter((source) => source.score > 0)
+    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+    .slice(0, limit);
 }
 
 export function fuseKnowledgeResults(
@@ -96,9 +104,15 @@ export async function retrieveKnowledge(
       : [];
   const finishHybrid = (semantic: KnowledgeSource[]) => {
     if (!weighted) return fuseKnowledgeResults(keyword, semantic, retrieval.topK);
-    const results = fuseWeightedKnowledgeResults(keyword, semantic, retrieval.semanticWeight, retrieval.topK);
+    const results = fuseWeightedKnowledgeResults(
+      keyword,
+      semantic,
+      retrieval.semanticWeight,
+      retrieval.topK,
+    );
     return retrieval.scoreThresholdEnabled
-      ? results.filter((source) => source.score >= retrieval.scoreThreshold) : results;
+      ? results.filter((source) => source.score >= retrieval.scoreThreshold)
+      : results;
   };
   if (retrieval.mode === 'keyword') {
     return keyword.slice(0, retrieval.topK).map((source) => ({ ...source, retrieval: 'keyword' }));
@@ -112,12 +126,12 @@ export async function retrieveKnowledge(
     },
   });
   // New or failed documents remain available to lexical search; sources identify the mode.
-  if (!indexed)
-    return retrieval.mode === 'vector' ? [] : finishHybrid([]);
+  if (!indexed) return retrieval.mode === 'vector' ? [] : finishHybrid([]);
   const vector = await embedQuery(question, settings);
-  const scoreCondition = retrieval.scoreThresholdEnabled && !weighted
-    ? Prisma.sql`AND crm_ai_cosine(c.embedding, ${vector}::real[]) >= ${retrieval.scoreThreshold}`
-    : Prisma.empty;
+  const scoreCondition =
+    retrieval.scoreThresholdEnabled && !weighted
+      ? Prisma.sql`AND crm_ai_cosine(c.embedding, ${vector}::real[]) >= ${retrieval.scoreThreshold}`
+      : Prisma.empty;
   const semantic = await db.$queryRaw<KnowledgeSource[]>(Prisma.sql`
     SELECT c.id, c."documentId", d.title, d.brand, c.content,
       crm_ai_cosine(c.embedding, ${vector}::real[]) AS score

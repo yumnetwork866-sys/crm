@@ -16,6 +16,7 @@ import { defaultRetrievalSettings } from '../../../shared/knowledgeRetrievalSett
 import { embedQuery } from './embeddingService';
 import {
   fuseKnowledgeResults,
+  fuseWeightedKnowledgeResults,
   retrieveKnowledge,
   type KnowledgeSource,
 } from './knowledgeRetrieval';
@@ -38,6 +39,71 @@ beforeEach(() => {
 });
 
 describe('hybrid knowledge retrieval', () => {
+  it('changes the hybrid ordering when semantic and keyword weights change', () => {
+    const keyword = [source('keyword', 9)];
+    const semantic = [source('semantic', 0.8)];
+    expect(fuseWeightedKnowledgeResults(keyword, semantic, 0.7)[0].id).toBe('semantic');
+    expect(fuseWeightedKnowledgeResults(keyword, semantic, 0.2)[0].id).toBe('keyword');
+    expect(fuseWeightedKnowledgeResults(keyword, semantic, 1).map((item) => item.id)).toEqual([
+      'semantic',
+    ]);
+    expect(fuseWeightedKnowledgeResults(keyword, semantic, 0).map((item) => item.id)).toEqual([
+      'keyword',
+    ]);
+  });
+
+  it('normalizes keyword ranks and combines both scores without duplicate chunks', () => {
+    const results = fuseWeightedKnowledgeResults([source('A', 1)], [source('A', 0.8)], 0.7);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      keywordScore: 0.5,
+      semanticScore: 0.8,
+      ranking: 'weighted',
+      retrieval: 'hybrid',
+    });
+    expect(results[0].score).toBeCloseTo(0.7 * 0.8 + 0.3 * 0.5);
+  });
+
+  it('applies the threshold to the final weighted score without prefiltering semantic candidates', async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({
+      embeddingModel: 'test-model',
+      embeddingDimensions: 768,
+      retrievalSettings: {
+        ...defaultRetrievalSettings,
+        hybridStrategy: 'weighted',
+        semanticWeight: 0.7,
+        topK: 2,
+        scoreThreshold: 0.65,
+      },
+    } as any);
+    vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(1);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([source('A', 9), source('B', 0.1)])
+      .mockResolvedValueOnce([source('A', 0.6), source('B', 0.9)]);
+    const results = await retrieveKnowledge('Return policy');
+    expect(results.map((item) => item.id)).toEqual(['A', 'B']);
+    expect(results[0].score).toBeCloseTo(0.69);
+    const query = vi.mocked(prisma.$queryRaw).mock.calls[1][0] as any;
+    expect(query.strings.join('')).not.toContain('>=');
+  });
+
+  it('filters weighted matches below the aggregate threshold', async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({
+      embeddingModel: 'test-model',
+      embeddingDimensions: 768,
+      retrievalSettings: {
+        ...defaultRetrievalSettings,
+        hybridStrategy: 'weighted',
+        semanticWeight: 0.7,
+        scoreThreshold: 0.75,
+      },
+    } as any);
+    vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(1);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([source('A', 1)])
+      .mockResolvedValueOnce([source('A', 0.8)]);
+    expect(await retrieveKnowledge('Return policy')).toEqual([]);
+  });
   it('fuses both rankings without duplicates and keeps vector similarity separate', () => {
     const results = fuseKnowledgeResults(
       [source('A', 0.1), source('B', 0.05)],

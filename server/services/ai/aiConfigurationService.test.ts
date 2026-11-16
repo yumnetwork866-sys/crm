@@ -3,6 +3,7 @@ vi.mock('../../lib/prisma', () => ({
   prisma: {
     aiConfiguration: { upsert: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
     aiKnowledgeDocument: { updateMany: vi.fn() },
+    integrationSetting: { upsert: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -45,6 +46,41 @@ beforeEach(() => {
   vi.mocked(probeEmbeddingDimensions).mockResolvedValue(384);
 });
 describe('embedding model configuration', () => {
+  it('saves retrieval settings and the assistant profile with the configuration in one transaction', async () => {
+    const retrievalSettings = {
+      mode: 'hybrid' as const,
+      topK: 3,
+      scoreThresholdEnabled: true,
+      scoreThreshold: 0.4,
+      hybridStrategy: 'weighted' as const,
+      semanticWeight: 0.7,
+    };
+    const aiProfile = { name: 'Trợ lý', avatarUrl: '/uploads/ai/new-avatar.png' };
+    const result = await saveAiConfiguration({ ...input, retrievalSettings, aiProfile });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.aiConfiguration.update).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      data: { ...input, retrievalSettings },
+    });
+    expect(prisma.integrationSetting.upsert).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      update: { aiName: aiProfile.name, aiAvatarUrl: aiProfile.avatarUrl },
+      create: { id: 'default', aiName: aiProfile.name, aiAvatarUrl: aiProfile.avatarUrl },
+    });
+    expect(result.aiProfile).toEqual(aiProfile);
+    expect(result.config.retrievalSettings).toEqual(retrievalSettings);
+    expect(result.reindexing).toBe(false);
+    expect(prisma.aiKnowledgeDocument.updateMany).not.toHaveBeenCalled();
+  });
+  it('rejects the combined save if the profile write fails inside the transaction', async () => {
+    vi.mocked(prisma.integrationSetting.upsert).mockRejectedValue(
+      new Error('Profile write failed'),
+    );
+    await expect(
+      saveAiConfiguration({ ...input, aiProfile: { name: 'Trợ lý', avatarUrl: null } }),
+    ).rejects.toThrow('Profile write failed');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
   it('probes dimensions and invalidates indexing leases in the same transaction as the model change', async () => {
     const saved = await saveAiConfiguration({ ...input, embeddingModel: 'embed-b' });
     expect(requireInstalledEmbeddingModel).toHaveBeenCalledWith('embed-b');

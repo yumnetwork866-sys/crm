@@ -7,6 +7,7 @@ import { requireInstalledEmbeddingModel } from './ollamaModels';
 import { resolveRetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 
 export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>) {
+  const { aiProfile, retrievalSettings, ...settings } = input;
   const current = await getAiConfig();
   let dimensions = current.embeddingDimensions;
   if (input.embeddingModel && input.embeddingModel !== current.embeddingModel) {
@@ -18,7 +19,17 @@ export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>)
     const config = await tx.aiConfiguration.update({
       where: { id: 'default' },
       data: {
-        ...input,
+        ...settings,
+        ...(retrievalSettings
+          ? {
+              retrievalSettings: {
+                ...resolveRetrievalSettings(
+                  retrievalSettings,
+                  resolveRetrievalSettings(previous.retrievalSettings, current.retrievalSettings),
+                ),
+              },
+            }
+          : {}),
         ...(input.embeddingModel ? { embeddingDimensions: dimensions } : {}),
       },
     });
@@ -37,6 +48,13 @@ export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>)
         },
       });
     }
+    if (aiProfile) {
+      await tx.integrationSetting.upsert({
+        where: { id: 'default' },
+        update: { aiName: aiProfile.name, aiAvatarUrl: aiProfile.avatarUrl },
+        create: { id: 'default', aiName: aiProfile.name, aiAvatarUrl: aiProfile.avatarUrl },
+      });
+    }
     return {
       config: {
         ...config,
@@ -46,6 +64,7 @@ export async function saveAiConfiguration(input: z.infer<typeof aiConfigSchema>)
         ),
       },
       reindexing,
+      aiProfile,
     };
   });
 }

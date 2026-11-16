@@ -74,8 +74,10 @@ Mặc định chia theo ranh giới đoạn/câu khi có thể, tối đa 1.000 
 Worker lập chỉ mục theo batch ở nền, lưu trạng thái/lỗi trong database; có thể lập lại chỉ mục trên trang AI.
 Vector được chuẩn hóa và lưu bằng PostgreSQL REAL[], tìm cosine chính xác; không cần extension pgvector.
 Đây là quét vector chính xác, chưa có chỉ mục ANN: cần đánh giá tải và chuyển sang pgvector khi kho lớn.
-Thiết lập truy xuất dùng chung cho toàn bộ kho: chọn Vector Search, Full-Text Search hoặc Hybrid Search; Top K từ 1 đến 20 (mặc định 5). Có thể chỉnh trong tab Cấu hình hoặc màn hình tải tài liệu, chọn “Lưu thiết lập truy xuất” để áp dụng riêng với việc lưu tài liệu.
-Ngưỡng điểm bật/tắt được, từ 0 đến 1, chỉ lọc độ tương đồng cosine của nhánh vector. Full-Text Search không dùng ngưỡng này; Hybrid vẫn giữ kết quả khớp từ khóa rồi gộp thứ hạng bằng RRF. Số ứng viên mỗi nhánh là tối đa max(20, Top K × 4), sau đó lấy Top K nguồn.
+Thiết lập truy xuất dùng chung cho toàn bộ kho: chọn Vector Search, Full-Text Search hoặc Hybrid Search; Top K từ 1 đến 20 (mặc định 5). Trong tab Cấu hình, một nút “Lưu thay đổi” lưu cả model, tự động hóa, hướng dẫn, truy xuất và hồ sơ trợ lý. Tùy chọn dịch trên trình duyệt cũng chỉ áp dụng sau khi lưu thành công. Cấu hình và hồ sơ được cập nhật trong cùng transaction; ảnh mới được tải lên khi bấm lưu.
+Ở màn hình tải tài liệu, thiết lập truy xuất vẫn có nút lưu riêng để áp dụng cho toàn bộ kho.
+Hybrid có hai cách xếp hạng: RRF giữ hành vi trước đây; Weighted Score kết hợp trọng số vector/từ khóa (mặc định 0,7/0,3), tổng luôn bằng 1. Điểm từ khóa được chuẩn hóa theo rank / (1 + rank), cosine được chặn trong [0,1], rồi cộng theo trọng số. Chọn Weighted Score trong tab Cấu hình và lưu để áp dụng.
+Ngưỡng điểm bật/tắt được, từ 0 đến 1. Với Weighted Score, ngưỡng lọc điểm tổng hợp sau khi kết hợp; với Vector hoặc Hybrid RRF, ngưỡng chỉ lọc nhánh vector. Full-Text Search không dùng ngưỡng này. Số ứng viên mỗi nhánh là tối đa max(20, Top K × 4), sau đó lấy Top K nguồn.
 Full-Text Search không gọi model embedding. Vector Search trả rỗng khi chưa có vector; Hybrid tiếp tục dùng từ khóa trong thời gian lập chỉ mục. Thay đổi thiết lập truy xuất xóa cache câu trả lời và không yêu cầu lập lại chỉ mục.
 Điểm cosine không phải xác suất câu trả lời đúng; ngưỡng cần được hiệu chỉnh bằng bộ câu hỏi thực tế.
 Khi chưa có vector, vẫn tra cứu từ khóa và ghi rõ phương thức trên nguồn; khi model embedding lỗi, trả mã lỗi rõ ràng.

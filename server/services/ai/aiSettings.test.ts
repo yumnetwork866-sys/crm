@@ -20,7 +20,13 @@ describe('persisted retrieval configuration', () => {
   });
   it('uses persisted settings ahead of the environment value', async () => {
     vi.stubEnv('AI_EMBEDDING_MIN_SCORE', '0.72');
-    const settings = { mode: 'vector', topK: 3, scoreThresholdEnabled: false, scoreThreshold: 0.4 };
+    const settings = {
+      ...defaultRetrievalSettings,
+      mode: 'vector',
+      topK: 3,
+      scoreThresholdEnabled: false,
+      scoreThreshold: 0.4,
+    };
     vi.mocked(prisma.aiConfiguration.upsert).mockResolvedValue({
       retrievalSettings: settings,
     } as any);

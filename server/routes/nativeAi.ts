@@ -59,15 +59,16 @@ router.put('/configuration', requirePermission(Permission.AI_MANAGE), async (req
   if (parsed.data.autoReplyEnabled && !parsed.data.ragEnabled)
     return res.status(400).json({ error: 'Bật kho kiến thức trước khi bật tự động trả lời.' });
   try {
-    const { config: result, reindexing } = await saveAiConfiguration(parsed.data);
+    const { config: result, reindexing, aiProfile } = await saveAiConfiguration(parsed.data);
     if (reindexing) scheduleKnowledgeIndex();
     clearAiCache();
+    if (aiProfile) realtimeHub.broadcast('ai:profile', aiProfile);
     realtimeHub.broadcast('ai:status', {
       scope: 'global',
       isAiEnabled: result.autoReplyEnabled,
       suggestionsEnabled: result.suggestionsEnabled,
     });
-    return res.json({ ...result, reindexing });
+    return res.json({ ...result, reindexing, ...(aiProfile ? { aiProfile } : {}) });
   } catch (error) {
     return failure(res, error);
   }
@@ -75,11 +76,9 @@ router.put('/configuration', requirePermission(Permission.AI_MANAGE), async (req
 router.put('/retrieval-settings', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = retrievalSettingsSchema.safeParse(req.body);
   if (!parsed.success)
-    return res
-      .status(400)
-      .json({
-        error: 'Thiết lập truy xuất không hợp lệ. Top K từ 1 đến 20, ngưỡng điểm từ 0 đến 1.',
-      });
+    return res.status(400).json({
+      error: 'Thiết lập truy xuất không hợp lệ. Top K từ 1 đến 20, ngưỡng điểm từ 0 đến 1.',
+    });
   try {
     const current = await getAiConfig();
     const retrievalSettings = resolveRetrievalSettings(parsed.data, current.retrievalSettings);

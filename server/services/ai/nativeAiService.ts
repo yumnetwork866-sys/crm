@@ -253,13 +253,25 @@ Additional business guidance: ${config.instructions || 'Be helpful, brief and po
           rawOutput: rawOutput.slice(0, 16000),
           output: { ...output, shouldAutoReply },
           sources: sources.map(
-            ({ id, documentId, title, brand: sourceBrand, score, semanticScore, retrieval }) => ({
+            ({
+              id,
+              documentId,
+              title,
+              brand: sourceBrand,
+              score,
+              semanticScore,
+              keywordScore,
+              ranking,
+              retrieval,
+            }) => ({
               id,
               documentId,
               title,
               brand: sourceBrand,
               score,
               semanticScore: semanticScore ?? null,
+              keywordScore: keywordScore ?? null,
+              ranking: ranking ?? null,
               retrieval: retrieval || 'keyword',
             }),
           ),
