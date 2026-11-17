@@ -1,13 +1,20 @@
 import type { Request, Response } from 'express';
 import { realtimeHub } from '../../services/realtimeHub';
 import { prisma } from '../../lib/prisma';
+import { generateConversationSummary } from '../../services/difyService';
 import {
-  generateConversationSummary,
-} from '../../services/difyService';
-import { pauseNativeAi, resumeNativeAi, isNativeAiActive, isNativeGlobalAiEnabled as isGlobalAiEnabled, setNativeGlobalAiEnabled as setGlobalAiEnabled } from '../../services/ai/nativeAutoReply';
+  pauseNativeAi,
+  resumeNativeAi,
+  isNativeAiActive,
+  isNativeGlobalAiEnabled as isGlobalAiEnabled,
+  setNativeGlobalAiEnabled as setGlobalAiEnabled,
+} from '../../services/ai/nativeAutoReply';
 import { generateNativeAi } from '../../services/ai/nativeAiService';
 import { AiFailure, generationInputSchema } from '../../services/ai/contracts';
-import { isLikelyVietnamese, translateWithOllama } from '../../services/ollamaTranslationService';
+import {
+  MessageTranslationError,
+  translateStoredMessage,
+} from '../../services/messageTranslationService';
 import { createLogger } from '../../lib/logger';
 
 const log = createLogger('chatAiControls');
@@ -25,16 +32,29 @@ export async function toggleCustomerAi(req: Request, res: Response) {
     if (enabled) {
       await resumeNativeAi(phone, req.body.businessPhoneNumberId);
     } else {
-      await pauseNativeAi(phone, typeof minutes === 'number' ? minutes : 0, req.body.businessPhoneNumberId);
+      await pauseNativeAi(
+        phone,
+        typeof minutes === 'number' ? minutes : 0,
+        req.body.businessPhoneNumberId,
+      );
     }
 
-    const isActive = await isNativeAiActive(phone, typeof req.body?.businessPhoneNumberId === 'string' ? req.body.businessPhoneNumberId : typeof req.query.businessPhoneNumberId === 'string' ? req.query.businessPhoneNumberId : undefined);
+    const isActive = await isNativeAiActive(
+      phone,
+      typeof req.body?.businessPhoneNumberId === 'string'
+        ? req.body.businessPhoneNumberId
+        : typeof req.query.businessPhoneNumberId === 'string'
+          ? req.query.businessPhoneNumberId
+          : undefined,
+    );
     realtimeHub.broadcast('ai:status', { phone, isAiActive: isActive });
     return res.json({
       success: true,
       phone,
       isAiActive: isActive,
-      message: isActive ? 'Đã bật phản hồi AI cho khách hàng.' : 'Đã tạm dừng phản hồi AI cho khách hàng.'
+      message: isActive
+        ? 'Đã bật phản hồi AI cho khách hàng.'
+        : 'Đã tạm dừng phản hồi AI cho khách hàng.',
     });
   } catch (error: any) {
     log.error({ err: error }, 'Error toggling customer AI:');
@@ -52,10 +72,17 @@ export async function getCustomerAiStatus(req: Request, res: Response) {
       return res.status(400).json({ error: 'Thiếu số điện thoại khách hàng.' });
     }
 
-    const isActive = await isNativeAiActive(phone, typeof req.body?.businessPhoneNumberId === 'string' ? req.body.businessPhoneNumberId : typeof req.query.businessPhoneNumberId === 'string' ? req.query.businessPhoneNumberId : undefined);
+    const isActive = await isNativeAiActive(
+      phone,
+      typeof req.body?.businessPhoneNumberId === 'string'
+        ? req.body.businessPhoneNumberId
+        : typeof req.query.businessPhoneNumberId === 'string'
+          ? req.query.businessPhoneNumberId
+          : undefined,
+    );
     return res.json({
       phone,
-      isAiActive: isActive
+      isAiActive: isActive,
     });
   } catch (error: any) {
     log.error({ err: error }, 'Error getting customer AI status:');
@@ -69,7 +96,9 @@ export async function getGlobalAiStatus(req: Request, res: Response) {
     return res.json({ isAiEnabled: await isGlobalAiEnabled() });
   } catch (error: any) {
     log.error({ err: error }, 'Error getting global AI status:');
-    return res.status(500).json({ error: error.message || 'Lỗi khi kiểm tra trạng thái AI toàn hệ thống.' });
+    return res
+      .status(500)
+      .json({ error: error.message || 'Lỗi khi kiểm tra trạng thái AI toàn hệ thống.' });
   }
 }
 
@@ -90,7 +119,9 @@ export async function toggleGlobalAi(req: Request, res: Response) {
     });
   } catch (error: any) {
     log.error({ err: error }, 'Error toggling global AI:');
-    return res.status(500).json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI toàn hệ thống.' });
+    return res
+      .status(500)
+      .json({ error: error.message || 'Lỗi khi cập nhật trạng thái AI toàn hệ thống.' });
   }
 }
 
@@ -101,13 +132,19 @@ export async function summarizeChatConversation(req: Request, res: Response) {
   try {
     const { phone, customerName, messages, brandName } = req.body;
     if (!phone && (!messages || !Array.isArray(messages) || messages.length === 0)) {
-      return res.status(400).json({ error: 'Thiếu thông tin số điện thoại hoặc tin nhắn hội thoại.' });
+      return res
+        .status(400)
+        .json({ error: 'Thiếu thông tin số điện thoại hoặc tin nhắn hội thoại.' });
     }
 
     let conversationMessages = messages;
 
     // If messages not provided or empty, load from database
-    if (!conversationMessages || !Array.isArray(conversationMessages) || conversationMessages.length === 0) {
+    if (
+      !conversationMessages ||
+      !Array.isArray(conversationMessages) ||
+      conversationMessages.length === 0
+    ) {
       if (phone) {
         const cleanPhone = String(phone).replace(/\D/g, '');
         const dbMsgs = await prisma.whatsAppMessage.findMany({
@@ -145,15 +182,26 @@ export async function summarizeChatConversation(req: Request, res: Response) {
  */
 export async function suggestChatReplies(req: Request, res: Response) {
   const parsed = generationInputSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Ngữ cảnh gợi ý không hợp lệ.', code: 'INVALID_CONTEXT' });
+  if (!parsed.success)
+    return res.status(400).json({ error: 'Ngữ cảnh gợi ý không hợp lệ.', code: 'INVALID_CONTEXT' });
   try {
     return res.json(await generateNativeAi(parsed.data));
   } catch (error) {
     if (error instanceof AiFailure) {
-      return res.status(error.status).json({ error: error.message, code: error.code, stage: error.stage, runId: error.runId, requestId: res.locals.requestId });
+      return res.status(error.status).json({
+        error: error.message,
+        code: error.code,
+        stage: error.stage,
+        runId: error.runId,
+        requestId: res.locals.requestId,
+      });
     }
     log.error({ err: error }, 'Native AI suggestion failed');
-    return res.status(500).json({ error: 'Không tạo được gợi ý AI.', code: 'AI_INTERNAL_ERROR', requestId: res.locals.requestId });
+    return res.status(500).json({
+      error: 'Không tạo được gợi ý AI.',
+      code: 'AI_INTERNAL_ERROR',
+      requestId: res.locals.requestId,
+    });
   }
 }
 
@@ -162,41 +210,17 @@ export async function translateChatMessage(req: Request, res: Response) {
   try {
     const messageId = typeof req.body?.messageId === 'string' ? req.body.messageId.trim() : '';
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
-    const targetLanguage = typeof req.body?.targetLanguage === 'string'
-      ? req.body.targetLanguage.trim()
-      : 'vi';
+    const targetLanguage =
+      typeof req.body?.targetLanguage === 'string' ? req.body.targetLanguage.trim() : 'vi';
     if (!messageId || !text) return res.status(400).json({ error: 'Thiếu tin nhắn cần dịch.' });
 
-    const message = await prisma.whatsAppMessage.findUnique({
-      where: { id: messageId },
-      select: { translatedContent: true, translatedLanguage: true, translationModel: true },
-    });
-    if (!message) return res.status(404).json({ error: 'Không tìm thấy tin nhắn.' });
-    if (message.translatedContent && message.translatedLanguage === targetLanguage) {
-      return res.json({ success: true, translation: message.translatedContent, targetLanguage, model: message.translationModel, persisted: true });
-    }
-    if (targetLanguage === 'vi' && isLikelyVietnamese(text)) {
-      return res.json({ success: true, targetLanguage, alreadyTargetLanguage: true });
-    }
-
-    const result = await translateWithOllama({ text, targetLanguage });
-    const translatedAt = new Date();
-    await prisma.whatsAppMessage.update({
-      where: { id: messageId },
-      data: { translatedContent: result.translation, translatedLanguage: result.targetLanguage, translationModel: result.model, translatedAt },
-    });
-    realtimeHub.broadcast('message:translated', {
-      messageId,
-      translatedContent: result.translation,
-      translatedLanguage: result.targetLanguage,
-      translationModel: result.model,
-      translatedAt: translatedAt.toISOString(),
-    });
-    return res.json({ success: true, ...result, translatedAt: translatedAt.toISOString(), persisted: true });
+    const result = await translateStoredMessage(messageId, targetLanguage);
+    return res.json({ success: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Lỗi khi dịch tin nhắn.';
     log.error({ err: error }, '[OLLAMA TRANSLATE] Error translating chat message:');
-    return res.status(502).json({ error: message });
+    return res
+      .status(error instanceof MessageTranslationError ? error.status : 502)
+      .json({ error: message });
   }
 }
-

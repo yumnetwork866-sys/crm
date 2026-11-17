@@ -556,19 +556,48 @@ export function useCentralMessages({
       },
       'message:translated': (event) => {
         try {
-          const { messageId, translatedContent, translatedLanguage, translationModel, translatedAt } = JSON.parse(event.data);
+          const {
+            messageId,
+            translatedContent,
+            translatedLanguage,
+            translationModel,
+            translatedAt,
+          } = JSON.parse(event.data);
           if (!messageId) return;
-          setMessages((previous) =>
-            previous.map((message) => {
-              if (message.id !== messageId) return message;
-              return {
-                ...message,
-                translatedContent,
-                translatedLanguage,
-                translationModel,
-                translatedAt,
-              };
-            })
+          const patch = (message: CentralMessage): CentralMessage =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  translatedContent,
+                  translatedLanguage,
+                  translationModel,
+                  translatedAt,
+                }
+              : message;
+          queryClient.setQueriesData<InfiniteData<MessagePage, string | null>>(
+            { queryKey: ['central-messages'] },
+            (data) =>
+              data
+                ? {
+                    ...data,
+                    pages: data.pages.map((page) => ({
+                      ...page,
+                      messages: page.messages.map(patch),
+                    })),
+                  }
+                : data,
+          );
+          queryClient.setQueriesData<ConversationPages>(
+            { queryKey: ['message-conversations'] },
+            (data) =>
+              data
+                ? updateConversationPages(data, (conversations) =>
+                    conversations.map((conversation) => ({
+                      ...conversation,
+                      lastMessage: patch(conversation.lastMessage),
+                    })),
+                  )
+                : data,
           );
         } catch (error) {
           console.error('[REALTIME SSE] Error processing message:translated event:', error);

@@ -1,8 +1,17 @@
 import { prisma } from '../lib/prisma';
 import { realtimeHub } from './realtimeHub';
-import { enqueueDifyAutoReply, enqueueMediaPrefetch } from './queueService';
+import {
+  enqueueDifyAutoReply,
+  enqueueMediaPrefetch,
+  enqueueMessageTranslation,
+} from './queueService';
+import { needsIncomingTranslation } from './messageTranslationService';
 import { matchCustomerByPhone } from './webhook/webhookCustomerSync';
-import { extractWebhookItems, getMessageText, getWebhookSenderIdentity } from './webhook/webhookMessageParser';
+import {
+  extractWebhookItems,
+  getMessageText,
+  getWebhookSenderIdentity,
+} from './webhook/webhookMessageParser';
 import { isMetaUserIdentifier, normalizeMetaRecipient } from '../utils/metaRecipient';
 import {
   processIntegrationLifecycle,
@@ -29,7 +38,10 @@ export async function processWebhookPayload(body: any): Promise<number> {
     } catch (e) {}
   }
 
-  log.debug({ entryCount: Array.isArray(parsedBody?.entry) ? parsedBody.entry.length : 0 }, 'Webhook received');
+  log.debug(
+    { entryCount: Array.isArray(parsedBody?.entry) ? parsedBody.entry.length : 0 },
+    'Webhook received',
+  );
 
   await processIntegrationLifecycle(parsedBody);
   await processWebhookStatuses(parsedBody);
@@ -42,19 +54,24 @@ export async function processWebhookPayload(body: any): Promise<number> {
     const senderIdentity = getWebhookSenderIdentity(msgData, valueObj);
     const fromPhone = senderIdentity.recipient;
     if (!fromPhone) {
-      log.warn({ err: msgData?.id || 'unknown' }, '[META WEBHOOK] Skipping message without from/from_user_id/user_id:');
+      log.warn(
+        { err: msgData?.id || 'unknown' },
+        '[META WEBHOOK] Skipping message without from/from_user_id/user_id:',
+      );
       continue;
     }
-    const contactData = valueObj?.contacts?.find((c: any) =>
-      [c?.wa_id, c?.from_user_id, c?.user_id].some((id) => String(id || '') === fromPhone)
-    ) || valueObj?.contacts?.[0];
+    const contactData =
+      valueObj?.contacts?.find((c: any) =>
+        [c?.wa_id, c?.from_user_id, c?.user_id].some((id) => String(id || '') === fromPhone),
+      ) || valueObj?.contacts?.[0];
     const businessPhoneNumberId = String(valueObj?.metadata?.phone_number_id || '') || undefined;
-    const senderName = contactData?.profile?.name
-      || contactData?.username
-      || msgData?.profile?.name
-      || msgData?.username
-      || valueObj?.username
-      || (isMetaUserIdentifier(fromPhone) ? fromPhone : `Khách WhatsApp (${fromPhone})`);
+    const senderName =
+      contactData?.profile?.name ||
+      contactData?.username ||
+      msgData?.profile?.name ||
+      msgData?.username ||
+      valueObj?.username ||
+      (isMetaUserIdentifier(fromPhone) ? fromPhone : `Khách WhatsApp (${fromPhone})`);
 
     // Determine message text body based on message type
     const textBody = getMessageText(msgData, businessPhoneNumberId);
@@ -105,7 +122,9 @@ export async function processWebhookPayload(body: any): Promise<number> {
     // Resolve reply context if applicable
     let replyContext: any = null;
     if (msgData.context?.id) {
-      const origMsg = await prisma.whatsAppMessage.findUnique({ where: { id: msgData.context.id } }).catch(() => null);
+      const origMsg = await prisma.whatsAppMessage
+        .findUnique({ where: { id: msgData.context.id } })
+        .catch(() => null);
       if (origMsg) {
         let rawOrigContent = (origMsg.content || '').replace(/^\[reply:\{.*?\}\]\n/, '');
         if (/^\[product(?:_list)?(?::\s*|\s*)\{/i.test(rawOrigContent)) {
@@ -114,23 +133,28 @@ export async function processWebhookPayload(body: any): Promise<number> {
         }
         replyContext = {
           id: origMsg.id,
-          senderName: origMsg.agentName || origMsg.customerName || (origMsg.sender === 'agent' ? 'Nhân viên' : 'Khách hàng'),
-          content: rawOrigContent.slice(0, 150)
+          senderName:
+            origMsg.agentName ||
+            origMsg.customerName ||
+            (origMsg.sender === 'agent' ? 'Nhân viên' : 'Khách hàng'),
+          content: rawOrigContent.slice(0, 150),
         };
       } else {
         replyContext = {
           id: msgData.context.id,
           senderName: msgData.context.from ? `+${msgData.context.from}` : 'Tin nhắn trước',
-          content: 'Tin nhắn WhatsApp gốc'
+          content: 'Tin nhắn WhatsApp gốc',
         };
       }
     }
 
     if (msgData.context?.id) {
-      const campaignRecipient = await prisma.broadcastRecipient.findUnique({
-        where: { metaMessageId: msgData.context.id },
-        select: { id: true, campaignId: true, respondedAt: true },
-      }).catch(() => null);
+      const campaignRecipient = await prisma.broadcastRecipient
+        .findUnique({
+          where: { metaMessageId: msgData.context.id },
+          select: { id: true, campaignId: true, respondedAt: true },
+        })
+        .catch(() => null);
       if (campaignRecipient && !campaignRecipient.respondedAt) {
         await prisma.broadcastRecipient.update({
           where: { id: campaignRecipient.id },
@@ -163,10 +187,11 @@ export async function processWebhookPayload(body: any): Promise<number> {
       content: fullTextBody,
       timestamp: new Date(Number(msgData.timestamp) * 1000 || Date.now()).toISOString(),
       isRead: false,
-      replyTo: replyContext || undefined
+      replyTo: replyContext || undefined,
     };
 
-    const incomingMediaId = msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
+    const incomingMediaId =
+      msgData.image?.id || msgData.document?.id || msgData.audio?.id || msgData.sticker?.id;
     if (incomingMediaId) {
       await enqueueMediaPrefetch({
         mediaId: incomingMediaId,
@@ -175,6 +200,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
     }
 
     // Save incoming message to Database (Prisma)
+    let messageSaved = false;
     try {
       const createData: any = {
         id: newIncoming.id,
@@ -186,7 +212,7 @@ export async function processWebhookPayload(body: any): Promise<number> {
         channel: newIncoming.channel,
         content: newIncoming.content,
         isRead: newIncoming.isRead,
-        timestamp: new Date(newIncoming.timestamp)
+        timestamp: new Date(newIncoming.timestamp),
       };
 
       if (isCrmCustomer) {
@@ -196,25 +222,39 @@ export async function processWebhookPayload(body: any): Promise<number> {
       const savedDbMsg = await prisma.whatsAppMessage.upsert({
         where: { id: newIncoming.id },
         update: {},
-        create: createData
+        create: createData,
       });
+      messageSaved = true;
       log.debug({ messageId: savedDbMsg.id, wabaId: businessPhoneNumberId }, 'Message saved');
 
       if (isCrmCustomer) {
-        await prisma.customer.update({
-          where: { id: customerId },
-          data: { lastContact: new Date() }
-        }).catch(() => {});
+        await prisma.customer
+          .update({
+            where: { id: customerId },
+            data: { lastContact: new Date() },
+          })
+          .catch(() => {});
       }
     } catch (dbErr: any) {
       log.error({ err: dbErr }, '[DB SAVE ERROR] Failed to save incoming message to DB:');
     }
 
-    log.info({ messageId: msgData.id, customerId, wabaId: businessPhoneNumberId, messageType: msgData.type }, 'Message received');
+    log.info(
+      {
+        messageId: msgData.id,
+        customerId,
+        wabaId: businessPhoneNumberId,
+        messageType: msgData.type,
+      },
+      'Message received',
+    );
 
     // Broadcast instant real-time event to all connected clients
     realtimeHub.broadcast('message:new', newIncoming);
     processedCount++;
+    if (messageSaved && needsIncomingTranslation(newIncoming.content)) {
+      await enqueueMessageTranslation({ messageId: newIncoming.id });
+    }
 
     // Push Dify AI Auto-reply job into dedicated worker queue
     if (textBody && fromPhone) {

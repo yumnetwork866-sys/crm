@@ -34,6 +34,7 @@ export interface KnowledgeDocument {
   updatedAt: string;
   createdAt?: string;
   _count: { chunks: number };
+  retrievalCount?: number;
   embeddingStatus?: string;
   embeddingError?: string | null;
   embeddingModel?: string | null;
@@ -47,7 +48,7 @@ const filters = [
   { id: 'disabled', label: 'Đã tắt' },
 ] as const;
 type Filter = (typeof filters)[number]['id'];
-type Sort = 'upload' | 'name' | 'words' | 'chunks';
+type Sort = 'upload' | 'name' | 'words' | 'chunks' | 'retrievals';
 const statusOf = (document: KnowledgeDocument): Exclude<Filter, 'all'> =>
   !document.enabled
     ? 'disabled'
@@ -218,8 +219,10 @@ export function KnowledgeLibrary({
             ? a.words - b.words
             : sort === 'chunks'
               ? a.document._count.chunks - b.document._count.chunks
-              : (a.document.createdAt ? new Date(a.document.createdAt).getTime() : 0) -
-                (b.document.createdAt ? new Date(b.document.createdAt).getTime() : 0);
+              : sort === 'retrievals'
+                ? (a.document.retrievalCount ?? 0) - (b.document.retrievalCount ?? 0)
+                : (a.document.createdAt ? new Date(a.document.createdAt).getTime() : 0) -
+                  (b.document.createdAt ? new Date(b.document.createdAt).getTime() : 0);
       return (descending ? -order : order) || a.document.id.localeCompare(b.document.id);
     });
   const chooseSort = (next: Sort) => {
@@ -323,6 +326,7 @@ export function KnowledgeLibrary({
             <option value="name">Sắp xếp: Tên tài liệu</option>
             <option value="words">Sắp xếp: Số từ</option>
             <option value="chunks">Sắp xếp: Số chunk</option>
+            <option value="retrievals">Sắp xếp: Lượt truy xuất</option>
           </select>
           <button
             type="button"
@@ -436,6 +440,16 @@ export function KnowledgeLibrary({
                   <th
                     scope="col"
                     aria-sort={
+                      sort === 'retrievals' ? (descending ? 'descending' : 'ascending') : undefined
+                    }
+                    title="Mỗi lần chạy AI có truy xuất tài liệu tính 1 lượt, gồm cả Thử AI; không cộng thêm khi dùng cache. Thống kê từ lịch sử đã lưu."
+                    className="whitespace-nowrap px-3 py-3 font-medium"
+                  >
+                    {header('Lượt truy xuất', 'retrievals')}
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={
                       sort === 'upload' ? (descending ? 'descending' : 'ascending') : undefined
                     }
                     className="whitespace-nowrap px-3 py-3 font-medium"
@@ -523,6 +537,12 @@ export function KnowledgeLibrary({
                     </td>
                     <td className="px-3 py-3 tabular-nums">
                       {compact.format(document._count.chunks).toLowerCase()}
+                    </td>
+                    <td
+                      title={(document.retrievalCount ?? 0).toLocaleString('vi-VN')}
+                      className="whitespace-nowrap px-3 py-3 tabular-nums"
+                    >
+                      {(document.retrievalCount ?? 0).toLocaleString('vi-VN')}
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-[11px] tabular-nums">
                       <time dateTime={document.createdAt}>{dateLabel(document.createdAt)}</time>

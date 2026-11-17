@@ -6,6 +6,7 @@ import { canTranslateMessage, getTranslatableMessageText } from '../utils/messag
 interface TranslateMessageResponse {
   translation?: string;
   alreadyTargetLanguage?: boolean;
+  skipped?: boolean;
 }
 
 export interface MessageTranslationState {
@@ -16,7 +17,7 @@ export interface MessageTranslationState {
   notice?: string;
 }
 
-const MAX_CONCURRENT_TRANSLATIONS = 2;
+const MAX_CONCURRENT_TRANSLATIONS = 1;
 
 export function useMessageTranslations() {
   const [translations, setTranslations] = useState<Record<string, MessageTranslationState>>({});
@@ -31,6 +32,18 @@ export function useMessageTranslations() {
   const processNextInQueue = useCallback(() => {
     while (activeWorkersRef.current < MAX_CONCURRENT_TRANSLATIONS && queueRef.current.length > 0) {
       const message = queueRef.current.shift()!;
+      if (message.translatedContent) {
+        inFlightIdsRef.current.delete(message.id);
+        setTranslations((previous) => ({
+          ...previous,
+          [message.id]: {
+            text: message.translatedContent || undefined,
+            isLoading: false,
+            isVisible: true,
+          },
+        }));
+        continue;
+      }
       const text = getTranslatableMessageText(message);
       if (!text) {
         inFlightIdsRef.current.delete(message.id);
@@ -52,7 +65,16 @@ export function useMessageTranslations() {
           if (response.alreadyTargetLanguage) {
             setTranslations((prev) => ({
               ...prev,
-              [message.id]: { isLoading: false, isVisible: true, notice: 'Tin nhắn đã là tiếng Việt.' },
+              [message.id]: {
+                isLoading: false,
+                isVisible: true,
+                notice: 'Tin nhắn đã là tiếng Việt.',
+              },
+            }));
+          } else if (response.skipped) {
+            setTranslations((previous) => ({
+              ...previous,
+              [message.id]: { isLoading: false, isVisible: false },
             }));
           } else if (response.translation) {
             message.translatedContent = response.translation;
@@ -82,64 +104,76 @@ export function useMessageTranslations() {
     }
   }, []);
 
-  const translateMessages = useCallback((messages: CentralMessage[]) => {
-    const toQueue: CentralMessage[] = [];
-    const pendingUpdates: Record<string, MessageTranslationState> = {};
+  const translateMessages = useCallback(
+    (messages: CentralMessage[]) => {
+      const toQueue: CentralMessage[] = [];
+      const pendingUpdates: Record<string, MessageTranslationState> = {};
 
-    messages.forEach((msg) => {
-      if (msg.translatedContent) {
-        if (!translationsRef.current[msg.id]?.text) {
-          pendingUpdates[msg.id] = {
-            text: msg.translatedContent,
-            isLoading: false,
-            isVisible: true,
-          };
+      messages.forEach((msg) => {
+        if (msg.translatedContent) {
+          if (
+            translationsRef.current[msg.id]?.text !== msg.translatedContent ||
+            translationsRef.current[msg.id]?.isLoading
+          ) {
+            pendingUpdates[msg.id] = {
+              text: msg.translatedContent,
+              isLoading: false,
+              isVisible: true,
+            };
+          }
+          return;
         }
-        return;
+
+        if (!canTranslateMessage(msg)) return;
+        if (inFlightIdsRef.current.has(msg.id)) return;
+        if (translationsRef.current[msg.id]?.text) return;
+
+        inFlightIdsRef.current.add(msg.id);
+        pendingUpdates[msg.id] = { isLoading: true, isVisible: true };
+        toQueue.push(msg);
+      });
+
+      if (Object.keys(pendingUpdates).length > 0) {
+        setTranslations((prev) => ({ ...prev, ...pendingUpdates }));
       }
 
-      if (!canTranslateMessage(msg)) return;
-      if (inFlightIdsRef.current.has(msg.id)) return;
-      if (translationsRef.current[msg.id]?.text) return;
+      if (toQueue.length > 0) {
+        // Translate latest messages first
+        const sortedQueue = [...toQueue].reverse();
+        queueRef.current.push(...sortedQueue);
+        processNextInQueue();
+      }
+    },
+    [processNextInQueue],
+  );
 
-      inFlightIdsRef.current.add(msg.id);
-      pendingUpdates[msg.id] = { isLoading: true, isVisible: true };
-      toQueue.push(msg);
-    });
+  const translateMessage = useCallback(
+    async (message: CentralMessage) => {
+      translateMessages([message]);
+    },
+    [translateMessages],
+  );
 
-    if (Object.keys(pendingUpdates).length > 0) {
-      setTranslations((prev) => ({ ...prev, ...pendingUpdates }));
-    }
-
-    if (toQueue.length > 0) {
-      // Translate latest messages first
-      const sortedQueue = [...toQueue].reverse();
-      queueRef.current.push(...sortedQueue);
-      processNextInQueue();
-    }
-  }, [processNextInQueue]);
-
-  const translateMessage = useCallback(async (message: CentralMessage) => {
-    translateMessages([message]);
-  }, [translateMessages]);
-
-  const toggleTranslation = useCallback(async (message: CentralMessage) => {
-    const current = translationsRef.current[message.id];
-    const persistedText = current?.text || message.translatedContent || undefined;
-    if (current?.isLoading) return;
-    if (persistedText) {
-      setTranslations((previous) => ({
-        ...previous,
-        [message.id]: {
-          text: persistedText,
-          isLoading: false,
-          isVisible: !(previous[message.id]?.isVisible ?? false),
-        },
-      }));
-      return;
-    }
-    await translateMessage(message);
-  }, [translateMessage]);
+  const toggleTranslation = useCallback(
+    async (message: CentralMessage) => {
+      const current = translationsRef.current[message.id];
+      const persistedText = current?.text || message.translatedContent || undefined;
+      if (current?.isLoading) return;
+      if (persistedText) {
+        setTranslations((previous) => ({
+          ...previous,
+          [message.id]: {
+            text: persistedText,
+            isLoading: false,
+            isVisible: !(previous[message.id]?.isVisible ?? false),
+          },
+        }));
+        return;
+      }
+      await translateMessage(message);
+    },
+    [translateMessage],
+  );
 
   return { translations, toggleTranslation, translateMessage, translateMessages };
 }

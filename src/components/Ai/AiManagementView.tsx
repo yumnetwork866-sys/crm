@@ -32,6 +32,9 @@ import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
 import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import { KnowledgeDocumentEditor, type KnowledgeDraft } from './KnowledgeDocumentEditor';
 import { defaultChunkSettings } from '../../../shared/knowledgeChunking';
+import type { AiTraceStep } from '../../../shared/aiTrace';
+import { streamTestAi } from './testAiStream';
+import { AiTestTracePanel } from './AiTestTracePanel';
 import {
   assistantConfigurationFields,
   ragConfigurationFields,
@@ -78,6 +81,8 @@ interface AiRun {
   createdAt: string;
 }
 interface TestResult {
+  trace?: AiTraceStep[];
+  sourceIds?: string[];
   response: unknown;
   suggestions: string[];
   valid: boolean;
@@ -280,6 +285,8 @@ export const AiManagementView: React.FC = () => {
   const [question, setQuestion] = useState('');
   const [testConversation, setTestConversation] = useState<TestChatMessage[]>([]);
   const [testPending, setTestPending] = useState(false);
+  const [testTrace, setTestTrace] = useState<AiTraceStep[]>([]);
+  const [traceResult, setTraceResult] = useState<TestResult | null>(null);
   const testInputRef = useRef<HTMLTextAreaElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -467,41 +474,59 @@ export const AiManagementView: React.FC = () => {
     const controller = new AbortController();
     testController.current = controller;
     setTestPending(true);
+    setTestTrace([]);
+    setTraceResult(null);
     setTestError(null);
     setTestConversation((previous) => [...previous, customerMessage]);
     setQuestion('');
     try {
-      const data = await api.post<Record<string, any>>(
-        '/ai/test',
-        {
-          messages: [...testConversation.slice(-14), customerMessage].map(
-            ({ sender, content }) => ({ sender, content }),
-          ),
+      const steps: AiTraceStep[] = [];
+      const data = await streamTestAi(
+        [...testConversation.slice(-14), customerMessage].map(({ sender, content }) => ({
+          sender,
+          content,
+        })),
+        controller.signal,
+        (step) => {
+          if (controller.signal.aborted) return;
+          const index = steps.findIndex((previous) => previous.id === step.id);
+          if (index < 0) steps.push(step);
+          else steps[index] = step;
+          setTestTrace([...steps]);
         },
-        { signal: controller.signal },
       );
       if (controller.signal.aborted) return;
       const result: TestResult = {
         response: data,
         ...inspectSuggestionResponse(data),
-        model: data.model,
-        runId: data.runId,
-        durationMs: data.durationMs,
-        sources: data.sources || [],
-        answer: data.answer,
-        shouldAutoReply: data.shouldAutoReply,
-        reason: data.reason,
+        model: data.model as string,
+        runId: data.runId as string,
+        durationMs: data.durationMs as number,
+        sources: (data.sources || []) as KnowledgeSource[],
+        answer: data.answer as string,
+        shouldAutoReply: data.shouldAutoReply as boolean,
+        reason: data.reason as string,
+        sourceIds: data.sourceIds as string[],
+        trace: [...steps],
       };
       if (!result.valid || typeof result.answer !== 'string' || !result.answer.trim()) {
         throw new Error('AI chưa tạo được câu trả lời hợp lệ. Bạn có thể thử gửi lại.');
       }
       const answer = result.answer;
+      setTraceResult(result);
       setTestConversation((previous) => [
         ...previous,
         { sender: 'agent', content: answer, result },
       ]);
     } catch (requestError) {
       if (!controller.signal.aborted) {
+        setTestTrace((previous) =>
+          previous.map((step) =>
+            step.status === 'running'
+              ? { ...step, status: 'error', detail: messageOf(requestError) }
+              : step,
+          ),
+        );
         setTestConversation((previous) => previous.slice(0, -1));
         setQuestion(customerMessage.content);
         setTestError({
@@ -521,6 +546,8 @@ export const AiManagementView: React.FC = () => {
     testController.current?.abort();
     testController.current = null;
     setTestPending(false);
+    setTestTrace([]);
+    setTraceResult(null);
     setTestConversation([]);
     setQuestion('');
     setTestError(null);
@@ -919,148 +946,162 @@ export const AiManagementView: React.FC = () => {
       )}
 
       {tab === 'test' && (
-        <section className="flex h-[calc(100dvh-240px)] min-h-[480px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-[#efeae2] shadow-sm">
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-[#f0f2f5] px-4 py-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-emerald-700">
-                {profileQuery.data?.avatarUrl ? (
-                  <img
-                    src={profileQuery.data.avatarUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Bot className="h-6 w-6" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold text-[#111b21]">
-                  {profileQuery.data?.name || 'Trợ lý AI'}
-                </h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={resetTestConversation}
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#54656f] hover:bg-slate-200"
-              title="Bắt đầu hội thoại mới"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Hội thoại mới</span>
-            </button>
-          </header>
-          <div
-            ref={chatEndRef}
-            role="log"
-            aria-label="Hội thoại thử AI"
-            aria-live="polite"
-            aria-busy={testPending}
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 lg:px-[10%]"
-          >
-            {testConversation.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`min-w-0 max-w-[90%] rounded-[7.5px] px-3 py-2 shadow-sm sm:max-w-[75%] ${message.sender === 'customer' ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'}`}
-                >
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#111b21]">
-                    {message.content}
-                  </p>
-                  {message.result && (
-                    <details className="mt-1 border-t border-black/5 pt-1 text-[11px] text-[#667781]">
-                      <summary className="cursor-pointer select-none py-1">
-                        {message.result.sources.length} nguồn · Chi tiết phản hồi
-                      </summary>
-                      <div className="mt-2 space-y-2 pb-1">
-                        <p
-                          className={`inline-flex items-center gap-1 rounded px-2 py-1 ${message.result.shouldAutoReply ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                        >
-                          <ShieldCheck className="h-3 w-3" />
-                          {message.result.shouldAutoReply
-                            ? 'Đủ điều kiện auto-reply'
-                            : 'Cần nhân viên duyệt'}
-                        </p>
-                        <p>{message.result.reason}</p>
-                        <Sources sources={message.result.sources} />
-                        <p>
-                          {message.result.model}
-                          {typeof message.result.durationMs === 'number'
-                            ? ` · ${(message.result.durationMs / 1000).toFixed(1)}s`
-                            : ''}
-                        </p>
-                      </div>
-                    </details>
+        <div className="grid gap-4 lg:h-[calc(100dvh-240px)] lg:min-h-[520px] lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+          <section className="flex h-[calc(100dvh-240px)] min-h-[480px] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-[#efeae2] shadow-sm lg:h-auto lg:min-h-0">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-[#f0f2f5] px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-emerald-700">
+                  {profileQuery.data?.avatarUrl ? (
+                    <img
+                      src={profileQuery.data.avatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Bot className="h-6 w-6" />
                   )}
                 </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-[#111b21]">
+                    {profileQuery.data?.name || 'Trợ lý AI'}
+                  </h2>
+                </div>
               </div>
-            ))}
-            {testPending && (
-              <div className="flex w-fit items-center gap-2 rounded-lg rounded-tl-none bg-white px-4 py-3 text-xs text-[#667781] shadow-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                Đang soạn tin…
-              </div>
-            )}
-            {testError && (
-              <div
-                role="alert"
-                className="mx-auto max-w-lg rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"
-              >
-                <p>{testError.message}</p>
-                <p className="mt-1">Tin nhắn được giữ trong ô nhập để bạn gửi lại.</p>
-              </div>
-            )}
-          </div>
-          <div className="shrink-0 border-t border-slate-200 bg-[#f0f2f5]">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void testAi();
-              }}
-              className="flex items-end gap-3 px-3 py-3 sm:px-5"
-            >
-              <label htmlFor="ai-test-question" className="sr-only">
-                Tin nhắn của khách
-              </label>
-              <textarea
-                ref={testInputRef}
-                id="ai-test-question"
-                value={question}
-                maxLength={2000}
-                required
-                rows={1}
-                disabled={testPending || !canManage}
-                onChange={(event) => {
-                  setQuestion(event.target.value);
-                  event.currentTarget.style.height = 'auto';
-                  event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`;
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    void testAi();
-                  }
-                }}
-                placeholder={canManage ? 'Nhập tin nhắn…' : 'Bạn cần quyền quản lý AI để chat thử.'}
-                className="min-h-11 max-h-[120px] flex-1 resize-none rounded-lg border-0 bg-white px-4 py-3 text-sm leading-5 text-[#111b21] outline-none placeholder:text-[#8696a0] focus:ring-2 focus:ring-emerald-200 disabled:opacity-60"
-              />
               <button
-                type="submit"
-                disabled={testPending || !question.trim() || !canManage}
-                aria-label="Gửi tin nhắn"
-                title="Gửi tin nhắn"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1fa855] text-white transition hover:bg-[#1a924a] disabled:cursor-not-allowed disabled:bg-slate-300"
+                type="button"
+                onClick={resetTestConversation}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#54656f] hover:bg-slate-200"
+                title="Bắt đầu hội thoại mới"
               >
-                {testPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline">Hội thoại mới</span>
               </button>
-            </form>
-          </div>
-        </section>
+            </header>
+            <div
+              ref={chatEndRef}
+              role="log"
+              aria-label="Hội thoại thử AI"
+              aria-live="polite"
+              aria-busy={testPending}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 lg:px-[10%]"
+            >
+              {testConversation.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`min-w-0 max-w-[90%] rounded-[7.5px] px-3 py-2 shadow-sm sm:max-w-[75%] ${message.sender === 'customer' ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'}`}
+                  >
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#111b21]">
+                      {message.content}
+                    </p>
+                    {message.result && (
+                      <details className="mt-1 border-t border-black/5 pt-1 text-[11px] text-[#667781]">
+                        <summary className="cursor-pointer select-none py-1">
+                          {message.result.sources.length} nguồn · Chi tiết phản hồi
+                        </summary>
+                        <div className="mt-2 space-y-2 pb-1">
+                          <p
+                            className={`inline-flex items-center gap-1 rounded px-2 py-1 ${message.result.shouldAutoReply ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                          >
+                            <ShieldCheck className="h-3 w-3" />
+                            {message.result.shouldAutoReply
+                              ? 'Đủ điều kiện auto-reply'
+                              : 'Cần nhân viên duyệt'}
+                          </p>
+                          <p>{message.result.reason}</p>
+                          <Sources sources={message.result.sources} />
+                          <p>
+                            {message.result.model}
+                            {typeof message.result.durationMs === 'number'
+                              ? ` · ${(message.result.durationMs / 1000).toFixed(1)}s`
+                              : ''}
+                          </p>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {testPending && (
+                <div className="flex w-fit items-center gap-2 rounded-lg rounded-tl-none bg-white px-4 py-3 text-xs text-[#667781] shadow-sm">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                  Đang soạn tin…
+                </div>
+              )}
+              {testError && (
+                <div
+                  role="alert"
+                  className="mx-auto max-w-lg rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"
+                >
+                  <p>{testError.message}</p>
+                  <p className="mt-1">Tin nhắn được giữ trong ô nhập để bạn gửi lại.</p>
+                </div>
+              )}
+            </div>
+            <div className="shrink-0 border-t border-slate-200 bg-[#f0f2f5]">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void testAi();
+                }}
+                className="flex items-end gap-3 px-3 py-3 sm:px-5"
+              >
+                <label htmlFor="ai-test-question" className="sr-only">
+                  Tin nhắn của khách
+                </label>
+                <textarea
+                  ref={testInputRef}
+                  id="ai-test-question"
+                  value={question}
+                  maxLength={2000}
+                  required
+                  rows={1}
+                  disabled={testPending || !canManage}
+                  onChange={(event) => {
+                    setQuestion(event.target.value);
+                    event.currentTarget.style.height = 'auto';
+                    event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault();
+                      void testAi();
+                    }
+                  }}
+                  placeholder={
+                    canManage ? 'Nhập tin nhắn…' : 'Bạn cần quyền quản lý AI để chat thử.'
+                  }
+                  className="min-h-11 max-h-[120px] flex-1 resize-none rounded-lg border-0 bg-white px-4 py-3 text-sm leading-5 text-[#111b21] outline-none placeholder:text-[#8696a0] focus:ring-2 focus:ring-emerald-200 disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={testPending || !question.trim() || !canManage}
+                  aria-label="Gửi tin nhắn"
+                  title="Gửi tin nhắn"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1fa855] text-white transition hover:bg-[#1a924a] disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {testPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </button>
+              </form>
+            </div>
+          </section>
+          <AiTestTracePanel
+            steps={testTrace}
+            pending={testPending}
+            result={traceResult}
+            error={testError?.message}
+          />
+        </div>
       )}
 
       {tab === 'knowledge' && (

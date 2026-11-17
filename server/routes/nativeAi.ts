@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { conversationRetrievalQuery } from '../services/ai/conversationRetrieval';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma';
@@ -28,6 +29,7 @@ import { createLogger } from '../lib/logger';
 import { resolveRetrievalSettings } from '../../shared/knowledgeRetrievalSettings';
 import { validateRerankSettings } from '../services/ai/rerankService';
 import { updateKnowledgeChunk } from '../services/ai/knowledgeChunkEditor';
+import type { AiTestEvent, AiTraceStep } from '../../shared/aiTrace';
 
 const router = Router();
 const log = createLogger('ai-management');
@@ -119,12 +121,30 @@ router.put('/retrieval-settings', requirePermission(Permission.AI_MANAGE), async
 router.get('/models', async (_req, res) => res.json(await listAiModels()));
 router.get('/knowledge', async (_req, res) => {
   try {
+    const documents = await prisma.aiKnowledgeDocument.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      include: { _count: { select: { chunks: true } } },
+    });
+    // Count each run once per document, even when several chunks were retrieved.
+    const counts = documents.length
+      ? await prisma.$queryRaw<{ documentId: string; retrievalCount: number }[]>(Prisma.sql`
+          SELECT source->>'documentId' AS "documentId",
+            COUNT(DISTINCT run.id)::int AS "retrievalCount"
+          FROM "AiRun" run
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(run.sources) = 'array' THEN run.sources ELSE '[]'::jsonb END
+          ) AS source
+          WHERE source->>'documentId' IN (${Prisma.join(documents.map((document) => document.id))})
+          GROUP BY source->>'documentId'
+        `)
+      : [];
+    const countByDocument = new Map(counts.map((row) => [row.documentId, row.retrievalCount]));
     return res.json(
-      await prisma.aiKnowledgeDocument.findMany({
-        orderBy: { updatedAt: 'desc' },
-        take: 200,
-        include: { _count: { select: { chunks: true } } },
-      }),
+      documents.map((document) => ({
+        ...document,
+        retrievalCount: countByDocument.get(document.id) ?? 0,
+      })),
     );
   } catch (error) {
     return failure(res, error);
@@ -318,6 +338,44 @@ router.post(
     try {
       // Test always uses supplied sample messages; it never reads a real conversation or sends to Meta.
       const { customerId: _customerId, businessPhoneNumberId: _phoneId, ...sample } = parsed.data;
+      if (req.get('accept')?.includes('application/x-ndjson')) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        const send = (event: AiTestEvent) => {
+          if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
+        };
+        const steps = new Map<string, AiTraceStep>();
+        const heartbeat = setInterval(() => send({ type: 'heartbeat' }), 15000);
+        const stopHeartbeat = () => clearInterval(heartbeat);
+        res.once('close', stopHeartbeat);
+        try {
+          const result = await generateNativeAi(sample, 'test', (step) => {
+            steps.set(step.id, step);
+            send({ type: 'step', step });
+          });
+          send({ type: 'result', result: { ...result } });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Không chạy được thử AI.';
+          for (const step of steps.values()) {
+            if (step.status === 'running')
+              send({ type: 'step', step: { ...step, status: 'error', detail: message } });
+          }
+          send({
+            type: 'error',
+            error: message,
+            ...(error instanceof AiFailure
+              ? { code: error.code, stage: error.stage, runId: error.runId }
+              : {}),
+          });
+        } finally {
+          stopHeartbeat();
+          res.off('close', stopHeartbeat);
+          res.end();
+        }
+        return;
+      }
       return res.json(await generateNativeAi(sample, 'test'));
     } catch (error) {
       return failure(res, error);

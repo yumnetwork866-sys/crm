@@ -3,6 +3,7 @@ import { AiFailure } from './contracts';
 import type { KnowledgeSource } from './knowledgeRetrieval';
 import { listAiModels } from './ollamaModels';
 import { usesRerank, type RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
+import type { AiTraceObserver } from '../../../shared/aiTrace';
 
 export async function validateRerankSettings(settings: RetrievalSettings) {
   if (!usesRerank(settings)) return;
@@ -22,8 +23,24 @@ export async function rerankKnowledge(
   sources: KnowledgeSource[],
   settings: RetrievalSettings,
   timeoutMs = 45000,
+  trace?: AiTraceObserver,
 ): Promise<KnowledgeSource[]> {
-  if (!sources.length) return [];
+  if (!sources.length) {
+    trace?.({
+      id: 'rerank',
+      title: 'Rerank',
+      status: 'skipped',
+      detail: 'Không có chunk ứng viên để rerank.',
+    });
+    return [];
+  }
+  const started = Date.now();
+  trace?.({
+    id: 'rerank',
+    title: 'Rerank',
+    status: 'running',
+    values: { model: settings.rerankModel, inputChunks: sources.length },
+  });
   // Reserve space for instructions and output. Keep complete chunks; never truncate their contents.
   let remainingBytes = 24000 - Buffer.byteLength(question, 'utf8');
   const candidates: KnowledgeSource[] = [];
@@ -43,6 +60,14 @@ export async function rerankKnowledge(
       'Đoạn tài liệu quá dài để rerank. Giảm độ dài đoạn trong thiết lập tài liệu.',
       400,
     );
+  trace?.({
+    id: 'rerank',
+    title: 'Rerank',
+    status: 'running',
+    sources: candidates,
+    detail: `${candidates.length}/${sources.length} chunk được đưa vào model (tối đa 20 chunk, ngân sách 24.000 byte).`,
+    values: { model: settings.rerankModel },
+  });
   const schema = z
     .object({
       scores: z
@@ -119,7 +144,7 @@ export async function rerankKnowledge(
         502,
       );
     }
-    return parsed.scores
+    const scored = parsed.scores
       .map(({ index, score }) => ({
         ...candidates[index],
         score,
@@ -127,11 +152,25 @@ export async function rerankKnowledge(
         rerankModel: settings.rerankModel,
         ranking: 'rerank' as const,
       }))
+      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+    const selected = scored
       .filter(
         (source) => !settings.scoreThresholdEnabled || source.score >= settings.scoreThreshold,
       )
-      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
       .slice(0, settings.topK);
+    trace?.({
+      id: 'rerank',
+      title: 'Rerank',
+      status: 'completed',
+      durationMs: Date.now() - started,
+      sources: scored,
+      detail: `Chấm điểm ${scored.length} chunk; giữ ${selected.length} sau ngưỡng điểm và Top K.`,
+      values: {
+        model: settings.rerankModel,
+        selectedChunkIds: selected.map((source) => source.id),
+      },
+    });
+    return selected;
   } catch (error) {
     if (signal.aborted)
       throw new AiFailure(

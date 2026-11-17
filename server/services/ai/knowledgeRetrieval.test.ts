@@ -41,6 +41,34 @@ beforeEach(() => {
 });
 
 describe('hybrid knowledge retrieval', () => {
+  it('traces candidates discarded by the weighted threshold separately from selected sources', async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({
+      embeddingModel: 'test-model',
+      embeddingDimensions: 768,
+      retrievalSettings: {
+        ...defaultRetrievalSettings,
+        mode: 'hybrid',
+        hybridStrategy: 'weighted',
+        scoreThreshold: 0.55,
+      },
+    } as any);
+    vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(2);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([source('A', 1)])
+      .mockResolvedValueOnce([source('A', 0.8), source('B', 0.5)]);
+    const trace = vi.fn();
+    const result = await retrieveKnowledge('Policy', prisma, trace);
+    expect(result.map((item) => item.id)).toEqual(['A']);
+    const steps = trace.mock.calls.map(([step]) => step);
+    expect(
+      steps.find((step) => step.id === 'fusion').sources.map((item: KnowledgeSource) => item.id),
+    ).toEqual(['A', 'B']);
+    expect(steps.find((step) => step.id === 'rerank').status).toBe('skipped');
+    expect(
+      steps.find((step) => step.id === 'vector' && step.status === 'completed').sources[0]
+        .semanticScore,
+    ).toBe(0.8);
+  });
   it.each(['keyword', 'vector', 'hybrid'] as const)(
     'reranks %s candidates before applying Top K',
     async (mode) => {

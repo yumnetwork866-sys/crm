@@ -73,6 +73,26 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('native AI generation', () => {
+  it('emits selected chunks, model output, validation and completion for live test diagnostics', async () => {
+    const trace = vi.fn();
+    const result = await generateNativeAi(input, 'test', trace);
+    const steps = trace.mock.calls.map(([step]) => step);
+    expect(retrieveKnowledge).toHaveBeenCalledWith(input.messages[0].content, prisma, trace);
+    expect(steps.find((step) => step.id === 'selection').sources).toEqual([source]);
+    expect(
+      steps.find((step) => step.id === 'generation' && step.status === 'completed').values
+        .rawOutput,
+    ).toBe(JSON.stringify(output));
+    expect(
+      steps.find((step) => step.id === 'validation' && step.status === 'completed').values
+        .sourceIds,
+    ).toEqual(['chunk-1']);
+    expect(steps.at(-1)).toMatchObject({
+      id: 'audit',
+      status: 'completed',
+      values: { runId: result.runId },
+    });
+  });
   it('calls Ollama directly with a schema, validates output, and stores diagnostics', async () => {
     const result = await generateNativeAi(input, 'test');
     expect(result.provider).toBe('ollama');

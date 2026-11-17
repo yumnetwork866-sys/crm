@@ -238,7 +238,23 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const templatePickerRef = useRef<HTMLDivElement>(null);
+  const templateListRef = useRef<HTMLDivElement>(null);
+  const selectedTemplateRef = useRef<HTMLDivElement>(null);
   const templateButtonRef = useRef<HTMLButtonElement>(null);
+  const selectedTemplateId = filteredSlashTemplates[activeSlashIndex]?.id;
+
+  // Keep keyboard selection visible without resetting manual scrolling on unrelated updates.
+  useEffect(() => {
+    if (!isTemplatePickerActive || isSuggestionsOpen) return;
+    const list = templateListRef.current;
+    const selected = selectedTemplateRef.current;
+    if (!list || !selected) return;
+    const top = list.getBoundingClientRect().top + list.clientTop;
+    const bottom = top + list.clientHeight;
+    const row = selected.getBoundingClientRect();
+    if (row.top < top) list.scrollTop += row.top - top;
+    else if (row.bottom > bottom) list.scrollTop += row.bottom - bottom;
+  }, [activeSlashIndex, selectedTemplateId, isTemplatePickerActive, isSuggestionsOpen]);
 
   useEffect(() => {
     if (isSuggestionsOpen || (!showEmojiPicker && !isTemplatePickerActive)) return;
@@ -366,7 +382,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
             </div>
           </div>
 
-          <div className="space-y-1 py-1 overflow-y-auto flex-1 pr-1">
+          <div ref={templateListRef} className="space-y-1 py-1 overflow-y-auto overscroll-contain min-h-0 flex-1 pr-1">
             {filteredSlashTemplates.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-400">
                 Không tìm thấy mẫu tin nhắn phù hợp
@@ -377,11 +393,7 @@ export const MessageComposerBar: React.FC<MessageComposerBarProps> = ({
                 return (
                   <div
                     key={tmpl.id || tmpl.code}
-                    ref={(el) => {
-                      if (isSelected) {
-                        el?.scrollIntoView({ block: 'nearest' });
-                      }
-                    }}
+                    ref={isSelected ? selectedTemplateRef : undefined}
                     onClick={() => handleApplyTemplate(tmpl.content)}
                     className={`p-2 rounded-xl cursor-pointer transition group ${
                       isSelected

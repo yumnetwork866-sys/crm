@@ -21,12 +21,16 @@ import reportRoutes from './routes/reports';
 import catalogRoutes from './routes/catalogRoutes';
 import aiProfileRoutes from './routes/aiProfile';
 import { processRecipientById, startCampaignWorker } from './services/campaignWorker';
-import { processWebhookPayload, syncExistingWhatsAppCustomersToCrm } from './services/webhookService';
+import {
+  processWebhookPayload,
+  syncExistingWhatsAppCustomersToCrm,
+} from './services/webhookService';
 import { autoReplyWithNativeAi } from './services/ai/nativeAutoReply';
 import nativeAiRoutes from './routes/nativeAi';
 import { startKnowledgeIndexer } from './services/ai/knowledgeIndexer';
 import { fetchAndCacheMetaMedia } from './services/metaApiClient';
 import { getQueueHealth, initMessageQueues } from './services/queueService';
+import { processIncomingTranslation } from './services/messageTranslationService';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -53,25 +57,29 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.set('trust proxy', true);
 
 // 1. Body Parser & Security Middleware (Supports JSON, text/plain, and raw Meta payloads)
-app.use(express.json({
-  limit: '25mb',
-  type: ['application/json', 'text/plain', '*/*'],
-  verify: (req, res, buffer) => {
-    // Meta signs the exact request bytes. Retain them only for signed requests so
-    // the webhook middleware can verify the body before processing the payload.
-    if (req.headers['x-hub-signature-256']) {
-      (res as express.Response).locals.metaWebhookRawBody = buffer;
-    }
-  }
-}));
+app.use(
+  express.json({
+    limit: '25mb',
+    type: ['application/json', 'text/plain', '*/*'],
+    verify: (req, res, buffer) => {
+      // Meta signs the exact request bytes. Retain them only for signed requests so
+      // the webhook middleware can verify the body before processing the payload.
+      if (req.headers['x-hub-signature-256']) {
+        (res as express.Response).locals.metaWebhookRawBody = buffer;
+      }
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-app.use(helmet({
-  contentSecurityPolicy: false, // Allow inline scripts for dev Vite proxy if served together
-  // Facebook Embedded Signup uses a cross-origin popup that must retain window.opener
-  // so the SDK can return its authorization result and WA_EMBEDDED_SIGNUP events.
-  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Allow inline scripts for dev Vite proxy if served together
+    // Facebook Embedded Signup uses a cross-origin popup that must retain window.opener
+    // so the SDK can return its authorization result and WA_EMBEDDED_SIGNUP events.
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  }),
+);
 
 // 2. CORS Security
 const allowedOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'];
@@ -79,11 +87,13 @@ if (process.env.APP_URL) {
   allowedOrigins.push(process.env.APP_URL);
 }
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-}));
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  }),
+);
 
 // 3. META WEBHOOK & META API ROUTES (Bypasses rate limiters for 100% reliable Facebook Meta delivery)
 app.use('/webhook', metaRoutes);
@@ -108,7 +118,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
   validate: false,
   keyGenerator: customKeyGenerator,
-  message: { error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau 15 phút.' }
+  message: { error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau 15 phút.' },
 });
 app.use('/api/', limiter);
 
@@ -118,7 +128,7 @@ const authLimiter = rateLimit({
   max: 50,
   validate: false,
   keyGenerator: customKeyGenerator,
-  message: { error: 'Số lần thử đăng nhập quá nhiều. Vui lòng thử lại sau 15 phút.' }
+  message: { error: 'Số lần thử đăng nhập quá nhiều. Vui lòng thử lại sau 15 phút.' },
 });
 app.use('/api/auth/login', authLimiter);
 
@@ -135,7 +145,7 @@ app.get('/api/health', async (_req, res) => {
       database: 'connected',
       dbLatencyMs,
       queue: getQueueHealth(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
     log.error({ err: err }, '[HEALTHCHECK ERROR] Database disconnected:');
@@ -144,7 +154,7 @@ app.get('/api/health', async (_req, res) => {
       system: 'YumNetwork CRM Backend API',
       database: 'disconnected',
       error: err?.message || 'Không thể kết nối cơ sở dữ liệu PostgreSQL.',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -190,7 +200,12 @@ async function setupFrontend() {
     app.use(vite.middlewares);
 
     app.get('/{*splat}', async (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+      if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/uploads') ||
+        req.path.startsWith('/webhook') ||
+        req.path.startsWith('/webhooks')
+      ) {
         return next();
       }
       try {
@@ -206,18 +221,25 @@ async function setupFrontend() {
     });
   } else {
     const distPath = path.resolve(process.cwd(), 'dist');
-    app.use(express.static(distPath, {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('index.html')) {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        }
-      },
-    }));
+    app.use(
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      }),
+    );
 
     app.get('/{*splat}', (req, res, next) => {
-      if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/webhook') || req.path.startsWith('/webhooks')) {
+      if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/uploads') ||
+        req.path.startsWith('/webhook') ||
+        req.path.startsWith('/webhooks')
+      ) {
         return next();
       }
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -241,15 +263,23 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   log.error({ err: err }, 'Unhandled Express Error:');
   res.status(500).json({
     error: 'Lỗi máy chủ nội bộ',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
 // 8. Start Server with HMR support
 httpServer.listen(PORT, async () => {
-  log.info({ port: PORT, mode: process.env.NODE_ENV || 'development', frontend: process.env.SERVE_FRONTEND === 'false' ? 'disabled' : 'enabled' }, 'Server ready');
+  log.info(
+    {
+      port: PORT,
+      mode: process.env.NODE_ENV || 'development',
+      frontend: process.env.SERVE_FRONTEND === 'false' ? 'disabled' : 'enabled',
+    },
+    'Server ready',
+  );
   startKnowledgeIndexer();
   await initMessageQueues({
+    onMessageTranslation: processIncomingTranslation,
     onWebhookPayload: async ({ payload }) => {
       await processWebhookPayload(payload);
     },

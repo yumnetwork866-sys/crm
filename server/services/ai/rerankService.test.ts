@@ -43,6 +43,21 @@ const respond = (scores: unknown) =>
     );
 
 describe('Ollama reranking', () => {
+  it('traces all reranked candidates before threshold and Top K discard them', async () => {
+    respond([
+      { index: 0, score: 0.1 },
+      { index: 1, score: 0.9 },
+    ]);
+    const trace = vi.fn();
+    const result = await rerankKnowledge('Returns?', sources, settings, 45000, trace);
+    const done = trace.mock.calls.map(([step]) => step).find((step) => step.status === 'completed');
+    expect(done.sources.map((source: KnowledgeSource) => source.id)).toEqual([
+      'returns',
+      'shipping',
+    ]);
+    expect(done.values.selectedChunkIds).toEqual(['returns']);
+    expect(result.map((source) => source.id)).toEqual(['returns']);
+  });
   it('ranks by validated model scores before Top K and keeps source identity', async () => {
     respond([
       { index: 0, score: 0.1 },
