@@ -1,20 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Activity,
+  Send,
+  ShieldCheck,
   ArrowRight,
   BookOpen,
   Bot,
-  CheckCircle2,
   ChevronDown,
-  CircleAlert,
-  Clock3,
   FileText,
   FlaskConical,
   Loader2,
   RefreshCw,
   Save,
   Settings2,
-  Sparkles,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -28,6 +26,8 @@ import { queryKeys } from '../../lib/queryClient';
 import { inspectSuggestionResponse } from './suggestionDiagnostics';
 import { knowledgeFileAccept, readKnowledgeFile } from './knowledgeFile';
 import { KnowledgeLibrary, type KnowledgeDocument } from './KnowledgeLibrary';
+import { ActionToast } from '../Common/ActionToast';
+import { KnowledgeDocumentDetail } from './KnowledgeDocumentDetail';
 import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
 import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import { KnowledgeDocumentEditor, type KnowledgeDraft } from './KnowledgeDocumentEditor';
@@ -89,6 +89,11 @@ interface TestResult {
   answer?: string;
   shouldAutoReply?: boolean;
   reason?: string;
+}
+interface TestChatMessage {
+  sender: 'customer' | 'agent';
+  content: string;
+  result?: TestResult;
 }
 const CONFIG_KEY = ['ai', 'configuration'];
 const KNOWLEDGE_KEY = ['ai', 'knowledge'];
@@ -259,20 +264,38 @@ export const AiManagementView: React.FC = () => {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [documentDraft, setDocumentDraft] = useState(blankDocument);
   const [isDocumentOpen, setIsDocumentOpen] = useState(false);
+  const detailId = searchParams.get('document');
+  const showDocumentDetail = (id: string | null) => {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (id) next.set('document', id);
+      else next.delete('document');
+      return next;
+    });
+  };
   const [documentBusy, setDocumentBusy] = useState(false);
   const [documentError, setDocumentError] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [question, setQuestion] = useState('');
-  const [brand, setBrand] = useState('');
+  const [testConversation, setTestConversation] = useState<TestChatMessage[]>([]);
   const [testPending, setTestPending] = useState(false);
+  const testInputRef = useRef<HTMLTextAreaElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const chat = chatEndRef.current;
+    chat?.scrollTo?.({ top: chat.scrollHeight, behavior: 'smooth' });
+    if (!testPending && tab === 'test') {
+      testInputRef.current?.focus();
+      if (testInputRef.current && !testInputRef.current.value)
+        testInputRef.current.style.height = 'auto';
+    }
+  }, [testConversation, testPending, tab]);
   const [testError, setTestError] = useState<{
     message: string;
     details?: unknown;
     requestId?: string;
   } | null>(null);
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [retrieved, setRetrieved] = useState<KnowledgeSource[] | null>(null);
   const testController = useRef<AbortController | null>(null);
   useEffect(() => () => testController.current?.abort(), []);
 
@@ -329,7 +352,7 @@ export const AiManagementView: React.FC = () => {
           rag: scope !== 'rag' && ragDirty,
         }),
       );
-      setNotice(saved.reindexing ? 'Đã lưu. Đang lập lại chỉ mục.' : 'Đã lưu.');
+      setNotice(saved.reindexing ? 'Đã lưu. Đang reindex.' : 'Đã lưu.');
       if (saved.reindexing) await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
     } catch (saveError) {
       setError(messageOf(saveError));
@@ -388,7 +411,6 @@ export const AiManagementView: React.FC = () => {
       else await api.post('/ai/knowledge', documentDraft);
       await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
       setIsDocumentOpen(false);
-      setNotice('Đã lưu tài liệu. Đang lập chỉ mục ở nền.');
     } catch (saveError) {
       setDocumentError(messageOf(saveError));
     } finally {
@@ -416,7 +438,7 @@ export const AiManagementView: React.FC = () => {
     setError('');
     try {
       await api.post(`/ai/knowledge/${encodeURIComponent(id)}/reindex`);
-      setNotice('Đang lập chỉ mục embedding.');
+      setNotice('Đang indexing.');
       await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
     } catch (indexError) {
       setError(messageOf(indexError));
@@ -439,58 +461,69 @@ export const AiManagementView: React.FC = () => {
       setDocumentBusy(false);
     }
   };
-  const testAi = async (retrieveOnly = false) => {
-    if (!question.trim() || testPending || (!retrieveOnly && !canManage)) return;
+  const testAi = async () => {
+    if (!question.trim() || testController.current || testPending || !canManage) return;
+    const customerMessage: TestChatMessage = { sender: 'customer', content: question.trim() };
     const controller = new AbortController();
     testController.current = controller;
     setTestPending(true);
     setTestError(null);
-    setTestResult(null);
-    setRetrieved(null);
+    setTestConversation((previous) => [...previous, customerMessage]);
+    setQuestion('');
     try {
-      if (retrieveOnly) {
-        const data = await api.post<{ sources: KnowledgeSource[] }>(
-          '/ai/retrieve',
-          { question: question.trim() },
-          { signal: controller.signal },
-        );
-        if (!controller.signal.aborted) setRetrieved(data.sources);
-      } else {
-        const data = await api.post<Record<string, any>>(
-          '/ai/test',
-          {
-            brandName: brand.trim() || undefined,
-            messages: [{ sender: 'customer', content: question.trim() }],
-          },
-          { signal: controller.signal },
-        );
-        const inspected = inspectSuggestionResponse(data);
-        if (!controller.signal.aborted)
-          setTestResult({
-            response: data,
-            ...inspected,
-            model: data.model,
-            runId: data.runId,
-            durationMs: data.durationMs,
-            sources: data.sources || [],
-            answer: data.answer,
-            shouldAutoReply: data.shouldAutoReply,
-            reason: data.reason,
-          });
+      const data = await api.post<Record<string, any>>(
+        '/ai/test',
+        {
+          messages: [...testConversation.slice(-14), customerMessage].map(
+            ({ sender, content }) => ({ sender, content }),
+          ),
+        },
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      const result: TestResult = {
+        response: data,
+        ...inspectSuggestionResponse(data),
+        model: data.model,
+        runId: data.runId,
+        durationMs: data.durationMs,
+        sources: data.sources || [],
+        answer: data.answer,
+        shouldAutoReply: data.shouldAutoReply,
+        reason: data.reason,
+      };
+      if (!result.valid || typeof result.answer !== 'string' || !result.answer.trim()) {
+        throw new Error('AI chưa tạo được câu trả lời hợp lệ. Bạn có thể thử gửi lại.');
       }
+      const answer = result.answer;
+      setTestConversation((previous) => [
+        ...previous,
+        { sender: 'agent', content: answer, result },
+      ]);
     } catch (requestError) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        setTestConversation((previous) => previous.slice(0, -1));
+        setQuestion(customerMessage.content);
         setTestError({
           message: messageOf(requestError),
           ...(requestError instanceof ApiError
             ? { details: requestError.details, requestId: requestError.requestId }
             : {}),
         });
+      }
     } finally {
       if (!controller.signal.aborted) setTestPending(false);
       if (testController.current === controller) testController.current = null;
       void queryClient.invalidateQueries({ queryKey: RUNS_KEY });
     }
+  };
+  const resetTestConversation = () => {
+    testController.current?.abort();
+    testController.current = null;
+    setTestPending(false);
+    setTestConversation([]);
+    setQuestion('');
+    setTestError(null);
   };
   const installedModels = models.data?.models || [];
   const modelOptions = [...new Set([draft?.model || '', ...installedModels])].filter(Boolean);
@@ -532,21 +565,8 @@ export const AiManagementView: React.FC = () => {
             </button>
           ))}
       </nav>
-      {error && (
-        <div role="alert" className="flex gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
-          <CircleAlert className="h-4 w-4 shrink-0" />
-          {error}
-        </div>
-      )}
-      {notice && (
-        <div
-          role="status"
-          className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          {notice}
-        </div>
-      )}
+      {error && <ActionToast message={error} variant="error" onClose={() => setError('')} />}
+      {notice && <ActionToast message={notice} onClose={() => setNotice('')} />}
       {!canManage && (
         <p className="rounded-xl bg-slate-100 px-4 py-3 text-xs text-slate-600">
           Chỉ xem · Cần quyền quản lý AI để chỉnh sửa.
@@ -770,7 +790,7 @@ export const AiManagementView: React.FC = () => {
                           id="rag-model-heading"
                           className="pt-1 text-xs font-semibold text-slate-700"
                         >
-                          Model embedding
+                          Embedding model
                         </h2>
                         <div className="min-w-0">
                           <div className="min-w-0">
@@ -778,7 +798,7 @@ export const AiManagementView: React.FC = () => {
                               className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600"
                               htmlFor="ai-embedding-model"
                             >
-                              Model embedding
+                              Embedding model
                               {draft.embeddingModel === configuration.data?.embeddingModel && (
                                 <span className="font-normal text-slate-400">
                                   {draft.embeddingDimensions} chiều
@@ -801,13 +821,13 @@ export const AiManagementView: React.FC = () => {
                             </select>
                             {draft.embeddingModel !== configuration.data?.embeddingModel ? (
                               <p className="mt-1 text-xs text-amber-700">
-                                Đổi model sẽ lập lại chỉ mục.
+                                Đổi model sẽ reindex tài liệu.
                               </p>
                             ) : (
                               models.data?.connected &&
                               !embeddingModels.includes(draft.embeddingModel) && (
                                 <p className="mt-1 text-xs text-amber-700">
-                                  Model embedding chưa được cài đặt.
+                                  Embedding model chưa được cài đặt.
                                 </p>
                               )
                             )}
@@ -899,162 +919,148 @@ export const AiManagementView: React.FC = () => {
       )}
 
       {tab === 'test' && (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <section className={cardStyle}>
+        <section className="flex h-[calc(100dvh-240px)] min-h-[480px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-[#efeae2] shadow-sm">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-[#f0f2f5] px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-emerald-700">
+                {profileQuery.data?.avatarUrl ? (
+                  <img
+                    src={profileQuery.data.avatarUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Bot className="h-6 w-6" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-[#111b21]">
+                  {profileQuery.data?.name || 'Trợ lý AI'}
+                </h2>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={resetTestConversation}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs text-[#54656f] hover:bg-slate-200"
+              title="Bắt đầu hội thoại mới"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span className="hidden sm:inline">Hội thoại mới</span>
+            </button>
+          </header>
+          <div
+            ref={chatEndRef}
+            role="log"
+            aria-label="Hội thoại thử AI"
+            aria-live="polite"
+            aria-busy={testPending}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 lg:px-[10%]"
+          >
+            {testConversation.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`min-w-0 max-w-[90%] rounded-[7.5px] px-3 py-2 shadow-sm sm:max-w-[75%] ${message.sender === 'customer' ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'}`}
+                >
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-[#111b21]">
+                    {message.content}
+                  </p>
+                  {message.result && (
+                    <details className="mt-1 border-t border-black/5 pt-1 text-[11px] text-[#667781]">
+                      <summary className="cursor-pointer select-none py-1">
+                        {message.result.sources.length} nguồn · Chi tiết phản hồi
+                      </summary>
+                      <div className="mt-2 space-y-2 pb-1">
+                        <p
+                          className={`inline-flex items-center gap-1 rounded px-2 py-1 ${message.result.shouldAutoReply ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
+                        >
+                          <ShieldCheck className="h-3 w-3" />
+                          {message.result.shouldAutoReply
+                            ? 'Đủ điều kiện auto-reply'
+                            : 'Cần nhân viên duyệt'}
+                        </p>
+                        <p>{message.result.reason}</p>
+                        <Sources sources={message.result.sources} />
+                        <p>
+                          {message.result.model}
+                          {typeof message.result.durationMs === 'number'
+                            ? ` · ${(message.result.durationMs / 1000).toFixed(1)}s`
+                            : ''}
+                        </p>
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+            ))}
+            {testPending && (
+              <div className="flex w-fit items-center gap-2 rounded-lg rounded-tl-none bg-white px-4 py-3 text-xs text-[#667781] shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                Đang soạn tin…
+              </div>
+            )}
+            {testError && (
+              <div
+                role="alert"
+                className="mx-auto max-w-lg rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"
+              >
+                <p>{testError.message}</p>
+                <p className="mt-1">Tin nhắn được giữ trong ô nhập để bạn gửi lại.</p>
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 border-t border-slate-200 bg-[#f0f2f5]">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 void testAi();
               }}
-              className="space-y-4"
+              className="flex items-end gap-3 px-3 py-3 sm:px-5"
             >
-              <label htmlFor="ai-test-brand" className="block text-xs font-semibold text-slate-600">
-                Thương hiệu
-                <input
-                  id="ai-test-brand"
-                  value={brand}
-                  maxLength={120}
-                  disabled={testPending}
-                  onChange={(event) => setBrand(event.target.value)}
-                  placeholder="Ví dụ: Actiscar"
-                  className={`${inputStyle} mt-2`}
-                />
-              </label>
-              <label
-                htmlFor="ai-test-question"
-                className="block text-xs font-semibold text-slate-600"
-              >
+              <label htmlFor="ai-test-question" className="sr-only">
                 Tin nhắn của khách
-                <textarea
-                  id="ai-test-question"
-                  value={question}
-                  maxLength={2000}
-                  required
-                  rows={7}
-                  disabled={testPending}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="Nhập tình huống muốn kiểm tra…"
-                  className={`${inputStyle} mt-2 resize-y`}
-                />
               </label>
-              <div className="flex flex-wrap gap-2">
-                {canManage && (
-                  <button
-                    type="submit"
-                    className={primaryButton}
-                    disabled={testPending || !question.trim()}
-                  >
-                    {testPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Tạo gợi ý
-                  </button>
+              <textarea
+                ref={testInputRef}
+                id="ai-test-question"
+                value={question}
+                maxLength={2000}
+                required
+                rows={1}
+                disabled={testPending || !canManage}
+                onChange={(event) => {
+                  setQuestion(event.target.value);
+                  event.currentTarget.style.height = 'auto';
+                  event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 120)}px`;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void testAi();
+                  }
+                }}
+                placeholder={canManage ? 'Nhập tin nhắn…' : 'Bạn cần quyền quản lý AI để chat thử.'}
+                className="min-h-11 max-h-[120px] flex-1 resize-none rounded-lg border-0 bg-white px-4 py-3 text-sm leading-5 text-[#111b21] outline-none placeholder:text-[#8696a0] focus:ring-2 focus:ring-emerald-200 disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={testPending || !question.trim() || !canManage}
+                aria-label="Gửi tin nhắn"
+                title="Gửi tin nhắn"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1fa855] text-white transition hover:bg-[#1a924a] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {testPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
                 )}
-                <button
-                  type="button"
-                  className={secondaryButton}
-                  disabled={testPending || !question.trim()}
-                  onClick={() => void testAi(true)}
-                >
-                  <BookOpen className="h-4 w-4" />
-                  Tìm tài liệu
-                </button>
-              </div>
+              </button>
             </form>
-          </section>
-          <section className={cardStyle} aria-live="polite">
-            <h2 className="font-bold text-slate-950">Kết quả</h2>
-            {testPending ? (
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-sm text-slate-500">
-                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-                <p>Đang xử lý…</p>
-              </div>
-            ) : testError ? (
-              <div role="alert" className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
-                <p className="font-semibold">{testError.message}</p>
-                {testError.requestId && (
-                  <p className="mt-2 break-all text-xs">Request: {testError.requestId}</p>
-                )}
-                {testError.details != null && (
-                  <details className="mt-3 text-xs">
-                    <summary className="cursor-pointer font-medium">Chi tiết lỗi</summary>
-                    <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all">
-                      {JSON.stringify(testError.details, null, 2)}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            ) : testResult ? (
-              <div className="mt-4 space-y-5">
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <span
-                    className={`rounded-lg px-2.5 py-1 ${testResult.valid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}
-                  >
-                    {testResult.valid ? 'Output hợp lệ' : 'Output không hợp lệ'}
-                  </span>
-                  {testResult.model && (
-                    <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-600">
-                      {testResult.model}
-                    </span>
-                  )}
-                  {typeof testResult.durationMs === 'number' && (
-                    <span className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-slate-600">
-                      <Clock3 className="h-3 w-3" />
-                      {(testResult.durationMs / 1000).toFixed(1)}s
-                    </span>
-                  )}
-                </div>
-                {testResult.issues.length > 0 && (
-                  <p className="text-xs text-rose-700">{testResult.issues.join('; ')}</p>
-                )}
-                <div className="space-y-2">
-                  {testResult.suggestions.map((suggestion, index) => (
-                    <div key={index} className="flex gap-3 rounded-xl border border-slate-200 p-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700">
-                        {index + 1}
-                      </span>
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                        {suggestion}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div
-                  className={`rounded-xl p-3 text-xs leading-5 ${testResult.shouldAutoReply ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}
-                >
-                  <p className="font-semibold">
-                    {testResult.shouldAutoReply
-                      ? 'Đủ điều kiện tự động trả lời'
-                      : 'Cần nhân viên duyệt'}
-                  </p>
-                  <p className="mt-1">{testResult.reason}</p>
-                </div>
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold text-slate-600">Nguồn tham khảo</h3>
-                  <Sources sources={testResult.sources} />
-                </div>
-                <details className="text-xs text-slate-500">
-                  <summary className="cursor-pointer font-medium">Chi tiết JSON</summary>
-                  <pre className="mt-3 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
-                    {JSON.stringify(testResult.response, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            ) : retrieved !== null ? (
-              <div className="mt-4">
-                <p className="mb-3 text-xs text-slate-500">{retrieved.length} đoạn phù hợp</p>
-                <Sources sources={retrieved} />
-              </div>
-            ) : (
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center text-slate-400">
-                <FlaskConical className="h-9 w-9" />
-                <p className="max-w-xs text-sm leading-6">Kết quả sẽ hiển thị ở đây.</p>
-              </div>
-            )}
-          </section>
-        </div>
+          </div>
+        </section>
       )}
 
       {tab === 'knowledge' && (
@@ -1083,6 +1089,17 @@ export const AiManagementView: React.FC = () => {
               error={documentError}
               editing={!!documentId}
             />
+          ) : detailId ? (
+            <KnowledgeDocumentDetail
+              key={detailId}
+              id={detailId}
+              canManage={canManage}
+              busy={documentBusy}
+              onBack={() => showDocumentDetail(null)}
+              onEdit={openDocument}
+              onToggle={(doc) => void toggleDocument(doc)}
+              onReindex={(id) => void reindexDocument(id)}
+            />
           ) : (
             <KnowledgeLibrary
               documents={knowledge.data || []}
@@ -1094,6 +1111,7 @@ export const AiManagementView: React.FC = () => {
               deleteId={deleteId}
               onUpload={() => fileRef.current?.click()}
               onEdit={openDocument}
+              onOpen={(doc) => showDocumentDetail(doc.id)}
               onReindex={(id) => void reindexDocument(id)}
               onToggle={(doc) => void toggleDocument(doc)}
               onRequestDelete={setDeleteId}

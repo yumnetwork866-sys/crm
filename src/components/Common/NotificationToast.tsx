@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ToastPortal } from './ToastPortal';
 import { Camera, FileText, MessageSquare, Mic, Package, X } from 'lucide-react';
 import type { CentralMessage, Customer } from '../../types';
 import { isSamePhoneNumber, getCustomerAvatar } from '../../utils/crmUtils';
@@ -136,6 +137,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   const snippet = parseToastMessageSnippet(message.content);
 
   return (
+    <ToastPortal>
     <div
       role="alert"
       onMouseEnter={() => setIsPaused(true)}
@@ -144,7 +146,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         onOpenMessage(message);
         onClose();
       }}
-      className="fixed bottom-6 right-6 z-50 w-80 sm:w-92 max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden transition-all duration-200 hover:shadow-[0_20px_50px_rgba(0,0,0,0.16)] hover:-translate-y-0.5 cursor-pointer group animate-in fade-in slide-in-from-bottom-5 duration-200 select-none"
+      className="pointer-events-auto shrink-0 bg-white/95 backdrop-blur-xl border border-slate-200/90 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden transition-all duration-200 hover:shadow-[0_20px_50px_rgba(0,0,0,0.16)] hover:-translate-y-0.5 cursor-pointer group animate-in fade-in slide-in-from-bottom-5 duration-200 select-none"
     >
       <div className="p-3.5 flex items-center gap-3">
         {/* Customer Avatar with WhatsApp Badge */}
@@ -214,5 +216,6 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         />
       </div>
     </div>
+    </ToastPortal>
   );
 };

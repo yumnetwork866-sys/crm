@@ -119,7 +119,7 @@ export function KnowledgeRetrievalSettings({
       await queryClient.invalidateQueries({ queryKey: ['ai', 'configuration'] });
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : 'Không lưu được thiết lập truy xuất.',
+        saveError instanceof Error ? saveError.message : 'Không lưu được retrieval settings.',
       );
     } finally {
       setBusy(false);
@@ -250,17 +250,17 @@ export function KnowledgeRetrievalSettings({
       className={wide ? 'grid items-start gap-5 lg:grid-cols-[160px_minmax(0,1fr)]' : 'space-y-4'}
     >
       <h3 id={`${idPrefix}-heading`} className="pt-1 text-xs font-semibold text-slate-700">
-        Thiết lập truy xuất
+        Retrieval settings
       </h3>
       <div className="min-w-0 space-y-3">
         {loading && (
           <p role="status" className="text-xs text-slate-500">
-            Đang tải thiết lập truy xuất…
+            Đang tải retrieval settings…
           </p>
         )}
         {loadError && (
           <p role="alert" className="text-xs text-rose-700">
-            Không tải được thiết lập truy xuất. {loadError}
+            Không tải được retrieval settings. {loadError}
             {onRetry && (
               <button type="button" onClick={onRetry} className="ml-2 underline">
                 Thử lại
@@ -333,7 +333,7 @@ export function KnowledgeRetrievalSettings({
                         <button
                           type="button"
                           aria-label="Giải thích Rerank Model"
-                          title="Model rerank trên Ollama xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi trước khi lấy Top K."
+                          title="Rerank model trên Ollama xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi trước khi lấy Top K."
                           className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                         >
                           <CircleHelp className="h-3 w-3" />
@@ -429,7 +429,7 @@ export function KnowledgeRetrievalSettings({
                           className="text-xs font-semibold text-slate-700"
                           htmlFor={`${idPrefix}-rerank-model`}
                         >
-                          Model rerank
+                          Rerank model
                         </label>
                         <select
                           form={formId}
@@ -506,7 +506,7 @@ export function KnowledgeRetrievalSettings({
             className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Lưu
-            thiết lập truy xuất
+            retrieval settings
           </button>
         )}
       </div>

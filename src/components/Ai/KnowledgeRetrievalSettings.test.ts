@@ -53,7 +53,7 @@ describe('retrieval settings availability', () => {
       formId: 'ai-configuration-form',
     });
     expect(fieldset).not.toContain('disabled');
-    expect(html).not.toContain('Lưu thiết lập truy xuất');
+    expect(html).not.toContain('Lưu retrieval settings');
     expect(html).toContain('form="ai-configuration-form"');
     expect(html).toContain('SEMANTIC 0.70');
   });
@@ -71,7 +71,7 @@ describe('retrieval settings availability', () => {
   it('locks controls while loading and explains the state', () => {
     const { html, fieldset } = renderSettings({ loading: true });
     expect(fieldset).toContain('disabled');
-    expect(html).toContain('Đang tải thiết lập truy xuất');
+    expect(html).toContain('Đang tải retrieval settings');
   });
   it('preserves permission restrictions', () => {
     expect(

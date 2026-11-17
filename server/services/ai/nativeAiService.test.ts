@@ -94,6 +94,18 @@ describe('native AI generation', () => {
       }),
     );
   });
+  it('uses conversation history for both retrieval and the model on follow-up turns', async () => {
+    const messages = [
+      { sender: 'customer' as const, content: 'Có sản phẩm X không?' },
+      { sender: 'agent' as const, content: 'Có sản phẩm X.' },
+      { sender: 'customer' as const, content: 'Giá bao nhiêu?' },
+    ];
+    await generateNativeAi({ messages }, 'test');
+    expect(retrieveKnowledge).toHaveBeenCalledWith(expect.stringContaining('Có sản phẩm X không?'));
+    expect(retrieveKnowledge).toHaveBeenCalledWith(expect.stringMatching(/^Giá bao nhiêu\?/));
+    const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(JSON.parse(request.messages[1].content).conversation).toEqual(messages);
+  });
   it('validates a single JSON code fence but rejects surrounding prose', async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(

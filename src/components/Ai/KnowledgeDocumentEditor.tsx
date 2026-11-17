@@ -115,11 +115,11 @@ export function KnowledgeDocumentEditor({
             <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
               <Settings2 className="h-4 w-4 text-emerald-600" />
               <h3 id="chunk-settings-title" className="text-sm font-semibold text-slate-900">
-                Thiết lập chia đoạn
+                Chunking settings
               </h3>
               <button
                 type="button"
-                aria-label="Hướng dẫn chia đoạn"
+                aria-label="Hướng dẫn chunking"
                 title={'Độ dài và chồng lấn tính bằng ký tự. Dùng \\n để ưu tiên ngắt ở dòng mới.'}
                 className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
               >
@@ -230,7 +230,7 @@ export function KnowledgeDocumentEditor({
                   className={secondary}
                 >
                   <ScanText className="h-4 w-4" />
-                  Xem trước các đoạn
+                  Xem trước các chunk
                 </button>
                 <button
                   type="button"
@@ -265,7 +265,7 @@ export function KnowledgeDocumentEditor({
         </fieldset>
 
         <section
-          aria-label="Xem trước các đoạn tài liệu"
+          aria-label="Xem trước các chunk tài liệu"
           className="min-w-0 border-t border-slate-200 bg-white lg:sticky lg:top-4 lg:border-l lg:border-t-0"
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
@@ -278,7 +278,7 @@ export function KnowledgeDocumentEditor({
               className="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-500"
             >
               {currentPreview
-                ? `${currentPreview.chunks.length.toLocaleString('vi-VN')} đoạn`
+                ? `${currentPreview.chunks.length.toLocaleString('vi-VN')} chunk`
                 : 'Chưa xem trước'}
             </span>
           </div>
@@ -295,7 +295,9 @@ export function KnowledgeDocumentEditor({
                   className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"
                 >
                   <div className="mb-3 flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-emerald-700">Đoạn {chunk.ordinal + 1}</span>
+                    <span className="font-semibold text-emerald-700">
+                      Chunk {chunk.ordinal + 1}
+                    </span>
                     <span className="text-slate-400">
                       {chunk.content.length.toLocaleString('vi-VN')} ký tự
                     </span>
@@ -311,7 +313,7 @@ export function KnowledgeDocumentEditor({
                   onClick={() => setVisibleCount((count) => count + 30)}
                   className={`${secondary} w-full`}
                 >
-                  Xem thêm đoạn
+                  Xem thêm chunk
                 </button>
               )}
             </div>
@@ -320,11 +322,9 @@ export function KnowledgeDocumentEditor({
               <span className="rounded-2xl bg-slate-50 p-4">
                 <ScanText className="h-8 w-8 text-slate-300" />
               </span>
-              <p className="text-sm font-medium text-slate-600">
-                Kiểm tra cách tài liệu được chia đoạn
-              </p>
+              <p className="text-sm font-medium text-slate-600">Xem trước chunking của tài liệu</p>
               <p className="max-w-xs text-xs leading-6 text-slate-400">
-                Nhấn “Xem trước các đoạn” để xem nội dung trước khi lập chỉ mục.
+                Nhấn “Xem trước các chunk” để xem nội dung trước khi indexing.
               </p>
             </div>
           )}

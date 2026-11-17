@@ -77,7 +77,7 @@ function countWords(content: string) {
   while (pattern.exec(content)) count++;
   return count;
 }
-function DocumentStatus({ document }: { document: KnowledgeDocument }) {
+export function DocumentStatus({ document }: { document: KnowledgeDocument }) {
   const status = statusOf(document);
   return (
     <span
@@ -113,6 +113,7 @@ export function KnowledgeLibrary({
   canManage,
   deleteId,
   onUpload,
+  onOpen,
   onEdit,
   onReindex,
   onToggle,
@@ -128,6 +129,7 @@ export function KnowledgeLibrary({
   canManage: boolean;
   deleteId: string | null;
   onUpload: () => void;
+  onOpen: (document: KnowledgeDocument) => void;
   onEdit: (document: KnowledgeDocument) => void;
   onReindex: (id: string) => void;
   onToggle: (document: KnowledgeDocument) => void;
@@ -320,7 +322,7 @@ export function KnowledgeLibrary({
             <option value="upload">Sắp xếp: Thời gian tải lên</option>
             <option value="name">Sắp xếp: Tên tài liệu</option>
             <option value="words">Sắp xếp: Số từ</option>
-            <option value="chunks">Sắp xếp: Số đoạn</option>
+            <option value="chunks">Sắp xếp: Số chunk</option>
           </select>
           <button
             type="button"
@@ -411,7 +413,7 @@ export function KnowledgeLibrary({
                     {header('Tên tài liệu', 'name')}
                   </th>
                   <th scope="col" className="px-3 py-3 font-medium">
-                    Chia đoạn
+                    Chunking
                   </th>
                   <th
                     scope="col"
@@ -429,7 +431,7 @@ export function KnowledgeLibrary({
                     }
                     className="whitespace-nowrap px-3 py-3 font-medium"
                   >
-                    {header('Số đoạn', 'chunks')}
+                    {header('Số chunk', 'chunks')}
                   </th>
                   <th
                     scope="col"
@@ -452,7 +454,11 @@ export function KnowledgeLibrary({
                 {visible.map(({ document, words }, index) => (
                   <tr
                     key={document.id}
-                    className="border-b border-slate-100/80 text-xs text-slate-600 hover:bg-slate-50/50"
+                    onClick={(event) => {
+                      if (!(event.target as HTMLElement).closest('button, input, a'))
+                        onOpen(document);
+                    }}
+                    className="cursor-pointer border-b border-slate-100/80 text-xs text-slate-600 hover:bg-slate-50/50"
                   >
                     <td className="px-2 py-3 text-[11px] tabular-nums text-slate-400">
                       {index + 1}
@@ -460,24 +466,15 @@ export function KnowledgeLibrary({
                     <td className="w-full min-w-48 px-2 py-3">
                       <div className="flex min-w-0 items-center gap-2">
                         <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
-                        {canManage ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => onEdit(document)}
-                            title={document.title}
-                            className="max-w-sm truncate text-left text-xs font-medium text-slate-700 hover:text-indigo-600 disabled:opacity-50"
-                          >
-                            {document.title}
-                          </button>
-                        ) : (
-                          <span
-                            title={document.title}
-                            className="max-w-sm truncate text-xs text-slate-700"
-                          >
-                            {document.title}
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => onOpen(document)}
+                          title={document.title}
+                          className="max-w-sm truncate text-left text-xs font-medium text-slate-700 hover:text-indigo-600 disabled:opacity-50"
+                        >
+                          {document.title}
+                        </button>
                       </div>
                       {document.embeddingError && (
                         <p
@@ -617,7 +614,7 @@ export function KnowledgeLibrary({
               className={menuItem}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Lập lại chỉ mục
+              Reindex
             </button>
             <button
               type="button"

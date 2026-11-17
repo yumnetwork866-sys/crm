@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { conversationRetrievalQuery } from '../services/ai/conversationRetrieval';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
@@ -26,6 +27,7 @@ import { realtimeHub } from '../services/realtimeHub';
 import { createLogger } from '../lib/logger';
 import { resolveRetrievalSettings } from '../../shared/knowledgeRetrievalSettings';
 import { validateRerankSettings } from '../services/ai/rerankService';
+import { updateKnowledgeChunk } from '../services/ai/knowledgeChunkEditor';
 
 const router = Router();
 const log = createLogger('ai-management');
@@ -128,6 +130,62 @@ router.get('/knowledge', async (_req, res) => {
     return failure(res, error);
   }
 });
+router.get('/knowledge/:id', async (req, res) => {
+  const page = Math.max(1, Math.min(1000000, Math.floor(Number(req.query.page) || 1)));
+  const pageSize = [10, 25, 50].includes(Number(req.query.pageSize))
+    ? Number(req.query.pageSize)
+    : 10;
+  const search = String(req.query.search || '')
+    .trim()
+    .slice(0, 200);
+  try {
+    const document = await prisma.aiKnowledgeDocument.findUnique({
+      where: { id: String(req.params.id) },
+      include: { _count: { select: { chunks: true } } },
+    });
+    if (!document) return res.status(404).json({ error: 'Không tìm thấy tài liệu.' });
+    const where = {
+      documentId: document.id,
+      ...(search ? { content: { contains: search, mode: 'insensitive' as const } } : {}),
+    };
+    const [total, chunks] = await Promise.all([
+      prisma.aiKnowledgeChunk.count({ where }),
+      prisma.aiKnowledgeChunk.findMany({
+        where,
+        orderBy: { ordinal: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: { id: true, ordinal: true, content: true },
+      }),
+    ]);
+    return res.json({ document, chunks, total });
+  } catch (error) {
+    return failure(res, error);
+  }
+});
+router.put(
+  '/knowledge/:id/chunks/:chunkId',
+  requirePermission(Permission.AI_MANAGE),
+  async (req, res) => {
+    const content = req.body?.content;
+    const originalContent = req.body?.originalContent;
+    if (typeof content !== 'string' || !content.trim() || typeof originalContent !== 'string')
+      return res.status(400).json({ error: 'Nội dung chunk không được để trống.' });
+    try {
+      const result = await updateKnowledgeChunk(
+        String(req.params.id),
+        String(req.params.chunkId),
+        content.trim(),
+        originalContent,
+      );
+      clearAiCache();
+      scheduleKnowledgeIndex();
+      return res.json(result);
+    } catch (error) {
+      return failure(res, error);
+    }
+  },
+);
 router.post('/knowledge', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = knowledgeSchema.safeParse(req.body);
   if (!parsed.success)
@@ -213,11 +271,6 @@ router.post('/knowledge/:id/reindex', requirePermission(Permission.AI_MANAGE), a
   try {
     const id = String(req.params.id);
     await prisma.$transaction(async (tx) => {
-      const document = await tx.aiKnowledgeDocument.findUniqueOrThrow({
-        where: { id },
-        select: { title: true, content: true },
-      });
-      await tx.aiKnowledgeChunk.deleteMany({ where: { documentId: id } });
       await tx.aiKnowledgeDocument.update({
         where: { id },
         data: {
@@ -226,8 +279,11 @@ router.post('/knowledge/:id/reindex', requirePermission(Permission.AI_MANAGE), a
           embeddingModel: null,
           indexingToken: null,
           indexingLeaseUntil: null,
-          chunks: { create: splitKnowledge(document.content, document.title) },
         },
+      });
+      await tx.aiKnowledgeChunk.updateMany({
+        where: { documentId: id },
+        data: { embedding: [], embeddingModel: null },
       });
     });
     clearAiCache();
@@ -287,8 +343,14 @@ router.post(
       req.body.question.length > 2000
     )
       return res.status(400).json({ error: 'Nhập câu hỏi hợp lệ.' });
+    const parsed = generationInputSchema.pick({ messages: true }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Lịch sử hội thoại không hợp lệ.' });
+    const question = conversationRetrievalQuery([
+      ...(parsed.data.messages || []).slice(-14),
+      { sender: 'customer', content: req.body.question },
+    ]);
     try {
-      return res.json({ sources: await retrieveKnowledge(req.body.question) });
+      return res.json({ sources: await retrieveKnowledge(question) });
     } catch (error) {
       return failure(res, error);
     }
