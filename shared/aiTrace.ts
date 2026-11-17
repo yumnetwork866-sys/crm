@@ -19,6 +19,10 @@ export interface AiTraceStep {
   status: 'running' | 'completed' | 'skipped' | 'error';
   detail?: string;
   durationMs?: number;
+  input?: unknown;
+  prompt?: { role: string; content: string }[];
+  output?: unknown;
+  inputSources?: AiTraceSource[];
   sources?: AiTraceSource[];
   values?: Record<string, unknown>;
 }

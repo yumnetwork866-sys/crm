@@ -75,10 +75,32 @@ afterEach(() => vi.unstubAllGlobals());
 describe('native AI generation', () => {
   it('emits selected chunks, model output, validation and completion for live test diagnostics', async () => {
     const trace = vi.fn();
+    const candidates = [source, { ...source, id: 'rejected-chunk', score: 0.01 }];
+    vi.mocked(retrieveKnowledge).mockImplementationOnce(async (_question, _db, observe) => {
+      observe?.({ id: 'fusion', title: 'Hybrid', status: 'completed', sources: candidates });
+      return [source];
+    });
     const result = await generateNativeAi(input, 'test', trace);
     const steps = trace.mock.calls.map(([step]) => step);
-    expect(retrieveKnowledge).toHaveBeenCalledWith(input.messages[0].content, prisma, trace);
+    expect(retrieveKnowledge).toHaveBeenCalledWith(
+      input.messages[0].content,
+      prisma,
+      expect.any(Function),
+    );
     expect(steps.find((step) => step.id === 'selection').sources).toEqual([source]);
+    expect(steps.find((step) => step.id === 'selection').inputSources).toEqual(candidates);
+    expect(steps.find((step) => step.id === 'context').input).toEqual(input);
+    const generation = steps.find(
+      (step) => step.id === 'generation' && step.status === 'completed',
+    );
+    expect(generation.input).toEqual(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)));
+    expect(generation.prompt).toEqual(
+      JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).messages,
+    );
+    expect(generation.output).toBe(JSON.stringify(output));
+    expect(
+      steps.find((step) => step.id === 'validation' && step.status === 'completed').output,
+    ).toEqual(output);
     expect(
       steps.find((step) => step.id === 'generation' && step.status === 'completed').values
         .rawOutput,

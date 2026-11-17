@@ -10,6 +10,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import type { AiTraceSource, AiTraceStep } from '../../../shared/aiTrace';
+import type { ReactNode } from 'react';
 
 const titles: Record<string, string> = {
   context: 'Ngữ cảnh',
@@ -34,16 +35,10 @@ function StepMetadata({ step }: { step: AiTraceStep }) {
   const values = step.values;
   if (!values) return null;
   const model = typeof values.model === 'string' ? values.model : undefined;
-  const query = typeof values.question === 'string' ? values.question : undefined;
   const dimensions =
     typeof values.actualDimensions === 'number' ? values.actualDimensions : values.dimensions;
   return (
     <div className="space-y-2">
-      {query && (
-        <p className="max-h-24 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-          {query}
-        </p>
-      )}
       <div className="flex flex-wrap gap-1.5">
         {model && <span className={chip}>{model}</span>}
         {Array.isArray(values.messages) && (
@@ -66,6 +61,66 @@ function StepMetadata({ step }: { step: AiTraceStep }) {
           <span className={chip}>{dimensions.toLocaleString('vi-VN')} chiều</span>
         )}
       </div>
+    </div>
+  );
+}
+
+function TraceData({
+  label,
+  value,
+  children,
+  pending = false,
+}: {
+  label: 'Prompt input' | 'Model output';
+  value?: string;
+  children?: ReactNode;
+  pending?: boolean;
+}) {
+  const isInput = label === 'Prompt input';
+  return (
+    <section className="space-y-2" aria-label={label}>
+      {(isInput || pending) && (
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          {isInput && (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+              {label}
+            </>
+          )}
+          {pending && (
+            <Loader2
+              className="h-3 w-3 animate-spin text-indigo-400"
+              aria-label="Đang chờ output"
+            />
+          )}
+        </div>
+      )}
+      {value !== undefined && (
+        <pre className="max-h-72 overflow-auto overscroll-contain whitespace-pre-wrap break-words rounded-lg border border-slate-100 bg-slate-50 p-2.5 font-mono text-[11px] leading-5 text-slate-600">
+          {value}
+        </pre>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function PromptInput({ messages }: { messages: NonNullable<AiTraceStep['prompt']> }) {
+  return (
+    <div className="space-y-2">
+      {messages.map((message, index) => (
+        <section
+          key={index}
+          className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70"
+        >
+          <div className="border-b border-slate-100 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            {message.role}
+          </div>
+          <pre className="max-h-96 overflow-auto overscroll-contain whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-6 text-slate-600">
+            {message.content}
+          </pre>
+        </section>
+      ))}
     </div>
   );
 }
@@ -236,9 +291,9 @@ export function AiTestTracePanel({
                   >
                     {titles[step.id] || step.title}
                   </span>
-                  {step.sources && (
+                  {(step.sources || step.inputSources) && (
                     <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] tabular-nums text-slate-500">
-                      {step.sources.length}
+                      {(step.sources || step.inputSources)?.length}
                     </span>
                   )}
                   {skipped && <span className="text-[10px] text-slate-400">Bỏ qua</span>}
@@ -251,10 +306,22 @@ export function AiTestTracePanel({
                 </summary>
                 <div className="space-y-2.5 pb-3">
                   <StepMetadata step={step} />
+                  {step.prompt && (
+                    <TraceData label="Prompt input">
+                      <PromptInput messages={step.prompt} />
+                    </TraceData>
+                  )}
                   {failed && step.detail && (
                     <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
                       {step.detail}
                     </p>
+                  )}
+                  {step.prompt && !skipped && (typeof step.output === 'string' || running) && (
+                    <TraceData
+                      label="Model output"
+                      value={typeof step.output === 'string' ? step.output : undefined}
+                      pending={running && step.output === undefined}
+                    />
                   )}
                   {step.sources && step.sources.length > 0 && (
                     <div className="max-h-[360px] space-y-2 overflow-y-auto overscroll-contain pr-1">
@@ -272,17 +339,8 @@ export function AiTestTracePanel({
                   {step.sources?.length === 0 && (
                     <span className="text-[11px] text-slate-400">0 chunk</span>
                   )}
-                  {(step.values || (step.detail && !failed)) && (
-                    <div className="text-[10px] text-slate-400">
-                      {step.detail && !failed && (
-                        <p className="mb-2 mt-1 leading-5 text-slate-500">{step.detail}</p>
-                      )}
-                      {step.values && (
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-2.5 font-mono text-[10px] leading-5 text-slate-500">
-                          {JSON.stringify(step.values, null, 2)}
-                        </pre>
-                      )}
-                    </div>
+                  {skipped && step.detail && (
+                    <p className="text-[11px] leading-5 text-slate-400">{step.detail}</p>
                   )}
                 </div>
               </details>

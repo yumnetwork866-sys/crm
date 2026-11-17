@@ -65,6 +65,18 @@ describe('hybrid knowledge retrieval', () => {
     ).toEqual(['A', 'B']);
     expect(steps.find((step) => step.id === 'rerank').status).toBe('skipped');
     expect(
+      steps.find((step) => step.id === 'embedding' && step.status === 'completed'),
+    ).toMatchObject({
+      input: { text: 'Policy', model: 'test-model' },
+      output: { dimensions: 2, vectorPreview: [1, 0] },
+    });
+    expect(
+      steps.find((step) => step.id === 'keyword' && step.status === 'completed'),
+    ).toMatchObject({
+      input: { keywordQuery: expect.any(String) },
+      output: { count: 1 },
+    });
+    expect(
       steps.find((step) => step.id === 'vector' && step.status === 'completed').sources[0]
         .semanticScore,
     ).toBe(0.8);

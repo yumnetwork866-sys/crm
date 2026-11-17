@@ -43,6 +43,20 @@ const respond = (scores: unknown) =>
     );
 
 describe('Ollama reranking', () => {
+  it('keeps the original prompt and malformed model response available for diagnostics', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ message: { content: 'not valid JSON' } })),
+    );
+    const trace = vi.fn();
+    await expect(
+      rerankKnowledge('Returns?', sources, settings, 45000, trace),
+    ).rejects.toMatchObject({ code: 'INVALID_RERANK_OUTPUT' });
+    const last = trace.mock.calls.at(-1)![0];
+    expect(last.output).toBe('not valid JSON');
+    expect(last.prompt).toEqual(
+      JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).messages,
+    );
+  });
   it('traces all reranked candidates before threshold and Top K discard them', async () => {
     respond([
       { index: 0, score: 0.1 },
@@ -56,6 +70,23 @@ describe('Ollama reranking', () => {
       'shipping',
     ]);
     expect(done.values.selectedChunkIds).toEqual(['returns']);
+    expect(done.inputSources).toEqual(sources);
+    expect(done.input).toMatchObject({
+      question: 'Returns?',
+      model: settings.rerankModel,
+      topK: 1,
+    });
+    expect(done.output).toBe(
+      JSON.stringify({
+        scores: [
+          { index: 0, score: 0.1 },
+          { index: 1, score: 0.9 },
+        ],
+      }),
+    );
+    expect(done.prompt).toEqual(
+      JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).messages,
+    );
     expect(result.map((source) => source.id)).toEqual(['returns']);
   });
   it('ranks by validated model scores before Top K and keeps source identity', async () => {

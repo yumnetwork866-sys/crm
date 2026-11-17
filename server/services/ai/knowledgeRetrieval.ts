@@ -103,6 +103,13 @@ export async function retrieveKnowledge(
     id: 'retrieval-config',
     title: 'Thiết lập truy xuất',
     status: 'completed',
+    input: { question },
+    output: {
+      keywordQuery: query,
+      ...retrieval,
+      embeddingModel: config.embeddingModel,
+      dimensions: config.embeddingDimensions,
+    },
     values: {
       question,
       keywordQuery: query,
@@ -116,6 +123,7 @@ export async function retrieveKnowledge(
     id: 'keyword',
     title: 'Tìm kiếm full-text',
     status: retrieval.mode === 'vector' ? 'skipped' : 'running',
+    input: { keywordQuery: query, candidateLimit },
   });
   const keyword =
     retrieval.mode !== 'vector' && query
@@ -134,6 +142,8 @@ export async function retrieveKnowledge(
       title: 'Tìm kiếm full-text',
       status: 'completed',
       durationMs: Date.now() - keywordStarted,
+      input: { keywordQuery: query, candidateLimit },
+      output: { count: keyword.length },
       sources: keyword.map((source) => ({
         ...source,
         keywordScore: source.score,
@@ -168,6 +178,13 @@ export async function retrieveKnowledge(
       title: 'Kết hợp kết quả hybrid',
       status: 'completed',
       sources: candidates,
+      input: {
+        strategy: weighted ? 'weighted' : 'rrf',
+        semanticWeight: retrieval.semanticWeight,
+        keyword: keyword.map(({ id, score }) => ({ id, score })),
+        vector: semantic.map(({ id, score }) => ({ id, score })),
+      },
+      output: { count: candidates.length },
       detail: weighted
         ? 'Điểm = semanticWeight × cosine + (1 − semanticWeight) × rank / (1 + rank).'
         : 'Reciprocal Rank Fusion (RRF): cộng 1 / (60 + thứ hạng) từ từng nhánh.',
@@ -215,13 +232,21 @@ export async function retrieveKnowledge(
     return withoutRerank([]);
   }
   const embeddingStarted = Date.now();
-  trace?.({ id: 'embedding', title: 'Embedding câu hỏi', status: 'running', values: settings });
+  trace?.({
+    id: 'embedding',
+    title: 'Embedding câu hỏi',
+    status: 'running',
+    input: { text: question, ...settings },
+    values: settings,
+  });
   const vector = await embedQuery(question, settings);
   trace?.({
     id: 'embedding',
     title: 'Embedding câu hỏi',
     status: 'completed',
     durationMs: Date.now() - embeddingStarted,
+    input: { text: question, ...settings },
+    output: { dimensions: vector.length, vectorPreview: vector.slice(0, 8) },
     values: { ...settings, actualDimensions: vector.length },
   });
   const scoreCondition =
@@ -229,7 +254,15 @@ export async function retrieveKnowledge(
       ? Prisma.sql`AND crm_ai_cosine(c.embedding, ${vector}::real[]) >= ${retrieval.scoreThreshold}`
       : Prisma.empty;
   const vectorStarted = Date.now();
-  trace?.({ id: 'vector', title: 'Tìm kiếm vector', status: 'running' });
+  const vectorInput = {
+    embeddingModel: version,
+    dimensions: vector.length,
+    vectorPreview: vector.slice(0, 8),
+    candidateLimit,
+    scoreThreshold:
+      retrieval.scoreThresholdEnabled && !weighted && !reranking ? retrieval.scoreThreshold : null,
+  };
+  trace?.({ id: 'vector', title: 'Tìm kiếm vector', status: 'running', input: vectorInput });
   const semantic = await db.$queryRaw<KnowledgeSource[]>(Prisma.sql`
     SELECT c.id, c."documentId", d.title, d.brand, c.content, c.ordinal,
       crm_ai_cosine(c.embedding, ${vector}::real[]) AS score
@@ -244,6 +277,8 @@ export async function retrieveKnowledge(
     title: 'Tìm kiếm vector',
     status: 'completed',
     durationMs: Date.now() - vectorStarted,
+    input: vectorInput,
+    output: { count: semantic.length },
     sources: semantic.map((source) => ({
       ...source,
       semanticScore: source.score,
