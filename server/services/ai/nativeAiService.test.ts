@@ -12,6 +12,7 @@ vi.mock('./knowledgeRetrieval', () => ({ retrieveKnowledge: vi.fn() }));
 vi.mock('../../lib/logger', () => ({ createLogger: () => ({ info: vi.fn(), error: vi.fn() }) }));
 import { prisma } from '../../lib/prisma';
 import {
+  buildAiSystemPrompt,
   clearAiCache,
   generateNativeAi,
   loadAiMessages,
@@ -124,6 +125,7 @@ describe('native AI generation', () => {
     expect(JSON.parse(String(options?.body)).format.required).toContain('sourceIds');
     const request = JSON.parse(String(options?.body));
     expect(request.messages[0].content).toContain('CRM sales assistant for Actiscar');
+    expect(request.messages[0].content).toContain('Be helpful, brief and polite.');
     expect(JSON.parse(request.messages[1].content).brand).toBe('Actiscar');
     expect(retrieveKnowledge).toHaveBeenCalledWith(input.messages[0].content);
     expect(prisma.aiRun.create).toHaveBeenCalledWith(
@@ -135,6 +137,18 @@ describe('native AI generation', () => {
         }),
       }),
     );
+  });
+  it('uses the same prompt as the configuration preview for the default brand', async () => {
+    const instructions = 'Xưng em, gọi khách là anh/chị.';
+    vi.mocked(prisma.aiConfiguration.upsert).mockResolvedValueOnce({ ...config, instructions });
+    await generateNativeAi({ messages: input.messages }, 'test');
+    const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(request.messages[0]).toEqual({
+      role: 'system',
+      content: buildAiSystemPrompt(instructions),
+    });
+    expect(request.messages[0].content).toContain('CRM sales assistant for Yum Network');
+    expect(request.messages[0].content).toContain(instructions);
   });
   it('uses conversation history for both retrieval and the model on follow-up turns', async () => {
     const messages = [

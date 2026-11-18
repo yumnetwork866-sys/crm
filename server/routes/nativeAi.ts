@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { authenticateToken, requirePermission } from '../middleware/authMiddleware';
 import { Permission } from '../auth/permissions';
 import {
+  buildAiSystemPrompt,
   getAiConfig,
   generateNativeAi,
   retrieveKnowledge,
@@ -54,7 +55,8 @@ function failure(res: Response, error: unknown) {
 }
 router.get('/configuration', async (_req, res) => {
   try {
-    return res.json(await getAiConfig());
+    const config = await getAiConfig();
+    return res.json({ ...config, systemPrompt: buildAiSystemPrompt(config.instructions) });
   } catch (error) {
     return failure(res, error);
   }
@@ -104,7 +106,12 @@ function updateConfiguration(
           ? { suggestionsEnabled: result.suggestionsEnabled }
           : {}),
       });
-      return res.json({ ...result, reindexing, ...(aiProfile ? { aiProfile } : {}) });
+      return res.json({
+        ...result,
+        systemPrompt: buildAiSystemPrompt(result.instructions),
+        reindexing,
+        ...(aiProfile ? { aiProfile } : {}),
+      });
     } catch (error) {
       return failure(res, error);
     }

@@ -58,6 +58,7 @@ interface Configuration {
   ragEnabled: boolean;
   timeoutMs: number;
   instructions: string;
+  systemPrompt?: string;
   updatedAt: string;
 }
 interface AutoReplyPhone {
@@ -804,10 +805,6 @@ export const AiManagementView: React.FC = () => {
                                 onClick={() => setShowAutoReplyPhones(!showAutoReplyPhones)}
                                 className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded text-left text-sm font-medium text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                               >
-                                <ChevronDown
-                                  aria-hidden="true"
-                                  className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${showAutoReplyPhones ? 'rotate-180' : ''}`}
-                                />
                                 Tự động trả lời
                                 {autoReplyPhones.isSuccess && (
                                   <span className="text-xs font-normal text-slate-500">
@@ -930,6 +927,25 @@ export const AiManagementView: React.FC = () => {
                       <p className="mt-1 text-right text-[11px] text-slate-400">
                         {draft.instructions.length.toLocaleString('vi-VN')} / 6.000 ký tự
                       </p>
+                      {draft.systemPrompt && (
+                        <details className="group mt-3 rounded-xl border border-slate-200">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 [&::-webkit-details-marker]:hidden">
+                            System prompt
+                            <ChevronDown
+                              aria-hidden="true"
+                              className="h-4 w-4 shrink-0 transition group-open:rotate-180"
+                            />
+                          </summary>
+                          <div className="border-t border-slate-200 px-3 py-3">
+                            <p className="mb-2 text-xs text-slate-500">
+                              Bản xem trước dùng thương hiệu mặc định và hướng dẫn đã lưu.
+                            </p>
+                            <pre className="whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
+                              {draft.systemPrompt}
+                            </pre>
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </section>
                   <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
@@ -969,7 +985,7 @@ export const AiManagementView: React.FC = () => {
                       </h2>
                       <div className="min-w-0 -my-3">
                         <SettingSwitch
-                          title="Bật RAG"
+                          title="Sử dụng RAG"
                           checked={draft.ragEnabled}
                           disabled={!canManage || isSaving}
                           onChange={() =>
@@ -999,12 +1015,19 @@ export const AiManagementView: React.FC = () => {
                           aria-labelledby="rag-model-heading"
                           className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
                         >
-                          <h2
-                            id="rag-model-heading"
-                            className="pt-1 text-xs font-semibold text-slate-700"
-                          >
-                            Embedding model
-                          </h2>
+                          <div className="pt-1">
+                            <h2
+                              id="rag-model-heading"
+                              className="text-xs font-semibold text-slate-700"
+                            >
+                              Embedding model
+                            </h2>
+                            {draft.embeddingModel === configuration.data?.embeddingModel && (
+                              <p className="mt-1 text-xs text-slate-400">
+                                {draft.embeddingDimensions} chiều
+                              </p>
+                            )}
+                          </div>
                           <div className="min-w-0">
                             <div className="min-w-0">
                               <select
@@ -1022,11 +1045,6 @@ export const AiManagementView: React.FC = () => {
                                   <option key={model}>{model}</option>
                                 ))}
                               </select>
-                              {draft.embeddingModel === configuration.data?.embeddingModel && (
-                                <p className="mt-1 text-xs text-slate-400">
-                                  {draft.embeddingDimensions} chiều
-                                </p>
-                              )}
                               {draft.embeddingModel !== configuration.data?.embeddingModel ? (
                                 <p className="mt-1 text-xs text-amber-700">
                                   Đổi model sẽ reindex tài liệu.
