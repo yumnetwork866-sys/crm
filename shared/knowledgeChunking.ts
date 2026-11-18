@@ -6,6 +6,10 @@ export interface ChunkSettings {
   removeUrlsAndEmails: boolean;
 }
 
+export type KnowledgeReindexRequest =
+  | { mode: 'embedding'; expectedUpdatedAt?: string }
+  | { mode: 'rechunk'; chunkSettings: ChunkSettings; expectedUpdatedAt: string };
+
 export const defaultChunkSettings: ChunkSettings = {
   delimiter: '\\n',
   maxLength: 1024,

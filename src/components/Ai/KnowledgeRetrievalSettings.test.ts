@@ -17,6 +17,23 @@ function renderSettings(props: Parameters<typeof KnowledgeRetrievalSettings>[0] 
 }
 
 describe('retrieval settings availability', () => {
+  it.each(['rrf', 'weighted'] as const)(
+    'shows %s fusion and a separate rerank switch',
+    (hybridStrategy) => {
+      for (const rerankEnabled of [true, false]) {
+        const { html } = renderSettings({
+          settings: { ...defaultRetrievalSettings, hybridStrategy, rerankEnabled },
+        });
+        expect(html.match(/name="retrieval-strategy"/g)).toHaveLength(2);
+        expect(html).toContain('Weighted Score');
+        expect(html).toContain('RRF');
+        expect(html).not.toContain('Tùy chọn nâng cao');
+        const toggle = html.match(/<button[^>]*aria-label="Rerank Model"[^>]*>/)?.[0];
+        expect(toggle).toContain(`aria-checked="${rerankEnabled}"`);
+        expect(html.includes('id="retrieval-rerank-model"')).toBe(rerankEnabled);
+      }
+    },
+  );
   it.each(['keyword', 'vector', 'hybrid'] as const)(
     'shows the configured rerank model for %s search',
     (mode) => {
@@ -25,7 +42,7 @@ describe('retrieval settings availability', () => {
           ...defaultRetrievalSettings,
           mode,
           rerankEnabled: true,
-          hybridStrategy: 'rerank',
+          hybridStrategy: 'rrf',
         },
       });
       expect(html).toContain('qwen3:4b');

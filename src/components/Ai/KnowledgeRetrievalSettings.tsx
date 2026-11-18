@@ -67,9 +67,8 @@ export function KnowledgeRetrievalSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const value = onChange
-    ? settings || resolveRetrievalSettings(settings)
-    : draft || resolveRetrievalSettings(settings);
+  const loadedSettings = settings?.version === 2 ? settings : resolveRetrievalSettings(settings);
+  const value = onChange ? loadedSettings : draft || loadedSettings;
   const locked = disabled || busy || loading || !!loadError;
   const invalid =
     !Number.isInteger(value.topK) ||
@@ -314,35 +313,6 @@ export function KnowledgeRetrievalSettings({
                 </label>
                 {selected && (
                   <div role="group" aria-label={`Thiết lập ${label}`} className="space-y-5 p-4">
-                    {id !== 'hybrid' && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={value.rerankEnabled}
-                          aria-label="Rerank Model"
-                          aria-describedby={`${idPrefix}-rerank-help`}
-                          onClick={() => update({ rerankEnabled: !value.rerankEnabled })}
-                          className={`relative h-4 w-7 shrink-0 rounded transition focus-visible:ring-2 focus-visible:ring-indigo-400 ${value.rerankEnabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
-                        >
-                          <span
-                            className={`absolute top-0.5 h-3 w-3 rounded-sm bg-white shadow-sm transition-all ${value.rerankEnabled ? 'left-3.5' : 'left-0.5'}`}
-                          />
-                        </button>
-                        <span className="text-xs font-semibold text-slate-700">Rerank Model</span>
-                        <button
-                          type="button"
-                          aria-label="Giải thích Rerank Model"
-                          title="Rerank model trên Ollama xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi trước khi lấy Top K."
-                          className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                        >
-                          <CircleHelp className="h-3 w-3" />
-                        </button>
-                        <span id={`${idPrefix}-rerank-help`} className="sr-only">
-                          Xếp hạng lại bằng model chat trên Ollama.
-                        </span>
-                      </div>
-                    )}
                     {id === 'hybrid' && (
                       <>
                         <div className={`grid gap-2 ${wide ? 'sm:grid-cols-2' : 'xl:grid-cols-2'}`}>
@@ -370,25 +340,25 @@ export function KnowledgeRetrievalSettings({
                             />
                           </label>
                           <label
-                            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 focus-within:ring-2 focus-within:ring-indigo-400 ${reranking ? 'border-indigo-200 bg-white' : 'border-slate-200 bg-slate-50/40'}`}
+                            className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 focus-within:ring-2 focus-within:ring-indigo-400 ${value.hybridStrategy === 'rrf' ? 'border-indigo-200 bg-white' : 'border-slate-200 bg-slate-50/40'}`}
                           >
                             <span className="rounded-lg bg-teal-50 p-2 text-teal-600">
                               <ListFilter className="h-4 w-4" />
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block text-xs font-semibold text-slate-700">
-                                Rerank Model
+                                RRF
                               </span>
                               <span className="mt-1 block text-xs leading-4 text-slate-500">
-                                Dùng model trên Ollama để xếp hạng lại các đoạn phù hợp.
+                                Gộp thứ hạng từ kết quả vector và từ khóa.
                               </span>
                             </span>
                             <input
                               form={formId}
                               type="radio"
                               name={`${idPrefix}-strategy`}
-                              checked={reranking}
-                              onChange={() => update({ hybridStrategy: 'rerank' })}
+                              checked={value.hybridStrategy === 'rrf'}
+                              onChange={() => update({ hybridStrategy: 'rrf' })}
                               className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600"
                             />
                           </label>
@@ -423,6 +393,33 @@ export function KnowledgeRetrievalSettings({
                         )}
                       </>
                     )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={value.rerankEnabled}
+                        aria-label="Rerank Model"
+                        aria-describedby={`${idPrefix}-rerank-help`}
+                        onClick={() => update({ rerankEnabled: !value.rerankEnabled })}
+                        className={`relative h-4 w-7 shrink-0 rounded transition focus-visible:ring-2 focus-visible:ring-indigo-400 ${value.rerankEnabled ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-3 w-3 rounded-sm bg-white shadow-sm transition-all ${value.rerankEnabled ? 'left-3.5' : 'left-0.5'}`}
+                        />
+                      </button>
+                      <span className="text-xs font-semibold text-slate-700">Rerank Model</span>
+                      <button
+                        type="button"
+                        aria-label="Giải thích Rerank Model"
+                        title="Rerank model trên Ollama xếp hạng lại các đoạn đã tìm được theo mức độ liên quan với câu hỏi trước khi lấy Top K."
+                        className="rounded text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                      >
+                        <CircleHelp className="h-3 w-3" />
+                      </button>
+                      <span id={`${idPrefix}-rerank-help`} className="sr-only">
+                        Xếp hạng lại bằng model chat trên Ollama.
+                      </span>
+                    </div>
                     {reranking && showModelSelector && (
                       <div>
                         <label
@@ -456,27 +453,6 @@ export function KnowledgeRetrievalSettings({
                       </div>
                     )}
                     {controls}
-                    {id === 'hybrid' && (
-                      <details
-                        open={value.hybridStrategy === 'rrf'}
-                        className="text-[11px] text-slate-400"
-                      >
-                        <summary className="cursor-pointer hover:text-slate-600">
-                          Tùy chọn nâng cao{value.hybridStrategy === 'rrf' ? ' · RRF' : ''}
-                        </summary>
-                        <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-                          <input
-                            form={formId}
-                            type="radio"
-                            name={`${idPrefix}-strategy`}
-                            checked={value.hybridStrategy === 'rrf'}
-                            onChange={() => update({ hybridStrategy: 'rrf' })}
-                            className="accent-indigo-600"
-                          />
-                          RRF · Gộp thứ hạng
-                        </label>
-                      </details>
-                    )}
                   </div>
                 )}
               </div>

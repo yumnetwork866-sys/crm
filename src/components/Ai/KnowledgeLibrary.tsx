@@ -2,9 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
-  ArrowDownWideNarrow,
   ArrowUp,
-  ArrowUpWideNarrow,
   BookOpen,
   CircleAlert,
   FileText,
@@ -311,36 +309,6 @@ export function KnowledgeLibrary({
               <X className="h-3 w-3" />
             </button>
           )}
-        </div>
-        <div className="flex items-center overflow-hidden rounded-lg bg-slate-100/80">
-          <select
-            aria-label="Sắp xếp tài liệu"
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value as Sort);
-              setDescending(event.target.value !== 'name');
-            }}
-            className="h-8 border-0 bg-transparent pl-3 pr-2 text-xs text-slate-600 outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300"
-          >
-            <option value="upload">Sắp xếp: Thời gian tải lên</option>
-            <option value="name">Sắp xếp: Tên tài liệu</option>
-            <option value="words">Sắp xếp: Số từ</option>
-            <option value="chunks">Sắp xếp: Số chunk</option>
-            <option value="retrievals">Sắp xếp: Lượt truy xuất</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setDescending(!descending)}
-            aria-label={descending ? 'Sắp xếp tăng dần' : 'Sắp xếp giảm dần'}
-            title={descending ? 'Sắp xếp tăng dần' : 'Sắp xếp giảm dần'}
-            className="flex h-8 w-8 items-center justify-center border-l border-white text-slate-500 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300"
-          >
-            {descending ? (
-              <ArrowDownWideNarrow className="h-4 w-4" />
-            ) : (
-              <ArrowUpWideNarrow className="h-4 w-4" />
-            )}
-          </button>
         </div>
         {canManage && (
           <button

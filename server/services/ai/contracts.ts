@@ -8,11 +8,12 @@ import {
 export { splitKnowledge, normalizeKnowledgeText } from '../../../shared/knowledgeChunking';
 
 export const retrievalSettingsSchema = z.object({
+  version: z.literal(2).optional(),
   mode: z.enum(retrievalModes),
   topK: z.number().int().min(1).max(20),
   scoreThresholdEnabled: z.boolean(),
   scoreThreshold: z.number().min(0).max(1),
-  hybridStrategy: z.enum(hybridStrategies).optional(),
+  hybridStrategy: z.enum([...hybridStrategies, 'rerank']).optional(),
   semanticWeight: z.number().min(0).max(1).optional(),
   rerankEnabled: z.boolean().optional(),
   rerankModel: z

@@ -41,6 +41,39 @@ beforeEach(() => {
 });
 
 describe('hybrid knowledge retrieval', () => {
+  it('runs weighted fusion before optional reranking without applying the final threshold or Top K early', async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({
+      embeddingModel: 'test-model',
+      embeddingDimensions: 768,
+      timeoutMs: 45000,
+      retrievalSettings: {
+        ...defaultRetrievalSettings,
+        hybridStrategy: 'weighted',
+        rerankEnabled: true,
+        semanticWeight: 0.8,
+        topK: 1,
+        scoreThreshold: 0.95,
+      },
+    } as any);
+    vi.mocked(prisma.aiKnowledgeChunk.count).mockResolvedValue(2);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([source('A', 9), source('B', 1)])
+      .mockResolvedValueOnce([source('A', 0.1), source('B', 0.8)]);
+    vi.mocked(rerankKnowledge).mockResolvedValue([{ ...source('A', 0.99), ranking: 'rerank' }]);
+    const result = await retrieveKnowledge('Return policy');
+    const candidates = vi.mocked(rerankKnowledge).mock.calls[0][1];
+    expect(candidates.map((item) => item.id)).toEqual(['B', 'A']);
+    expect(candidates[0].score).toBeCloseTo(0.74);
+    expect(candidates[1].score).toBeCloseTo(0.26);
+    expect(result.map((item) => item.id)).toEqual(['A']);
+    expect(vi.mocked(rerankKnowledge).mock.calls[0][2]).toMatchObject({
+      hybridStrategy: 'weighted',
+      rerankEnabled: true,
+      scoreThreshold: 0.95,
+    });
+    for (const [query] of vi.mocked(prisma.$queryRaw).mock.calls)
+      expect((query as any).strings.join('')).not.toContain('>=');
+  });
   it('traces candidates discarded by the weighted threshold separately from selected sources', async () => {
     vi.mocked(getAiConfig).mockResolvedValue({
       embeddingModel: 'test-model',
@@ -92,7 +125,7 @@ describe('hybrid knowledge retrieval', () => {
           ...defaultRetrievalSettings,
           mode,
           rerankEnabled: true,
-          hybridStrategy: 'rerank',
+          hybridStrategy: 'rrf',
           topK: 1,
         },
       } as any);

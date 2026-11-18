@@ -1,9 +1,10 @@
 export const retrievalModes = ['hybrid', 'vector', 'keyword'] as const;
 export type RetrievalMode = (typeof retrievalModes)[number];
-export const hybridStrategies = ['rrf', 'weighted', 'rerank'] as const;
+export const hybridStrategies = ['rrf', 'weighted'] as const;
 export type HybridStrategy = (typeof hybridStrategies)[number];
 
 export interface RetrievalSettings {
+  version: 2;
   mode: RetrievalMode;
   topK: number;
   scoreThresholdEnabled: boolean;
@@ -15,6 +16,7 @@ export interface RetrievalSettings {
 }
 
 export const defaultRetrievalSettings: RetrievalSettings = {
+  version: 2,
   mode: 'hybrid',
   topK: 5,
   scoreThresholdEnabled: true,
@@ -29,17 +31,36 @@ export function resolveRetrievalSettings(
   value: unknown,
   defaults = defaultRetrievalSettings,
 ): RetrievalSettings {
-  const data = value && typeof value === 'object' ? (value as Partial<RetrievalSettings>) : {};
+  const data =
+    value && typeof value === 'object'
+      ? (value as Omit<Partial<RetrievalSettings>, 'hybridStrategy'> & {
+          hybridStrategy?: HybridStrategy | 'rerank';
+        })
+      : {};
+  const mode = retrievalModes.includes(data.mode as RetrievalMode) ? data.mode! : defaults.mode;
+  // Older hybrid settings encoded reranking in the strategy and ignored its toggle.
+  const legacyHybrid =
+    data.version !== 2 &&
+    mode === 'hybrid' &&
+    (data.hybridStrategy !== undefined || data.rerankEnabled !== undefined);
   return {
+    version: 2,
     rerankEnabled:
-      typeof data.rerankEnabled === 'boolean' ? data.rerankEnabled : defaults.rerankEnabled,
+      legacyHybrid || (data.hybridStrategy === 'rerank' && mode === 'hybrid')
+        ? data.hybridStrategy === 'rerank'
+        : typeof data.rerankEnabled === 'boolean'
+          ? data.rerankEnabled
+          : defaults.rerankEnabled,
     rerankModel:
       typeof data.rerankModel === 'string' && /^[\w.:/-]{1,100}$/.test(data.rerankModel)
         ? data.rerankModel
         : defaults.rerankModel,
-    hybridStrategy: hybridStrategies.includes(data.hybridStrategy as HybridStrategy)
-      ? data.hybridStrategy!
-      : defaults.hybridStrategy,
+    hybridStrategy:
+      data.hybridStrategy === 'rerank'
+        ? 'rrf'
+        : hybridStrategies.includes(data.hybridStrategy as HybridStrategy)
+          ? (data.hybridStrategy as HybridStrategy)
+          : defaults.hybridStrategy,
     semanticWeight:
       typeof data.semanticWeight === 'number' &&
       Number.isFinite(data.semanticWeight) &&
@@ -47,7 +68,7 @@ export function resolveRetrievalSettings(
       data.semanticWeight <= 1
         ? data.semanticWeight
         : defaults.semanticWeight,
-    mode: retrievalModes.includes(data.mode as RetrievalMode) ? data.mode! : defaults.mode,
+    mode,
     topK:
       Number.isInteger(data.topK) && data.topK! >= 1 && data.topK! <= 20
         ? data.topK!
@@ -66,5 +87,4 @@ export function resolveRetrievalSettings(
   };
 }
 
-export const usesRerank = (settings: RetrievalSettings) =>
-  settings.mode === 'hybrid' ? settings.hybridStrategy === 'rerank' : settings.rerankEnabled;
+export const usesRerank = (settings: RetrievalSettings) => settings.rerankEnabled;

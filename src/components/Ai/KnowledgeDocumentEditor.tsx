@@ -36,6 +36,8 @@ export function KnowledgeDocumentEditor({
   busy,
   error,
   editing,
+  reindex = false,
+  resetChunkSettings,
 }: {
   draft: KnowledgeDraft;
   onChange: (draft: KnowledgeDraft) => void;
@@ -44,6 +46,8 @@ export function KnowledgeDocumentEditor({
   busy: boolean;
   error: string;
   editing: boolean;
+  reindex?: boolean;
+  resetChunkSettings?: ChunkSettings;
 }) {
   const [preview, setPreview] = useState<{
     draft: KnowledgeDraft;
@@ -70,43 +74,53 @@ export function KnowledgeDocumentEditor({
   return (
     <form
       className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70"
-      onSubmit={onSave}
+      onSubmit={(event) => {
+        if (reindex && !currentPreview?.chunks.length) {
+          event.preventDefault();
+          return;
+        }
+        onSave(event);
+      }}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
-            <FileText className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            {editing && <p className="mb-1 text-xs text-slate-500">Chỉnh sửa tài liệu</p>}
-            <p className="truncate text-sm font-semibold text-slate-900">
-              {draft.title || 'Tài liệu mới'}
-            </p>
+      {!reindex && (
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
+              <FileText className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              {editing && <p className="mb-1 text-xs text-slate-500">Chỉnh sửa tài liệu</p>}
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {draft.title || 'Tài liệu mới'}
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            aria-label="Đóng trình soạn tài liệu"
+            disabled={busy}
+            onClick={onClose}
+            className={secondary}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-        <button
-          type="button"
-          aria-label="Đóng trình soạn tài liệu"
-          disabled={busy}
-          onClick={onClose}
-          className={secondary}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      )}
       <div className="grid items-start lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <fieldset disabled={busy} className="min-w-0 space-y-5 p-4 sm:p-5">
-          <label className="block text-xs font-semibold text-slate-700" htmlFor="knowledge-title">
-            Tên tài liệu
-            <input
-              id="knowledge-title"
-              required
-              maxLength={160}
-              value={draft.title}
-              onChange={(event) => onChange({ ...draft, title: event.target.value })}
-              className={field}
-            />
-          </label>
+          {!reindex && (
+            <label className="block text-xs font-semibold text-slate-700" htmlFor="knowledge-title">
+              Tên tài liệu
+              <input
+                id="knowledge-title"
+                required
+                maxLength={160}
+                value={draft.title}
+                onChange={(event) => onChange({ ...draft, title: event.target.value })}
+                className={field}
+              />
+            </label>
+          )}
 
           <section
             aria-labelledby="chunk-settings-title"
@@ -234,7 +248,7 @@ export function KnowledgeDocumentEditor({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateSettings(defaultChunkSettings)}
+                  onClick={() => updateSettings(resetChunkSettings ?? defaultChunkSettings)}
                   className={secondary}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -255,11 +269,14 @@ export function KnowledgeDocumentEditor({
             </button>
             <button
               type="submit"
-              disabled={busy || !!settingsError}
+              disabled={busy || !!settingsError || (reindex && !currentPreview?.chunks.length)}
+              title={
+                reindex && !currentPreview ? 'Xem trước các chunk trước khi áp dụng.' : undefined
+              }
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Lưu & xử lý
+              {reindex ? 'Chia lại & reindex' : 'Lưu & xử lý'}
             </button>
           </div>
         </fieldset>
@@ -323,9 +340,6 @@ export function KnowledgeDocumentEditor({
                 <ScanText className="h-8 w-8 text-slate-300" />
               </span>
               <p className="text-sm font-medium text-slate-600">Xem trước chunking của tài liệu</p>
-              <p className="max-w-xs text-xs leading-6 text-slate-400">
-                Nhấn “Xem trước các chunk” để xem nội dung trước khi indexing.
-              </p>
             </div>
           )}
         </section>

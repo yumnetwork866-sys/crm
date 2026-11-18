@@ -29,6 +29,7 @@ import { createLogger } from '../lib/logger';
 import { resolveRetrievalSettings } from '../../shared/knowledgeRetrievalSettings';
 import { validateRerankSettings } from '../services/ai/rerankService';
 import { updateKnowledgeChunk } from '../services/ai/knowledgeChunkEditor';
+import { knowledgeReindexSchema, reindexKnowledgeDocument } from '../services/ai/knowledgeReindex';
 import type { AiTestEvent, AiTraceStep } from '../../shared/aiTrace';
 
 const router = Router();
@@ -288,27 +289,19 @@ router.put('/knowledge/:id', requirePermission(Permission.AI_MANAGE), async (req
   }
 });
 router.post('/knowledge/:id/reindex', requirePermission(Permission.AI_MANAGE), async (req, res) => {
+  const parsed = knowledgeReindexSchema.safeParse(req.body ?? {});
+  if (!parsed.success)
+    return res
+      .status(400)
+      .json({
+        error: 'Cấu hình Reindex không hợp lệ. Kiểm tra thiết lập chia đoạn và phiên bản tài liệu.',
+      });
   try {
     const id = String(req.params.id);
-    await prisma.$transaction(async (tx) => {
-      await tx.aiKnowledgeDocument.update({
-        where: { id },
-        data: {
-          embeddingStatus: 'pending',
-          embeddingError: null,
-          embeddingModel: null,
-          indexingToken: null,
-          indexingLeaseUntil: null,
-        },
-      });
-      await tx.aiKnowledgeChunk.updateMany({
-        where: { documentId: id },
-        data: { embedding: [], embeddingModel: null },
-      });
-    });
+    const result = await reindexKnowledgeDocument(id, parsed.data);
     clearAiCache();
     scheduleKnowledgeIndex();
-    return res.json({ success: true });
+    return res.json(result);
   } catch (error) {
     return failure(res, error);
   }

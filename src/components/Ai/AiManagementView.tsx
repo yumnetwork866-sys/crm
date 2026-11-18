@@ -31,7 +31,11 @@ import { KnowledgeDocumentDetail } from './KnowledgeDocumentDetail';
 import { KnowledgeRetrievalSettings } from './KnowledgeRetrievalSettings';
 import type { RetrievalSettings } from '../../../shared/knowledgeRetrievalSettings';
 import { KnowledgeDocumentEditor, type KnowledgeDraft } from './KnowledgeDocumentEditor';
-import { defaultChunkSettings } from '../../../shared/knowledgeChunking';
+import {
+  defaultChunkSettings,
+  type KnowledgeReindexRequest,
+} from '../../../shared/knowledgeChunking';
+import { KnowledgeReindexDialog } from './KnowledgeReindexDialog';
 import type { AiTraceStep } from '../../../shared/aiTrace';
 import { streamTestAi } from './testAiStream';
 import { AiTestTracePanel } from './AiTestTracePanel';
@@ -279,6 +283,7 @@ export const AiManagementView: React.FC = () => {
     });
   };
   const [documentBusy, setDocumentBusy] = useState(false);
+  const [reindexTarget, setReindexTarget] = useState<KnowledgeDocument | null>(null);
   const [documentError, setDocumentError] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -444,11 +449,29 @@ export const AiManagementView: React.FC = () => {
     setDocumentBusy(true);
     setError('');
     try {
-      await api.post(`/ai/knowledge/${encodeURIComponent(id)}/reindex`);
-      setNotice('Đang indexing.');
-      await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
+      const data = await api.get<{ document: KnowledgeDocument }>(
+        `/ai/knowledge/${encodeURIComponent(id)}`,
+      );
+      setReindexTarget(data.document);
     } catch (indexError) {
       setError(messageOf(indexError));
+    } finally {
+      setDocumentBusy(false);
+    }
+  };
+  const applyReindexDocument = async (request: KnowledgeReindexRequest) => {
+    if (!canManage || documentBusy || !reindexTarget)
+      throw new Error('Không thể reindex tài liệu lúc này.');
+    setDocumentBusy(true);
+    try {
+      await api.post(`/ai/knowledge/${encodeURIComponent(reindexTarget.id)}/reindex`, request);
+      setNotice(
+        request.mode === 'rechunk'
+          ? 'Đã chia lại chunk. Đang tạo embedding.'
+          : 'Đang tạo lại embedding.',
+      );
+      await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
+      setReindexTarget(null);
     } finally {
       setDocumentBusy(false);
     }
@@ -1161,6 +1184,15 @@ export const AiManagementView: React.FC = () => {
             />
           )}
         </div>
+      )}
+
+      {reindexTarget && (
+        <KnowledgeReindexDialog
+          key={reindexTarget.id}
+          document={reindexTarget}
+          onClose={() => setReindexTarget(null)}
+          onApply={applyReindexDocument}
+        />
       )}
 
       {tab === 'runs' && canManage && (

@@ -35,8 +35,19 @@ describe('native AI contracts and knowledge indexing', () => {
   it('validates retrieval modes, Top K and cosine thresholds', () => {
     const settings = { mode: 'hybrid', topK: 5, scoreThresholdEnabled: true, scoreThreshold: 0.55 };
     expect(retrievalSettingsSchema.safeParse(settings).success).toBe(true);
+    for (const hybridStrategy of ['rrf', 'weighted', 'rerank']) {
+      expect(
+        retrievalSettingsSchema.safeParse({
+          ...settings,
+          hybridStrategy,
+          rerankEnabled: true,
+          version: 2,
+        }).success,
+      ).toBe(true);
+    }
     for (const invalid of [
       { mode: 'rerank' },
+      { version: 3 },
       { hybridStrategy: 'unknown' },
       { semanticWeight: -0.1 },
       { semanticWeight: 1.1 },
@@ -85,7 +96,9 @@ describe('native AI contracts and knowledge indexing', () => {
     const chunks = splitKnowledge(text, 'Đổi trả');
     expect(chunks.length).toBeGreaterThan(3);
     expect(chunks[0].searchText).toContain('doi tra');
-    expect(chunks.every((chunk) => chunk.content.length <= defaultChunkSettings.maxLength)).toBe(true);
+    expect(chunks.every((chunk) => chunk.content.length <= defaultChunkSettings.maxLength)).toBe(
+      true,
+    );
     expect(chunks.map((chunk) => chunk.ordinal)).toEqual(chunks.map((_, index) => index));
     expect(chunks[0].content.slice(-100)).toContain('policy');
     expect(chunks.at(-1)?.content.endsWith(text.trim().slice(-20))).toBe(true);
