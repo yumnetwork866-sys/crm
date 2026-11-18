@@ -304,6 +304,7 @@ model AiConfiguration {
   ragEnabled         Boolean  @default(true)
   timeoutMs          Int      @default(45000)
   instructions       String   @default("")
+  systemPromptTemplate String?
   retrievalSettings Json @default("{}")
   updatedAt          DateTime @updatedAt
 }

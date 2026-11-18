@@ -56,7 +56,10 @@ function failure(res: Response, error: unknown) {
 router.get('/configuration', async (_req, res) => {
   try {
     const config = await getAiConfig();
-    return res.json({ ...config, systemPrompt: buildAiSystemPrompt(config.instructions) });
+    return res.json({
+      ...config,
+      systemPrompt: buildAiSystemPrompt(config),
+    });
   } catch (error) {
     return failure(res, error);
   }
@@ -108,7 +111,7 @@ function updateConfiguration(
       });
       return res.json({
         ...result,
-        systemPrompt: buildAiSystemPrompt(result.instructions),
+        systemPrompt: buildAiSystemPrompt(result),
         reindexing,
         ...(aiProfile ? { aiProfile } : {}),
       });

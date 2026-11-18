@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SYSTEM_PROMPT_MAX_LENGTH } from '../../../shared/aiSystemPrompt';
 import { retrievalModes, hybridStrategies } from '../../../shared/knowledgeRetrievalSettings';
 import {
   defaultChunkSettings,
@@ -57,6 +58,13 @@ export const aiConfigSchema = z.object({
   ragEnabled: z.boolean(),
   timeoutMs: z.number().int().min(5000).max(120000),
   instructions: z.string().trim().max(6000),
+  systemPromptTemplate: z
+    .string()
+    .trim()
+    .min(1)
+    .max(SYSTEM_PROMPT_MAX_LENGTH)
+    .nullable()
+    .optional(),
   retrievalSettings: retrievalSettingsSchema.optional(),
   aiProfile: z
     .object({
@@ -79,6 +87,7 @@ export const assistantConfigSchema = aiConfigSchema.pick({
   autoReplyPhoneUpdates: true,
   timeoutMs: true,
   instructions: true,
+  systemPromptTemplate: true,
   aiProfile: true,
 });
 export const ragConfigSchema = aiConfigSchema.pick({

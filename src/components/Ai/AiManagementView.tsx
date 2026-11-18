@@ -10,6 +10,7 @@ import {
   FileText,
   FlaskConical,
   Loader2,
+  Pencil,
   RefreshCw,
   Save,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ import {
 } from '../../../shared/knowledgeChunking';
 import { KnowledgeReindexDialog } from './KnowledgeReindexDialog';
 import type { AiTraceStep } from '../../../shared/aiTrace';
+import { DEFAULT_AI_SYSTEM_PROMPT, SYSTEM_PROMPT_MAX_LENGTH } from '../../../shared/aiSystemPrompt';
 import { streamTestAi } from './testAiStream';
 import { AiTestTracePanel } from './AiTestTracePanel';
 import { whatsAppAvatarFilename } from '../../../shared/whatsappScope';
@@ -59,6 +61,7 @@ interface Configuration {
   timeoutMs: number;
   instructions: string;
   systemPrompt?: string;
+  systemPromptTemplate?: string | null;
   updatedAt: string;
 }
 interface AutoReplyPhone {
@@ -239,10 +242,17 @@ export const AiManagementView: React.FC = () => {
   const [draft, setDraft] = useState<Configuration | null>(null);
   const [assistantDirty, setAssistantDirty] = useState(false);
   const [ragDirty, setRagDirty] = useState(false);
+  const [isEditingSystemPrompt, setIsEditingSystemPrompt] = useState(false);
+  const [promptTemplateDraft, setPromptTemplateDraft] = useState<string | null | undefined>(
+    undefined,
+  );
+  const systemPromptTemplate =
+    promptTemplateDraft === undefined ? draft?.systemPromptTemplate : promptTemplateDraft;
+  const saveAssistant = assistantDirty || promptTemplateDraft !== undefined;
   const [showAutoReplyPhones, setShowAutoReplyPhones] = useState(false);
   const [phoneUpdates, setPhoneUpdates] = useState<Record<string, boolean>>({});
   const phoneUpdatesDirty = Object.keys(phoneUpdates).length > 0;
-  const configurationDirty = assistantDirty || ragDirty || phoneUpdatesDirty;
+  const configurationDirty = saveAssistant || ragDirty || phoneUpdatesDirty;
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -349,6 +359,12 @@ export const AiManagementView: React.FC = () => {
     if (ragConfigurationFields.some((field) => field in updates)) setRagDirty(true);
     setNotice('');
   };
+  const updatePromptTemplate = (text: string | null) => {
+    const template = text === DEFAULT_AI_SYSTEM_PROMPT ? null : text;
+    setPromptTemplateDraft(template === draft?.systemPromptTemplate ? undefined : template);
+    setNotice('');
+    setError('');
+  };
   const toggleAutoReplyPhone = (phone: AutoReplyPhone) => {
     setPhoneUpdates((previous) => {
       const next = { ...previous };
@@ -362,6 +378,11 @@ export const AiManagementView: React.FC = () => {
   const saveConfiguration = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft || !canManage || !configurationDirty || isSaving || profileBusy) return;
+    if (promptTemplateDraft?.trim() === '') {
+      setIsEditingSystemPrompt(true);
+      setError('Nhập nội dung System prompt hoặc chọn Khôi phục mặc định.');
+      return;
+    }
     setIsSaving(true);
     setError('');
     setNotice('');
@@ -383,9 +404,9 @@ export const AiManagementView: React.FC = () => {
         aiProfile = { ...aiProfile, avatarUrl };
       }
       const scope =
-        assistantDirty && ragDirty
+        saveAssistant && ragDirty
           ? ''
-          : assistantDirty
+          : saveAssistant
             ? '/assistant'
             : ragDirty
               ? '/rag'
@@ -393,9 +414,10 @@ export const AiManagementView: React.FC = () => {
       const saved = await api.put<Configuration & { aiProfile?: AiProfile }>(
         `/ai/configuration${scope}`,
         {
-          ...(assistantDirty ? pickConfigurationScope(draft, 'assistant') : {}),
+          ...(saveAssistant ? pickConfigurationScope(draft, 'assistant') : {}),
           ...(ragDirty ? pickConfigurationScope(draft, 'rag') : {}),
           autoReplyPhoneUpdates: phoneUpdatesDirty ? phoneUpdates : undefined,
+          systemPromptTemplate: promptTemplateDraft,
           aiProfile,
         },
       );
@@ -406,6 +428,8 @@ export const AiManagementView: React.FC = () => {
       setProfileDraft(null);
       setAvatarData(undefined);
       setAutoTranslateDraft(null);
+      setPromptTemplateDraft(undefined);
+      setIsEditingSystemPrompt(false);
       setAssistantDirty(false);
       setRagDirty(false);
       if (phoneUpdatesDirty) {
@@ -927,27 +951,87 @@ export const AiManagementView: React.FC = () => {
                       <p className="mt-1 text-right text-[11px] text-slate-400">
                         {draft.instructions.length.toLocaleString('vi-VN')} / 6.000 ký tự
                       </p>
-                      {draft.systemPrompt && (
-                        <details className="group mt-3 rounded-xl border border-slate-200">
-                          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 [&::-webkit-details-marker]:hidden">
-                            System prompt
-                            <ChevronDown
-                              aria-hidden="true"
-                              className="h-4 w-4 shrink-0 transition group-open:rotate-180"
+                    </div>
+                  </section>
+                  {draft.systemPrompt && (
+                    <section
+                      aria-labelledby="ai-system-prompt-heading"
+                      className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                    >
+                      <h2
+                        id="ai-system-prompt-heading"
+                        className="pt-1 text-xs font-semibold text-slate-700"
+                      >
+                        System prompt
+                      </h2>
+                      <div className="min-w-0 rounded-xl border border-slate-200 p-3">
+                        {isEditingSystemPrompt ? (
+                          <div className="space-y-3">
+                            <textarea
+                              autoFocus
+                              aria-label="Nội dung System prompt"
+                              aria-describedby="ai-system-prompt-help"
+                              rows={12}
+                              maxLength={SYSTEM_PROMPT_MAX_LENGTH}
+                              value={systemPromptTemplate ?? DEFAULT_AI_SYSTEM_PROMPT}
+                              disabled={isSaving}
+                              onChange={(event) => updatePromptTemplate(event.target.value)}
+                              className={`${inputStyle} resize-y font-mono text-xs leading-relaxed`}
                             />
-                          </summary>
-                          <div className="border-t border-slate-200 px-3 py-3">
-                            <p className="mb-2 text-xs text-slate-500">
-                              Bản xem trước dùng thương hiệu mặc định và hướng dẫn đã lưu.
+                            <p
+                              id="ai-system-prompt-help"
+                              className="text-xs leading-relaxed text-slate-500"
+                            >
+                              Dùng <code>{'{{brand}}'}</code> để chèn tên thương hiệu của hội thoại.
+                              CRM tự thêm định dạng JSON và phần Hướng dẫn tư vấn khi gửi prompt.
                             </p>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                className={secondaryButton}
+                                disabled={isSaving}
+                                onClick={() => {
+                                  setPromptTemplateDraft(undefined);
+                                  setIsEditingSystemPrompt(false);
+                                  setError('');
+                                }}
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                type="button"
+                                className={secondaryButton}
+                                disabled={isSaving || systemPromptTemplate === null}
+                                onClick={() => updatePromptTemplate(null)}
+                              >
+                                Khôi phục mặc định
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            {canManage && draft.systemPromptTemplate !== undefined && (
+                              <div className="mb-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  aria-label="Chỉnh sửa System prompt"
+                                  title="Chỉnh sửa System prompt"
+                                  disabled={isSaving}
+                                  onClick={() => setIsEditingSystemPrompt(true)}
+                                  className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:opacity-50"
+                                >
+                                  <Pencil aria-hidden="true" className="size-4" />
+                                </button>
+                              </div>
+                            )}
                             <pre className="whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
                               {draft.systemPrompt}
                             </pre>
                           </div>
-                        </details>
-                      )}
-                    </div>
-                  </section>
+                        )}
+                      </div>
+                    </section>
+                  )}
                   <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
                     <label
                       className="pt-1 text-xs font-semibold text-slate-700"

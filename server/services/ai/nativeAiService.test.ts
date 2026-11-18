@@ -29,6 +29,7 @@ const config = {
   ragEnabled: true,
   timeoutMs: 45000,
   instructions: '',
+  systemPromptTemplate: null,
   retrievalSettings: {},
   updatedAt: new Date('2026-11-13'),
 };
@@ -145,9 +146,25 @@ describe('native AI generation', () => {
     const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
     expect(request.messages[0]).toEqual({
       role: 'system',
-      content: buildAiSystemPrompt(instructions),
+      content: buildAiSystemPrompt({ instructions }),
     });
     expect(request.messages[0].content).toContain('CRM sales assistant for Yum Network');
+    expect(request.messages[0].content).toContain(instructions);
+  });
+  it('uses the saved system prompt template for the current brand and appends guidance', async () => {
+    const instructions = 'Xưng em khi trả lời.';
+    const systemPromptTemplate = 'Assist customers of {{brand}} with their orders.';
+    vi.mocked(prisma.aiConfiguration.upsert).mockResolvedValueOnce({
+      ...config,
+      instructions,
+      systemPromptTemplate,
+    });
+    await generateNativeAi(input, 'test');
+    const request = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    expect(request.messages[0].content).toMatch(
+      /^Assist customers of Actiscar with their orders\./,
+    );
+    expect(request.messages[0].content).toContain('Required JSON schema:');
     expect(request.messages[0].content).toContain(instructions);
   });
   it('uses conversation history for both retrieval and the model on follow-up turns', async () => {

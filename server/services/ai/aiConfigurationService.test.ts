@@ -28,6 +28,7 @@ const config = {
   ragEnabled: true,
   timeoutMs: 45000,
   instructions: '',
+  systemPromptTemplate: null,
   retrievalSettings: {},
   updatedAt: new Date(),
 };
@@ -77,6 +78,19 @@ describe('embedding model configuration', () => {
       data: { model: 'new-chat', instructions: 'Updated guidance' },
     });
     expect(prisma.aiKnowledgeDocument.updateMany).not.toHaveBeenCalled();
+  });
+  it('saves a custom system prompt and accepts null to restore the default', async () => {
+    const template = 'Assist customers of {{brand}}.';
+    expect(
+      (await saveAiConfiguration({ systemPromptTemplate: template })).config.systemPromptTemplate,
+    ).toBe(template);
+    expect(
+      (await saveAiConfiguration({ systemPromptTemplate: null })).config.systemPromptTemplate,
+    ).toBeNull();
+    expect(prisma.aiConfiguration.update).toHaveBeenLastCalledWith({
+      where: { id: 'default' },
+      data: { systemPromptTemplate: null },
+    });
   });
   it('updates only the specified WhatsApp numbers and retains the global switch', async () => {
     vi.mocked(prisma.whatsAppConnection.updateMany).mockResolvedValue({ count: 1 });
