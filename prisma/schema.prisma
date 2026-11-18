@@ -381,6 +381,7 @@ model WhatsAppConnection {
   registrationPinEncrypted String?
   tokenExpiresAt          DateTime?
   usesEnvironmentToken    Boolean   @default(false)
+  autoReplyEnabled        Boolean   @default(false)
   status                  String    @default("connected")
   lastConnectedAt         DateTime?
   createdAt               DateTime  @default(now())

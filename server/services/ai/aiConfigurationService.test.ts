@@ -3,6 +3,7 @@ vi.mock('../../lib/prisma', () => ({
   prisma: {
     aiConfiguration: { upsert: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
     aiKnowledgeDocument: { updateMany: vi.fn() },
+    whatsAppConnection: { updateMany: vi.fn() },
     integrationSetting: { upsert: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -77,7 +78,35 @@ describe('embedding model configuration', () => {
     });
     expect(prisma.aiKnowledgeDocument.updateMany).not.toHaveBeenCalled();
   });
-  it('saves retrieval settings and the assistant profile with the configuration in one transaction', async () => {
+  it('updates only the specified WhatsApp numbers and retains the global switch', async () => {
+    vi.mocked(prisma.whatsAppConnection.updateMany).mockResolvedValue({ count: 1 });
+    await saveAiConfiguration({ autoReplyPhoneUpdates: { '123': false, '456': true } });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.aiConfiguration.update).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      data: {},
+    });
+    expect(prisma.whatsAppConnection.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { phoneNumberId: { in: ['123'] }, status: 'connected' },
+      data: { autoReplyEnabled: false },
+    });
+    expect(prisma.whatsAppConnection.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { phoneNumberId: { in: ['456'] }, status: 'connected' },
+      data: { autoReplyEnabled: true },
+    });
+  });
+  it('rejects a save with a number that is no longer connected', async () => {
+    vi.mocked(prisma.whatsAppConnection.updateMany).mockResolvedValue({ count: 0 });
+    await expect(
+      saveAiConfiguration({ autoReplyPhoneUpdates: { '123': true }, autoReplyEnabled: true }),
+    ).rejects.toMatchObject({ code: 'WHATSAPP_CONNECTION_CHANGED', status: 409 });
+  });
+  it('enables RAG and auto reply and saves the assistant profile in one transaction', async () => {
+    vi.mocked(prisma.aiConfiguration.findUniqueOrThrow).mockResolvedValue({
+      ...config,
+      ragEnabled: false,
+    });
+    const settings = { ...input, autoReplyEnabled: true };
     const retrievalSettings = {
       ...defaultRetrievalSettings,
       mode: 'hybrid' as const,
@@ -88,11 +117,11 @@ describe('embedding model configuration', () => {
       semanticWeight: 0.7,
     };
     const aiProfile = { name: 'Trợ lý', avatarUrl: '/uploads/ai/new-avatar.png' };
-    const result = await saveAiConfiguration({ ...input, retrievalSettings, aiProfile });
+    const result = await saveAiConfiguration({ ...settings, retrievalSettings, aiProfile });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.aiConfiguration.update).toHaveBeenCalledWith({
       where: { id: 'default' },
-      data: { ...input, retrievalSettings },
+      data: { ...settings, retrievalSettings },
     });
     expect(prisma.integrationSetting.upsert).toHaveBeenCalledWith({
       where: { id: 'default' },

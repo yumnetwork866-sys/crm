@@ -45,15 +45,19 @@ export async function setNativeGlobalAiEnabled(enabled: boolean) {
   return enabled;
 }
 
+async function getAutoReplyConnection(phoneNumberId: string) {
+  if (!(await isNativeGlobalAiEnabled())) return null;
+  return prisma.whatsAppConnection.findUnique({
+    where: { phoneNumberId, status: 'connected', autoReplyEnabled: true },
+    select: { verifiedName: true },
+  });
+}
+
 export async function autoReplyWithNativeAi(input: DifyReplyJobData): Promise<boolean> {
   const { fromPhone, businessPhoneNumberId: phoneId, incomingMsgId } = input;
-  if (
-    !phoneId ||
-    !incomingMsgId ||
-    !(await isNativeGlobalAiEnabled()) ||
-    !(await isNativeAiActive(fromPhone, phoneId))
-  )
-    return false;
+  if (!phoneId || !incomingMsgId) return false;
+  const connection = await getAutoReplyConnection(phoneId);
+  if (!connection || !(await isNativeAiActive(fromPhone, phoneId))) return false;
   const text = input.incomingText.trim();
   if (
     !text ||
@@ -83,12 +87,8 @@ export async function autoReplyWithNativeAi(input: DifyReplyJobData): Promise<bo
     });
   const initial = await latestMessage();
   if (!initial || initial.id !== incomingMsgId || initial.sender !== 'customer') return false;
-  const connection = await prisma.whatsAppConnection.findUnique({
-    where: { phoneNumberId: phoneId },
-    select: { verifiedName: true },
-  });
   const brandName =
-    connection?.verifiedName ||
+    connection.verifiedName ||
     (input.brandName && !/^[\d\s+()-]+$/.test(input.brandName) ? input.brandName : 'Yum Network');
   const result = await generateNativeAi(
     {
@@ -105,7 +105,7 @@ export async function autoReplyWithNativeAi(input: DifyReplyJobData): Promise<bo
     !result.shouldAutoReply ||
     !current ||
     current.id !== incomingMsgId ||
-    !(await isNativeGlobalAiEnabled()) ||
+    !(await getAutoReplyConnection(phoneId)) ||
     !(await isNativeAiActive(fromPhone, phoneId))
   ) {
     await prisma.aiRun.update({
@@ -143,8 +143,8 @@ export async function autoReplyWithNativeAi(input: DifyReplyJobData): Promise<bo
     if (
       availableSources !== result.sourceIds.length ||
       !(await isNativeAiActive(fromPhone, phoneId)) ||
-      !(await isNativeGlobalAiEnabled()) ||
-      (await latestMessage())?.id !== incomingMsgId
+      (await latestMessage())?.id !== incomingMsgId ||
+      !(await getAutoReplyConnection(phoneId))
     ) {
       await prisma.aiRun.update({
         where: { id: result.runId },

@@ -22,6 +22,7 @@ import { prisma } from '../lib/prisma';
 import { saveUploadedFile, getUploadedFile } from '../services/fileStorage.service';
 import crypto from 'crypto';
 import { createLogger } from '../lib/logger';
+import { whatsAppAvatarFilename } from '../../shared/whatsappScope';
 
 const log = createLogger('metaController');
 
@@ -336,7 +337,7 @@ export async function saveConfig(req: Request, res: Response) {
 const AVATAR_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 ngày (24 giờ) cho avatar
 
 async function getOrUpdateWabaAvatar(phoneId: string, token: string, forceRefresh = false): Promise<string | undefined> {
-  const filename = `waba_avatar_${phoneId}.jpg`;
+  const filename = whatsAppAvatarFilename(phoneId);
   const publicUrl = `/uploads/${filename}`;
 
   const now = Date.now();

@@ -40,7 +40,6 @@ export function mergeConfigurationDraft<T extends ScopedAiConfiguration>(
   const result = { ...saved };
   if (draft && dirty.assistant) Object.assign(result, pickConfigurationScope(draft, 'assistant'));
   if (draft && dirty.rag) Object.assign(result, pickConfigurationScope(draft, 'rag'));
-  // Auto reply depends on the persisted RAG state, not an unsaved RAG toggle.
-  if (!saved.ragEnabled) result.autoReplyEnabled = false;
+  if (!result.ragEnabled) result.autoReplyEnabled = false;
   return result;
 }

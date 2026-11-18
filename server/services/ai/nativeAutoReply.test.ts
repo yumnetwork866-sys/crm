@@ -82,6 +82,29 @@ describe('native automatic reply dispatch', () => {
     expect(generateNativeAi).not.toHaveBeenCalled();
     expect(dispatchMetaMessage).not.toHaveBeenCalled();
   });
+  it('skips a WhatsApp number that has not enabled automatic replies', async () => {
+    vi.mocked(prisma.whatsAppConnection.findUnique).mockResolvedValue(null);
+    expect(await autoReplyWithNativeAi(input)).toBe(false);
+    expect(prisma.whatsAppConnection.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { phoneNumberId: 'phone-1', status: 'connected', autoReplyEnabled: true },
+      }),
+    );
+    expect(generateNativeAi).not.toHaveBeenCalled();
+    expect(dispatchMetaMessage).not.toHaveBeenCalled();
+  });
+  it('blocks delivery if that WhatsApp number is disabled after generation', async () => {
+    vi.mocked(getMetaAccessTokenForPhone).mockImplementationOnce(async () => {
+      vi.mocked(prisma.whatsAppConnection.findUnique).mockResolvedValueOnce(null);
+      return 'mock-token';
+    });
+    expect(await autoReplyWithNativeAi(input)).toBe(false);
+    expect(generateNativeAi).toHaveBeenCalled();
+    expect(dispatchMetaMessage).not.toHaveBeenCalled();
+    expect(prisma.aiRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ errorCode: 'CONTEXT_CHANGED' }) }),
+    );
+  });
   it('persists pauses with the business phone scope and honors them', async () => {
     await pauseNativeAi(input.fromPhone, 30, 'phone-1');
     expect(prisma.aiConversationState.upsert).toHaveBeenCalledWith(

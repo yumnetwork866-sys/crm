@@ -7,6 +7,7 @@ import {
   splitKnowledge,
   retrievalSettingsSchema,
   assistantConfigSchema,
+  autoReplyPhonesConfigSchema,
   ragConfigSchema,
 } from './contracts';
 import { defaultChunkSettings } from '../../../shared/knowledgeChunking';
@@ -31,6 +32,22 @@ describe('native AI contracts and knowledge indexing', () => {
         aiProfile: { name: 'other', avatarUrl: null },
       }),
     ).toEqual({ ragEnabled: true });
+  });
+  it('validates per-number overrides without accepting changes to the global switch', () => {
+    const updates = { '12345': false, '67890': true };
+    expect(
+      autoReplyPhonesConfigSchema.parse({
+        autoReplyPhoneUpdates: updates,
+        autoReplyEnabled: true,
+      }),
+    ).toEqual({ autoReplyPhoneUpdates: updates });
+    for (const input of [
+      {},
+      { autoReplyPhoneUpdates: { '*': true } },
+      { autoReplyPhoneUpdates: { '12345': 'false' } },
+    ]) {
+      expect(autoReplyPhonesConfigSchema.safeParse(input).success).toBe(false);
+    }
   });
   it('validates retrieval modes, Top K and cosine thresholds', () => {
     const settings = { mode: 'hybrid', topK: 5, scoreThresholdEnabled: true, scoreThreshold: 0.55 };

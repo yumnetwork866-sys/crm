@@ -53,6 +53,7 @@ export const aiConfigSchema = z.object({
     .optional(),
   suggestionsEnabled: z.boolean(),
   autoReplyEnabled: z.boolean(),
+  autoReplyPhoneUpdates: z.record(z.string().regex(/^\d{1,100}$/), z.boolean()).optional(),
   ragEnabled: z.boolean(),
   timeoutMs: z.number().int().min(5000).max(120000),
   instructions: z.string().trim().max(6000),
@@ -75,6 +76,7 @@ export const assistantConfigSchema = aiConfigSchema.pick({
   model: true,
   suggestionsEnabled: true,
   autoReplyEnabled: true,
+  autoReplyPhoneUpdates: true,
   timeoutMs: true,
   instructions: true,
   aiProfile: true,
@@ -83,7 +85,11 @@ export const ragConfigSchema = aiConfigSchema.pick({
   embeddingModel: true,
   ragEnabled: true,
   retrievalSettings: true,
+  autoReplyPhoneUpdates: true,
 });
+export const autoReplyPhonesConfigSchema = aiConfigSchema
+  .pick({ autoReplyPhoneUpdates: true })
+  .required();
 
 export const knowledgeSchema = z.object({
   title: z.string().trim().min(1).max(160),

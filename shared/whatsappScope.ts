@@ -1,5 +1,9 @@
 export const ALL_BUSINESS_PHONES = 'all';
 
+export function whatsAppAvatarFilename(phoneId: string): string {
+  return `waba_avatar_${phoneId}.jpg`;
+}
+
 export function scopeThreadId(phoneId: string, threadId: string): string {
   return `waba:${phoneId}:${threadId}`;
 }

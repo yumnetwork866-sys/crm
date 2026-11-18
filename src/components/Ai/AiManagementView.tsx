@@ -12,7 +12,6 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  Settings2,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -39,12 +38,13 @@ import { KnowledgeReindexDialog } from './KnowledgeReindexDialog';
 import type { AiTraceStep } from '../../../shared/aiTrace';
 import { streamTestAi } from './testAiStream';
 import { AiTestTracePanel } from './AiTestTracePanel';
+import { whatsAppAvatarFilename } from '../../../shared/whatsappScope';
+import whatsappLogoUrl from '../../assets/whatsapp.svg';
 import {
   assistantConfigurationFields,
   ragConfigurationFields,
   mergeConfigurationDraft,
   pickConfigurationScope,
-  type ConfigurationScope,
 } from '../../../shared/aiConfigurationScopes';
 
 interface Configuration {
@@ -59,6 +59,12 @@ interface Configuration {
   timeoutMs: number;
   instructions: string;
   updatedAt: string;
+}
+interface AutoReplyPhone {
+  phoneNumberId: string;
+  displayPhoneNumber: string | null;
+  verifiedName: string | null;
+  autoReplyEnabled: boolean;
 }
 interface KnowledgeSource {
   id: string;
@@ -105,6 +111,7 @@ interface TestChatMessage {
   result?: TestResult;
 }
 const CONFIG_KEY = ['ai', 'configuration'];
+const AUTO_REPLY_PHONES_KEY = ['ai', 'auto-reply-phones'];
 const KNOWLEDGE_KEY = ['ai', 'knowledge'];
 const RUNS_KEY = ['ai', 'runs'];
 const inputStyle =
@@ -122,7 +129,6 @@ const blankDocument: KnowledgeDraft = {
 };
 const tabs = [
   { id: 'assistant', label: 'Trợ lý AI', icon: Bot },
-  { id: 'rag', label: 'RAG', icon: Settings2 },
   { id: 'test', label: 'Thử AI', icon: FlaskConical },
   { id: 'knowledge', label: 'Kho kiến thức', icon: BookOpen },
   { id: 'runs', label: 'Nhật ký', icon: Activity },
@@ -134,28 +140,39 @@ const messageOf = (error: unknown) =>
 
 function SettingSwitch({
   title,
+  ariaLabel = title,
+  label,
   description,
+  avatar,
   checked,
   disabled,
   onChange,
 }: {
   title: string;
+  ariaLabel?: string;
+  label?: React.ReactNode;
   description?: string;
+  avatar?: React.ReactNode;
   checked: boolean;
   disabled: boolean;
   onChange: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3">
-      <div>
-        <p className="text-sm font-medium text-slate-900">{title}</p>
-        {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
-      </div>
+      {label ?? (
+        <div className="flex min-w-0 items-center gap-3">
+          {avatar}
+          <div className="min-w-0">
+            <p className="break-words text-sm font-medium text-slate-900">{title}</p>
+            {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
+          </div>
+        </div>
+      )}
       <button
         type="button"
         role="switch"
         aria-checked={checked}
-        aria-label={title}
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={onChange}
         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${checked ? 'bg-emerald-600' : 'bg-slate-200'}`}
@@ -204,6 +221,7 @@ export const AiManagementView: React.FC = () => {
   const [profileBusy, setProfileBusy] = useState(false);
   const [autoTranslateDraft, setAutoTranslateDraft] = useState<boolean | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const legacyRagTab = searchParams.get('tab') === 'rag';
   const tab: Tab =
     tabs.find((item) => item.id === searchParams.get('tab') && (item.id !== 'runs' || canManage))
       ?.id || 'assistant';
@@ -220,7 +238,10 @@ export const AiManagementView: React.FC = () => {
   const [draft, setDraft] = useState<Configuration | null>(null);
   const [assistantDirty, setAssistantDirty] = useState(false);
   const [ragDirty, setRagDirty] = useState(false);
-  const activeDirty = tab === 'rag' ? ragDirty : assistantDirty;
+  const [showAutoReplyPhones, setShowAutoReplyPhones] = useState(false);
+  const [phoneUpdates, setPhoneUpdates] = useState<Record<string, boolean>>({});
+  const phoneUpdatesDirty = Object.keys(phoneUpdates).length > 0;
+  const configurationDirty = assistantDirty || ragDirty || phoneUpdatesDirty;
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -228,6 +249,15 @@ export const AiManagementView: React.FC = () => {
     queryKey: CONFIG_KEY,
     queryFn: () => api.get<Configuration>('/ai/configuration'),
   });
+  const autoReplyPhones = useQuery({
+    queryKey: AUTO_REPLY_PHONES_KEY,
+    queryFn: () => api.get<AutoReplyPhone[]>('/ai/configuration/auto-reply-phones'),
+    enabled: tab === 'assistant',
+  });
+  const phones = autoReplyPhones.data ?? [];
+  const enabledPhoneCount = phones.filter(
+    (phone) => phoneUpdates[phone.phoneNumberId] ?? phone.autoReplyEnabled,
+  ).length;
   const models = useQuery({
     queryKey: ['ai', 'models'],
     queryFn: () =>
@@ -265,6 +295,7 @@ export const AiManagementView: React.FC = () => {
   useEffect(() => {
     const update = () => {
       void queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
+      void queryClient.invalidateQueries({ queryKey: AUTO_REPLY_PHONES_KEY });
     };
     window.addEventListener('ai:status_change', update);
     return () => window.removeEventListener('ai:status_change', update);
@@ -317,15 +348,24 @@ export const AiManagementView: React.FC = () => {
     if (ragConfigurationFields.some((field) => field in updates)) setRagDirty(true);
     setNotice('');
   };
-  const saveConfiguration = async (event: React.FormEvent, scope: ConfigurationScope) => {
+  const toggleAutoReplyPhone = (phone: AutoReplyPhone) => {
+    setPhoneUpdates((previous) => {
+      const next = { ...previous };
+      const enabled = !(previous[phone.phoneNumberId] ?? phone.autoReplyEnabled);
+      if (enabled === phone.autoReplyEnabled) delete next[phone.phoneNumberId];
+      else next[phone.phoneNumberId] = enabled;
+      return next;
+    });
+    setNotice('');
+  };
+  const saveConfiguration = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft || !canManage || isSaving || (scope === 'assistant' && profileBusy)) return;
+    if (!draft || !canManage || !configurationDirty || isSaving || profileBusy) return;
     setIsSaving(true);
     setError('');
     setNotice('');
     try {
-      const saveProfile =
-        scope === 'assistant' && (profileDraft !== null || avatarData !== undefined);
+      const saveProfile = profileDraft !== null || avatarData !== undefined;
       let aiProfile = saveProfile ? profileDraft || profileQuery.data : undefined;
       if (saveProfile && !aiProfile)
         throw new Error('Chưa tải được hồ sơ trợ lý. Vui lòng thử lại.');
@@ -341,33 +381,57 @@ export const AiManagementView: React.FC = () => {
         }
         aiProfile = { ...aiProfile, avatarUrl };
       }
+      const scope =
+        assistantDirty && ragDirty
+          ? ''
+          : assistantDirty
+            ? '/assistant'
+            : ragDirty
+              ? '/rag'
+              : '/auto-reply-phones';
       const saved = await api.put<Configuration & { aiProfile?: AiProfile }>(
-        `/ai/configuration/${scope}`,
+        `/ai/configuration${scope}`,
         {
-          ...pickConfigurationScope(draft, scope),
+          ...(assistantDirty ? pickConfigurationScope(draft, 'assistant') : {}),
+          ...(ragDirty ? pickConfigurationScope(draft, 'rag') : {}),
+          autoReplyPhoneUpdates: phoneUpdatesDirty ? phoneUpdates : undefined,
           aiProfile,
         },
       );
       const { aiProfile: savedProfile, ...savedConfiguration } = saved;
       queryClient.setQueryData(CONFIG_KEY, savedConfiguration);
       if (savedProfile) queryClient.setQueryData(queryKeys.aiProfile, savedProfile);
-      if (scope === 'assistant') {
-        if (autoTranslateDraft !== null) setAutoTranslate(autoTranslateDraft);
-        setProfileDraft(null);
-        setAvatarData(undefined);
-        setAutoTranslateDraft(null);
-        setAssistantDirty(false);
-      } else setRagDirty(false);
-      setDraft((previous) =>
-        mergeConfigurationDraft(savedConfiguration, previous, {
-          assistant: scope !== 'assistant' && assistantDirty,
-          rag: scope !== 'rag' && ragDirty,
-        }),
-      );
+      if (autoTranslateDraft !== null) setAutoTranslate(autoTranslateDraft);
+      setProfileDraft(null);
+      setAvatarData(undefined);
+      setAutoTranslateDraft(null);
+      setAssistantDirty(false);
+      setRagDirty(false);
+      if (phoneUpdatesDirty) {
+        await queryClient.cancelQueries({ queryKey: AUTO_REPLY_PHONES_KEY });
+        queryClient.setQueryData<AutoReplyPhone[]>(AUTO_REPLY_PHONES_KEY, (previous) =>
+          previous?.map((phone) => ({
+            ...phone,
+            autoReplyEnabled: phoneUpdates[phone.phoneNumberId] ?? phone.autoReplyEnabled,
+          })),
+        );
+        void queryClient.invalidateQueries({ queryKey: AUTO_REPLY_PHONES_KEY });
+      }
+      setPhoneUpdates({});
+      setDraft(savedConfiguration);
       setNotice(saved.reindexing ? 'Đã lưu. Đang reindex.' : 'Đã lưu.');
       if (saved.reindexing) await queryClient.invalidateQueries({ queryKey: KNOWLEDGE_KEY });
     } catch (saveError) {
       setError(messageOf(saveError));
+      if (saveError instanceof ApiError && saveError.status === 409 && phoneUpdatesDirty) {
+        const refreshed = await autoReplyPhones.refetch();
+        if (refreshed.isSuccess) {
+          const connectedIds = new Set(refreshed.data.map((phone) => phone.phoneNumberId));
+          setPhoneUpdates((previous) =>
+            Object.fromEntries(Object.entries(previous).filter(([id]) => connectedIds.has(id))),
+          );
+        }
+      }
     } finally {
       setIsSaving(false);
     }
@@ -604,7 +668,7 @@ export const AiManagementView: React.FC = () => {
             >
               <Icon className="h-4 w-4" />
               {label}
-              {((id === 'assistant' && assistantDirty) || (id === 'rag' && ragDirty)) && (
+              {id === 'assistant' && configurationDirty && (
                 <span
                   title="Có thay đổi chưa lưu"
                   className="h-1.5 w-1.5 rounded-full bg-amber-500"
@@ -623,7 +687,7 @@ export const AiManagementView: React.FC = () => {
         </p>
       )}
 
-      {(tab === 'assistant' || tab === 'rag') && (
+      {tab === 'assistant' && (
         <div className="w-full rounded-2xl border border-slate-200 bg-white">
           {configuration.isPending ? (
             <p role="status" className="flex items-center gap-2 px-6 py-12 text-sm text-slate-500">
@@ -646,306 +710,404 @@ export const AiManagementView: React.FC = () => {
               <>
                 <form
                   id="ai-configuration-form"
-                  onSubmit={(event) =>
-                    void saveConfiguration(event, tab === 'rag' ? 'rag' : 'assistant')
-                  }
+                  onSubmit={(event) => void saveConfiguration(event)}
                 />
                 <div className="divide-y divide-slate-100">
-                  {tab === 'assistant' ? (
-                    <>
-                      <div className="px-5 py-6 sm:px-6">
-                        <AiManagementPanel
-                          embedded
-                          profile={profileDraft || profileQuery.data}
-                          avatarPreview={avatarData}
+                  <div className="px-5 py-6 sm:px-6">
+                    <AiManagementPanel
+                      embedded
+                      profile={profileDraft || profileQuery.data}
+                      avatarPreview={avatarData}
+                      disabled={!canManage || isSaving}
+                      loading={profileQuery.isPending}
+                      error={profileQuery.isError ? messageOf(profileQuery.error) : undefined}
+                      onRetry={() => void profileQuery.refetch()}
+                      onChange={(profile) => {
+                        setProfileDraft(profile);
+                        setAssistantDirty(true);
+                        setNotice('');
+                      }}
+                      onAvatarChange={(image) => {
+                        setAvatarData(image);
+                        setAssistantDirty(true);
+                        setNotice('');
+                      }}
+                      onBusyChange={setProfileBusy}
+                    />
+                  </div>
+                  <section
+                    aria-labelledby="ai-models-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-models-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Model trả lời
+                    </h2>
+                    <div className="min-w-0">
+                      <div className="min-w-0">
+                        <select
+                          id="ai-model"
+                          aria-labelledby="ai-models-heading"
+                          form="ai-configuration-form"
+                          className={inputStyle}
+                          value={draft.model}
                           disabled={!canManage || isSaving}
-                          loading={profileQuery.isPending}
-                          error={profileQuery.isError ? messageOf(profileQuery.error) : undefined}
-                          onRetry={() => void profileQuery.refetch()}
-                          onChange={(profile) => {
-                            setProfileDraft(profile);
-                            setAssistantDirty(true);
-                            setNotice('');
-                          }}
-                          onAvatarChange={(image) => {
-                            setAvatarData(image);
-                            setAssistantDirty(true);
-                            setNotice('');
-                          }}
-                          onBusyChange={setProfileBusy}
-                        />
-                      </div>
-                      <section
-                        aria-labelledby="ai-models-heading"
-                        className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
-                      >
-                        <h2
-                          id="ai-models-heading"
-                          className="pt-1 text-xs font-semibold text-slate-700"
+                          onChange={(event) => updateDraft({ model: event.target.value })}
                         >
-                          Model AI
-                        </h2>
-                        <div className="min-w-0">
-                          <div className="min-w-0">
-                            <label
-                              className="block text-xs font-semibold text-slate-600"
-                              htmlFor="ai-model"
-                            >
-                              Model trả lời
-                            </label>
-                            <select
-                              id="ai-model"
-                              form="ai-configuration-form"
-                              className={`${inputStyle} mt-2`}
-                              value={draft.model}
-                              disabled={!canManage || isSaving}
-                              onChange={(event) => updateDraft({ model: event.target.value })}
-                            >
-                              {modelOptions.map((model) => (
-                                <option key={model}>{model}</option>
-                              ))}
-                            </select>
-                            {models.data?.connected && !installedModels.includes(draft.model) && (
-                              <p className="mt-1 text-xs text-amber-700">
-                                Model chưa được cài đặt.
-                              </p>
-                            )}
-                          </div>
-                          {!models.isFetching && !models.data?.connected && (
-                            <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
-                              {models.data?.error || 'Chưa kiểm tra được kết nối.'}
+                          {modelOptions.map((model) => (
+                            <option key={model}>{model}</option>
+                          ))}
+                        </select>
+                        {models.data?.connected && !installedModels.includes(draft.model) && (
+                          <p className="mt-1 text-xs text-amber-700">Model chưa được cài đặt.</p>
+                        )}
+                      </div>
+                      {!models.isFetching && !models.data?.connected && (
+                        <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                          {models.data?.error || 'Chưa kiểm tra được kết nối.'}
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                  <section
+                    aria-labelledby="ai-automation-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-automation-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Cấu hình
+                    </h2>
+                    <div className="min-w-0 -my-3">
+                      <div className="divide-y divide-slate-100">
+                        <SettingSwitch
+                          title="Gợi ý tin nhắn"
+                          checked={draft.suggestionsEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() =>
+                            updateDraft({ suggestionsEnabled: !draft.suggestionsEnabled })
+                          }
+                        />
+
+                        <div>
+                          <SettingSwitch
+                            title="Tự động trả lời"
+                            ariaLabel="Tự động trả lời · Công tắc tổng"
+                            label={
+                              <button
+                                type="button"
+                                aria-expanded={showAutoReplyPhones}
+                                aria-controls="ai-auto-reply-phones"
+                                onClick={() => setShowAutoReplyPhones(!showAutoReplyPhones)}
+                                className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded text-left text-sm font-medium text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                              >
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${showAutoReplyPhones ? 'rotate-180' : ''}`}
+                                />
+                                Tự động trả lời
+                                {autoReplyPhones.isSuccess && (
+                                  <span className="text-xs font-normal text-slate-500">
+                                    {enabledPhoneCount}/{phones.length} số đã chọn
+                                  </span>
+                                )}
+                              </button>
+                            }
+                            checked={draft.autoReplyEnabled}
+                            disabled={!canManage || isSaving || !draft.ragEnabled}
+                            onChange={() =>
+                              updateDraft({ autoReplyEnabled: !draft.autoReplyEnabled })
+                            }
+                          />
+                          {!draft.ragEnabled && (
+                            <p className="pb-3 text-xs text-amber-700">
+                              Bật truy xuất kiến thức để sử dụng tự động trả lời.
                             </p>
                           )}
-                        </div>
-                      </section>
-                      <section
-                        aria-labelledby="ai-automation-heading"
-                        className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
-                      >
-                        <h2
-                          id="ai-automation-heading"
-                          className="pt-1 text-xs font-semibold text-slate-700"
-                        >
-                          Tự động hóa
-                        </h2>
-                        <div className="min-w-0 -my-3">
-                          <div className="divide-y divide-slate-100">
-                            <SettingSwitch
-                              title="Gợi ý tin nhắn"
-                              checked={draft.suggestionsEnabled}
-                              disabled={!canManage || isSaving}
-                              onChange={() =>
-                                updateDraft({ suggestionsEnabled: !draft.suggestionsEnabled })
-                              }
-                            />
-
-                            <SettingSwitch
-                              title="Tự động trả lời"
-                              checked={draft.autoReplyEnabled}
-                              disabled={!canManage || isSaving || !configuration.data?.ragEnabled}
-                              onChange={() =>
-                                updateDraft({ autoReplyEnabled: !draft.autoReplyEnabled })
-                              }
-                            />
-                            {!configuration.data?.ragEnabled && (
-                              <p className="pb-3 text-xs text-amber-700">
-                                Bật và lưu RAG để sử dụng tự động trả lời.
-                                <button
-                                  type="button"
-                                  className="ml-2 underline"
-                                  onClick={() => setTab('rag')}
-                                >
-                                  Mở RAG
-                                </button>
-                              </p>
-                            )}
-                            <SettingSwitch
-                              title="Dịch sang tiếng Việt"
-                              checked={autoTranslateDraft ?? isAutoTranslateEnabled}
-                              disabled={!canManage || isSaving}
-                              onChange={() => {
-                                setAutoTranslateDraft(
-                                  !(autoTranslateDraft ?? isAutoTranslateEnabled),
-                                );
-                                setAssistantDirty(true);
-                                setNotice('');
-                              }}
-                            />
+                          <div id="ai-auto-reply-phones" hidden={!showAutoReplyPhones}>
+                            <div className="mb-3 rounded-xl bg-slate-50 px-3 sm:px-4">
+                              {autoReplyPhones.isPending ? (
+                                <p role="status" className="py-3 text-xs text-slate-500">
+                                  Đang tải số WhatsApp…
+                                </p>
+                              ) : autoReplyPhones.isError ? (
+                                <p role="alert" className="py-3 text-xs text-rose-700">
+                                  {messageOf(autoReplyPhones.error)}{' '}
+                                  <button
+                                    type="button"
+                                    className="underline"
+                                    onClick={() => void autoReplyPhones.refetch()}
+                                  >
+                                    Thử lại
+                                  </button>
+                                </p>
+                              ) : phones.length ? (
+                                <ul className="divide-y divide-slate-200/70">
+                                  {phones.map((phone) => {
+                                    const number = phone.displayPhoneNumber || phone.phoneNumberId;
+                                    const name = phone.verifiedName?.trim();
+                                    return (
+                                      <li key={phone.phoneNumberId}>
+                                        <SettingSwitch
+                                          title={name || number}
+                                          ariaLabel={
+                                            name && name !== number ? `${name} · ${number}` : number
+                                          }
+                                          description={name && name !== number ? number : undefined}
+                                          avatar={
+                                            <img
+                                              src={`/uploads/${whatsAppAvatarFilename(encodeURIComponent(phone.phoneNumberId))}`}
+                                              alt=""
+                                              loading="lazy"
+                                              className="size-9 shrink-0 rounded-full bg-emerald-50 object-cover"
+                                              onError={({ currentTarget }) => {
+                                                if (
+                                                  currentTarget.getAttribute('src') !==
+                                                  whatsappLogoUrl
+                                                )
+                                                  currentTarget.src = whatsappLogoUrl;
+                                              }}
+                                            />
+                                          }
+                                          checked={
+                                            phoneUpdates[phone.phoneNumberId] ??
+                                            phone.autoReplyEnabled
+                                          }
+                                          disabled={!canManage || isSaving}
+                                          onChange={() => toggleAutoReplyPhone(phone)}
+                                        />
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : (
+                                <p className="py-3 text-xs text-slate-500">
+                                  Chưa có số WhatsApp Business đã kết nối.
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </section>{' '}
-                      <section
-                        aria-labelledby="ai-guidance-heading"
-                        className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                        <SettingSwitch
+                          title="Dịch sang tiếng Việt"
+                          checked={autoTranslateDraft ?? isAutoTranslateEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() => {
+                            setAutoTranslateDraft(!(autoTranslateDraft ?? isAutoTranslateEnabled));
+                            setAssistantDirty(true);
+                            setNotice('');
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </section>
+                  <section
+                    aria-labelledby="ai-guidance-heading"
+                    className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
+                  >
+                    <h2
+                      id="ai-guidance-heading"
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                    >
+                      Hướng dẫn tư vấn
+                    </h2>
+                    <div className="min-w-0">
+                      <textarea
+                        id="ai-instructions"
+                        aria-label="Hướng dẫn tư vấn"
+                        form="ai-configuration-form"
+                        rows={5}
+                        maxLength={6000}
+                        value={draft.instructions}
+                        disabled={!canManage || isSaving}
+                        onChange={(event) => updateDraft({ instructions: event.target.value })}
+                        className={`${inputStyle} resize-y leading-6`}
+                        placeholder="Ví dụ: Xưng em, gọi khách là anh/chị. Trả lời ngắn gọn và hỏi lại khi thiếu thông tin…"
+                      />
+                      <p className="mt-1 text-right text-[11px] text-slate-400">
+                        {draft.instructions.length.toLocaleString('vi-VN')} / 6.000 ký tự
+                      </p>
+                    </div>
+                  </section>
+                  <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
+                    <label
+                      className="pt-1 text-xs font-semibold text-slate-700"
+                      htmlFor="ai-timeout"
+                    >
+                      Thời gian chờ phản hồi
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 shrink-0">
+                        <input
+                          id="ai-timeout"
+                          form="ai-configuration-form"
+                          type="number"
+                          min={5}
+                          max={120}
+                          required
+                          value={draft.timeoutMs / 1000}
+                          disabled={!canManage || isSaving}
+                          onChange={(event) =>
+                            updateDraft({ timeoutMs: Number(event.target.value) * 1000 })
+                          }
+                          className={inputStyle}
+                        />
+                      </div>
+                      <span className="text-xs text-slate-400">giây</span>
+                    </div>
+                  </section>
+                  <section aria-labelledby="ai-retrieval-heading">
+                    <div className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
+                      <h2
+                        id="ai-retrieval-heading"
+                        className="pt-1 text-xs font-semibold text-slate-700"
                       >
-                        <h2
-                          id="ai-guidance-heading"
-                          className="pt-1 text-xs font-semibold text-slate-700"
+                        Truy xuất kiến thức
+                      </h2>
+                      <div className="min-w-0 -my-3">
+                        <SettingSwitch
+                          title="Bật RAG"
+                          checked={draft.ragEnabled}
+                          disabled={!canManage || isSaving}
+                          onChange={() =>
+                            updateDraft({
+                              ragEnabled: !draft.ragEnabled,
+                              ...(draft.ragEnabled && draft.autoReplyEnabled
+                                ? { autoReplyEnabled: false }
+                                : {}),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <details
+                      className="group border-t border-slate-100"
+                      open={legacyRagTab || undefined}
+                      onInvalidCapture={(event) => {
+                        event.currentTarget.open = true;
+                      }}
+                    >
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 sm:px-6 [&::-webkit-details-marker]:hidden">
+                        Cài đặt nâng cao
+                        <ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" />
+                      </summary>
+                      <div className="divide-y divide-slate-100 border-t border-slate-100">
+                        <section
+                          aria-labelledby="rag-model-heading"
+                          className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
                         >
-                          Hướng dẫn tư vấn
-                        </h2>
-                        <div className="min-w-0">
-                          <textarea
-                            id="ai-instructions"
-                            aria-label="Hướng dẫn tư vấn"
-                            form="ai-configuration-form"
-                            rows={5}
-                            maxLength={6000}
-                            value={draft.instructions}
-                            disabled={!canManage || isSaving}
-                            onChange={(event) => updateDraft({ instructions: event.target.value })}
-                            className={`${inputStyle} resize-y leading-6`}
-                            placeholder="Ví dụ: Xưng em, gọi khách là anh/chị. Trả lời ngắn gọn và hỏi lại khi thiếu thông tin…"
-                          />
-                          <p className="mt-1 text-right text-[11px] text-slate-400">
-                            {draft.instructions.length.toLocaleString('vi-VN')} / 6.000 ký tự
-                          </p>
-                        </div>
-                      </section>
-                      <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
-                        <label
-                          className="pt-1 text-xs font-semibold text-slate-700"
-                          htmlFor="ai-timeout"
-                        >
-                          Thời gian chờ phản hồi
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 shrink-0">
-                            <input
-                              id="ai-timeout"
+                          <h2
+                            id="rag-model-heading"
+                            className="pt-1 text-xs font-semibold text-slate-700"
+                          >
+                            Embedding model
+                          </h2>
+                          <div className="min-w-0">
+                            <div className="min-w-0">
+                              <select
+                                id="ai-embedding-model"
+                                aria-labelledby="rag-model-heading"
+                                form="ai-configuration-form"
+                                className={inputStyle}
+                                value={draft.embeddingModel}
+                                disabled={!canManage || isSaving}
+                                onChange={(event) =>
+                                  updateDraft({ embeddingModel: event.target.value })
+                                }
+                              >
+                                {embeddingModelOptions.map((model) => (
+                                  <option key={model}>{model}</option>
+                                ))}
+                              </select>
+                              {draft.embeddingModel === configuration.data?.embeddingModel && (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {draft.embeddingDimensions} chiều
+                                </p>
+                              )}
+                              {draft.embeddingModel !== configuration.data?.embeddingModel ? (
+                                <p className="mt-1 text-xs text-amber-700">
+                                  Đổi model sẽ reindex tài liệu.
+                                </p>
+                              ) : (
+                                models.data?.connected &&
+                                !embeddingModels.includes(draft.embeddingModel) && (
+                                  <p className="mt-1 text-xs text-amber-700">
+                                    Embedding model chưa được cài đặt.
+                                  </p>
+                                )
+                              )}
+                            </div>
+                            {!models.isFetching && !models.data?.connected && (
+                              <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                                {models.data?.error || 'Chưa kiểm tra được kết nối.'}
+                              </p>
+                            )}
+                          </div>
+                        </section>
+                        <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
+                          <label
+                            htmlFor="ai-rerank-model"
+                            className="pt-1 text-xs font-semibold text-slate-700"
+                          >
+                            Model rerank
+                          </label>
+                          <div className="min-w-0">
+                            <select
+                              id="ai-rerank-model"
                               form="ai-configuration-form"
-                              type="number"
-                              min={5}
-                              max={120}
-                              required
-                              value={draft.timeoutMs / 1000}
+                              value={draft.retrievalSettings.rerankModel}
                               disabled={!canManage || isSaving}
                               onChange={(event) =>
-                                updateDraft({ timeoutMs: Number(event.target.value) * 1000 })
+                                updateDraft({
+                                  retrievalSettings: {
+                                    ...draft.retrievalSettings,
+                                    rerankModel: event.target.value,
+                                  },
+                                })
                               }
                               className={inputStyle}
-                            />
-                          </div>
-                          <span className="text-xs text-slate-400">giây</span>
-                        </div>
-                      </section>
-                    </>
-                  ) : (
-                    <>
-                      <section
-                        aria-labelledby="rag-model-heading"
-                        className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6"
-                      >
-                        <h2
-                          id="rag-model-heading"
-                          className="pt-1 text-xs font-semibold text-slate-700"
-                        >
-                          Embedding model
-                        </h2>
-                        <div className="min-w-0">
-                          <div className="min-w-0">
-                            <label
-                              className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600"
-                              htmlFor="ai-embedding-model"
                             >
-                              Embedding model
-                              {draft.embeddingModel === configuration.data?.embeddingModel && (
-                                <span className="font-normal text-slate-400">
-                                  {draft.embeddingDimensions} chiều
-                                </span>
-                              )}
-                            </label>
-                            <select
-                              id="ai-embedding-model"
-                              form="ai-configuration-form"
-                              className={`${inputStyle} mt-2`}
-                              value={draft.embeddingModel}
-                              disabled={!canManage || isSaving}
-                              onChange={(event) =>
-                                updateDraft({ embeddingModel: event.target.value })
-                              }
-                            >
-                              {embeddingModelOptions.map((model) => (
+                              {[
+                                ...new Set([
+                                  draft.retrievalSettings.rerankModel,
+                                  ...installedModels,
+                                ]),
+                              ].map((model) => (
                                 <option key={model}>{model}</option>
                               ))}
                             </select>
-                            {draft.embeddingModel !== configuration.data?.embeddingModel ? (
-                              <p className="mt-1 text-xs text-amber-700">
-                                Đổi model sẽ reindex tài liệu.
-                              </p>
-                            ) : (
-                              models.data?.connected &&
-                              !embeddingModels.includes(draft.embeddingModel) && (
+                            {models.data?.connected &&
+                              !installedModels.includes(draft.retrievalSettings.rerankModel) && (
                                 <p className="mt-1 text-xs text-amber-700">
-                                  Embedding model chưa được cài đặt.
+                                  Model chưa được cài trên Ollama.
                                 </p>
-                              )
-                            )}
+                              )}
                           </div>
-                          {!models.isFetching && !models.data?.connected && (
-                            <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
-                              {models.data?.error || 'Chưa kiểm tra được kết nối.'}
-                            </p>
-                          )}
-                        </div>
-                      </section>
-                      <section className="grid gap-5 px-5 py-6 lg:grid-cols-[160px_minmax(0,1fr)] sm:px-6">
-                        <label
-                          htmlFor="ai-rerank-model"
-                          className="pt-1 text-xs font-semibold text-slate-700"
-                        >
-                          Model rerank
-                        </label>
-                        <div className="min-w-0">
-                          <select
-                            id="ai-rerank-model"
-                            form="ai-configuration-form"
-                            value={draft.retrievalSettings.rerankModel}
+                        </section>
+                        <div className="px-5 py-6 sm:px-6">
+                          <KnowledgeRetrievalSettings
+                            settings={draft.retrievalSettings}
                             disabled={!canManage || isSaving}
-                            onChange={(event) =>
-                              updateDraft({
-                                retrievalSettings: {
-                                  ...draft.retrievalSettings,
-                                  rerankModel: event.target.value,
-                                },
-                              })
-                            }
-                            className={inputStyle}
-                          >
-                            {[
-                              ...new Set([draft.retrievalSettings.rerankModel, ...installedModels]),
-                            ].map((model) => (
-                              <option key={model}>{model}</option>
-                            ))}
-                          </select>
-                          {models.data?.connected &&
-                            !installedModels.includes(draft.retrievalSettings.rerankModel) && (
-                              <p className="mt-1 text-xs text-amber-700">
-                                Model chưa được cài trên Ollama.
-                              </p>
-                            )}
+                            onChange={(retrievalSettings) => updateDraft({ retrievalSettings })}
+                            formId="ai-configuration-form"
+                            idPrefix="configuration-retrieval"
+                            showModelSelector={false}
+                            wide
+                          />
                         </div>
-                      </section>
-                      <div className="px-5 py-6 sm:px-6">
-                        <KnowledgeRetrievalSettings
-                          settings={draft.retrievalSettings}
-                          disabled={!canManage || isSaving}
-                          onChange={(retrievalSettings) => updateDraft({ retrievalSettings })}
-                          formId="ai-configuration-form"
-                          idPrefix="configuration-retrieval"
-                          showModelSelector={false}
-                          wide
-                        />
                       </div>
-                    </>
-                  )}
+                    </details>
+                  </section>
                 </div>
               </>
             )
           )}
           {canManage && draft && !configuration.isError && (
             <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur-sm">
-              {activeDirty && (
+              {configurationDirty && (
                 <p role="status" className="mr-auto text-xs text-amber-700">
                   Có thay đổi chưa lưu.
                 </p>
@@ -954,7 +1116,7 @@ export const AiManagementView: React.FC = () => {
                 form="ai-configuration-form"
                 type="submit"
                 className={primaryButton}
-                disabled={!activeDirty || isSaving || (tab === 'assistant' && profileBusy)}
+                disabled={!configurationDirty || isSaving || profileBusy}
               >
                 {isSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

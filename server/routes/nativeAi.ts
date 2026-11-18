@@ -16,6 +16,7 @@ import {
   AiFailure,
   aiConfigSchema,
   assistantConfigSchema,
+  autoReplyPhonesConfigSchema,
   ragConfigSchema,
   generationInputSchema,
   knowledgeSchema,
@@ -58,8 +59,30 @@ router.get('/configuration', async (_req, res) => {
     return failure(res, error);
   }
 });
+router.get('/configuration/auto-reply-phones', async (_req, res) => {
+  try {
+    return res.json(
+      await prisma.whatsAppConnection.findMany({
+        where: { status: 'connected' },
+        orderBy: [{ createdAt: 'asc' }, { phoneNumberId: 'asc' }],
+        select: {
+          phoneNumberId: true,
+          displayPhoneNumber: true,
+          verifiedName: true,
+          autoReplyEnabled: true,
+        },
+      }),
+    );
+  } catch (error) {
+    return failure(res, error);
+  }
+});
 function updateConfiguration(
-  schema: typeof aiConfigSchema | typeof assistantConfigSchema | typeof ragConfigSchema,
+  schema:
+    | typeof aiConfigSchema
+    | typeof assistantConfigSchema
+    | typeof ragConfigSchema
+    | typeof autoReplyPhonesConfigSchema,
 ) {
   return async (req: Request, res: Response) => {
     const parsed = schema.safeParse(req.body);
@@ -74,8 +97,12 @@ function updateConfiguration(
       if (aiProfile) realtimeHub.broadcast('ai:profile', aiProfile);
       realtimeHub.broadcast('ai:status', {
         scope: 'global',
-        isAiEnabled: result.autoReplyEnabled,
-        suggestionsEnabled: result.suggestionsEnabled,
+        ...('autoReplyEnabled' in parsed.data || 'ragEnabled' in parsed.data
+          ? { isAiEnabled: result.autoReplyEnabled }
+          : {}),
+        ...('suggestionsEnabled' in parsed.data
+          ? { suggestionsEnabled: result.suggestionsEnabled }
+          : {}),
       });
       return res.json({ ...result, reindexing, ...(aiProfile ? { aiProfile } : {}) });
     } catch (error) {
@@ -97,6 +124,11 @@ router.put(
   '/configuration/rag',
   requirePermission(Permission.AI_MANAGE),
   updateConfiguration(ragConfigSchema),
+);
+router.put(
+  '/configuration/auto-reply-phones',
+  requirePermission(Permission.AI_MANAGE),
+  updateConfiguration(autoReplyPhonesConfigSchema),
 );
 router.put('/retrieval-settings', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = retrievalSettingsSchema.safeParse(req.body);
@@ -291,11 +323,9 @@ router.put('/knowledge/:id', requirePermission(Permission.AI_MANAGE), async (req
 router.post('/knowledge/:id/reindex', requirePermission(Permission.AI_MANAGE), async (req, res) => {
   const parsed = knowledgeReindexSchema.safeParse(req.body ?? {});
   if (!parsed.success)
-    return res
-      .status(400)
-      .json({
-        error: 'Cấu hình Reindex không hợp lệ. Kiểm tra thiết lập chia đoạn và phiên bản tài liệu.',
-      });
+    return res.status(400).json({
+      error: 'Cấu hình Reindex không hợp lệ. Kiểm tra thiết lập chia đoạn và phiên bản tài liệu.',
+    });
   try {
     const id = String(req.params.id);
     const result = await reindexKnowledgeDocument(id, parsed.data);

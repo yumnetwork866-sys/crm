@@ -13,8 +13,8 @@ const saved = {
   retrievalSettings: { ...defaultRetrievalSettings },
 };
 
-describe('separate assistant and RAG configuration drafts', () => {
-  it('only includes fields owned by the tab in its save payload', () => {
+describe('assistant and RAG configuration drafts', () => {
+  it('only includes fields owned by the scope in its save payload', () => {
     expect(pickConfigurationScope(saved, 'assistant')).toEqual({
       model: 'chat',
       suggestionsEnabled: true,
@@ -53,13 +53,13 @@ describe('separate assistant and RAG configuration drafts', () => {
     expect(result.autoReplyEnabled).toBe(false);
     expect(result.ragEnabled).toBe(false);
   });
-  it('does not enable auto reply against an unsaved RAG toggle', () => {
+  it('keeps auto reply enabled when RAG is enabled in the same draft', () => {
     const result = mergeConfigurationDraft(
       { ...saved, ragEnabled: false },
       { ...saved, autoReplyEnabled: true },
       { assistant: true, rag: true },
     );
     expect(result.ragEnabled).toBe(true);
-    expect(result.autoReplyEnabled).toBe(false);
+    expect(result.autoReplyEnabled).toBe(true);
   });
 });

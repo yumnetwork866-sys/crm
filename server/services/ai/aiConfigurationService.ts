@@ -8,7 +8,7 @@ import { resolveRetrievalSettings } from '../../../shared/knowledgeRetrievalSett
 import { validateRerankSettings } from './rerankService';
 
 export async function saveAiConfiguration(input: Partial<z.infer<typeof aiConfigSchema>>) {
-  const { aiProfile, retrievalSettings, ...settings } = input;
+  const { aiProfile, retrievalSettings, autoReplyPhoneUpdates, ...settings } = input;
   const current = await getAiConfig();
   if (retrievalSettings)
     await validateRerankSettings(
@@ -47,6 +47,22 @@ export async function saveAiConfiguration(input: Partial<z.infer<typeof aiConfig
         ...(input.embeddingModel ? { embeddingDimensions: dimensions } : {}),
       },
     });
+    const phoneUpdates = Object.entries(autoReplyPhoneUpdates ?? {});
+    for (const enabled of [false, true]) {
+      const phoneIds = phoneUpdates.filter(([, value]) => value === enabled).map(([id]) => id);
+      if (!phoneIds.length) continue;
+      const { count } = await tx.whatsAppConnection.updateMany({
+        where: { phoneNumberId: { in: phoneIds }, status: 'connected' },
+        data: { autoReplyEnabled: enabled },
+      });
+      if (count !== phoneIds.length)
+        throw new AiFailure(
+          'WHATSAPP_CONNECTION_CHANGED',
+          'configuration',
+          'Danh sách số WhatsApp đã thay đổi. Tải lại cấu hình và thử lại.',
+          409,
+        );
+    }
     const reindexing =
       previous.embeddingModel !== config.embeddingModel ||
       previous.embeddingDimensions !== config.embeddingDimensions;
